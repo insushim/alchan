@@ -1,0 +1,1329 @@
+/* RealEstateRegistry.js (모든 함수가 포함된 최종본) */
+import React, { useState, useEffect } from "react";
+import "./RealEstateRegistry.css";
+import { useAuth } from "./AuthContext";
+
+// firebase.js에서 익스포트하는 함수들
+import {
+  db,
+  serverTimestamp,
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  writeBatch,
+  query,
+  where,
+  runTransaction,
+  increment,
+} from "./firebase";
+
+// onSnapshot과 orderBy는 firebase/firestore에서 직접 가져옵니다.
+import {
+  onSnapshot as firebaseOnSnapshot,
+  orderBy as firebaseOrderBy,
+} from "firebase/firestore";
+
+const DEFAULT_SETTINGS = {
+  totalProperties: 30,
+  basePrice: 50000000,
+  rentPercentage: 1,
+  layoutColumns: 6,
+  lastRentCollection: null,
+};
+
+const RealEstateRegistry = () => {
+  const {
+    userDoc: currentUser,
+    loading: authLoading,
+    isAdmin,
+    refreshUserDocument,
+  } = useAuth();
+
+  const classCode = currentUser?.classCode;
+
+  const [properties, setProperties] = useState([]);
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+  const [allUsersData, setAllUsersData] = useState([]);
+
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [propertiesLoading, setPropertiesLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(true);
+
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [operationLoading, setOperationLoading] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState(null);
+  const [showQuickAction, setShowQuickAction] = useState(null);
+  const [adminInputs, setAdminInputs] = useState({ ...DEFAULT_SETTINGS });
+
+  // 팝업이 열릴 때 body 스크롤 막기/해제하기
+  useEffect(() => {
+    const isModalOpen = showAdminPanel || selectedProperty || showQuickAction;
+    if (isModalOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [showAdminPanel, selectedProperty, showQuickAction]);
+
+  // Settings 로드 Effect
+  useEffect(() => {
+    if (!classCode) {
+      setSettings(DEFAULT_SETTINGS);
+      setAdminInputs({ ...DEFAULT_SETTINGS });
+      setSettingsLoading(false);
+      return;
+    }
+    setSettingsLoading(true);
+    const settingsRefInstance = doc(
+      db,
+      "classes",
+      classCode,
+      "realEstateSettings",
+      "settingsDoc"
+    );
+    const unsubscribe = firebaseOnSnapshot(
+      settingsRefInstance,
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          const fetchedSettings = docSnap.data();
+          if (fetchedSettings.lastRentCollection?.toDate) {
+            fetchedSettings.lastRentCollection =
+              fetchedSettings.lastRentCollection.toDate();
+          }
+          setSettings(fetchedSettings);
+          setAdminInputs({
+            totalProperties: fetchedSettings.totalProperties.toString(),
+            basePrice: fetchedSettings.basePrice.toString(),
+            rentPercentage: fetchedSettings.rentPercentage.toString(),
+            layoutColumns: fetchedSettings.layoutColumns.toString(),
+          });
+        } else {
+          try {
+            await setDoc(settingsRefInstance, {
+              ...DEFAULT_SETTINGS,
+              createdAt: serverTimestamp(),
+              classCode: classCode,
+              updatedAt: serverTimestamp(),
+            });
+            setSettings(DEFAULT_SETTINGS);
+            setAdminInputs({ ...DEFAULT_SETTINGS });
+          } catch (error) {
+            console.error(
+              "[RealEstate] Error creating default settings:",
+              error
+            );
+          }
+        }
+        setSettingsLoading(false);
+      },
+      (error) => {
+        console.error("[RealEstate] Error fetching settings:", error);
+        setSettings(DEFAULT_SETTINGS);
+        setAdminInputs({ ...DEFAULT_SETTINGS });
+        setSettingsLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [classCode]);
+
+  // Properties 로드 Effect
+  useEffect(() => {
+    if (!classCode) {
+      setProperties([]);
+      setPropertiesLoading(false);
+      return;
+    }
+    setPropertiesLoading(true);
+    const propertiesCollectionRefInstance = collection(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties"
+    );
+    const q = query(propertiesCollectionRefInstance, firebaseOrderBy("id"));
+    const unsubscribe = firebaseOnSnapshot(
+      q,
+      (querySnapshot) => {
+        const propsData = querySnapshot.docs.map((doc) => ({
+          firestoreDocId: doc.id,
+          ...doc.data(),
+          lastRentPayment: doc.data().lastRentPayment?.toDate
+            ? doc.data().lastRentPayment.toDate()
+            : null,
+        }));
+        propsData.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+        setProperties(propsData);
+        setPropertiesLoading(false);
+      },
+      (error) => {
+        console.error("[RealEstate] Error fetching properties:", error);
+        setProperties([]);
+        setPropertiesLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, [classCode]);
+
+  // 학급 사용자 목록 로드 Effect
+  useEffect(() => {
+    if (!classCode) {
+      setAllUsersData([]);
+      setUsersLoading(false);
+      return;
+    }
+    setUsersLoading(true);
+    const usersQuery = query(
+      collection(db, "users"),
+      where("classCode", "==", classCode)
+    );
+    getDocs(usersQuery)
+      .then((snapshot) => {
+        setAllUsersData(
+          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+      })
+      .catch((error) => {
+        console.error("[RealEstate] Error fetching users by classCode:", error);
+        setAllUsersData([]);
+      })
+      .finally(() => setUsersLoading(false));
+  }, [classCode]);
+
+  const handleInitializeProperties = async () => {
+    if (!classCode || !currentUser || !isAdmin()) {
+      alert("초기화 권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `정말로 학급 [${classCode}]의 모든 부동산을 정부 소유 초기값으로 되돌리시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+      )
+    )
+      return;
+    setOperationLoading(true);
+    try {
+      const currentSettings = settings;
+      const basePrice = currentSettings.basePrice;
+      const rent = Math.round(
+        basePrice * (currentSettings.rentPercentage / 100)
+      );
+      const batch = writeBatch(db);
+      const propCollRef = collection(
+        db,
+        "classes",
+        classCode,
+        "realEstateProperties"
+      );
+      const existingPropsSnapshot = await getDocs(propCollRef);
+      existingPropsSnapshot.forEach((doc) => batch.delete(doc.ref));
+      for (let i = 1; i <= currentSettings.totalProperties; i++) {
+        const propertyIdStr = i.toString();
+        const propertyDocRef = doc(propCollRef, propertyIdStr);
+        batch.set(propertyDocRef, {
+          id: propertyIdStr,
+          price: basePrice,
+          owner: "government",
+          ownerName: "정부",
+          rent: rent,
+          tenant: null,
+          tenantId: null,
+          tenantName: null,
+          forSale: false,
+          salePrice: 0,
+          lastRentPayment: null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          classCode: classCode,
+        });
+      }
+      await batch.commit();
+      alert("부동산이 성공적으로 초기화되었습니다.");
+      setShowAdminPanel(false);
+    } catch (error) {
+      console.error("[RealEstate] Error initializing properties:", error);
+      alert("부동산 초기화 중 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handlePurchaseProperty = async (propertyId) => {
+    if (!currentUser || !classCode) {
+      alert("로그인이 필요하거나 학급 정보가 없습니다.");
+      return;
+    }
+    setOperationLoading(true);
+    const propertyRef = doc(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties",
+      propertyId
+    );
+    const userRef = doc(db, "users", currentUser.id);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const propertyDoc = await transaction.get(propertyRef);
+        if (!propertyDoc.exists())
+          throw new Error("부동산 정보를 찾을 수 없습니다.");
+        const propertyData = propertyDoc.data();
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists())
+          throw new Error("구매자 정보를 찾을 수 없습니다.");
+        const currentUserFirestoreData = userDoc.data();
+        const purchasePrice = propertyData.forSale
+          ? propertyData.salePrice
+          : propertyData.price;
+        if (currentUserFirestoreData.cash < purchasePrice)
+          throw new Error("현금이 부족합니다.");
+        transaction.update(userRef, {
+          cash: increment(-purchasePrice),
+          updatedAt: serverTimestamp(),
+        });
+        if (propertyData.owner !== "government") {
+          const sellerRef = doc(db, "users", propertyData.owner);
+          const sellerDoc = await transaction.get(sellerRef);
+          if (sellerDoc.exists()) {
+            transaction.update(sellerRef, {
+              cash: increment(purchasePrice),
+              updatedAt: serverTimestamp(),
+            });
+          } else {
+            console.warn(
+              `[RealEstate] Seller ${propertyData.owner} not found. Cannot credit sale amount.`
+            );
+          }
+        }
+        transaction.update(propertyRef, {
+          owner: currentUser.id,
+          ownerName: currentUser.name || "알 수 없는 소유자",
+          forSale: false,
+          salePrice: 0,
+          updatedAt: serverTimestamp(),
+        });
+      });
+      if (refreshUserDocument) refreshUserDocument();
+      setShowQuickAction(null);
+      setSelectedProperty(null);
+      alert(`부동산 #${propertyId}를 성공적으로 구매했습니다.`);
+    } catch (error) {
+      console.error("부동산 구매 오류:", error);
+      alert(`구매 중 오류 발생: ${error.message}`);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleSetForSale = async (propertyId) => {
+    const property = properties.find((p) => p.id === propertyId);
+    if (
+      !property ||
+      !currentUser ||
+      property.owner !== currentUser.id ||
+      !classCode
+    ) {
+      alert("소유한 부동산만 판매할 수 있거나 정보가 부족합니다.");
+      return;
+    }
+    const salePriceInput = prompt("판매 가격을 입력하세요 (숫자만):");
+    if (!salePriceInput) return;
+    const salePrice = parseInt(salePriceInput);
+    if (isNaN(salePrice) || salePrice <= 0) {
+      alert("유효한 판매 가격을 입력하세요.");
+      return;
+    }
+    setOperationLoading(true);
+    const propertyRef = doc(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties",
+      propertyId
+    );
+    try {
+      await updateDoc(propertyRef, {
+        forSale: true,
+        salePrice: salePrice,
+        updatedAt: serverTimestamp(),
+      });
+      setShowQuickAction(null);
+      setSelectedProperty(null);
+      alert("판매 설정이 완료되었습니다.");
+    } catch (error) {
+      console.error("판매 설정 오류:", error);
+      alert("판매 설정 중 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleCancelSale = async (propertyId) => {
+    if (!classCode) return;
+    setOperationLoading(true);
+    const propertyRef = doc(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties",
+      propertyId
+    );
+    try {
+      await updateDoc(propertyRef, {
+        forSale: false,
+        salePrice: 0,
+        updatedAt: serverTimestamp(),
+      });
+      setShowQuickAction(null);
+      setSelectedProperty(null);
+      alert("판매가 취소되었습니다.");
+    } catch (error) {
+      console.error("판매 취소 오류:", error);
+      alert("판매 취소 중 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleTenancy = async (propertyId) => {
+    if (!currentUser || !classCode) return;
+
+    const isAlreadyTenantElsewhere = properties.some(
+      (p) => p.tenantId === currentUser.id
+    );
+
+    setOperationLoading(true);
+    const propertyRef = doc(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties",
+      propertyId
+    );
+    const userRef = doc(db, "users", currentUser.id);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const propertyDoc = await transaction.get(propertyRef);
+        if (!propertyDoc.exists())
+          throw new Error("부동산 정보를 찾을 수 없습니다.");
+        const propertyData = propertyDoc.data();
+
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists())
+          throw new Error("사용자 정보를 찾을 수 없습니다.");
+        const userData = userDoc.data();
+
+        if (propertyData.tenantId === currentUser.id) {
+          transaction.update(propertyRef, {
+            tenant: null,
+            tenantId: null,
+            tenantName: null,
+            lastRentPayment: null,
+            updatedAt: serverTimestamp(),
+          });
+          alert("성공적으로 퇴거했습니다.");
+          return;
+        }
+
+        if (propertyData.tenantId)
+          throw new Error("이미 다른 사람이 입주해 있습니다.");
+        if (isAlreadyTenantElsewhere)
+          throw new Error(
+            "이미 다른 부동산에 입주해 있습니다. 먼저 퇴거해야 합니다."
+          );
+        if (userData.cash < propertyData.rent)
+          throw new Error("첫 월세를 낼 현금이 부족합니다.");
+
+        transaction.update(userRef, {
+          cash: increment(-propertyData.rent),
+          updatedAt: serverTimestamp(),
+        });
+
+        if (propertyData.owner !== "government") {
+          const ownerRef = doc(db, "users", propertyData.owner);
+          // 자기 땅에 입주하는 경우, 자기 자신에게 월세를 내게 되므로 cash는 변동 없음
+          if (propertyData.owner !== currentUser.id) {
+            transaction.update(ownerRef, {
+              cash: increment(propertyData.rent),
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+
+        transaction.update(propertyRef, {
+          tenant: currentUser.name,
+          tenantId: currentUser.id,
+          tenantName: currentUser.name,
+          lastRentPayment: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        alert("성공적으로 입주했습니다. 첫 월세가 지불되었습니다.");
+      });
+
+      if (refreshUserDocument) refreshUserDocument();
+      setShowQuickAction(null);
+      setSelectedProperty(null);
+    } catch (error) {
+      console.error("입주/퇴거 처리 오류:", error);
+      alert(`처리 중 오류 발생: ${error.message}`);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!classCode || !isAdmin()) {
+      alert("설정 저장 권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+    const newTotal = parseInt(adminInputs.totalProperties);
+    const newBasePrice = parseInt(adminInputs.basePrice);
+    const newRentPercentage = parseFloat(adminInputs.rentPercentage);
+    const newLayoutColumns = parseInt(adminInputs.layoutColumns);
+    if (
+      isNaN(newTotal) ||
+      isNaN(newBasePrice) ||
+      isNaN(newRentPercentage) ||
+      isNaN(newLayoutColumns) ||
+      newTotal <= 0 ||
+      newBasePrice <= 0 ||
+      newRentPercentage < 0 ||
+      newLayoutColumns <= 0
+    ) {
+      alert(
+        "유효하지 않은 값이 있습니다. 가격, 부동산 개수, 칸 수는 0보다 커야합니다."
+      );
+      return;
+    }
+    setOperationLoading(true);
+    const newSettingsData = {
+      totalProperties: newTotal,
+      basePrice: newBasePrice,
+      rentPercentage: newRentPercentage,
+      layoutColumns: newLayoutColumns,
+      updatedAt: serverTimestamp(),
+    };
+    try {
+      const settingsRefInstance = doc(
+        db,
+        "classes",
+        classCode,
+        "realEstateSettings",
+        "settingsDoc"
+      );
+      await updateDoc(settingsRefInstance, newSettingsData);
+      alert(
+        "설정이 성공적으로 저장되었습니다. 변경된 총 부동산 개수 등은 '부동산 초기화'를 통해 반영해야 할 수 있습니다."
+      );
+      setShowAdminPanel(false);
+    } catch (error) {
+      console.error("설정 저장 오류:", error);
+      alert("설정 저장 중 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const handleCollectRent = async () => {
+    if (!classCode || !currentUser || !isAdmin()) {
+      alert("월세 징수 권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `학급 [${classCode}]의 모든 세입자로부터 월세를 강제 징수하시겠습니까? (미납 시에도 현금 차감 시도)`
+      )
+    )
+      return;
+    setOperationLoading(true);
+    let successCount = 0;
+    let failCount = 0;
+    const now = serverTimestamp();
+    const propCollRef = collection(
+      db,
+      "classes",
+      classCode,
+      "realEstateProperties"
+    );
+    const rentedPropertiesQuery = query(
+      propCollRef,
+      where("tenantId", "!=", null)
+    );
+    try {
+      const rentedPropertiesSnapshot = await getDocs(rentedPropertiesQuery);
+      if (rentedPropertiesSnapshot.empty) {
+        alert("월세를 징수할 세입자가 있는 부동산이 없습니다.");
+        setOperationLoading(false);
+        return;
+      }
+      for (const propDoc of rentedPropertiesSnapshot.docs) {
+        const property = propDoc.data();
+        const propertyFirestoreRef = propDoc.ref;
+        if (property.tenantId && property.rent > 0) {
+          try {
+            await runTransaction(db, async (transaction) => {
+              const tenantDocRef = doc(db, "users", property.tenantId);
+              const tenantSnap = await transaction.get(tenantDocRef);
+              if (!tenantSnap.exists()) {
+                failCount++;
+                return;
+              }
+              const tenantData = tenantSnap.data();
+              if (tenantData.cash < property.rent) {
+                transaction.update(propertyFirestoreRef, {
+                  lastRentPayment: now,
+                  updatedAt: now,
+                });
+                failCount++;
+                return;
+              }
+              transaction.update(tenantDocRef, {
+                cash: increment(-property.rent),
+                updatedAt: now,
+              });
+              if (
+                property.owner !== "government" &&
+                property.owner !== property.tenantId
+              ) {
+                const ownerDocRef = doc(db, "users", property.owner);
+                const ownerDoc = await transaction.get(ownerDocRef);
+                if (ownerDoc.exists()) {
+                  transaction.update(ownerDocRef, {
+                    cash: increment(property.rent),
+                    updatedAt: now,
+                  });
+                }
+              }
+              transaction.update(propertyFirestoreRef, {
+                lastRentPayment: now,
+                updatedAt: now,
+              });
+              successCount++;
+            });
+          } catch (transactionError) {
+            console.error(
+              `부동산 ID ${property.id} 월세 징수 트랜잭션 실패:`,
+              transactionError
+            );
+            failCount++;
+          }
+        }
+      }
+      const settingsRefInstance = doc(
+        db,
+        "classes",
+        classCode,
+        "realEstateSettings",
+        "settingsDoc"
+      );
+      await updateDoc(settingsRefInstance, {
+        lastRentCollection: now,
+        updatedAt: now,
+      });
+      alert(`월세 징수 완료: 성공 ${successCount}건, 실패/미납 ${failCount}건`);
+      if (refreshUserDocument) refreshUserDocument();
+    } catch (error) {
+      console.error("월세 징수 중 전체 오류:", error);
+      alert("월세 징수 중 심각한 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  const renderPropertyLayout = () => {
+    const layoutProperties = properties.slice(0, settings.totalProperties);
+    return (
+      <div className="property-layout">
+        <h3>🏢 부동산 배치도 (학급: {classCode || "정보 없음"})</h3>
+        <div
+          className="layout-grid"
+          style={{
+            gridTemplateColumns: `repeat(${settings.layoutColumns}, 1fr)`,
+          }}
+        >
+          {Array.from({ length: settings.totalProperties }, (_, index) => {
+            const propertyId = (index + 1).toString();
+            const property = layoutProperties.find((p) => p.id === propertyId);
+            let statusClass = "layout-cell empty";
+            let title = `#${propertyId}`;
+            if (property) {
+              const ownerData = allUsersData?.find(
+                (u) => u.id === property.owner
+              );
+              const ownerName =
+                property.ownerName ||
+                (property.owner === "government"
+                  ? "정부"
+                  : ownerData?.name || "소유주 불명");
+              title = `#${propertyId} - ${ownerName}`;
+              if (property.owner === "government")
+                statusClass = "layout-cell government";
+              else if (property.owner === currentUser?.id)
+                statusClass = "layout-cell owned";
+              else if (property.forSale) statusClass = "layout-cell for-sale";
+              else statusClass = "layout-cell occupied";
+              const tenantData = allUsersData?.find(
+                (u) => u.id === property.tenantId
+              );
+              const tenantDisplayName = property.tenantName || tenantData?.name;
+              if (property.tenantId === currentUser?.id) {
+                statusClass += " rented-by-me";
+                title += ` (내가 임차중 - ${
+                  tenantDisplayName || "세입자 불명"
+                })`;
+              } else if (property.tenantId) {
+                title += ` (임차인: ${tenantDisplayName || "세입자 불명"})`;
+              }
+            }
+            return (
+              <div
+                key={propertyId}
+                className={statusClass}
+                onClick={() => property && setShowQuickAction(property)}
+                title={title}
+              >
+                {propertyId}
+              </div>
+            );
+          })}
+        </div>
+        <div className="layout-legend">
+          <div className="legend-item">
+            <div className="legend-color government"></div>
+            <span>정부 소유</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color owned"></div>
+            <span>내 소유</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color rented-by-me-legend"></div>
+            <span>내가 임차중</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color for-sale"></div>
+            <span>판매중</span>
+          </div>
+          <div className="legend-item">
+            <div className="legend-color occupied"></div>
+            <span>타인 소유</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderQuickActionModal = () => {
+    if (!showQuickAction || !currentUser) return null;
+    const property = showQuickAction;
+    const isOwner = property.owner === currentUser.id;
+    const isTenantOfThisProperty = property.tenantId === currentUser.id;
+    const isTenantElsewhere = properties.some(
+      (p) => p.tenantId === currentUser.id && p.id !== property.id
+    );
+
+    const ownerData = allUsersData?.find((u) => u.id === property.owner);
+    const ownerName =
+      property.owner === "government"
+        ? "정부"
+        : property.ownerName || ownerData?.name || "소유주 불명";
+    const tenantData = allUsersData?.find((u) => u.id === property.tenantId);
+    const tenantName = property.tenantName || tenantData?.name;
+
+    let tenancyButton;
+    if (isTenantOfThisProperty) {
+      tenancyButton = (
+        <button
+          className="quick-action-btn btn-rent"
+          onClick={() => handleTenancy(property.id)}
+          disabled={operationLoading}
+        >
+          퇴거하기
+        </button>
+      );
+    } else if (property.tenantId) {
+      tenancyButton = (
+        <button className="quick-action-btn btn-rent" disabled>
+          입주불가
+        </button>
+      );
+    } else if (isTenantElsewhere) {
+      tenancyButton = (
+        <button
+          className="quick-action-btn btn-rent"
+          disabled
+          title="다른 곳에 입주해 있습니다. 먼저 퇴거하세요."
+        >
+          입주하기
+        </button>
+      );
+    } else {
+      tenancyButton = (
+        <button
+          className="quick-action-btn btn-rent"
+          onClick={() => handleTenancy(property.id)}
+          disabled={operationLoading || currentUser.cash < property.rent}
+        >
+          입주하기
+        </button>
+      );
+    }
+
+    return (
+      <div className="modal-overlay" onClick={() => setShowQuickAction(null)}>
+        <div
+          className="quick-action-modal"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="quick-modal-header">
+            <h3>⚡ 빠른 액션 #{property.id}</h3>
+            <button
+              className="close-btn"
+              onClick={() => setShowQuickAction(null)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="quick-modal-content">
+            <div className="quick-property-info">
+              <div className="quick-info-row">
+                <span className="detail-label">소유자</span>
+                <span className="detail-value">{ownerName}</span>
+              </div>
+              <div className="quick-info-row">
+                <span className="detail-label">부동산 가격</span>
+                <span className="detail-value">
+                  {(property.price / 10000).toFixed(0)}만원
+                </span>
+              </div>
+              <div className="quick-info-row">
+                <span className="detail-label">월세</span>
+                <span className="detail-value">
+                  {(property.rent / 10000).toFixed(0)}만원
+                </span>
+              </div>
+              {tenantName && (
+                <div className="quick-info-row">
+                  <span className="detail-label">세입자</span>
+                  <span className="detail-value">{tenantName}</span>
+                </div>
+              )}
+              {property.forSale && (
+                <div className="quick-info-row">
+                  <span className="detail-label">판매가격</span>
+                  <span
+                    className="detail-value"
+                    style={{ color: "#ef4444", fontWeight: "bold" }}
+                  >
+                    {(property.salePrice / 10000).toFixed(0)}만원
+                  </span>
+                </div>
+              )}
+            </div>
+            <div className="quick-actions">
+              {(property.owner === "government" || property.forSale) &&
+                !isOwner && (
+                  <button
+                    className="quick-action-btn btn-purchase"
+                    onClick={() => handlePurchaseProperty(property.id)}
+                    disabled={
+                      operationLoading ||
+                      currentUser.cash <
+                        (property.forSale ? property.salePrice : property.price)
+                    }
+                  >
+                    구매하기
+                  </button>
+                )}
+              {tenancyButton}
+              {isOwner && !property.forSale && (
+                <button
+                  className="quick-action-btn btn-sell"
+                  onClick={() => handleSetForSale(property.id)}
+                  disabled={operationLoading}
+                >
+                  판매하기
+                </button>
+              )}
+              {isOwner && property.forSale && (
+                <button
+                  className="quick-action-btn btn-cancel"
+                  onClick={() => handleCancelSale(property.id)}
+                  disabled={operationLoading}
+                >
+                  판매취소
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPropertyGrid = () => {
+    const activeProperties = properties.slice(0, settings.totalProperties);
+    if (activeProperties.length === 0 && !propertiesLoading)
+      return (
+        <div className="loading-message">
+          부동산 데이터가 없습니다. 관리자가 초기화할 수 있습니다.
+        </div>
+      );
+
+    const userIsTenantElsewhere = properties.some(
+      (p) => p.tenantId === currentUser.id
+    );
+
+    return (
+      <div className="property-grid">
+        {activeProperties.map((property) => {
+          const isOwner = currentUser && property.owner === currentUser.id;
+          const isTenantOfThisProperty =
+            currentUser && property.tenantId === currentUser.id;
+          const ownerData = allUsersData?.find((u) => u.id === property.owner);
+          const ownerName =
+            property.owner === "government"
+              ? "정부"
+              : property.ownerName || ownerData?.name || "소유주 불명";
+          const tenantData = allUsersData?.find(
+            (u) => u.id === property.tenantId
+          );
+          const tenantNameDisplay = property.tenantName || tenantData?.name;
+          let propertyClass = "property-card";
+          if (property.owner === "government") propertyClass += " government";
+          else if (isOwner) propertyClass += " owned";
+          else if (property.forSale) propertyClass += " for-sale";
+          else propertyClass += " other-owned";
+
+          let tenancyButton;
+          if (isTenantOfThisProperty) {
+            tenancyButton = (
+              <button
+                className="btn-action btn-rent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTenancy(property.id);
+                }}
+                disabled={operationLoading}
+              >
+                퇴거
+              </button>
+            );
+          } else if (property.tenantId) {
+            tenancyButton = (
+              <button className="btn-action btn-rent" disabled>
+                입주불가
+              </button>
+            );
+          } else if (userIsTenantElsewhere) {
+            tenancyButton = (
+              <button
+                className="btn-action btn-rent"
+                disabled
+                title="다른 곳에 입주해 있습니다."
+              >
+                입주
+              </button>
+            );
+          } else {
+            tenancyButton = (
+              <button
+                className="btn-action btn-rent"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleTenancy(property.id);
+                }}
+                disabled={operationLoading || currentUser.cash < property.rent}
+              >
+                입주
+              </button>
+            );
+          }
+
+          return (
+            <div
+              key={property.id}
+              className={propertyClass}
+              onClick={() => setSelectedProperty(property)}
+            >
+              <div className="property-header">
+                <h4>#{property.id}</h4>
+                <div style={{ display: "flex", gap: "0.5rem" }}>
+                  {property.forSale && (
+                    <span className="sale-badge">판매중</span>
+                  )}
+                  {property.tenantId && (
+                    <span className="rent-badge">임대중</span>
+                  )}
+                </div>
+              </div>
+              <div className="property-info">
+                <div className="info-row">
+                  <span className="label">소유자</span>
+                  <span className="value">{ownerName}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">가격</span>
+                  <span className="value">
+                    {(property.price / 10000).toFixed(0)}만원
+                  </span>
+                </div>
+                <div className="info-row">
+                  <span className="label">월세</span>
+                  <span className="value">
+                    {(property.rent / 10000).toFixed(0)}만원
+                  </span>
+                </div>
+                {tenantNameDisplay && (
+                  <div className="info-row">
+                    <span className="label">세입자</span>
+                    <span className="value">{tenantNameDisplay}</span>
+                  </div>
+                )}
+                {property.forSale && (
+                  <div className="info-row sale-price">
+                    <span className="label">판매가</span>
+                    <span className="value">
+                      {(property.salePrice / 10000).toFixed(0)}만원
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="property-actions">
+                {(property.owner === "government" || property.forSale) &&
+                  !isOwner && (
+                    <button
+                      className="btn-action btn-purchase"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePurchaseProperty(property.id);
+                      }}
+                      disabled={
+                        operationLoading ||
+                        !currentUser ||
+                        currentUser.cash <
+                          (property.forSale
+                            ? property.salePrice
+                            : property.price)
+                      }
+                    >
+                      구매
+                    </button>
+                  )}
+                {tenancyButton}
+                {isOwner && !property.forSale && (
+                  <button
+                    className="btn-action btn-sell"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleSetForSale(property.id);
+                    }}
+                    disabled={operationLoading}
+                  >
+                    판매설정
+                  </button>
+                )}
+                {isOwner && property.forSale && (
+                  <button
+                    className="btn-action btn-cancel"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleCancelSale(property.id);
+                    }}
+                    disabled={operationLoading}
+                  >
+                    판매취소
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderAdminPanel = () => {
+    if (!showAdminPanel || !isAdmin()) return null;
+    const tenantIds = new Set(
+      properties.map((p) => p.tenantId).filter(Boolean)
+    );
+    const nonTenants = allUsersData.filter(
+      (user) => !tenantIds.has(user.id) && !user.isAdmin
+    );
+    return (
+      <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
+        <div className="admin-panel" onClick={(e) => e.stopPropagation()}>
+          <div className="panel-header">
+            <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
+            <button
+              className="close-btn"
+              onClick={() => setShowAdminPanel(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <div className="panel-content">
+            <div className="form-group">
+              <label>활성화할 부동산 개수 (변경 후 '부동산 초기화' 필요)</label>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                value={adminInputs.totalProperties}
+                onChange={(e) =>
+                  setAdminInputs((prev) => ({
+                    ...prev,
+                    totalProperties: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>배치도 한 줄당 칸 수</label>
+              <select
+                value={adminInputs.layoutColumns}
+                onChange={(e) =>
+                  setAdminInputs((prev) => ({
+                    ...prev,
+                    layoutColumns: e.target.value,
+                  }))
+                }
+              >
+                {[4, 5, 6, 7, 8, 10].map((n) => (
+                  <option key={n} value={n.toString()}>
+                    {n}칸
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>
+                기본 부동산 가격 (원) (변경 후 '부동산 초기화' 필요)
+              </label>
+              <input
+                type="number"
+                min="1000000"
+                step="1000000"
+                value={adminInputs.basePrice}
+                onChange={(e) =>
+                  setAdminInputs((prev) => ({
+                    ...prev,
+                    basePrice: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="form-group">
+              <label>월세 비율 (%) (변경 후 '부동산 초기화' 필요)</label>
+              <input
+                type="number"
+                min="0"
+                max="20"
+                step="0.1"
+                value={adminInputs.rentPercentage}
+                onChange={(e) =>
+                  setAdminInputs((prev) => ({
+                    ...prev,
+                    rentPercentage: e.target.value,
+                  }))
+                }
+              />
+            </div>
+            <div className="panel-actions">
+              <button
+                className="btn-primary"
+                onClick={handleSaveSettings}
+                disabled={operationLoading}
+              >
+                💾 설정 저장
+              </button>
+              <button
+                className="btn-danger"
+                onClick={handleInitializeProperties}
+                disabled={operationLoading}
+              >
+                🔄 부동산 초기화
+              </button>
+            </div>
+            <div className="non-tenant-list">
+              <h4>⚠️ 미입주 학생 ({nonTenants.length}명)</h4>
+              {nonTenants.length > 0 ? (
+                <ul>
+                  {nonTenants.map((user) => (
+                    <li key={user.id}>{user.name}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>모든 학생이 입주했습니다!</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (authLoading || settingsLoading || propertiesLoading || usersLoading) {
+    return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
+  }
+
+  return (
+    <div className="real-estate-exchange">
+      {operationLoading && <div className="loading-overlay">처리 중...</div>}
+      <div className="exchange-header">
+        <div className="header-content">
+          <h1>🏢 부동산 거래소 (학급: {classCode || "정보 없음"})</h1>
+        </div>
+      </div>
+      <div className="stats-container">
+        <div className="stats-bar">
+          <div className="stat-item">
+            <div className="stat-icon">🏘️</div>
+            <div className="stat-content">
+              <div className="stat-value">{settings.totalProperties}</div>
+              <div className="stat-label">전체 부동산</div>
+            </div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-icon">👥</div>
+            <div className="stat-content">
+              <div className="stat-value">
+                {properties.filter((p) => p.owner !== "government").length}
+              </div>
+              <div className="stat-label">개인 소유</div>
+            </div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-icon">🏠</div>
+            <div className="stat-content">
+              <div className="stat-value">
+                {properties.filter((p) => p.tenantId).length}
+              </div>
+              <div className="stat-label">임대 중</div>
+            </div>
+          </div>
+          <div className="stat-item">
+            <div className="stat-icon">💰</div>
+            <div className="stat-content">
+              <div className="stat-value">
+                {properties.filter((p) => p.forSale).length}
+              </div>
+              <div className="stat-label">판매 중</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="exchange-content">
+        {renderPropertyLayout()}
+        {isAdmin() && (
+          <div className="admin-controls">
+            <button
+              className="admin-btn settings"
+              onClick={() => setShowAdminPanel(true)}
+              disabled={operationLoading}
+            >
+              ⚙️ 관리자 설정
+            </button>
+            <button
+              className="admin-btn collect"
+              onClick={handleCollectRent}
+              disabled={operationLoading}
+            >
+              💸 월세 징수
+            </button>
+          </div>
+        )}
+        <div className="properties-section">
+          <h2>📊 부동산 목록</h2>
+          {renderPropertyGrid()}
+        </div>
+      </div>
+      {renderAdminPanel()}
+      {renderQuickActionModal()}
+      {selectedProperty && (
+        <div
+          className="modal-overlay"
+          onClick={() => setSelectedProperty(null)}
+        >
+          <div className="property-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>ℹ️ 부동산 #{selectedProperty.id} 상세정보</h3>
+              <button
+                className="close-btn"
+                onClick={() => setSelectedProperty(null)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-content">
+              <div className="property-details">
+                <div className="detail-row">
+                  <span className="detail-label">소유자</span>
+                  <span className="detail-value">
+                    {selectedProperty.owner === "government"
+                      ? "정부"
+                      : selectedProperty.ownerName ||
+                        allUsersData?.find(
+                          (u) => u.id === selectedProperty.owner
+                        )?.name ||
+                        "소유주 불명"}
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">부동산 가격</span>
+                  <span className="detail-value">
+                    {selectedProperty.price.toLocaleString()}원
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">월세</span>
+                  <span className="detail-value">
+                    {selectedProperty.rent.toLocaleString()}원
+                  </span>
+                </div>
+                {selectedProperty.tenantId && (
+                  <div className="detail-row">
+                    <span className="detail-label">세입자</span>
+                    <span className="detail-value">
+                      {selectedProperty.tenantName ||
+                        allUsersData?.find(
+                          (u) => u.id === selectedProperty.tenantId
+                        )?.name ||
+                        "세입자 불명"}
+                    </span>
+                  </div>
+                )}
+                {selectedProperty.forSale && (
+                  <div className="detail-row sale-highlight">
+                    <span className="detail-label">판매가격</span>
+                    <span className="detail-value">
+                      {selectedProperty.salePrice.toLocaleString()}원
+                    </span>
+                  </div>
+                )}
+                {selectedProperty.lastRentPayment && (
+                  <div className="detail-row">
+                    <span className="detail-label">최근 월세 납부일</span>
+                    <span className="detail-value">
+                      {selectedProperty.lastRentPayment instanceof Date
+                        ? selectedProperty.lastRentPayment.toLocaleDateString()
+                        : "정보 없음"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default RealEstateRegistry;

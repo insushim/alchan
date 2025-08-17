@@ -1,0 +1,122 @@
+/* src/Government.css */
+
+.government-container {
+  /* Dashboard.css의 .dashboard-container 와 유사하게 */
+  padding: 20px; /* 내부 여백 */
+  background-color: #f8f9fa; /* 대시보드와 유사한 연한 회색 배경 */
+  border-radius: 12px; /* 대시보드 섹션과 유사한 둥근 모서리 */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); /* 대시보드 섹션과 유사한 그림자 */
+  margin-bottom: 20px; /* 다른 요소와의 간격 */
+}
+
+.government-header {
+  /* Dashboard.css의 .job-tasks-section h3 와 유사하게 */
+  font-size: 20px; /* 약간 줄임 */
+  font-weight: 600; /* 볼드 처리 */
+  color: #3a3a3a; /* 제목 색상 */
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #6366f1; /* 대시보드 제목과 유사한 보라색 계열 밑줄 */
+  font-family: "Segoe UI", "Roboto", sans-serif; /* 대시보드와 유사한 폰트 */
+}
+
+/* 탭 메뉴 스타일 */
+.government-tabs {
+  display: flex;
+  margin-bottom: -1px; /* 탭 콘텐츠의 테두리와 겹치도록 조정 */
+  border-bottom: 1px solid #dee2e6;
+}
+
+.gov-tab-button {
+  padding: 12px 20px; /* 패딩 조정 */
+  cursor: pointer;
+  border: 1px solid transparent; /* 기본 테두리 투명 */
+  border-bottom: none; /* 하단 테두리 제거 (활성 시 아래 content border 활용) */
+  background-color: transparent;
+  font-size: 16px;
+  font-weight: 500;
+  color: #6c757d;
+  transition: all 0.3s ease;
+  margin-right: 5px; /* 탭 간 간격 */
+  border-radius: 8px 8px 0 0; /* 위쪽 모서리 둥글게 */
+}
+
+.gov-tab-button.active {
+  color: #495057; /* 활성 탭 텍스트 색상 */
+  background-color: #ffffff; /* 활성 탭 배경 흰색 */
+  border-color: #dee2e6 #dee2e6 #ffffff; /* 위, 좌우 테두리 표시 */
+  font-weight: 600;
+}
+
+.gov-tab-button:hover:not(.active) {
+  /* 활성 탭이 아닐 때만 호버 효과 */
+  color: #495057;
+  background-color: #e9ecef; /* 연한 회색 배경 */
+}
+
+/* 탭 콘텐츠 영역 스타일 */
+.government-tab-content {
+  padding: 25px; /* 내부 여백 증가 */
+  background-color: #ffffff; /* 흰색 배경 */
+  border: 1px solid #dee2e6; /* 테두리 */
+  border-radius: 0 8px 8px 8px; /* 탭 아래쪽 모서리 둥글게 */
+  min-height: 300px;
+}
+
+/* 각 탭 내용 컨테이너 스타일 */
+.org-chart-container,
+.tax-service-container,
+.investment-container,
+.send-receive-container {
+  padding: 0; /* 탭 콘텐츠 패딩이 있으므로 내부 패딩 제거 */
+}
+
+.org-chart-container h2,
+.tax-service-container h2,
+.investment-container h2,
+.send-receive-container h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 15px;
+}
+
+.org-chart-container p,
+.tax-service-container p,
+.investment-container p,
+.send-receive-container p {
+  color: #6c757d;
+  line-height: 1.6;
+}
+
+/* 투자하기 탭 내부 스타일 */
+.investment-container h3 {
+  margin-top: 20px; /* 위쪽 여백 추가 */
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: #495057;
+}
+
+.investment-links {
+  display: flex;
+  gap: 15px;
+  margin-top: 10px; /* 위쪽 여백 추가 */
+}
+
+.investment-link-button {
+  padding: 10px 15px;
+  background-color: #6366f1; /* 대시보드 테마 색상 */
+  color: white;
+  border: none;
+  border-radius: 6px; /* 둥근 모서리 */
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* 약간의 그림자 */
+}
+
+.investment-link-button:hover {
+  background-color: #4f46e5; /* 호버 시 더 진한 색상 */
+}

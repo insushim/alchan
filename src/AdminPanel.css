@@ -1,0 +1,427 @@
+/* AdminPanel.css */
+
+/* AdminPanel이 페이지 내부에 직접 렌더링될 때의 스타일 */
+.admin-panel {
+  background-color: #ffffff;
+  border-radius: 8px; /* 헤더가 없어졌으므로 전체 패널에 radius 적용 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  /* 높이 제한 제거: 내용에 따라 늘어나도록 함 */
+  /* min-height 제거됨 */
+  /* height 제거됨 */
+  margin-top: 20px; /* 상단 여백 */
+  margin-bottom: 20px; /* 하단 여백 */
+}
+
+/* --- .admin-header 관련 스타일 제거됨 --- */
+/* .admin-header, .admin-header h2, .close-button 스타일 제거 */
+
+/* 탭 스타일 */
+.admin-tabs {
+  display: flex;
+  background-color: #f9fafb;
+  border-bottom: 1px solid #e5e7eb;
+  flex-shrink: 0; /* 탭 영역은 높이 고정 */
+  overflow-x: auto; /* 탭이 많아지면 가로 스크롤 */
+  /* 헤더가 없어졌으므로 top-radius 추가 */
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.admin-tabs button {
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-weight: 600;
+  color: #6b7280;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.admin-tabs button:hover {
+  color: #374151;
+  background-color: #f3f4f6;
+}
+.admin-tabs button.active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+}
+
+/* admin-content: 높이 자동, 내부 스크롤 제거 (페이지 스크롤 사용 유도) */
+.admin-content {
+  padding: 20px;
+  height: auto; /* 높이 자동 설정 */
+  /* min-height 제거 */
+  /* overflow: auto; 제거 또는 overflow: visible; 로 설정하여 내부 스크롤 방지 */
+  overflow: visible;
+}
+
+/* 아이템 관리 섹션 및 기타 내부 스타일 (기존과 거의 동일) */
+.items-management h3,
+.settings-panel h3,
+.add-item-panel h3,
+.edit-item-panel h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 1.2rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 10px;
+}
+.items-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+}
+.admin-item-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: row;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.admin-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.07);
+}
+.item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background-color: #f3f4f6;
+  padding: 12px;
+  min-width: 60px;
+  color: #4b5563;
+}
+.item-details {
+  padding: 12px 16px;
+  flex-grow: 1;
+}
+.item-details h4 {
+  margin: 0 0 6px 0;
+  font-size: 1.05rem;
+  color: #1f2937;
+  font-weight: 600;
+}
+.item-details p {
+  margin: 0 0 10px 0;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 0.8rem;
+}
+.item-meta span {
+  background-color: #e5e7eb;
+  color: #4b5563;
+  padding: 3px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+.item-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 10px;
+  gap: 6px;
+  border-left: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+.edit-button,
+.delete-button {
+  /* delete-button 스타일은 혹시 몰라 남겨둠 */
+  padding: 6px 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: background-color 0.2s, color 0.2s;
+  color: #6b7280;
+  background-color: transparent;
+}
+.edit-button:hover {
+  background-color: #e0e7ff;
+  color: #4f46e5;
+}
+.delete-button:hover {
+  background-color: #fee2e2;
+  color: #ef4444;
+}
+
+/* 설정 패널 */
+.setting-group {
+  background-color: #f9fafb;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e7eb;
+}
+.setting-group label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+.input-with-button {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.input-with-button input[type="number"] {
+  flex-grow: 1;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+.input-with-button input[type="number"]:focus {
+  border-color: #4f46e5;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+.input-with-button button {
+  padding: 10px 20px;
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background-color 0.2s ease;
+}
+.input-with-button button:hover {
+  background-color: #4338ca;
+}
+.setting-description {
+  margin-top: 12px;
+  color: #6b7280;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* 아이템 폼 (추가/수정) */
+.item-form {
+  max-width: 700px;
+  margin: 0 auto;
+}
+.form-group {
+  margin-bottom: 18px;
+}
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+}
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group textarea,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-group input[type="text"]:focus,
+.form-group input[type="number"]:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: #4f46e5;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+.form-group textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.form-group.half {
+  flex: 1 1 calc(50% - 8px);
+  min-width: 150px;
+}
+.icon-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
+  gap: 8px;
+  background-color: #f9fafb;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.icon-selector button {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  font-size: 1.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.icon-selector button:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  transform: scale(1.05);
+}
+.icon-selector button.selected {
+  background-color: #4f46e5;
+  color: white;
+  border-color: #4338ca;
+  transform: scale(1.05);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.3);
+}
+.form-group.checkbox {
+  display: flex;
+  align-items: center;
+  background-color: #f9fafb;
+  padding: 12px 15px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+}
+.form-group.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-bottom: 0;
+  font-weight: 500;
+  color: #374151;
+}
+.form-group.checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #4f46e5;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+.cancel-button,
+.submit-button {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, box-shadow 0.2s, transform 0.1s;
+  font-size: 0.95rem;
+}
+.cancel-button {
+  background-color: #fff;
+  border: 1px solid #d1d5db;
+  color: #4b5563;
+}
+.cancel-button:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+}
+.cancel-button:active {
+  transform: translateY(1px);
+}
+.submit-button {
+  background-color: #4f46e5;
+  color: white;
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.submit-button:hover {
+  background-color: #4338ca;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+.submit-button:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* 새 아이템 추가 버튼 */
+.add-item-btn {
+  display: block;
+  width: 100%;
+  padding: 15px;
+  margin-bottom: 20px;
+  background-color: #f9fafb;
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  color: #4f46e5;
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.add-item-btn:hover {
+  background-color: #f3f4f6;
+  border-color: #9ca3af;
+  color: #4338ca;
+}
+
+/* 반응형 조정 (기존과 동일) */
+@media (max-width: 768px) {
+  .admin-tabs {
+    flex-wrap: wrap; /* 탭이 한 줄에 안 들어가면 여러 줄로 */
+  }
+
+  .admin-tabs button {
+    flex-grow: 1;
+    min-width: 80px; /* 최소 너비 설정 */
+    padding: 12px 16px;
+    font-size: 0.9rem;
+  }
+
+  .items-list {
+    grid-template-columns: 1fr; /* 모바일에서는 1열 */
+  }
+  .item-form {
+    max-width: 100%;
+  }
+  .form-row {
+    flex-direction: column;
+    gap: 0;
+  }
+  .form-group.half {
+    flex-basis: 100%;
+    min-width: auto;
+  }
+  .form-actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .cancel-button,
+  .submit-button {
+    width: 100%;
+  }
+}

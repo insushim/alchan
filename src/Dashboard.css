@@ -1,0 +1,1699 @@
+// src/Dashboard.js
+import React, { useState, useEffect, useCallback } from "react";
+import { Outlet, useNavigate, useLocation } from "react-router-dom"; // React Router Dom 추가
+import "./Dashboard.css"; // Dashboard CSS 추가 (경로 수정됨)
+import { useAuth } from "./AuthContext";
+
+// Firebase 관련 함수 임포트 (firebase.js 파일 경로에 맞게 수정)
+import {
+  db, // Firestore 인스턴스
+  getUserDocument,
+  updateUserDocument,
+  getAllUsersDocuments,
+} from "./firebase"; // 가정: firebase.js 파일이 같은 디렉토리에 있거나 올바른 경로로 수정
+
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  collection,
+  getDocs,
+  writeBatch,
+  query,
+  where,
+  deleteDoc, // Firestore 문서 삭제를 위해 추가
+} from "firebase/firestore";
+
+// 컴포넌트 임포트
+import JobList from "./JobList";
+import CommonTaskList from "./CommonTaskList";
+import CouponGoal from "./CouponGoal";
+import AssetSummary from "./AssetSummary";
+import TransferModal from "./TransferModal";
+import DonateCouponModal from "./DonateCouponModal";
+import DonationHistoryModal from "./DonationHistoryModal";
+import SellCouponModal from "./SellCouponModal";
+import AdminSettingsModal from "./AdminSettingsModal";
+import GiftCouponModal from "./GiftCouponModal";
+
+// --- 다중 직업 선택 UI 컴포넌트 ---
+function SelectMultipleJobsView({
+  availableJobs,
+  currentSelectedJobIds = [],
+  onConfirmSelection,
+  onCancel,
+}) {
+  const [tempSelection, setTempSelection] = useState(
+    Array.isArray(currentSelectedJobIds) ? currentSelectedJobIds : []
+  );
+  const activeJobs = Array.isArray(availableJobs)
+    ? availableJobs.filter((job) => job.active !== false)
+    : [];
+  const formStyles = {
+    container: {
+      padding: "20px",
+      backgroundColor: "#ffffff",
+      borderRadius: "12px",
+      border: "1px solid #e2e8f0",
+      boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
+      marginBottom: "20px",
+    },
+    title: {
+      marginTop: 0,
+      marginBottom: "15px",
+      color: "#4f46e5",
+      fontSize: "18px",
+      fontWeight: "600",
+    },
+    buttonGroup: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "10px",
+      marginTop: "15px",
+    },
+    button: {
+      padding: "8px 15px",
+      border: "none",
+      borderRadius: "6px",
+      cursor: "pointer",
+      fontWeight: "500",
+      fontSize: "14px",
+    },
+    saveButton: { backgroundColor: "#4f46e5", color: "white" },
+    cancelButton: { backgroundColor: "#f3f4f6", color: "#4b5563" },
+  };
+  const handleCheckboxChange = (jobId) => {
+    setTempSelection((prev) => {
+      const currentSelection = Array.isArray(prev) ? prev : [];
+      return currentSelection.includes(jobId)
+        ? currentSelection.filter((id) => id !== jobId)
+        : [...currentSelection, jobId];
+    });
+  };
+  return (
+    <div style={formStyles.container}>
+      <h4 style={formStyles.title}>직업 선택 (다중 선택 가능)</h4>
+      <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "15px" }}>
+        '나의 할일'에 표시할 직업을 선택하세요.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {activeJobs.map((job) => (
+          <label
+            key={job.id}
+            style={{
+              padding: "12px 15px",
+              border: `2px solid ${
+                Array.isArray(tempSelection) && tempSelection.includes(job.id)
+                  ? "#4f46e5"
+                  : "#d1d5db"
+              }`,
+              borderRadius: "8px",
+              cursor: "pointer",
+              backgroundColor:
+                Array.isArray(tempSelection) && tempSelection.includes(job.id)
+                  ? "#eef2ff"
+                  : "#ffffff",
+              transition: "all 0.2s ease",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={
+                Array.isArray(tempSelection) && tempSelection.includes(job.id)
+              }
+              onChange={() => handleCheckboxChange(job.id)}
+              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+            />
+            <span
+              style={{
+                fontWeight: "500",
+                color:
+                  Array.isArray(tempSelection) && tempSelection.includes(job.id)
+                    ? "#4338ca"
+                    : "#374151",
+              }}
+            >
+              {job.title}
+            </span>
+          </label>
+        ))}
+        {activeJobs.length === 0 && (
+          <p style={{ fontSize: "14px", color: "#6b7280" }}>
+            선택 가능한 직업이 없습니다.
+          </p>
+        )}
+      </div>
+      <div style={formStyles.buttonGroup}>
+        <button
+          onClick={onCancel}
+          style={{ ...formStyles.button, ...formStyles.cancelButton }}
+        >
+          취소
+        </button>
+        <button
+          onClick={() => onConfirmSelection(tempSelection)}
+          style={{ ...formStyles.button, ...formStyles.saveButton }}
+        >
+          선택 완료
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// --- 스타일 정의 ---
+const styles = {
+  pageTitle: {
+    margin: 0,
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid #e5e7eb",
+    paddingBottom: "10px",
+  },
+  pageTitleText: { fontSize: "20px", fontWeight: "600" },
+  welcomeMessage: {
+    backgroundColor: "#eef2ff",
+    border: "1px solid #c7d2fe",
+    borderRadius: "8px",
+    padding: "5px 12px",
+    display: "inline-block",
+    color: "#4f46e5",
+  },
+  sectionContainer: { marginBottom: "30px" },
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid #e5e7eb",
+    paddingBottom: "8px",
+    marginBottom: "15px",
+  },
+  sectionHeaderTitle: {
+    fontSize: "18px",
+    fontWeight: "600",
+    color: "#374151",
+    margin: 0,
+  },
+  jobTaskListGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)", // 항상 2개의 열로 고정
+    gap: "20px", // 그리드 아이템 간 간격
+  },
+  subsectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderBottom: "1px solid #e5e7eb",
+    paddingBottom: "8px",
+    marginTop: "25px",
+    marginBottom: "15px",
+  },
+  subsectionHeaderTitle: {
+    fontSize: "16px",
+    fontWeight: "600",
+    color: "#374151",
+    margin: 0,
+  },
+};
+
+const buttonStyles = {
+  adminSettings: {
+    backgroundColor: "white",
+    color: "#4f46e5",
+    border: "1px solid #c7d2fe",
+    borderRadius: "8px",
+    padding: "8px 16px",
+    fontSize: "14px",
+    fontWeight: "600",
+    cursor: "pointer",
+    transition: "all 0.2s ease-in-out",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
+    marginLeft: "auto",
+  },
+  goBack: {
+    backgroundColor: "#e5e7eb",
+    color: "#4b5563",
+    border: "none",
+    borderRadius: "8px",
+    padding: "6px 12px",
+    fontSize: "13px",
+    fontWeight: "500",
+    cursor: "pointer",
+    transition: "background-color 0.2s ease",
+    marginLeft: "auto",
+  },
+  actionButton: {
+    padding: "6px 12px",
+    backgroundColor: "#4f46e5",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "500",
+    fontSize: "13px",
+    lineHeight: "1.5",
+  },
+  greenButton: {
+    padding: "6px 12px",
+    backgroundColor: "#10b981",
+    color: "white",
+    border: "none",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "500",
+    fontSize: "13px",
+    lineHeight: "1.5",
+  },
+  headerButton: {
+    padding: "6px 12px",
+    backgroundColor: "#e0e7ff",
+    color: "#4f46e5",
+    border: "1px solid #c7d2fe",
+    borderRadius: "6px",
+    cursor: "pointer",
+    fontWeight: "500",
+    fontSize: "13px",
+    marginLeft: "10px",
+    transition: "background-color 0.2s ease",
+  },
+  addJobTaskButton: {
+    padding: "4px 8px",
+    backgroundColor: "#d1fae5",
+    color: "#065f46",
+    border: "1px solid #a7f3d0",
+    borderRadius: "4px",
+    cursor: "pointer",
+    fontWeight: "500",
+    fontSize: "12px",
+    marginTop: "8px",
+    display: "block",
+    width: "fit-content",
+    marginLeft: "auto",
+    marginRight: "auto",
+  },
+};
+
+// --- Dashboard 컴포넌트 ---
+function Dashboard() {
+  console.log("Dashboard 컴포넌트 렌더링");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user, userDoc, loading: authLoading, logout } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  const userId = user?.uid || null;
+  console.log("현재 사용자 ID:", userId);
+
+  const userNickname =
+    userDoc?.nickname || userDoc?.name || user?.displayName || "사용자";
+  console.log("사용자 닉네임:", userNickname);
+
+  const isAdmin = userDoc?.isAdmin === true;
+  console.log("관리자 권한:", isAdmin);
+
+  const [appLoading, setAppLoading] = useState(true);
+  const [viewMode, setViewMode] = useState("list");
+  const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
+  const [adminSelectedMenu, setAdminSelectedMenu] = useState("goal");
+
+  const [jobs, setJobs] = useState([]);
+  const [commonTasks, setCommonTasks] = useState([]);
+  const [selectedJobIds, setSelectedJobIds] = useState([]);
+  const [classCouponGoal, setClassCouponGoal] = useState(1000);
+  const [couponValue, setCouponValue] = useState(1000);
+  const [goalProgress, setGoalProgress] = useState(0);
+  const [myContribution, setMyContribution] = useState(0);
+
+  const [goalAchieved, setGoalAchieved] = useState(false);
+  const [showDonationHistoryModal, setShowDonationHistoryModal] =
+    useState(false);
+  const [showSellCouponModal, setShowSellCouponModal] = useState(false);
+  const [adminCouponValueInput, setAdminCouponValueInput] = useState(
+    couponValue.toString()
+  );
+  const [adminGoalAmountInput, setAdminGoalAmountInput] = useState(
+    classCouponGoal.toString()
+  );
+  const [sellAmount, setSellAmount] = useState("");
+
+  const [editingJob, setEditingJob] = useState(null);
+  const [adminNewJobTitle, setAdminNewJobTitle] = useState("");
+  const [editingTask, setEditingTask] = useState(null);
+  const [currentJobIdForTask, setCurrentJobIdForTask] = useState(null);
+  const [isJobTaskForForm, setIsJobTaskForForm] = useState(false);
+  const [showAddTaskForm, setShowAddTaskForm] = useState(false);
+  const [adminNewTaskName, setAdminNewTaskName] = useState("");
+  const [adminNewTaskReward, setAdminNewTaskReward] = useState("");
+  const [adminNewTaskMaxClicks, setAdminNewTaskMaxClicks] = useState("5");
+
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showGiftCouponModal, setShowGiftCouponModal] = useState(false);
+  const [showDonateModal, setShowDonateModal] = useState(false);
+  const [transferRecipient, setTransferRecipient] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [allUsers, setAllUsers] = useState([]);
+  const [giftRecipient, setGiftRecipient] = useState("");
+  const [giftAmount, setGiftAmount] = useState("");
+
+  // 상태 추가
+  const [classCodes, setClassCodes] = useState([]);
+
+  // Firestore 데이터 로드 함수
+  const loadDashboardData = useCallback(async () => {
+    if (!db) {
+      console.error("Firestore 데이터베이스 연결이 없습니다.");
+      setAppLoading(false);
+      return;
+    }
+
+    if (!userId) {
+      console.error("사용자 ID가 없습니다. 로그인 상태를 확인하세요.");
+      setAppLoading(false);
+      return;
+    }
+
+    // *** 추가된 수정: userDoc이 유효한지 확인 ***
+    // 이 함수는 이제 userDoc이 사용 가능할 때만 호출됩니다.
+    if (!userDoc) {
+      console.error(
+        "CRITICAL: loadDashboardData가 userDoc 없이 호출되었습니다. 로딩 로직을 확인하세요."
+      );
+      setAppLoading(false); // 로딩 중단
+      return;
+    }
+
+    console.log("대시보드 데이터 로드 시작 (userDoc 사용 가능)...", userId);
+    setAppLoading(true);
+
+    try {
+      // 1. 직업 (Jobs) 데이터 로드
+      console.log("직업 데이터 로딩 중...");
+      const jobsSnapshot = await getDocs(collection(db, "jobs"));
+      const loadedJobs = jobsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        tasks: (doc.data().tasks || []).map((task) => ({
+          ...task,
+          reward: task.reward || 0,
+          clicks: task.clicks || 0,
+          maxClicks: task.maxClicks || 5,
+        })),
+        active: doc.data().active !== false,
+      }));
+      setJobs(loadedJobs);
+      console.log(`${loadedJobs.length}개의 직업 데이터 로드 완료`);
+
+      // 2. 공통 할일 (CommonTasks) 데이터 로드
+      console.log("공통 할일 데이터 로딩 중...");
+      const commonTasksSnapshot = await getDocs(collection(db, "commonTasks"));
+      const loadedCommonTasks = commonTasksSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        reward: doc.data().reward || 0,
+        clicks: doc.data().clicks || 0,
+        maxClicks: doc.data().maxClicks || 5,
+      }));
+      setCommonTasks(loadedCommonTasks);
+      console.log(`${loadedCommonTasks.length}개의 공통 할일 데이터 로드 완료`);
+
+      // 3. 사용자 선택 직업 ID 로드 (이제 userDoc을 직접 사용)
+      console.log("userDoc에서 직업 ID 및 기여도 로드");
+      setSelectedJobIds(
+        Array.isArray(userDoc.selectedJobIds) ? userDoc.selectedJobIds : []
+      );
+      setMyContribution(userDoc.myContribution || 0);
+
+      // 4. 전체 설정 로드
+      console.log("앱 설정 데이터 로딩 중...");
+      const settingsDocRef = doc(db, "settings", "mainSettings");
+      const settingsDocSnap = await getDoc(settingsDocRef);
+      if (settingsDocSnap.exists()) {
+        const settingsData = settingsDocSnap.data();
+        setClassCouponGoal(settingsData.classCouponGoal || 1000);
+        setCouponValue(settingsData.couponValue || 1000);
+        setGoalProgress(settingsData.goalProgress || 0);
+        setAdminGoalAmountInput(
+          (settingsData.classCouponGoal || 1000).toString()
+        );
+        setAdminCouponValueInput((settingsData.couponValue || 1000).toString());
+        console.log("설정 데이터 로드 완료", settingsData);
+      } else {
+        console.log("설정 문서가 없어 기본값으로 생성");
+        await setDoc(settingsDocRef, {
+          classCouponGoal: 1000,
+          couponValue: 1000,
+          goalProgress: 0,
+        });
+      }
+
+      // 5. 모든 사용자 목록 로드
+      console.log("모든 사용자 목록 로딩 중...");
+      const usersData = await getAllUsersDocuments();
+      setAllUsers(usersData.filter((u) => u.id !== userId));
+      console.log(`${usersData.length - 1}명의 사용자 데이터 로드 완료`);
+
+      console.log("모든 대시보드 데이터 로드 완료!");
+    } catch (error) {
+      console.error("Firestore 데이터 로드 중 오류 발생:", error);
+      setSelectedJobIds([]);
+      alert(
+        "데이터를 불러오는 중 오류가 발생했습니다. 페이지를 새로고침하거나 다시 로그인해 주세요."
+      );
+    } finally {
+      setAppLoading(false);
+    }
+  }, [
+    userId,
+    userDoc,
+    db,
+    setJobs,
+    setCommonTasks,
+    setSelectedJobIds,
+    setMyContribution,
+    setClassCouponGoal,
+    setCouponValue,
+    setGoalProgress,
+    setAdminGoalAmountInput,
+    setAdminCouponValueInput,
+    setAllUsers,
+  ]); // userDoc 및 상태 설정 함수들을 의존성 배열에 추가
+
+  // *** 수정된 useEffect: userDoc 로드 대기 ***
+  useEffect(() => {
+    if (authLoading) {
+      // AuthContext가 사용자/userDoc을 로드하는 중입니다.
+      // appLoading은 true로 유지되고, authLoading 메시지가 표시됩니다.
+      return;
+    }
+
+    if (!user) {
+      // AuthContext 로드 후 사용자가 없습니다 (로그인 안 됨).
+      navigate("/login", { state: { from: location } });
+      setAppLoading(false); // 로그인하지 않았으므로 앱 데이터를 로드할 필요가 없습니다.
+      return;
+    }
+
+    // 사용자가 인증되었습니다. 이제 userDoc(AuthContext에서 제공)도 사용 가능한지 확인합니다.
+    if (user && userId && userDoc) {
+      // 모든 전제 조건(user, userId, userDoc)이 충족되었습니다.
+      // loadDashboardData는 자체 appLoading 주기를 설정합니다(시작 시 true, 종료 시 false).
+      console.log(
+        "Dashboard Effect: User, userId, userDoc 사용 가능. loadDashboardData 호출."
+      );
+      loadDashboardData();
+    } else if (user && !userDoc) {
+      // 사용자는 인증되었지만 AuthContext의 userDoc은 아직 준비되지 않았습니다.
+      // userDoc을 기다리는 중입니다. appLoading은 (초기화로 인해) true로 유지됩니다.
+      // 아래 렌더링 로직에서 "사용자 정보를 불러오는 중입니다..." 메시지를 표시합니다.
+      console.log(
+        "Dashboard Effect: 사용자는 인증되었지만 AuthContext의 userDoc이 보류 중입니다."
+      );
+    } else if (user && !userId) {
+      // user 객체가 유효하다면 발생해서는 안 됩니다.
+      console.error(
+        "Dashboard Effect: 사용자는 인증되었지만 userId를 파생할 수 없습니다."
+      );
+      setAppLoading(false); // 진행할 수 없습니다.
+    }
+  }, [
+    user,
+    authLoading,
+    userId,
+    userDoc,
+    navigate,
+    location,
+    loadDashboardData,
+  ]); // userDoc을 의존성 배열에 추가
+
+  useEffect(() => {
+    setGoalAchieved(goalProgress >= classCouponGoal && classCouponGoal > 0);
+  }, [goalProgress, classCouponGoal]);
+
+  const toggleMenu = () => {
+    setMenuOpen(!menuOpen);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      navigate("/login");
+    } catch (error) {
+      console.error("로그아웃 오류:", error);
+      alert("로그아웃 처리 중 오류가 발생했습니다. 다시 시도해주세요.");
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
+  const generateId = () => doc(collection(db, "temp")).id;
+
+  const handleSaveJob = async () => {
+    const title = adminNewJobTitle.trim();
+    if (!title) {
+      alert("직업 이름을 입력해주세요.");
+      return;
+    }
+    setAppLoading(true);
+    try {
+      if (editingJob) {
+        const jobRef = doc(db, "jobs", editingJob.id);
+        await updateDoc(jobRef, { title });
+        setJobs((prevJobs) =>
+          prevJobs.map((job) =>
+            job.id === editingJob.id ? { ...job, title } : job
+          )
+        );
+      } else {
+        const newJobId = generateId();
+        const newJobData = {
+          id: newJobId,
+          title,
+          active: true,
+          tasks: [],
+          createdAt: new Date(),
+        };
+        await setDoc(doc(db, "jobs", newJobId), newJobData);
+        setJobs((prevJobs) => [...prevJobs, { ...newJobData, id: newJobId }]);
+      }
+      setAdminNewJobTitle("");
+      setEditingJob(null);
+    } catch (error) {
+      console.error("직업 저장 오류:", error);
+      alert("직업 저장 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleDeleteJob = async (jobIdToDelete) => {
+    if (
+      window.confirm(
+        "정말로 이 직업을 삭제하시겠습니까? 관련된 할일도 모두 삭제됩니다."
+      )
+    ) {
+      setAppLoading(true);
+      try {
+        await deleteDoc(doc(db, "jobs", jobIdToDelete));
+        setJobs((prevJobs) =>
+          prevJobs.filter((job) => job.id !== jobIdToDelete)
+        );
+
+        setSelectedJobIds((prevSelected) =>
+          Array.isArray(prevSelected)
+            ? prevSelected.filter((id) => id !== jobIdToDelete)
+            : []
+        );
+
+        if (userId) {
+          const userRef = doc(db, "users", userId);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            const currentSelectedIds = userSnap.data().selectedJobIds || [];
+            const updatedSelectedIds = Array.isArray(currentSelectedIds)
+              ? currentSelectedIds.filter((id) => id !== jobIdToDelete)
+              : [];
+            await updateDoc(userRef, { selectedJobIds: updatedSelectedIds });
+          }
+        }
+
+        if (editingJob && editingJob.id === jobIdToDelete) {
+          setAdminNewJobTitle("");
+          setEditingJob(null);
+        }
+        alert("직업이 삭제되었습니다.");
+      } catch (error) {
+        console.error("직업 삭제 오류:", error);
+        alert("직업 삭제 중 오류가 발생했습니다.");
+      } finally {
+        setAppLoading(false);
+      }
+    }
+  };
+
+  const handleEditJob = (jobId) => {
+    const jobToEdit = jobs.find((j) => j.id === jobId);
+    if (jobToEdit) {
+      setEditingJob(jobToEdit);
+      setAdminNewJobTitle(jobToEdit.title);
+      setAdminSelectedMenu("jobs");
+      setShowAdminSettingsModal(true);
+    }
+  };
+
+  const handleAddTaskClick = (jobId = null, isJobTask = false) => {
+    setIsJobTaskForForm(isJobTask);
+    setCurrentJobIdForTask(jobId);
+    setAdminNewTaskName("");
+    setAdminNewTaskReward("");
+    setAdminNewTaskMaxClicks("5");
+    setEditingTask(null);
+    setShowAddTaskForm(true);
+    setAdminSelectedMenu("tasks");
+    setShowAdminSettingsModal(true);
+  };
+
+  const handleEditTask = (taskId, jobId = null) => {
+    const isJobTask = !!jobId;
+    const taskSource = isJobTask
+      ? jobs.find((j) => j.id === jobId)?.tasks
+      : commonTasks;
+    const taskToEdit = taskSource?.find((t) => t.id === taskId);
+
+    if (taskToEdit) {
+      setEditingTask(taskToEdit);
+      setAdminNewTaskName(taskToEdit.name);
+      setAdminNewTaskReward(String(taskToEdit.reward || 0));
+      setAdminNewTaskMaxClicks(String(taskToEdit.maxClicks || 5));
+      setIsJobTaskForForm(isJobTask);
+      setCurrentJobIdForTask(jobId);
+      setShowAddTaskForm(true);
+      setAdminSelectedMenu("tasks");
+      setShowAdminSettingsModal(true);
+    } else {
+      console.error("수정할 할일을 찾을 수 없습니다.", taskId, jobId);
+      alert("수정할 할일을 찾을 수 없습니다.");
+    }
+  };
+
+  const handleSaveTask = async () => {
+    const name = adminNewTaskName.trim();
+    const reward = parseInt(adminNewTaskReward);
+    const maxClicks = parseInt(adminNewTaskMaxClicks);
+
+    if (
+      !name ||
+      isNaN(reward) ||
+      reward < 0 ||
+      isNaN(maxClicks) ||
+      maxClicks <= 0
+    ) {
+      alert("입력값을 확인해주세요. (이름, 보상: 0 이상, 최대 클릭: 1 이상)");
+      return;
+    }
+    setAppLoading(true);
+
+    try {
+      const taskData = {
+        name,
+        reward,
+        maxClicks,
+        clicks: editingTask ? editingTask.clicks : 0,
+      };
+
+      if (editingTask) {
+        const taskId = editingTask.id;
+        if (isJobTaskForForm && currentJobIdForTask) {
+          const jobRef = doc(db, "jobs", currentJobIdForTask);
+          const jobDoc = await getDoc(jobRef);
+          if (jobDoc.exists()) {
+            const currentTasks = jobDoc.data().tasks || [];
+            const updatedTasks = currentTasks.map((task) =>
+              task.id === taskId ? { ...task, ...taskData } : task
+            );
+            await updateDoc(jobRef, { tasks: updatedTasks });
+            setJobs((prevJobs) =>
+              prevJobs.map((job) =>
+                job.id === currentJobIdForTask
+                  ? { ...job, tasks: updatedTasks }
+                  : job
+              )
+            );
+          }
+        } else {
+          const taskRef = doc(db, "commonTasks", taskId);
+          await updateDoc(taskRef, taskData);
+          setCommonTasks((prevTasks) =>
+            prevTasks.map((task) =>
+              task.id === taskId ? { ...task, ...taskData } : task
+            )
+          );
+        }
+      } else {
+        const newTaskId = generateId();
+        const newTask = { ...taskData, id: newTaskId, clicks: 0 };
+        if (isJobTaskForForm && currentJobIdForTask) {
+          const jobRef = doc(db, "jobs", currentJobIdForTask);
+          const jobDoc = await getDoc(jobRef);
+          if (jobDoc.exists()) {
+            const currentTasks = jobDoc.data().tasks || [];
+            const updatedTasks = [...currentTasks, newTask];
+            await updateDoc(jobRef, { tasks: updatedTasks });
+            setJobs((prevJobs) =>
+              prevJobs.map((job) =>
+                job.id === currentJobIdForTask
+                  ? { ...job, tasks: updatedTasks }
+                  : job
+              )
+            );
+          }
+        } else {
+          await setDoc(doc(db, "commonTasks", newTaskId), newTask);
+          setCommonTasks((prevTasks) => [...prevTasks, newTask]);
+        }
+      }
+      setShowAddTaskForm(false);
+      setEditingTask(null);
+      alert("할일이 저장되었습니다.");
+    } catch (error) {
+      console.error("할일 저장 오류:", error);
+      alert("할일 저장 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleDeleteTask = async (taskIdToDelete, jobId = null) => {
+    if (window.confirm("정말로 이 할일을 삭제하시겠습니까?")) {
+      setAppLoading(true);
+      try {
+        if (jobId) {
+          const jobRef = doc(db, "jobs", jobId);
+          const jobDoc = await getDoc(jobRef);
+          if (jobDoc.exists()) {
+            const currentTasks = jobDoc.data().tasks || [];
+            const updatedTasks = currentTasks.filter(
+              (task) => task.id !== taskIdToDelete
+            );
+            await updateDoc(jobRef, { tasks: updatedTasks });
+            setJobs((prevJobs) =>
+              prevJobs.map((job) =>
+                job.id === jobId ? { ...job, tasks: updatedTasks } : job
+              )
+            );
+          }
+        } else {
+          await deleteDoc(doc(db, "commonTasks", taskIdToDelete));
+          setCommonTasks((prevTasks) =>
+            prevTasks.filter((task) => task.id !== taskIdToDelete)
+          );
+        }
+
+        if (editingTask && editingTask.id === taskIdToDelete) {
+          setShowAddTaskForm(false);
+          setEditingTask(null);
+        }
+        alert("할일이 삭제되었습니다.");
+      } catch (error) {
+        console.error("할일 삭제 오류:", error);
+        alert("할일 삭제 중 오류가 발생했습니다.");
+      } finally {
+        setAppLoading(false);
+      }
+    }
+  };
+
+  const handleSelectJobClick = () => {
+    setViewMode("selectJob");
+  };
+
+  const handleConfirmJobSelection = async (newlySelectedJobIds) => {
+    const idsToSave = Array.isArray(newlySelectedJobIds)
+      ? newlySelectedJobIds
+      : [];
+    if (!userId) return;
+
+    setAppLoading(true);
+    try {
+      await updateUserDocument(userId, { selectedJobIds: idsToSave });
+      setSelectedJobIds(idsToSave); // 로컬 상태도 업데이트
+      // AuthContext의 userDoc도 업데이트가 필요할 수 있으나,
+      // 일반적으로 Firestore 업데이트 후 AuthContext가 자동으로 동기화하거나,
+      // 다음 AuthContext 로드 시 반영됩니다.
+      // 필요하다면 AuthContext에 userDoc을 직접 업데이트하는 함수를 호출합니다.
+      // 여기서는 setSelectedJobIds로 로컬 상태를 직접 관리합니다.
+      setViewMode("list");
+      alert("선택한 직업이 저장되었습니다.");
+    } catch (error) {
+      console.error("선택 직업 저장 오류:", error);
+      alert("선택한 직업을 저장하는 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleCancelForm = () => {
+    setViewMode("list");
+  };
+
+  const handleTaskEarnCoupon = async (
+    taskId,
+    jobId = null,
+    isJobTask = false
+  ) => {
+    setAppLoading(true);
+    try {
+      let taskToUpdate = null;
+      let taskReward = 0;
+      let currentClicks = 0;
+      let maxTaskClicks = 5;
+      let taskName = "";
+
+      // userDoc이 이제 사용 가능하다고 가정합니다 (useEffect에서 대기).
+      if (!userDoc) {
+        alert("사용자 정보를 찾을 수 없습니다 (userDoc).");
+        setAppLoading(false);
+        return;
+      }
+      const currentCoupons = userDoc.coupons || 0;
+
+      if (isJobTask && jobId) {
+        const jobRef = doc(db, "jobs", jobId);
+        const jobSnap = await getDoc(jobRef);
+        if (jobSnap.exists()) {
+          const jobData = jobSnap.data();
+          const taskIndex = jobData.tasks.findIndex((t) => t.id === taskId);
+          if (taskIndex !== -1) {
+            taskToUpdate = jobData.tasks[taskIndex];
+            taskReward = taskToUpdate.reward || 0;
+            currentClicks = taskToUpdate.clicks || 0;
+            maxTaskClicks = taskToUpdate.maxClicks || 5;
+            taskName = taskToUpdate.name;
+
+            if (currentClicks < maxTaskClicks) {
+              const newClicks = currentClicks + 1;
+              jobData.tasks[taskIndex].clicks = newClicks;
+              await updateDoc(jobRef, { tasks: jobData.tasks });
+
+              setJobs((prevJobs) =>
+                prevJobs.map((j) =>
+                  j.id === jobId
+                    ? {
+                        ...j,
+                        tasks: j.tasks.map((t) =>
+                          t.id === taskId ? { ...t, clicks: newClicks } : t
+                        ),
+                      }
+                    : j
+                )
+              );
+            } else {
+              alert(
+                `${taskName} 할일은 이미 최대 횟수(${maxTaskClicks}회) 완료했습니다.`
+              );
+              setAppLoading(false);
+              return;
+            }
+          } else {
+            alert("직업 할일을 찾을 수 없습니다.");
+            setAppLoading(false);
+            return;
+          }
+        } else {
+          alert("직업 정보를 찾을 수 없습니다.");
+          setAppLoading(false);
+          return;
+        }
+      } else {
+        const taskRef = doc(db, "commonTasks", taskId);
+        const taskSnap = await getDoc(taskRef);
+        if (taskSnap.exists()) {
+          taskToUpdate = taskSnap.data();
+          taskReward = taskToUpdate.reward || 0;
+          currentClicks = taskToUpdate.clicks || 0;
+          maxTaskClicks = taskToUpdate.maxClicks || 5;
+          taskName = taskToUpdate.name;
+
+          if (currentClicks < maxTaskClicks) {
+            const newClicks = currentClicks + 1;
+            await updateDoc(taskRef, { clicks: newClicks });
+
+            setCommonTasks((prevTasks) =>
+              prevTasks.map((t) =>
+                t.id === taskId ? { ...t, clicks: newClicks } : t
+              )
+            );
+          } else {
+            alert(
+              `${taskName} 할일은 이미 최대 횟수(${maxTaskClicks}회) 완료했습니다.`
+            );
+            setAppLoading(false);
+            return;
+          }
+        } else {
+          alert("공통 할일을 찾을 수 없습니다.");
+          setAppLoading(false);
+          return;
+        }
+      }
+
+      if (taskReward > 0) {
+        const newCoupons = currentCoupons + taskReward;
+        await updateUserDocument(userId, { coupons: newCoupons });
+        // AuthContext의 userDoc도 업데이트되어야 합니다.
+        // 이는 AuthContext가 Firestore 변경 사항을 구독하거나,
+        // 수동으로 AuthContext의 userDoc을 업데이트하는 함수를 호출하여 이루어질 수 있습니다.
+        // 지금은 Firestore 업데이트 후, AuthContext가 결국 동기화될 것으로 가정합니다.
+        alert(
+          `축하합니다! ${taskReward}쿠폰을 획득했습니다. (총 ${newCoupons}쿠폰)`
+        );
+        // userDoc 상태를 직접 업데이트하는 대신, loadDashboardData()를 다시 호출하거나
+        // AuthContext의 업데이트 메커니즘에 의존하는 것이 좋습니다.
+        // 여기서는 데이터 일관성을 위해 loadDashboardData를 다시 호출할 수 있습니다.
+        loadDashboardData();
+      } else {
+        alert(`${taskName} 완료! (보상 없음)`);
+      }
+    } catch (error) {
+      console.error("할일 완료 처리 오류:", error);
+      alert("할일 완료 처리 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleSellCoupon = async () => {
+    const amount = parseInt(sellAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert("유효한 쿠폰 수량을 입력해주세요.");
+      return;
+    }
+    if (!userDoc || typeof userDoc.coupons !== "number") {
+      alert("사용자 정보를 확인할 수 없거나 쿠폰 정보가 유효하지 않습니다.");
+      return;
+    }
+    if (amount > userDoc.coupons) {
+      alert("보유한 쿠폰보다 많은 수량을 판매할 수 없습니다.");
+      return;
+    }
+    setAppLoading(true);
+    try {
+      const totalValue = amount * couponValue;
+      const newCoupons = userDoc.coupons - amount;
+      const newCash = (userDoc.cash || 0) + totalValue;
+
+      await updateUserDocument(userId, { coupons: newCoupons, cash: newCash });
+
+      alert(`${amount}쿠폰을 ${totalValue.toLocaleString()}원에 판매했습니다.`);
+      setShowSellCouponModal(false);
+      setSellAmount("");
+      loadDashboardData();
+    } catch (error) {
+      console.error("쿠폰 판매 오류:", error);
+      alert("쿠폰 판매 처리 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleOpenAdminSettings = () => {
+    setAdminSelectedMenu("goal");
+    setAdminGoalAmountInput(classCouponGoal.toString());
+    setAdminCouponValueInput(couponValue.toString());
+    setAdminNewJobTitle("");
+    setEditingJob(null);
+    setShowAddTaskForm(false);
+    setEditingTask(null);
+    setShowAdminSettingsModal(true);
+  };
+
+  const handleSaveAdminSettings = async () => {
+    const newGoal = parseInt(adminGoalAmountInput);
+    const newValue = parseInt(adminCouponValueInput);
+    let message = "";
+
+    if (isNaN(newGoal) || newGoal <= 0) {
+      alert("올바른 목표 금액을 입력하세요 (0보다 커야 합니다).");
+      return;
+    }
+    if (isNaN(newValue) || newValue <= 0) {
+      alert("올바른 쿠폰 가치를 입력하세요 (0보다 커야 합니다).");
+      return;
+    }
+
+    setAppLoading(true);
+    try {
+      const settingsRef = doc(db, "settings", "mainSettings");
+      const updates = {};
+
+      if (classCouponGoal !== newGoal) {
+        updates.classCouponGoal = newGoal;
+        message += `새로운 목표치(${newGoal})가 설정되었습니다. `;
+
+        updates.goalProgress = 0;
+        setGoalProgress(0);
+
+        const usersSnapshot = await getDocs(collection(db, "users"));
+        const batch = writeBatch(db);
+        usersSnapshot.forEach((userDocument) => {
+          const userRef = doc(db, "users", userDocument.id);
+          batch.update(userRef, { coupons: 0, myContribution: 0 });
+        });
+        await batch.commit();
+
+        setMyContribution(0); // 현재 사용자 로컬 상태 업데이트
+        // AuthContext의 userDoc도 업데이트 필요 (모든 사용자에 대해)
+        // authContext.updateAuthUserDoc({ ...userDoc, coupons: 0, myContribution: 0 }); // 현재 사용자만 반영됨
+        alert(
+          "새로운 목표가 설정되어 모든 사용자의 쿠폰과 기여도가 초기화되었습니다."
+        );
+      }
+
+      if (couponValue !== newValue) {
+        updates.couponValue = newValue;
+        message += `새로운 쿠폰 가치(${newValue})가 설정되었습니다. `;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await updateDoc(settingsRef, updates);
+        if (updates.classCouponGoal)
+          setClassCouponGoal(updates.classCouponGoal);
+        if (updates.couponValue) setCouponValue(updates.couponValue);
+        alert(message.trim() || "설정이 저장되었습니다.");
+        loadDashboardData(); // 설정 변경 후 데이터 다시 로드
+      } else {
+        alert("변경된 내용이 없습니다.");
+      }
+    } catch (error) {
+      console.error("관리자 설정 저장 오류:", error);
+      alert("관리자 설정 저장 중 오류가 발생했습니다.");
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const handleTransfer = async () => {
+    const recipientUser = allUsers.find((u) => u.id === transferRecipient);
+    const amount = parseInt(transferAmount);
+
+    if (!recipientUser) {
+      alert("송금받을 사용자를 선택해주세요.");
+      return;
+    }
+    if (recipientUser.id === userId) {
+      alert("자기 자신에게 송금할 수 없습니다.");
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      alert("올바른 송금액을 입력해주세요.");
+      return;
+    }
+    if (!userDoc || (userDoc.cash || 0) < amount) {
+      alert("보유 현금이 부족합니다.");
+      return;
+    }
+
+    if (
+      window.confirm(
+        `${
+          recipientUser.name || recipientUser.nickname || recipientUser.id
+        }님에게 ${amount.toLocaleString()}원을 송금하시겠습니까?`
+      )
+    ) {
+      setAppLoading(true);
+      try {
+        const batch = writeBatch(db);
+        const senderRef = doc(db, "users", userId);
+        const recipientRef = doc(db, "users", recipientUser.id);
+
+        batch.update(senderRef, { cash: (userDoc.cash || 0) - amount });
+        batch.update(recipientRef, {
+          cash: (recipientUser.cash || 0) + amount,
+        });
+        await batch.commit();
+
+        alert("송금이 완료되었습니다.");
+        setShowTransferModal(false);
+        setTransferRecipient("");
+        setTransferAmount("");
+        loadDashboardData();
+      } catch (error) {
+        console.error("송금 처리 오류:", error);
+        alert("송금 처리 중 오류가 발생했습니다.");
+      } finally {
+        setAppLoading(false);
+      }
+    }
+  };
+
+  const handleGiftCoupon = async () => {
+    const recipientUser = allUsers.find((u) => u.id === giftRecipient);
+    const amount = parseInt(giftAmount);
+
+    if (!recipientUser) {
+      alert("선물받을 사용자를 선택해주세요.");
+      return;
+    }
+    if (recipientUser.id === userId) {
+      alert("자기 자신에게 쿠폰을 선물할 수 없습니다.");
+      return;
+    }
+    if (isNaN(amount) || amount <= 0) {
+      alert("올바른 쿠폰 수량을 입력해주세요.");
+      return;
+    }
+    if (!userDoc || (userDoc.coupons || 0) < amount) {
+      alert("보유 쿠폰이 부족합니다.");
+      return;
+    }
+
+    if (
+      window.confirm(
+        `${
+          recipientUser.name || recipientUser.nickname || recipientUser.id
+        }님에게 쿠폰 ${amount}개를 선물하시겠습니까?`
+      )
+    ) {
+      setAppLoading(true);
+      try {
+        const batch = writeBatch(db);
+        const senderRef = doc(db, "users", userId);
+        const recipientRef = doc(db, "users", recipientUser.id);
+
+        batch.update(senderRef, { coupons: (userDoc.coupons || 0) - amount });
+        batch.update(recipientRef, {
+          coupons: (recipientUser.coupons || 0) + amount,
+        });
+        await batch.commit();
+
+        alert("쿠폰 선물이 완료되었습니다.");
+        setShowGiftCouponModal(false);
+        setGiftRecipient("");
+        setGiftAmount("");
+        loadDashboardData();
+      } catch (error) {
+        console.error("쿠폰 선물 처리 오류:", error);
+        alert("쿠폰 선물 처리 중 오류가 발생했습니다.");
+      } finally {
+        setAppLoading(false);
+      }
+    }
+  };
+
+  const pathSegments = location.pathname.split("/");
+  const activeMenuItem = pathSegments.length > 2 ? pathSegments[2] : "tasks";
+
+  // *** 수정된 로딩 상태 표시 로직 ***
+  if (authLoading) {
+    return (
+      <div className="dashboard-loading">로그인 정보를 확인 중입니다...</div>
+    );
+  }
+
+  if (!user) {
+    // 이 경우는 useEffect에서 navigate로 처리하지만, 만약을 위한 방어 코드
+    return (
+      <div className="dashboard-loading">
+        로그인이 필요합니다. 리디렉션 중...
+      </div>
+    );
+  }
+
+  // 사용자는 로드되었지만, userDoc (AuthContext의 상세 프로필)이 아직 로드되지 않은 경우
+  if (!userDoc) {
+    // 이 메시지가 사용자가 겪고 있는 문제입니다.
+    // loadDashboardData는 userDoc을 기다리므로 아직 실행되지 않았을 것입니다.
+    // appLoading은 초기값(true)이거나, 이전에 다른 이유로 false가 되었을 수 있습니다.
+    // 여기서 중요한 것은 userDoc이 로드될 때까지 이 메시지를 표시하는 것입니다.
+    return (
+      <div className="dashboard-loading">
+        사용자 정보를 불러오는 중입니다... 잠시만 기다려주세요.
+      </div>
+    );
+  }
+
+  // AuthContext 로드 완료, user 및 userDoc 모두 사용 가능.
+  // 이제 appLoading (loadDashboardData에 의해 제어됨)이 앱별 데이터 로딩 상태를 결정합니다.
+  if (appLoading) {
+    return (
+      <div className="dashboard-loading">데이터를 불러오는 중입니다...</div>
+    );
+  }
+
+  // 모든 로딩 확인 통과. 대시보드 UI 렌더링.
+  const currentSelectedJobIds = Array.isArray(selectedJobIds)
+    ? selectedJobIds
+    : [];
+  const jobsToShow = Array.isArray(jobs)
+    ? jobs.filter(
+        (job) => currentSelectedJobIds.includes(job.id) && job.active !== false
+      )
+    : [];
+
+  return (
+    <div className="dashboard-container">
+      <header className="dashboard-header">
+        <div className="header-left">
+          <button className="menu-toggle" onClick={toggleMenu}>
+            <span className="menu-icon">&#9776;</span>
+          </button>
+          <h1 className="dashboard-title">
+            Ineconomy<span className="highlight-text">s</span>U Clas
+            <span className="highlight-text">S</span>
+          </h1>
+        </div>
+        <div className="header-right">
+          {userDoc && (
+            <div className="user-info">
+              <span className="user-balance">
+                <span className="balance-icon">💰</span> 현금:{" "}
+                {(userDoc.cash || 0).toLocaleString()}원{" "}
+              </span>
+              <span className="user-coupon">
+                <span className="coupon-icon">🎫</span> 쿠폰:{" "}
+                {(userDoc.coupons || 0).toLocaleString()}개{" "}
+              </span>
+              <span className="username">{userNickname}</span>
+              <button
+                className="logout-button"
+                onClick={handleLogout}
+                disabled={isLoggingOut}
+              >
+                {isLoggingOut ? "로그아웃 중..." : "로그아웃"}
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+
+      <div className={`dashboard-sidebar ${menuOpen ? "open" : ""}`}>
+        <nav className="sidebar-nav">
+          <ul className="nav-menu">
+            <li className={activeMenuItem === "assets" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/assets");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">📊</span>
+                <span className="menu-text">내 자산</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "goals" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/goals");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">🎯</span>
+                <span className="menu-text">목표 기부</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "tasks" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  console.log("할일/과제 메뉴 클릭");
+                  navigate("/dashboard/tasks");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">✅</span>
+                <span className="menu-text">할일/과제</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "shop" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/shop");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">🛒</span>
+                <span className="menu-text">상점</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "bank" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/bank");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">🏦</span>
+                <span className="menu-text">은행</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "market" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/market");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">📈</span>
+                <span className="menu-text">주식 시장</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "court" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/court");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">⚖️</span>
+                <span className="menu-text">법정</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "gov" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/gov");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">🏛️</span>
+                <span className="menu-text">정부</span>
+              </a>
+            </li>
+            <li className={activeMenuItem === "settings" ? "active" : ""}>
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate("/dashboard/settings");
+                  setMenuOpen(false);
+                }}
+              >
+                <span className="menu-icon">⚙️</span>
+                <span className="menu-text">설정</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </div>
+
+      <main className="dashboard-content">
+        {location.pathname === "/dashboard" ||
+        location.pathname === "/dashboard/tasks" ? (
+          <div
+            className="dashboard-content-area"
+            style={{ padding: "0", backgroundColor: "#f9fafb" }}
+          >
+            <div style={{ marginBottom: "15px" }}>
+              <h2 className="dashboard-page-title" style={styles.pageTitle}>
+                <span
+                  style={{ ...styles.pageTitleText, ...styles.welcomeMessage }}
+                >
+                  {`${userNickname}님 환영합니다!`}
+                </span>
+                {isAdmin && viewMode === "list" && !showAdminSettingsModal && (
+                  <button
+                    onClick={handleOpenAdminSettings}
+                    style={buttonStyles.adminSettings}
+                  >
+                    앱 설정
+                  </button>
+                )}
+                {viewMode === "selectJob" && (
+                  <button
+                    onClick={handleCancelForm}
+                    style={buttonStyles.goBack}
+                  >
+                    ← 뒤로가기
+                  </button>
+                )}
+              </h2>
+            </div>
+
+            <div>
+              {viewMode === "list" && !showAdminSettingsModal && (
+                <>
+                  <div style={styles.sectionContainer}>
+                    <div style={styles.sectionHeader}>
+                      <h3 style={styles.sectionHeaderTitle}>나의 할일</h3>
+                      <button
+                        onClick={handleSelectJobClick}
+                        style={buttonStyles.headerButton}
+                      >
+                        직업 추가/선택
+                      </button>
+                    </div>
+                    <div
+                      className="job-tasks-grid"
+                      style={styles.jobTaskListGrid}
+                    >
+                      {jobsToShow.length > 0 ? (
+                        jobsToShow.map((job) => (
+                          <JobList
+                            key={job.id}
+                            job={job}
+                            isAdmin={isAdmin}
+                            onEditJob={() => handleEditJob(job.id)}
+                            onAddTask={() => handleAddTaskClick(job.id, true)}
+                            onEarnCoupon={(taskId) =>
+                              handleTaskEarnCoupon(taskId, job.id, true)
+                            }
+                            onEditTask={(taskId) =>
+                              handleEditTask(taskId, job.id)
+                            }
+                            onDeleteTask={(taskId) =>
+                              handleDeleteTask(taskId, job.id)
+                            }
+                            addJobTaskButtonStyle={
+                              buttonStyles.addJobTaskButton
+                            }
+                          />
+                        ))
+                      ) : (
+                        <p
+                          style={{
+                            color: "#6b7280",
+                            gridColumn: "1 / -1",
+                            textAlign: "center",
+                            padding: "20px 0",
+                          }}
+                        >
+                          표시할 직업이 없습니다. '직업 추가/선택' 버튼을 눌러
+                          직업을 선택해주세요.
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={styles.subsectionHeader}>
+                      <h4 style={styles.subsectionHeaderTitle}>공통 할일</h4>
+                      {isAdmin && (
+                        <button
+                          onClick={() => handleAddTaskClick(null, false)}
+                          style={buttonStyles.greenButton}
+                        >
+                          + 공통 할일 추가
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ 
+                      marginTop: "15px", 
+                      display: "grid", 
+                      gridTemplateColumns: "repeat(2, 1fr)", // 무조건 두 칸씩 표시
+                      gap: "15px" 
+                    }}>
+                      <CommonTaskList
+                        tasks={commonTasks}
+                        isAdmin={isAdmin}
+                        onEarnCoupon={(taskId) =>
+                          handleTaskEarnCoupon(taskId, null, false)
+                        }
+                        onEditTask={(taskId) => handleEditTask(taskId, null)}
+                        onDeleteTask={(taskId) => handleDeleteTask(taskId, null)}
+                        isHandlingTask={isHandlingTask} // 로딩 상태 전달
+                      />
+                    </div>
+                  </div>
+
+                  <div style={styles.sectionContainer}>
+                    <div style={styles.sectionHeader}>
+                      <h3 style={styles.sectionHeaderTitle}>나의 자산</h3>
+                    </div>
+                    <CouponGoal
+                      classCouponGoal={classCouponGoal}
+                      goalProgress={goalProgress}
+                      myContribution={myContribution}
+                      currentCoupons={userDoc?.coupons || 0}
+                      couponValue={couponValue}
+                      setShowDonateModal={setShowDonateModal}
+                      setShowSellCouponModal={setShowSellCouponModal}
+                      setShowDonationHistoryModal={setShowDonationHistoryModal}
+                      setShowGiftCouponModal={setShowGiftCouponModal}
+                      goalAchieved={goalAchieved}
+                    />
+                    <AssetSummary
+                      user={userDoc}
+                      couponValue={couponValue}
+                      setShowTransferModal={setShowTransferModal}
+                    />
+                  </div>
+                </>
+              )}
+              {viewMode === "selectJob" && (
+                <SelectMultipleJobsView
+                  availableJobs={jobs}
+                  currentSelectedJobIds={currentSelectedJobIds}
+                  onConfirmSelection={handleConfirmJobSelection}
+                  onCancel={handleCancelForm}
+                />
+              )}
+            </div>
+
+            <TransferModal
+              showTransferModal={showTransferModal}
+              setShowTransferModal={setShowTransferModal}
+              recipients={allUsers}
+              transferRecipient={transferRecipient}
+              setTransferRecipient={setTransferRecipient}
+              transferAmount={transferAmount}
+              setTransferAmount={setTransferAmount}
+              handleTransfer={handleTransfer}
+              userId={userId}
+              userCash={userDoc?.cash || 0}
+            />
+            <GiftCouponModal
+              showGiftCouponModal={showGiftCouponModal}
+              setShowGiftCouponModal={setShowGiftCouponModal}
+              recipients={allUsers}
+              giftRecipient={giftRecipient}
+              setGiftRecipient={setGiftRecipient}
+              giftAmount={giftAmount}
+              setGiftAmount={setGiftAmount}
+              handleGiftCoupon={handleGiftCoupon}
+              currentCoupons={userDoc?.coupons || 0}
+              userId={userId}
+            />
+            <DonateCouponModal
+              showDonateModal={showDonateModal}
+              setShowDonateModal={setShowDonateModal}
+              currentCoupons={userDoc?.coupons || 0}
+              onDonate={async (donationAmount) => {
+                if (
+                  !userId ||
+                  donationAmount <= 0 ||
+                  donationAmount > (userDoc?.coupons || 0)
+                ) {
+                  alert("기부할 쿠폰 수량을 확인해주세요.");
+                  return;
+                }
+                setAppLoading(true);
+                try {
+                  const newCoupons = (userDoc?.coupons || 0) - donationAmount;
+                  const newMyContribution = myContribution + donationAmount;
+                  const newGoalProgress = goalProgress + donationAmount;
+
+                  const batch = writeBatch(db);
+                  const userRef = doc(db, "users", userId);
+                  batch.update(userRef, {
+                    coupons: newCoupons,
+                    myContribution: newMyContribution,
+                  });
+
+                  const settingsRef = doc(db, "settings", "mainSettings");
+                  batch.update(settingsRef, { goalProgress: newGoalProgress });
+
+                  await batch.commit();
+
+                  setMyContribution(newMyContribution); // 로컬 상태 업데이트
+                  setGoalProgress(newGoalProgress); // 로컬 상태 업데이트
+                  // userDoc의 coupons도 변경되었으므로, AuthContext를 통해 업데이트되거나,
+                  // loadDashboardData()를 호출하여 전체 데이터를 새로고침합니다.
+                  loadDashboardData();
+
+                  alert(`${donationAmount} 쿠폰을 기부했습니다!`);
+                  setShowDonateModal(false);
+                } catch (error) {
+                  console.error("쿠폰 기부 오류:", error);
+                  alert("쿠폰 기부 중 오류가 발생했습니다.");
+                } finally {
+                  setAppLoading(false);
+                }
+              }}
+              userId={userId}
+            />
+            <DonationHistoryModal
+              showDonationHistoryModal={showDonationHistoryModal}
+              setShowDonationHistoryModal={setShowDonationHistoryModal}
+              students={allUsers.map((u) => ({
+                ...u,
+                contribution: u.myContribution || 0,
+              }))}
+            />
+            <SellCouponModal
+              showSellCouponModal={showSellCouponModal}
+              setShowSellCouponModal={setShowSellCouponModal}
+              currentCoupons={userDoc?.coupons || 0}
+              couponValue={couponValue}
+              sellAmount={sellAmount}
+              setSellAmount={setSellAmount}
+              SellCoupon={handleSellCoupon} // 함수 이름 변경에 유의 (handleSellCoupon)
+            />
+            {isAdmin && (
+              <AdminSettingsModal
+                isAdmin={isAdmin}
+                showAdminSettingsModal={showAdminSettingsModal}
+                setShowAdminSettingsModal={setShowAdminSettingsModal}
+                adminSelectedMenu={adminSelectedMenu}
+                setAdminSelectedMenu={setAdminSelectedMenu}
+                // ... 기존 props ...
+                // 학급 코드 관련 props 추가
+                classCodes={classCodes}
+                setClassCodes={setClassCodes}
+                // ... 기타 props ...
+                newGoalAmount={adminGoalAmountInput}
+                setNewGoalAmount={setAdminGoalAmountInput}
+                adminCouponValue={adminCouponValueInput}
+                setAdminCouponValue={setAdminCouponValueInput}
+                handleSaveAdminSettings={handleSaveAdminSettings}
+                jobs={jobs}
+                adminNewJobTitle={adminNewJobTitle}
+                setAdminNewJobTitle={setAdminNewJobTitle}
+                adminEditingJob={editingJob}
+                setAdminEditingJob={setEditingJob}
+                handleSaveJob={handleSaveJob}
+                handleDeleteJob={handleDeleteJob}
+                handleEditJob={handleEditJob} // handleEditJob 전달
+                commonTasks={commonTasks}
+                showAddTaskForm={showAddTaskForm}
+                setShowAddTaskForm={setShowAddTaskForm}
+                adminNewTaskName={adminNewTaskName}
+                setAdminNewTaskName={setAdminNewTaskName}
+                adminNewTaskReward={adminNewTaskReward}
+                setAdminNewTaskReward={setAdminNewTaskReward}
+                adminNewTaskMaxClicks={adminNewTaskMaxClicks}
+                setAdminNewTaskMaxClicks={setAdminNewTaskMaxClicks}
+                adminEditingTask={editingTask} // editingTask 전달
+                setAdminEditingTask={setEditingTask} // setEditingTask 전달
+                handleSaveTask={handleSaveTask}
+                handleEditTask={handleEditTask} // handleEditTask 전달
+                handleDeleteTask={handleDeleteTask} // handleDeleteTask 전달
+                taskFormJobId={currentJobIdForTask} // currentJobIdForTask 전달
+                taskFormIsJobTask={isJobTaskForForm} // isJobTaskForForm 전달
+                handleAddTaskClick={handleAddTaskClick} // handleAddTaskClick 전달
+              />
+            )}
+          </div>
+        ) : (
+          <Outlet />
+        )}
+      </main>
+
+      {menuOpen && (
+        <div className="menu-overlay" onClick={() => setMenuOpen(false)}></div>
+      )}
+    </div>
+  );
+}
+
+export default Dashboard;

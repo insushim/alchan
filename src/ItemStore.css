@@ -1,0 +1,914 @@
+/* src/ItemStore.css */
+
+/* CSS 변수 정의 */
+:root {
+  --color-primary: #4299e1;
+  --color-primary-dark: #3182ce;
+  --color-primary-darker: #2b6cb0;
+  --color-secondary: #4a5568;
+  --color-secondary-dark: #2d3748;
+  --color-secondary-darker: #1a202c;
+  --color-danger: #e53e3e;
+  --color-danger-dark: #c53030;
+  --color-success: #38a169;
+  --color-success-dark: #2f855a;
+  --color-warning: #f6ad55;
+  --color-warning-dark: #b7791f;
+  --color-info-bg: #ebf8ff;
+  --color-gray-100: #f7fafc;
+  --color-gray-200: #edf2f7;
+  --color-gray-300: #e2e8f0;
+  --color-gray-400: #cbd5e0;
+  --color-gray-500: #a0aec0;
+  --color-gray-600: #718096;
+  --color-gray-700: #4a5568;
+  --color-gray-800: #2d3748;
+  --color-gray-900: #1a202c;
+  --color-white: #ffffff;
+  --color-text: var(--color-gray-900);
+  --color-text-secondary: var(--color-gray-700);
+  --border-radius-base: 8px;
+  --border-radius-large: 12px;
+  --padding-base: 1rem;
+  --padding-small: 0.5rem;
+  --padding-large: 1.5rem;
+}
+
+/* --- 기본 설정 및 레이아웃 --- */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
+    Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  background-color: var(--color-gray-100);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.page-container {
+  padding: 20px;
+  max-width: 1280px;
+  margin: 0 auto;
+  background-color: var(--color-gray-100);
+  box-sizing: border-box;
+  position: relative;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+/* --- 헤더 --- */
+.page-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  position: relative;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-right: 55px;
+  padding: 0 1rem;
+}
+
+.page-title {
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--color-text);
+  position: relative;
+  display: inline-block;
+  padding-bottom: 8px;
+  margin: 0;
+}
+.page-title:after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 50%;
+  height: 3px;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary-dark)
+  );
+}
+
+/* 헤더 액션 영역 스타일 */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+/* 인벤토리 링크 스타일 */
+.inventory-link {
+  display: flex;
+  align-items: center;
+  background-color: var(--color-primary);
+  color: white;
+  padding: 8px 15px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  transition: background-color 0.2s;
+}
+
+.inventory-link:hover {
+  background-color: var(--color-primary-dark);
+  text-decoration: none;
+}
+
+.inventory-link:before {
+  content: "🎒";
+  margin-right: 5px;
+  font-size: 1.1rem;
+}
+
+/* --- 관리자 아이콘 버튼 --- */
+.admin-icon-button {
+  background: var(--color-secondary-dark);
+  color: var(--color-white);
+  padding: var(--padding-small);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--color-gray-300);
+  font-size: 1.3rem;
+  line-height: 1;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 10;
+  opacity: 1 !important;
+}
+.admin-icon-button:hover {
+  background: var(--color-secondary-darker);
+  transform: translateY(-1px) scale(1.05);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+  color: var(--color-white);
+}
+.admin-icon-button:active {
+  transform: translateY(0) scale(1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* --- 섹션 제목 --- */
+.section-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-secondary-dark);
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 2px solid var(--color-gray-300);
+  position: relative;
+}
+.section-title:after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 70px;
+  height: 2.5px;
+  background: linear-gradient(
+    90deg,
+    var(--color-primary),
+    var(--color-primary-dark)
+  );
+}
+
+/* --- 콘텐츠 카드 --- */
+.content-card-section {
+  background-color: var(--color-white);
+  border-radius: var(--border-radius-large);
+  padding: 16px;
+  margin-bottom: 25px;
+  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.04), 0 4px 6px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--color-gray-300);
+  overflow: hidden;
+}
+
+/* --- 아이템 그리드 --- */
+.items-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 15px;
+}
+
+/* --- 아이템 카드 --- */
+.store-item-card {
+  border-radius: var(--border-radius-base);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  border: 1px solid var(--color-gray-300);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
+  background-color: #fff;
+}
+
+/* 아이템 카드 호버 효과 */
+.store-item-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08), 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.item-content {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  position: relative;
+  z-index: 1;
+}
+
+/* 수정: 아이템 헤더 영역 - 아이콘과 이름/재고 정보를 수평으로 배치 */
+.item-header {
+  display: flex;
+  margin-bottom: 8px;
+  gap: 10px;
+  width: 100%;
+}
+
+.item-icon-container {
+  flex-shrink: 0;
+}
+
+.item-icon {
+  font-size: 1.8rem;
+  padding: 6px;
+  border-radius: 6px;
+  background-color: rgba(237, 242, 247, 0.8);
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 42px;
+  height: 42px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+/* 수정: 아이템 정보 컨테이너 - 아이콘 오른쪽에 수직 배치되는 이름과 재고 */
+.item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  justify-content: center;
+}
+
+.item-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text);
+  line-height: 1.2;
+  margin: 0 0 4px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-stock {
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.item-stock-label {
+  font-size: 0.75rem;
+  color: var(--color-gray-600);
+  margin-right: 1px;
+}
+
+.item-stock-count {
+  font-weight: 600;
+}
+
+.item-stock-low {
+  color: var(--color-danger-dark);
+  font-weight: 700;
+}
+
+.stock-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.stock-high {
+  background-color: #e6fffa;
+  color: #2c7a7b;
+  border-color: #9ae6b4;
+}
+
+.stock-medium {
+  background-color: #fefcbf;
+  color: #b7791f;
+  border-color: #f6e05e;
+}
+
+.stock-low {
+  background-color: #f8d7da;
+  color: #721c24;
+  border-color: #feb2b2;
+}
+
+/* 수정: 아이템 설명 - 헤더 바로 아래에 위치 */
+.item-description {
+  color: var(--color-text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0 0 10px 0;
+  flex-grow: 1;
+  overflow-wrap: break-word;
+  word-break: keep-all;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.item-actions-primary {
+  display: flex;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-gray-200);
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.item-price {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-primary-darker);
+  white-space: nowrap;
+  margin-right: auto;
+}
+
+.item-actions-admin {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--color-gray-200);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.admin-button-icon {
+  margin-left: 4px;
+  font-size: 0.85em;
+  vertical-align: middle;
+}
+
+/* --- 버튼 공통 및 개별 스타일 --- */
+.buy-item-button {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary) 0%,
+    var(--color-primary-dark) 100%
+  );
+  box-shadow: 0 2px 4px rgba(66, 153, 225, 0.2);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.85rem;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.buy-item-button:hover:not(:disabled) {
+  background: linear-gradient(
+    135deg,
+    var(--color-primary-dark) 0%,
+    var(--color-primary-darker) 100%
+  );
+  box-shadow: 0 4px 6px rgba(49, 130, 206, 0.25);
+  transform: translateY(-1px);
+}
+
+.buy-item-button:active:not(:disabled) {
+  box-shadow: 0 1px 2px rgba(49, 130, 206, 0.2);
+  transform: translateY(0);
+}
+
+.buy-item-button:disabled {
+  background-color: var(--color-gray-400);
+  cursor: not-allowed;
+  box-shadow: none;
+  color: var(--color-gray-200);
+}
+
+.edit-item-button {
+  background: linear-gradient(
+    135deg,
+    var(--color-success) 0%,
+    var(--color-success-dark) 100%
+  );
+  box-shadow: 0 2px 4px rgba(72, 187, 120, 0.2);
+  color: white;
+  flex: 1;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.edit-item-button:hover {
+  background: linear-gradient(
+    135deg,
+    var(--color-success) 0%,
+    var(--color-success-dark) 100%
+  );
+  box-shadow: 0 4px 6px rgba(56, 161, 105, 0.25);
+  transform: translateY(-1px);
+}
+
+.edit-item-button:active {
+  box-shadow: 0 1px 2px rgba(56, 161, 105, 0.2);
+  transform: translateY(0);
+}
+
+.delete-item-button {
+  background: linear-gradient(
+    135deg,
+    var(--color-danger) 0%,
+    var(--color-danger-dark) 100%
+  );
+  box-shadow: 0 2px 4px rgba(245, 101, 101, 0.2);
+  color: white;
+  flex: 1;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.delete-item-button:hover {
+  background: linear-gradient(
+    135deg,
+    var(--color-danger) 0%,
+    var(--color-danger-dark) 100%
+  );
+  box-shadow: 0 4px 6px rgba(229, 62, 62, 0.25);
+  transform: translateY(-1px);
+}
+
+.delete-item-button:active {
+  box-shadow: 0 1px 2px rgba(229, 62, 62, 0.2);
+  transform: translateY(0);
+}
+
+/* --- 알림, 모달, 기타 --- */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 16px;
+  border-radius: var(--border-radius-base);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1050;
+  max-width: 350px;
+  animation: fadeInOut 3s forwards;
+}
+/* 알림 타입별 배경색 - 변수 사용 */
+.notification.bg-green-100 {
+  background-color: #e6fffa;
+}
+.notification.text-green-800 {
+  color: #2c7a7b;
+}
+.notification.bg-red-100 {
+  background-color: #fff5f5;
+}
+.notification.text-red-800 {
+  color: var(--color-danger-dark);
+}
+.notification.bg-blue-100 {
+  background-color: #ebf8ff;
+}
+.notification.text-blue-800 {
+  color: var(--color-primary-darker);
+}
+
+/* Keyframes might differ between versions */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  10% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+    visibility: hidden;
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+}
+
+.delete-confirm-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+  padding: 20px;
+}
+.delete-confirm-content {
+  background-color: var(--color-white);
+  padding: 20px;
+  border-radius: var(--border-radius-large);
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: modalFadeIn 0.3s forwards;
+  text-align: center;
+}
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.delete-confirm-content h3 {
+  margin-top: 0;
+  color: var(--color-danger);
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+}
+.delete-confirm-content p {
+  margin-bottom: 20px;
+  color: var(--color-text-secondary);
+}
+.delete-confirm-content strong {
+  color: var(--color-secondary-dark);
+  font-weight: 600;
+}
+.delete-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+.delete-confirm-button,
+.delete-cancel-button {
+  padding: 8px 16px;
+  border-radius: var(--border-radius-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  color: white;
+}
+.delete-confirm-button {
+  background-color: var(--color-danger);
+  color: var(--color-white);
+}
+.delete-confirm-button:hover {
+  background-color: var(--color-danger-dark);
+}
+.delete-cancel-button {
+  background-color: var(--color-gray-300);
+  color: var(--color-text-secondary);
+}
+.delete-cancel-button:hover {
+  background-color: var(--color-gray-400);
+}
+
+.login-warning {
+  background-color: #fffaf0;
+  border-left: 4px solid var(--color-warning);
+  padding: 15px;
+  border-radius: var(--border-radius-base);
+  margin-bottom: 20px;
+  color: var(--color-warning-dark);
+  font-size: 0.9rem;
+}
+.empty-message {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--color-gray-600);
+  background-color: var(--color-gray-100);
+  border-radius: var(--border-radius-base);
+  border: 1px dashed var(--color-gray-300);
+}
+
+/* Added: Admin mode styles - HEIGHT RESTRICTION REMOVED */
+.page-container.admin-mode {
+  padding: 1rem 0;
+  max-width: 100%;
+}
+
+.content-container {
+  position: relative;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  min-height: calc(100vh - 100px);
+}
+
+/* Store Content Styles */
+.store-content {
+  width: 100%;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+}
+
+.store-content.store-hidden {
+  transform: translateX(-100%);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.store-content.store-visible {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Admin Panel Container Styles - HEIGHT RESTRICTION REMOVED PREVIOUSLY */
+.admin-panel-container {
+  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: transform 0.4s ease, opacity 0.4s ease;
+  background-color: #f8f9fa;
+}
+
+.admin-panel-container.admin-hidden {
+  transform: translateX(100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-panel-container.admin-visible {
+  transform: translateX(0);
+  opacity: 1;
+  position: relative;
+}
+
+/* Added: Admin Panel Full Container */
+.admin-panel-full-container {
+  width: 100%;
+  height: auto;
+  padding: 0;
+  position: relative;
+  background-color: #f8f9fa;
+}
+
+/* Added: Admin Panel Full Container overrides - HEIGHT RESTRICTION REMOVED */
+.admin-panel-full-container .admin-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  position: static !important;
+  transform: none !important;
+  height: auto !important;
+  overflow: visible !important;
+  box-shadow: none !important;
+}
+
+/* --- 반응형 디자인 --- */
+@media (max-width: 768px) {
+  .page-container {
+    padding: 16px 12px;
+  }
+  .page-header-container {
+    align-items: center;
+    padding-right: 50px;
+    margin-bottom: 1rem;
+  }
+  .page-title {
+    font-size: 1.8rem;
+  }
+  .section-title {
+    font-size: 1.4rem;
+  }
+  .content-card-section {
+    padding: 12px;
+  }
+  .items-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  /* 모바일에서는 아이템 헤더를 원래 구조로 유지 */
+  .item-header.flex-col {
+    flex-direction: row;
+  }
+
+  .item-actions-primary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .item-price {
+    margin-left: 0;
+    padding-left: 0;
+    margin-bottom: 8px;
+    margin-right: 0;
+  }
+
+  .buy-item-button,
+  .edit-item-button,
+  .delete-item-button {
+    width: 100%;
+  }
+
+  /* Added responsive adjustments */
+  .content-container {
+    flex-direction: column;
+  }
+
+  .admin-panel-container,
+  .store-content {
+    width: 100%;
+  }
+
+  /* Added responsive notification adjustments */
+  .notification {
+    right: 10px;
+    left: 10px;
+    width: calc(100% - 20px);
+    max-width: none;
+  }
+
+  /* Added responsive modal button adjustments */
+  .delete-confirm-buttons {
+    flex-direction: column;
+  }
+
+  .delete-confirm-button,
+  .delete-cancel-button {
+    width: 100%;
+    margin: 5px 0;
+  }
+
+  /* Added responsive admin panel adjustments */
+  .admin-panel-full-container .admin-panel {
+    padding: 1rem !important;
+    overflow-x: hidden !important;
+  }
+
+  .admin-panel-full-container .admin-form {
+    padding: 0 !important;
+  }
+
+  .admin-panel-full-container .admin-form-group {
+    flex-direction: column !important;
+  }
+
+  .admin-panel-full-container .admin-label,
+  .admin-panel-full-container .admin-input,
+  .admin-panel-full-container .admin-textarea,
+  .admin-panel-full-container .admin-select {
+    width: 100% !important;
+  }
+
+  .admin-panel-full-container .admin-buttons {
+    flex-direction: column !important;
+    width: 100% !important;
+  }
+
+  .admin-panel-full-container .admin-button {
+    width: 100% !important;
+    margin: 0.5rem 0 !important;
+  }
+
+  /* 모바일에서 아이템 가격과 버튼 정렬 */
+  .item-actions-primary.flex-col {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .item-price.mb-2 {
+    margin-bottom: 0.5rem;
+  }
+
+  .buy-item-button.w-full {
+    width: 100%;
+  }
+
+  .header-actions {
+    gap: 8px;
+  }
+
+  .inventory-link {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .page-container {
+    padding: 12px 8px;
+  }
+  .page-header-container {
+    padding-right: 45px;
+  }
+  .page-title {
+    font-size: 1.5rem;
+  }
+  .admin-icon-button {
+    width: 35px;
+    height: 35px;
+    font-size: 1.1rem;
+  }
+}
+/* ItemStore.css에 추가할 스타일 */
+
+.quantity-and-buy-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quantity-input {
+  width: 60px;
+  height: 36px;
+  padding: 4px 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+}
+
+.quantity-input:disabled {
+  background-color: #f0f0f0;
+  cursor: not-allowed;
+}
+
+/* 모바일 대응 */
+@media (max-width: 768px) {
+  .quantity-and-buy-container {
+    width: 100%;
+  }
+
+  .quantity-input {
+    width: 50px;
+  }
+
+  .buy-item-button {
+    flex: 1;
+  }
+}
