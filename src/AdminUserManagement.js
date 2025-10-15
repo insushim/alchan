@@ -104,6 +104,51 @@ const AdminUserManagement = () => {
     }
   };
 
+  const handleResetPassword = async (user, newPassword) => {
+    try {
+      const updatePassword = httpsCallable(functions, 'updateUserPassword');
+      await updatePassword({
+        email: user.email,
+        newPassword: newPassword
+      });
+      alert(`${user.name} 학생의 비밀번호가 '${newPassword}'로 초기화되었습니다.`);
+    } catch (error) {
+      console.error("비밀번호 초기화 중 오류 발생:", error);
+      alert(`비밀번호 초기화에 실패했습니다: ${error.message}`);
+    }
+  };
+
+  const handleResetAllPasswords = async () => {
+    const defaultPassword = prompt('모든 사용자의 비밀번호를 초기화할 기본 비밀번호를 입력하세요:', 'test1234');
+
+    if (!defaultPassword) {
+      return;
+    }
+
+    if (!window.confirm(`정말로 모든 사용자(${filteredUsers.length}명)의 비밀번호를 '${defaultPassword}'로 초기화하시겠습니까?`)) {
+      return;
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const user of filteredUsers) {
+      try {
+        const updatePassword = httpsCallable(functions, 'updateUserPassword');
+        await updatePassword({
+          email: user.email,
+          newPassword: defaultPassword
+        });
+        successCount++;
+      } catch (error) {
+        console.error(`${user.name} 비밀번호 초기화 실패:`, error);
+        failCount++;
+      }
+    }
+
+    alert(`비밀번호 초기화 완료\n성공: ${successCount}명\n실패: ${failCount}명`);
+  };
+
   const handleEdit = (user) => {
     setEditingUserId(user.id);
     setEditFormData({ ...user });
@@ -201,15 +246,31 @@ const AdminUserManagement = () => {
   return (
     <div className="admin-user-management">
       <h2 className="management-title">{pageTitle}</h2>
-      <div className="search-container">
-        <input
-          type="text"
-          placeholder={isSuperAdmin ? "이름, 이메일 또는 학급 코드로 검색" : "이름 또는 이메일로 검색"}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
+
+      <div className="top-controls">
+        <div className="search-container">
+          <input
+            type="text"
+            placeholder={isSuperAdmin ? "이름, 이메일 또는 학급 코드로 검색" : "이름 또는 이메일로 검색"}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
+          />
+        </div>
+
+        <div className="bulk-actions">
+          <button
+            onClick={handleResetAllPasswords}
+            className="bulk-action-button reset-all"
+          >
+            모든 사용자 비밀번호 초기화
+          </button>
+          <div className="user-count">
+            총 {filteredUsers.length}명
+          </div>
+        </div>
       </div>
+
       <div className="user-cards-container">
         {filteredUsers.map(user => (
           <div key={user.id} className="user-card">
@@ -262,24 +323,62 @@ const AdminUserManagement = () => {
               </div>
             ) : (
               <div className="view-mode">
-                <div className="user-info">
-                  <p><strong>이름:</strong> {user.name}</p>
-                  <p><strong>이메일:</strong> {user.email}</p>
-                  {isSuperAdmin && <p><strong>학급:</strong> {user.classCode}</p>}
-                  <p><strong>직업:</strong> {user.job?.name || user.jobName || '미지정'}</p>
-                  <p><strong>레벨:</strong> {user.level || 0}</p>
-                  <p style={{ color: user.money < 0 ? 'red' : 'inherit' }}>
-                    <strong>잔액:</strong> {user.money?.toLocaleString() || 0}원
-                  </p>
+                <div className="user-header">
+                  <div className="user-avatar">
+                    {user.name?.charAt(0) || '?'}
+                  </div>
+                  <div className="user-basic-info">
+                    <h3 className="user-name">{user.name}</h3>
+                    <p className="user-email">{user.email}</p>
+                  </div>
                 </div>
+
+                <div className="user-info">
+                  {isSuperAdmin && (
+                    <div className="info-item">
+                      <span className="info-label">학급</span>
+                      <span className="info-value badge-class">{user.classCode}</span>
+                    </div>
+                  )}
+                  <div className="info-item">
+                    <span className="info-label">직업</span>
+                    <span className="info-value">{user.job?.name || user.jobName || '미지정'}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">레벨</span>
+                    <span className="info-value badge-level">Lv. {user.level || 0}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">잔액</span>
+                    <span className={`info-value ${user.money < 0 ? 'negative-balance' : 'positive-balance'}`}>
+                      {user.money?.toLocaleString() || 0}원
+                    </span>
+                  </div>
+                </div>
+
                 <div className="card-actions">
-                  <button onClick={() => handleEdit(user)} className="action-button edit">수정</button>
-                  <button onClick={() => handleDelete(user.id)} className="action-button delete">삭제</button>
+                  <button onClick={() => handleEdit(user)} className="action-button edit">
+                    수정
+                  </button>
+                  <button
+                    onClick={() => {
+                      const newPassword = prompt(`${user.name} 학생의 새 비밀번호를 입력하세요:`, 'test1234');
+                      if (newPassword) {
+                        handleResetPassword(user, newPassword);
+                      }
+                    }}
+                    className="action-button reset-password"
+                  >
+                    비밀번호 초기화
+                  </button>
                   <button
                     onClick={() => handleRehabilitate(user.id, user.name, user.classCode)}
                     className="action-button rehabilitate"
                   >
                     개인회생
+                  </button>
+                  <button onClick={() => handleDelete(user.id)} className="action-button delete">
+                    삭제
                   </button>
                 </div>
               </div>

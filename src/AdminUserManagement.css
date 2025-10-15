@@ -17,10 +17,57 @@
   letter-spacing: 0.5px;
 }
 
-.search-container {
+.top-controls {
   margin-bottom: 30px;
   display: flex;
+  flex-direction: column;
+  gap: 20px;
+  align-items: center;
+}
+
+.search-container {
+  width: 100%;
+  display: flex;
   justify-content: center;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.bulk-action-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+}
+
+.bulk-action-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.bulk-action-button.reset-all {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.user-count {
+  background: rgba(255, 255, 255, 0.95);
+  color: #667eea;
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 16px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .search-input {
@@ -80,23 +127,108 @@
   padding: 25px;
 }
 
-.user-info p {
-  margin: 0 0 14px 0;
-  color: #444;
-  font-size: 15px;
-  line-height: 1.8;
-  padding: 8px 12px;
-  background: rgba(102, 126, 234, 0.05);
-  border-radius: 8px;
-  border-left: 3px solid #667eea;
+.user-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
 }
 
-.user-info p strong {
+.user-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  text-transform: uppercase;
+}
+
+.user-basic-info {
+  flex: 1;
+}
+
+.user-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 5px 0;
+}
+
+.user-email {
+  font-size: 13px;
+  color: #666;
+  margin: 0;
+}
+
+.user-info {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: 10px;
+  border-left: 3px solid #667eea;
+  transition: all 0.2s ease;
+}
+
+.info-item:hover {
+  background: rgba(102, 126, 234, 0.08);
+  transform: translateX(3px);
+}
+
+.info-label {
   color: #667eea;
   font-weight: 700;
-  margin-right: 10px;
-  display: inline-block;
-  min-width: 70px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.info-value {
+  color: #333;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.badge-class {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.badge-level {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.positive-balance {
+  color: #11998e;
+  font-weight: 700;
+}
+
+.negative-balance {
+  color: #eb3349;
+  font-weight: 700;
 }
 
 .form-grid {
@@ -140,27 +272,26 @@
 }
 
 .card-actions {
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: 10px;
-  margin-top: 25px;
+  margin-top: 20px;
   padding-top: 20px;
   border-top: 2px solid rgba(102, 126, 234, 0.1);
-  flex-wrap: wrap;
 }
 
 .action-button {
-  padding: 10px 20px;
+  padding: 10px 16px;
   border: none;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
   color: white;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+  text-align: center;
 }
 
 .action-button:hover {
@@ -190,4 +321,18 @@
 
 .action-button.rehabilitate {
   background: linear-gradient(135deg, #f2994a 0%, #f2c94c 100%);
+}
+
+.action-button.reset-password {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+@media (max-width: 768px) {
+  .user-cards-container {
+    grid-template-columns: 1fr;
+  }
+
+  .card-actions {
+    grid-template-columns: 1fr;
+  }
 }
