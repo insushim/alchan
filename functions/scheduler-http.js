@@ -38,6 +38,7 @@ function verifyAuth(req) {
 exports.runScheduler = onRequest({
   region: "asia-northeast3",
   timeoutSeconds: 540, // 9분
+  invoker: 'public', // 인증 없이 호출 가능 (Authorization 헤더로 보안 유지)
 }, async (req, res) => {
   try {
     verifyAuth(req);
