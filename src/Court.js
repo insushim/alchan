@@ -1,17 +1,17 @@
 // src/Court.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
+import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
 import {
-  db, // db는 firebase.js에서 가져옵니다.
-  // Firestore 함수들은 아래에서 직접 가져옵니다.
-  getAllUsersDocuments, // 이 함수는 firebase.js에 정의되어 있다고 가정합니다.
+  db,
+  getAllUsersDocuments,
 } from "./firebase";
 import "./Court.css";
 import SubmitComplaint from "./SubmitComplaint";
 import ComplaintStatus from "./ComplaintStatus";
-import SettlementModal from "./SettlementModal";
+import TrialRoom from "./TrialRoom";
+import { usePolling } from "./hooks/usePolling";
 
-// Firestore v9 모듈식 API에서 필요한 함수들을 직접 가져옵니다.
 import {
   collection,
   doc,
@@ -22,14 +22,14 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  orderBy, // ❗ orderBy 함수를 여기서 import 합니다.
-  onSnapshot,
-  // getDoc, getDocs, where, writeBatch 등 필요한 다른 함수들도 여기에 추가
+  orderBy,
+  getDoc,
+  setDoc,
+  where,
+  getDocs,
 } from "firebase/firestore";
 
-// --- Helper Components (EditComplaintModal, JudgmentModal, TrialResults) ---
-// 이 컴포넌트들은 props로 데이터를 받으므로, Firestore 연동에 따른 직접적인 수정은 거의 없음
-// (이전과 동일 - 생략)
+// --- Helper Components ---
 const EditComplaintModal = ({ complaint, onSave, onCancel, users }) => {
   const [reason, setReason] = useState(complaint.reason);
   const [desiredResolution, setDesiredResolution] = useState(
@@ -53,13 +53,28 @@ const EditComplaintModal = ({ complaint, onSave, onCancel, users }) => {
       </option>
     ));
 
-  return (
-    <div className="edit-modal-overlay">
-      <div className="edit-modal-container">
-        <h3 className="edit-modal-header">
-          고소장 수정 (ID: {complaint.id.slice(-6)})
-        </h3>
-        <div className="edit-modal-content">
+  // Portal을 사용하여 모달 렌더링
+  const modalRoot = document.getElementById("modal-root");
+  if (!modalRoot) {
+    // modal-root가 없으면 body에 생성
+    const newModalRoot = document.createElement("div");
+    newModalRoot.id = "modal-root";
+    document.body.appendChild(newModalRoot);
+  }
+
+  return ReactDOM.createPortal(
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="edit-modal-container modal-container"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>고소장 수정 (ID: {complaint.id.slice(-6)})</h3>
+          <button className="close-button" onClick={onCancel}>
+            ×
+          </button>
+        </div>
+        <div className="modal-content">
           <div className="form-group">
             <label htmlFor="defendantSelectEdit" className="form-label">
               피고소인
@@ -93,16 +108,17 @@ const EditComplaintModal = ({ complaint, onSave, onCancel, users }) => {
             />
           </div>
         </div>
-        <div className="edit-modal-actions">
-          <button onClick={onCancel} className="cancel-button">
+        <div className="modal-footer">
+          <button onClick={onCancel} className="modal-button cancel">
             취소
           </button>
-          <button onClick={handleSave} className="save-button">
+          <button onClick={handleSave} className="modal-button process">
             저장
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById("modal-root") || document.body
   );
 };
 
@@ -117,13 +133,19 @@ const JudgmentModal = ({ complaint, onSave, onCancel }) => {
     onSave(complaint.id, judgmentText);
   };
 
-  return (
-    <div className="edit-modal-overlay">
-      <div className="edit-modal-container">
-        <h3 className="edit-modal-header">
-          판결문 작성 (ID: {complaint.id.slice(-6)})
-        </h3>
-        <div className="edit-modal-content">
+  return ReactDOM.createPortal(
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="modal-container"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>판결문 작성 (ID: {complaint.id.slice(-6)})</h3>
+          <button className="close-button" onClick={onCancel}>
+            ×
+          </button>
+        </div>
+        <div className="modal-content">
           <div className="form-group">
             <label htmlFor="judgmentText" className="form-label">
               판결 내용
@@ -138,16 +160,138 @@ const JudgmentModal = ({ complaint, onSave, onCancel }) => {
             />
           </div>
         </div>
-        <div className="edit-modal-actions">
-          <button onClick={onCancel} className="cancel-button">
+        <div className="modal-footer">
+          <button onClick={onCancel} className="modal-button cancel">
             취소
           </button>
-          <button onClick={handleSaveClick} className="save-button">
+          <button onClick={handleSaveClick} className="modal-button process">
             판결 저장
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.getElementById("modal-root") || document.body
+  );
+};
+
+// 합의금 지급 모달
+const SettlementModal = ({
+  complaint,
+  users,
+  onSave,
+  onCancel,
+  getUserNameById,
+}) => {
+  const [amount, setAmount] = useState("");
+  const [senderId, setSenderId] = useState(complaint.defendantId || "");
+  const [recipientId, setRecipientId] = useState(complaint.complainantId || "");
+
+  const handleSave = async () => {
+    if (!amount || isNaN(parseInt(amount)) || parseInt(amount) <= 0) {
+      alert("유효한 금액을 입력해주세요.");
+      return;
+    }
+    if (!senderId || !recipientId) {
+      alert("보내는 사람과 받는 사람을 모두 선택해주세요.");
+      return;
+    }
+    if (senderId === recipientId) {
+      alert("보내는 사람과 받는 사람은 같을 수 없습니다.");
+      return;
+    }
+
+    try {
+      const success = await onSave(complaint.id, parseInt(amount), senderId, recipientId);
+      if (success) {
+        onCancel(); // 성공하면 모달 닫기
+      }
+    } catch (error) {
+      console.error("Settlement error:", error);
+      alert("합의금 처리 중 오류가 발생했습니다.");
+    }
+  };
+
+  return ReactDOM.createPortal(
+    <div className="modal-overlay" onClick={onCancel}>
+      <div
+        className="modal-container"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-header">
+          <h3>합의금 지급 처리 (사건번호: {complaint.id?.slice(-6) || '없음'})</h3>
+          <button className="close-button" onClick={onCancel}>
+            ×
+          </button>
+        </div>
+        <div className="modal-content">
+          <p>
+            <strong>고소인:</strong> {getUserNameById(complaint.complainantId)}
+          </p>
+          <p>
+            <strong>피고소인:</strong> {getUserNameById(complaint.defendantId)}
+          </p>
+          <div className="form-group">
+            <label htmlFor="settlementSender" className="form-label">
+              송금자:
+            </label>
+            <select
+              id="settlementSender"
+              className="form-select"
+              value={senderId}
+              onChange={(e) => setSenderId(e.target.value)}
+            >
+              <option value="">-- 선택 --</option>
+              {users.filter(u => u.id !== recipientId).map((user) => (
+                <option key={user.id} value={user.id}>
+                  {getUserNameById(user.id)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="settlementRecipient" className="form-label">
+              수금자:
+            </label>
+            <select
+              id="settlementRecipient"
+              className="form-select"
+              value={recipientId}
+              onChange={(e) => setRecipientId(e.target.value)}
+            >
+              <option value="">-- 선택 --</option>
+              {users.filter(u => u.id !== senderId).map((user) => (
+                <option key={user.id} value={user.id}>
+                  {getUserNameById(user.id)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="settlementAmount" className="form-label">
+              합의금 (원):
+            </label>
+            <input
+              type="number"
+              id="settlementAmount"
+              className="form-input"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="금액 입력"
+              min="1"
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onCancel} className="modal-button cancel">
+            취소
+          </button>
+          <button onClick={handleSave} className="modal-button process">
+            지급 처리
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.getElementById("modal-root") || document.body
   );
 };
 
@@ -206,39 +350,138 @@ const TrialResults = ({ complaints, users, onOpenSettlementModal }) => {
   );
 };
 
+// 파산 신청 컴포넌트
+const BankruptcySection = ({ refetchComplaints }) => {
+  const { userDoc, classCode } = useAuth();
+  const [hasPendingBankruptcyCase, setHasPendingBankruptcyCase] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (userDoc?.id && classCode) {
+      const checkPendingCase = async () => {
+        setIsLoading(true);
+        try {
+          const casesRef = collection(db, "classes", classCode, "courtComplaints");
+          const q = query(
+            casesRef,
+            where("complainantId", "==", userDoc.id),
+            where("caseType", "==", "bankruptcy"),
+            where("status", "==", "pending")
+          );
+          const querySnapshot = await getDocs(q);
+          setHasPendingBankruptcyCase(!querySnapshot.empty);
+        } catch (error) {
+          console.error("파산 신청 확인 중 오류:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      checkPendingCase();
+    } else {
+      setIsLoading(false);
+    }
+  }, [userDoc, classCode]);
+
+  const handleApplyForBankruptcy = async () => {
+    if (window.confirm("정말로 파산을 신청하시겠습니까? 재판 결과에 따라 모든 자산이 초기화될 수 있습니다.")) {
+      try {
+        const casesRef = collection(db, "classes", classCode, "courtComplaints");
+        await addDoc(casesRef, {
+          complainantId: userDoc.id,
+          complainantName: userDoc.name,
+          caseType: "bankruptcy",
+          defendantId: "system",
+          defendantName: "시스템",
+          status: "pending",
+          reason: `자산 ${userDoc.money.toLocaleString()}원으로 인한 파산 신청`,
+          desiredResolution: "모든 부채를 청산하고 자산을 0으로 초기화 요청",
+          submissionDate: serverTimestamp(),
+          likedBy: [],
+          dislikedBy: [],
+        });
+        refetchComplaints();
+        alert("파산 신청이 정상적으로 접수되었습니다. 재판 결과를 기다려주세요.");
+        setHasPendingBankruptcyCase(true);
+      } catch (error) {
+        console.error("파산 신청 중 오류 발생:", error);
+        alert("오류가 발생하여 파산 신청에 실패했습니다.");
+      }
+    }
+  };
+
+  if (isLoading) {
+    return <p>파산 신청 정보를 불러오는 중...</p>;
+  }
+
+  return (
+    <div className="bankruptcy-section">
+      <h3>파산 신청</h3>
+      <p>현재 자산: {userDoc?.money ? userDoc.money.toLocaleString() : 0}원</p>
+      {userDoc?.money < 0 ? (
+        <div>
+          <p>
+            자산이 마이너스 상태입니다. 파산을 신청하여 모든 빚을 청산하고 새롭게 시작할 수 있습니다. (재판 필요)
+          </p>
+          {hasPendingBankruptcyCase ? (
+            <p><strong>현재 파산 재판이 진행 중입니다.</strong></p>
+          ) : (
+            <button onClick={handleApplyForBankruptcy} className="action-button delete">
+              파산 신청하기
+            </button>
+          )}
+        </div>
+      ) : (
+        <p>자산이 마이너스 상태일 때 파산을 신청할 수 있습니다.</p>
+      )}
+    </div>
+  );
+};
+
 // --- Main Court Component ---
 const Court = () => {
   const auth = useAuth();
-  const currentUserDoc = auth?.userDoc; // AuthContext에서 userDoc 직접 사용
+  const currentUserDoc = auth?.userDoc;
   const currentUserId = currentUserDoc?.id;
-  const classCode = currentUserDoc?.classCode; // 학급 코드
-  // isAdmin은 AuthContext의 isAdmin 함수 또는 userDoc 필드를 사용할 수 있음
+  const classCode = currentUserDoc?.classCode;
+  
   const isAdmin = auth?.isAdmin
     ? auth.isAdmin()
     : currentUserDoc?.isAdmin || currentUserDoc?.id === "admin1";
 
+  const hasProsecutorPrivileges =
+    isAdmin || currentUserDoc?.jobName === "검찰총장";
+
+  const hasJudgePrivileges = 
+    isAdmin || currentUserDoc?.jobName === "판사";
+  
+  const hasAdminPrivileges = hasJudgePrivileges;
+
   const [activeTab, setActiveTab] = useState("submit");
-  const [complaints, setComplaints] = useState([]);
-  const [complaintsLoading, setComplaintsLoading] = useState(true); // 고소장 로딩 상태
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingComplaint, setEditingComplaint] = useState(null);
   const [isJudgmentModalOpen, setIsJudgmentModalOpen] = useState(false);
   const [judgingComplaint, setJudgingComplaint] = useState(null);
   const [users, setUsers] = useState([]);
-  const [usersLoading, setUsersLoading] = useState(true); // 사용자 목록 로딩 상태
+  const [usersLoading, setUsersLoading] = useState(true);
   const [isSettlementModalOpen, setIsSettlementModalOpen] = useState(false);
   const [settlementComplaint, setSettlementComplaint] = useState(null);
 
-  // 사용자 목록 로드
+  const [activeTrialRoom, setActiveTrialRoom] = useState(null);
+
+  // modal-root 엘리먼트 생성
+  useEffect(() => {
+    if (!document.getElementById("modal-root")) {
+      const modalRoot = document.createElement("div");
+      modalRoot.id = "modal-root";
+      document.body.appendChild(modalRoot);
+    }
+  }, []);
+
   useEffect(() => {
     const fetchUsers = async () => {
       if (!auth.loading) {
-        // AuthContext 로딩 완료 후 사용자 목록 가져오기
         setUsersLoading(true);
         try {
-          // getAllUsersDocuments가 classCode를 인자로 받아 필터링하거나,
-          // 여기서 classCode로 필터링 필요. 현재는 모든 사용자를 가져옴.
-          // 학급별로 하려면: query(collection(db, "users"), where("classCode", "==", classCode))
           const fetchedUsers = await getAllUsersDocuments();
           setUsers(fetchedUsers || []);
         } catch (error) {
@@ -250,50 +493,42 @@ const Court = () => {
       }
     };
     fetchUsers();
-  }, [auth.loading, classCode]); // classCode 변경 시 사용자 다시 로드 (필요시)
+  }, [auth.loading, classCode]);
 
-  // 고소장 데이터 로드 (Firestore)
-  useEffect(() => {
-    if (!classCode) {
-      setComplaintsLoading(false);
-      setComplaints([]);
-      return;
-    }
-    setComplaintsLoading(true);
-    const complaintsRef = collection(
-      db,
-      "classes",
-      classCode,
-      "courtComplaints"
-    );
-    const q = query(complaintsRef, orderBy("submissionDate", "desc"));
+  // usePolling for complaints
+  const { data: complaints = [], loading: complaintsLoading, refetch: refetchComplaints } = usePolling(
+    async () => {
+      if (!classCode) return [];
+      const complaintsRef = collection(db, "classes", classCode, "courtComplaints");
+      const q = query(complaintsRef, orderBy("submissionDate", "desc"));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        submissionDate: doc.data().submissionDate?.toDate
+          ? doc.data().submissionDate.toDate().toISOString()
+          : null,
+        indictmentDate: doc.data().indictmentDate?.toDate
+          ? doc.data().indictmentDate.toDate().toISOString()
+          : null,
+      }));
+    },
+    { interval: 30000, enabled: !!classCode, deps: [classCode] }
+  );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const loadedComplaints = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          // Firestore Timestamp를 JS Date 객체로 변환 (필요시)
-          submissionDate: doc.data().submissionDate?.toDate
-            ? doc.data().submissionDate.toDate().toISOString()
-            : null,
-          indictmentDate: doc.data().indictmentDate?.toDate
-            ? doc.data().indictmentDate.toDate().toISOString()
-            : null,
-        }));
-        setComplaints(loadedComplaints);
-        setComplaintsLoading(false);
-      },
-      (error) => {
-        console.error("Error loading complaints from Firestore:", error);
-        setComplaints([]);
-        setComplaintsLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [classCode]);
+  // usePolling for trial rooms
+  const { data: trialRooms = [], loading: trialRoomsLoading, refetch: refetchTrialRooms } = usePolling(
+    async () => {
+      if (!classCode) return [];
+      const trialRoomsRef = collection(db, "classes", classCode, "trialRooms");
+      const querySnapshot = await getDocs(trialRoomsRef);
+      return querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    { interval: 30000, enabled: !!classCode, deps: [classCode] }
+  );
 
   const handleAddComplaint = async (newComplaintData) => {
     if (!currentUserId || !classCode) {
@@ -305,6 +540,7 @@ const Court = () => {
 
     const complaintToSave = {
       ...newComplaintData,
+      caseType: "general",
       status: "pending",
       submissionDate: serverTimestamp(),
       complainantId: currentUserId,
@@ -315,7 +551,7 @@ const Court = () => {
       judgment: null,
       indictmentDate: null,
       settlementPaid: false,
-      classCode: classCode, // 학급 코드 명시적 저장
+      classCode: classCode,
     };
     try {
       const complaintsRef = collection(
@@ -325,6 +561,7 @@ const Court = () => {
         "courtComplaints"
       );
       await addDoc(complaintsRef, complaintToSave);
+      refetchComplaints();
       setActiveTab("status");
       alert("고소장이 성공적으로 제출되었습니다.");
     } catch (error) {
@@ -334,13 +571,15 @@ const Court = () => {
   };
 
   const handleIndictComplaint = async (id) => {
-    if (!isAdmin || !classCode) return alert("기소 권한이 없습니다.");
+    if (!(hasProsecutorPrivileges || hasAdminPrivileges) || !classCode)
+      return alert("기소 권한이 없습니다.");
     const complaintRef = doc(db, "classes", classCode, "courtComplaints", id);
     try {
       await updateDoc(complaintRef, {
         status: "indicted",
         indictmentDate: serverTimestamp(),
       });
+      refetchComplaints();
       alert(`사건번호 ${id.slice(-6)}이(가) 기소되었습니다.`);
     } catch (error) {
       console.error("Error indicting complaint:", error);
@@ -349,13 +588,16 @@ const Court = () => {
   };
 
   const handleDeleteComplaint = async (id) => {
-    if (!isAdmin || !classCode) return alert("삭제 권한이 없습니다.");
+    if (!(hasProsecutorPrivileges || hasJudgePrivileges || hasAdminPrivileges) || !classCode)
+      return alert("삭제 권한이 없습니다.");
+
     if (
       window.confirm(`사건번호 ${id.slice(-6)} 기록을 정말 삭제하시겠습니까?`)
     ) {
       const complaintRef = doc(db, "classes", classCode, "courtComplaints", id);
       try {
         await deleteDoc(complaintRef);
+        refetchComplaints();
         alert("기록이 삭제되었습니다.");
       } catch (error) {
         console.error("Error deleting complaint:", error);
@@ -365,10 +607,12 @@ const Court = () => {
   };
 
   const handleDismissComplaint = async (id) => {
-    if (!isAdmin || !classCode) return alert("처리 권한이 없습니다.");
+    if (!(hasProsecutorPrivileges || hasJudgePrivileges || hasAdminPrivileges) || !classCode)
+      return alert("처리 권한이 없습니다.");
     const complaintRef = doc(db, "classes", classCode, "courtComplaints", id);
     try {
       await updateDoc(complaintRef, { status: "dismissed" });
+      refetchComplaints();
       alert(`사건번호 ${id.slice(-6)}이(가) 불기소/기각 처리되었습니다.`);
     } catch (error) {
       console.error("Error dismissing complaint:", error);
@@ -381,11 +625,25 @@ const Court = () => {
       alert("로그인이 필요합니다.");
       return;
     }
-    if (!isAdmin && complaint.complainantId !== currentUserId)
-      return alert("본인이 작성한 고소장만 수정할 수 있습니다.");
-    if (complaint.status !== "pending" && !isAdmin) {
+    const canModify = hasProsecutorPrivileges || hasJudgePrivileges || hasAdminPrivileges;
+    const isOwner = complaint.complainantId === currentUserId;
+
+    if (!canModify && !isOwner) {
+      return alert("본인이 작성했거나 권한이 있는 고소장만 수정할 수 있습니다.");
+    }
+
+    if (!canModify && isOwner && complaint.status !== "pending") {
       return alert("진행 중이거나 완료된 사건은 수정할 수 없습니다.");
     }
+
+    if (["resolved", "dismissed"].includes(complaint.status) && !isAdmin) {
+      return alert("완료된 사건은 수정할 수 없습니다.");
+    }
+    
+    if (complaint.caseType === 'bankruptcy') {
+      return alert("파산 신청서는 수정할 수 없습니다.");
+    }
+
     setEditingComplaint(complaint);
     setIsEditModalOpen(true);
   };
@@ -404,13 +662,14 @@ const Court = () => {
       id,
       classCode: prevClassCode,
       ...dataToSave
-    } = updatedComplaintData; // id, classCode는 경로에 사용되므로 업데이트 데이터에서 제외
+    } = updatedComplaintData;
 
     try {
       await updateDoc(complaintRef, {
         ...dataToSave,
-        updatedAt: serverTimestamp(), // 수정 시간 기록
+        updatedAt: serverTimestamp(),
       });
+      refetchComplaints();
       setIsEditModalOpen(false);
       setEditingComplaint(null);
       alert(`사건번호 ${editingComplaint.id.slice(-6)} 정보가 수정되었습니다.`);
@@ -452,12 +711,12 @@ const Court = () => {
           likedBy = alreadyLiked
             ? likedBy.filter((id) => id !== currentUserId)
             : [...likedBy, currentUserId];
-          dislikedBy = dislikedBy.filter((id) => id !== currentUserId); // 반대 투표는 제거
+          dislikedBy = dislikedBy.filter((id) => id !== currentUserId);
         } else if (voteType === "dislike") {
           dislikedBy = alreadyDisliked
             ? dislikedBy.filter((id) => id !== currentUserId)
             : [...dislikedBy, currentUserId];
-          likedBy = likedBy.filter((id) => id !== currentUserId); // 찬성 투표는 제거
+          likedBy = likedBy.filter((id) => id !== currentUserId);
         }
         transaction.update(complaintRef, {
           likedBy,
@@ -465,18 +724,57 @@ const Court = () => {
           updatedAt: serverTimestamp(),
         });
       });
+      refetchComplaints();
     } catch (error) {
       console.error("Error voting on complaint:", error);
       alert("투표 처리 중 오류가 발생했습니다: " + error.message);
     }
   };
+  
+  const handleStartTrial = async (complaintId) => {
+    if (!hasJudgePrivileges || !classCode)
+      return alert("재판 시작 권한이 없습니다.");
 
-  const handleStartTrial = async (id) => {
-    if (!isAdmin || !classCode) return alert("재판 시작 권한이 없습니다.");
-    const complaintRef = doc(db, "classes", classCode, "courtComplaints", id);
+    const complaint = complaints.find(c => c.id === complaintId);
+    if (!complaint) return alert("사건을 찾을 수 없습니다.");
+
     try {
-      await updateDoc(complaintRef, { status: "on_trial" });
-      alert(`사건번호 ${id.slice(-6)}의 재판을 시작합니다.`);
+      const trialRoomData = {
+        caseId: complaintId,
+        caseNumber: complaintId.slice(-6),
+        judgeId: currentUserId,
+        judgeName: currentUserDoc?.name || currentUserDoc?.displayName || "판사",
+        complainantId: complaint.complainantId,
+        defendantId: complaint.defendantId,
+        prosecutorId: null,
+        lawyerId: null,
+        juryIds: [],
+        status: "active",
+        createdAt: serverTimestamp(),
+        participants: [currentUserId],
+      };
+
+      const trialRoomsRef = collection(
+        db,
+        "classes",
+        classCode,
+        "trialRooms"
+      );
+      const newRoomRef = await addDoc(trialRoomsRef, trialRoomData);
+
+      const complaintRef = doc(db, "classes", classCode, "courtComplaints", complaintId);
+      await updateDoc(complaintRef, {
+        status: "on_trial",
+        trialRoomId: newRoomRef.id
+      });
+
+      refetchComplaints();
+      refetchTrialRooms();
+
+      alert(`사건번호 ${complaintId.slice(-6)}의 재판방이 생성되었습니다. 재판을 시작합니다.`);
+
+      setActiveTrialRoom(newRoomRef.id);
+      setActiveTab("trial-room");
     } catch (error) {
       console.error("Error starting trial:", error);
       alert("재판 시작 처리 중 오류가 발생했습니다.");
@@ -484,7 +782,7 @@ const Court = () => {
   };
 
   const handleOpenJudgmentModal = (complaint) => {
-    if (!isAdmin) return alert("판결문 작성 권한이 없습니다.");
+    if (!hasJudgePrivileges) return alert("판결문 작성 권한이 없습니다.");
     if (complaint.status !== "on_trial")
       return alert("재판 진행 중인 사건만 판결할 수 있습니다.");
     setJudgingComplaint(complaint);
@@ -506,6 +804,25 @@ const Court = () => {
         status: "resolved",
         resolvedAt: serverTimestamp(),
       });
+
+      const complaint = complaints.find(c => c.id === complaintId);
+      if (complaint?.trialRoomId) {
+        const trialRoomRef = doc(
+          db,
+          "classes",
+          classCode,
+          "trialRooms",
+          complaint.trialRoomId
+        );
+        await updateDoc(trialRoomRef, {
+          status: "completed",
+          completedAt: serverTimestamp(),
+        });
+        refetchTrialRooms();
+      }
+
+      refetchComplaints();
+
       setIsJudgmentModalOpen(false);
       setJudgingComplaint(null);
       alert(`사건번호 ${complaintId.slice(-6)}의 판결문이 저장되었습니다.`);
@@ -522,7 +839,8 @@ const Court = () => {
   };
 
   const handleOpenSettlementModal = (complaint) => {
-    if (!isAdmin) return alert("합의금 지급 처리 권한은 관리자에게 있습니다.");
+    if (!hasJudgePrivileges && !hasAdminPrivileges)
+      return alert("합의금 지급 처리 권한은 판사 또는 관리자에게 있습니다.");
     if (complaint.status !== "resolved")
       return alert(
         "재판이 완료된 사건에 대해서만 합의금을 처리할 수 있습니다."
@@ -576,8 +894,8 @@ const Court = () => {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const senderRef = doc(db, "users", senderId); // 'users' 컬렉션에 classCode 필터링은 필요에 따라
-        const recipientRef = doc(db, "users", recipientId);
+        const senderRef = doc(db, "Class", classCode, "students", senderId);
+        const recipientRef = doc(db, "Class", classCode, "students", recipientId);
         const complaintDocRef = doc(
           db,
           "classes",
@@ -591,30 +909,22 @@ const Court = () => {
         const complaintSnap = await transaction.get(complaintDocRef);
 
         if (!senderSnap.exists())
-          throw new Error(`${senderName}님의 사용자 정보를 찾을 수 없습니다.`);
+          throw new Error(`${senderName}님의 학생 정보를 찾을 수 없습니다.`);
         if (!recipientSnap.exists())
           throw new Error(
-            `${recipientName}님의 사용자 정보를 찾을 수 없습니다.`
+            `${recipientName}님의 학생 정보를 찾을 수 없습니다.`
           );
         if (!complaintSnap.exists())
           throw new Error("해당 고소 정보를 찾을 수 없습니다.");
 
-        const senderCash = senderSnap.data().cash || 0;
-        if (senderCash < numericAmount) {
-          throw new Error(
-            `${senderName}님의 잔액이 부족합니다. (필요: ${numericAmount.toLocaleString()}, 현재: ${senderCash.toLocaleString()})`
-          );
-        }
+        const senderMoney = senderSnap.data().money || 0;
 
         transaction.update(senderRef, {
-          cash: increment(-numericAmount),
-          updatedAt: serverTimestamp(),
+          money: increment(-numericAmount),
         });
         transaction.update(recipientRef, {
-          cash: increment(numericAmount),
-          updatedAt: serverTimestamp(),
+          money: increment(numericAmount),
         });
-        // 고소장 문서에 합의금 지급 완료 상태 업데이트
         transaction.update(complaintDocRef, {
           settlementPaid: true,
           settlementAmount: numericAmount,
@@ -622,11 +932,10 @@ const Court = () => {
         });
       });
 
-      // 로컬 상태 업데이트는 onSnapshot에 의해 자동으로 처리될 것이므로 제거 가능
-      // setComplaints((prevComplaints) => prevComplaints.map((c) => c.id === complaintId ? { ...c, settlementPaid: true } : c));
+      refetchComplaints();
 
       alert(
-        `${senderName}님이 ${recipientName}님에게 ${numericAmount.toLocaleString()}원 합의금 지급을 완료했습니다. 💸`
+        `${senderName}님이 ${recipientName}님에게 ${numericAmount.toLocaleString()}원 합의금 지급을 완료했습니다.`
       );
       handleCloseSettlementModal();
       return true;
@@ -661,27 +970,25 @@ const Court = () => {
   };
 
   const renderTabContent = () => {
-    // currentUserId는 상단에서 auth.userDoc.id로 이미 정의됨
-    if (!currentUserId && activeTab === "submit") {
-      return (
-        <p className="empty-state">고소장 제출을 위해 로그인이 필요합니다.</p>
-      );
+    if (!currentUserId && (activeTab === "submit" || activeTab === "bankruptcy")) {
+      return <p className="empty-state">로그인이 필요합니다.</p>;
     }
 
     switch (activeTab) {
       case "submit":
-        return currentUserId ? (
-          <SubmitComplaint
-            onSubmitComplaint={handleAddComplaint}
-            // 피고소인 목록에서 자신 제외 + 같은 학급 학생만 (getAllUsersDocuments가 학급 필터링을 안 한다면 여기서 추가 필터링)
-            users={users.filter(
-              (u) => u.id !== currentUserId && u.classCode === classCode
-            )}
-            currentUserId={currentUserId}
-          />
-        ) : (
-          <p className="empty-state">고소장 제출을 위해 로그인이 필요합니다.</p>
+        return (
+          <>
+            <SubmitComplaint
+              onSubmitComplaint={handleAddComplaint}
+              users={users.filter(
+                (u) => u.id !== currentUserId && u.classCode === classCode
+              )}
+              currentUserId={currentUserId}
+            />
+          </>
         );
+      case "bankruptcy":
+        return <BankruptcySection refetchComplaints={refetchComplaints} />;
       case "status":
         return (
           <ComplaintStatus
@@ -697,9 +1004,9 @@ const Court = () => {
             onStartTrial={handleStartTrial}
             onOpenJudgment={handleOpenJudgmentModal}
             onVote={handleVote}
-            isAdmin={isAdmin}
+            isAdmin={hasProsecutorPrivileges || hasJudgePrivileges || hasAdminPrivileges}
             currentUserId={currentUserId}
-            users={users} // ComplaintStatus 내부에서 필요시 필터링
+            users={users}
             formatDate={formatDate}
             getUserNameById={getUserNameById}
           />
@@ -712,82 +1019,111 @@ const Court = () => {
             onOpenSettlementModal={handleOpenSettlementModal}
           />
         );
+      case "trial-room":
+        return activeTrialRoom ? (
+          <TrialRoom
+            roomId={activeTrialRoom}
+            classCode={classCode}
+            currentUser={currentUserDoc}
+            users={users}
+            onClose={() => {
+              setActiveTrialRoom(null);
+              setActiveTab("status");
+            }}
+          />
+        ) : (
+          <div className="trial-rooms-list">
+            <h3>진행 중인 재판방</h3>
+            {trialRooms.filter(r => r.status === "active").length > 0 ? (
+              <div className="rooms-grid">
+                {trialRooms.filter(r => r.status === "active").map(room => (
+                  <div key={room.id} className="room-card">
+                    <h4>사건번호: {room.caseNumber}</h4>
+                    <p>판사: {room.judgeName}</p>
+                    <p>참여자: {room.participants?.length || 0}명</p>
+                    <button 
+                      className="enter-room-btn"
+                      onClick={() => {
+                        setActiveTrialRoom(room.id);
+                      }}
+                    >
+                      재판방 입장
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="empty-state">진행 중인 재판이 없습니다.</p>
+            )}
+          </div>
+        );
       default:
         return <p>탭을 선택해주세요.</p>;
     }
   };
 
-  // 최상단 로딩 조건 수정
   if (auth.loading || usersLoading) {
-    // AuthContext 로딩과 사용자 목록 로딩을 먼저 확인
-    return (
-      <div className="court-container loading">
-        사용자 정보를 불러오는 중...
-      </div>
-    );
+    return <div className="court-container loading">사용자 정보를 불러오는 중...</div>;
   }
   if (!currentUserDoc) {
-    // auth.loading은 끝났지만 currentUserDoc이 없는 경우
-    return (
-      <div className="court-container loading">
-        로그인 정보가 없습니다. 다시 로그인해주세요.
-      </div>
-    );
+    return <div className="court-container loading">로그인 정보가 없습니다. 다시 로그인해주세요.</div>;
   }
   if (!classCode) {
-    // classCode가 없는 경우
-    return (
-      <div className="court-container loading">
-        법원 시스템을 이용하려면 학급 코드가 설정되어야 합니다.
-      </div>
-    );
+    return <div className="court-container loading">법원 시스템을 이용하려면 학급 코드가 설정되어야 합니다.</div>;
   }
   if (complaintsLoading) {
-    // 학급 코드가 있고, 고소장 목록 로딩 중
-    return (
-      <div className="court-container loading">
-        사건 목록을 불러오는 중... (학급: {classCode})
-      </div>
-    );
+    return <div className="court-container loading">사건 목록을 불러오는 중... (학급: {classCode})</div>;
   }
 
   return (
     <div className="court-container">
       <div className="court-header-container">
-        <h1 className="court-header">법원 시스템 (학급: {classCode})</h1>
+        <h1 className="court-header">
+          법원 시스템 (학급: {classCode})
+          {hasJudgePrivileges && " - 판사 권한"}
+          {hasAdminPrivileges && " 🔨"}
+        </h1>
       </div>
 
       <div className="court-tabs">
         <div className="main-tabs">
           <button
-            className={`court-tab-button ${
-              activeTab === "submit" ? "active" : ""
-            }`}
+            className={`court-tab-button ${activeTab === "submit" ? "active" : ""}`}
             onClick={() => setActiveTab("submit")}
           >
             고소장 제출
           </button>
           <button
-            className={`court-tab-button ${
-              activeTab === "status" ? "active" : ""
-            }`}
+            className={`court-tab-button ${activeTab === "status" ? "active" : ""}`}
             onClick={() => setActiveTab("status")}
           >
             사건 현황
           </button>
           <button
-            className={`court-tab-button ${
-              activeTab === "results" ? "active" : ""
-            }`}
+            className={`court-tab-button ${activeTab === "results" ? "active" : ""}`}
             onClick={() => setActiveTab("results")}
           >
             재판 결과
+          </button>
+          <button
+            className={`court-tab-button ${activeTab === "trial-room" ? "active" : ""}`}
+            onClick={() => setActiveTab("trial-room")}
+          >
+            재판방 ⚖️
+          </button>
+          <button
+            className={`court-tab-button ${activeTab === "bankruptcy" ? "active" : ""}`}
+            onClick={() => setActiveTab("bankruptcy")}
+            style={{ color: "#c0392b" }}
+          >
+            파산 신청
           </button>
         </div>
       </div>
 
       <div className="court-tab-content">{renderTabContent()}</div>
 
+      {/* 모달들 */}
       {isEditModalOpen && editingComplaint && (
         <EditComplaintModal
           complaint={editingComplaint}
@@ -810,7 +1146,7 @@ const Court = () => {
       {isSettlementModalOpen && settlementComplaint && (
         <SettlementModal
           complaint={settlementComplaint}
-          users={users} // SettlementModal 내부에서 sender/recipient 필터링 필요시
+          users={users}
           onSave={handleSendSettlement}
           onCancel={handleCloseSettlementModal}
           getUserNameById={getUserNameById}

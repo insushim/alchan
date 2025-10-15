@@ -7,13 +7,14 @@ import {
   collection,
   query,
   where,
-  onSnapshot,
   updateDoc,
   setDoc,
   getDoc,
+  getDocs,
   serverTimestamp,
   writeBatch,
 } from "firebase/firestore";
+import { usePolling } from "./hooks/usePolling";
 
 // 기본 관리자 설정 (Firestore에 없을 경우 사용)
 const DEFAULT_ADMIN_SETTINGS = {
@@ -42,84 +43,73 @@ const OrganizationChart = ({ classCode }) => {
   const [loadingLaws, setLoadingLaws] = useState(true);
 
   // Firestore에서 관리자 설정 로드 및 초기화
-  useEffect(() => {
+  const fetchSettings = useCallback(async () => {
     if (!classCode) return;
     setLoadingSettings(true);
     const settingsDocRef = doc(db, "governmentSettings", classCode);
 
-    const unsubscribe = onSnapshot(
-      settingsDocRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setAdminSettings({ ...DEFAULT_ADMIN_SETTINGS, ...docSnap.data() });
-          setNewSettings({
-            // 모달용 설정도 업데이트
-            vetoOverrideRequired:
-              docSnap.data().vetoOverrideRequired ||
-              DEFAULT_ADMIN_SETTINGS.vetoOverrideRequired,
-            adminPassword: "", // 비밀번호는 직접 입력받도록 비워둠
-          });
-        } else {
-          // 해당 classCode에 대한 설정이 없으면 기본값으로 생성
-          setDoc(settingsDocRef, {
-            ...DEFAULT_ADMIN_SETTINGS,
-            lastUpdated: serverTimestamp(),
-          })
-            .then(() => {
-              setAdminSettings(DEFAULT_ADMIN_SETTINGS);
-              setNewSettings({
-                vetoOverrideRequired:
-                  DEFAULT_ADMIN_SETTINGS.vetoOverrideRequired,
-                adminPassword: "",
-              });
-              console.log(`[${classCode}] 정부 기본 설정 생성 완료`);
-            })
-            .catch((error) =>
-              console.error("기본 정부 설정 생성 오류:", error)
-            );
-        }
-        setLoadingSettings(false);
-      },
-      (error) => {
-        console.error("정부 설정 로드 오류:", error);
-        setLoadingSettings(false);
+    try {
+      const docSnap = await getDoc(settingsDocRef);
+      if (docSnap.exists()) {
+        setAdminSettings({ ...DEFAULT_ADMIN_SETTINGS, ...docSnap.data() });
+        setNewSettings({
+          // 모달용 설정도 업데이트
+          vetoOverrideRequired:
+            docSnap.data().vetoOverrideRequired ||
+            DEFAULT_ADMIN_SETTINGS.vetoOverrideRequired,
+          adminPassword: "", // 비밀번호는 직접 입력받도록 비워둠
+        });
+      } else {
+        // 해당 classCode에 대한 설정이 없으면 기본값으로 생성
+        await setDoc(settingsDocRef, {
+          ...DEFAULT_ADMIN_SETTINGS,
+          lastUpdated: serverTimestamp(),
+        });
+        setAdminSettings(DEFAULT_ADMIN_SETTINGS);
+        setNewSettings({
+          vetoOverrideRequired: DEFAULT_ADMIN_SETTINGS.vetoOverrideRequired,
+          adminPassword: "",
+        });
+        console.log(`[${classCode}] 정부 기본 설정 생성 완료`);
       }
-    );
-    return () => unsubscribe();
+    } catch (error) {
+      console.error("정부 설정 로드 오류:", error);
+    } finally {
+      setLoadingSettings(false);
+    }
   }, [classCode]);
 
-  // Firestore에서 법안 데이터 로드 (실시간)
-  useEffect(() => {
+  usePolling(fetchSettings, 30000);
+
+  // Firestore에서 법안 데이터 로드
+  const fetchLaws = useCallback(async () => {
     if (!classCode) return;
     setLoadingLaws(true);
     const lawsCollectionRef = collection(db, "laws"); // 'laws'는 국회에서 사용하는 법안 컬렉션명과 동일해야 함
     const q = query(lawsCollectionRef, where("classCode", "==", classCode));
 
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const allLaws = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+    try {
+      const querySnapshot = await getDocs(q);
+      const allLaws = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-        const approved = allLaws.filter(
-          (law) => law.status === "approved" && !law.presidentAction // 국회 통과, 대통령 조치 전
-        );
-        const vetoPending = allLaws.filter((law) => law.status === "vetoed"); // 대통령 거부, 재의결 대기
+      const approved = allLaws.filter(
+        (law) => law.status === "approved" && !law.presidentAction // 국회 통과, 대통령 조치 전
+      );
+      const vetoPending = allLaws.filter((law) => law.status === "vetoed"); // 대통령 거부, 재의결 대기
 
-        setApprovedLaws(approved);
-        setVetoPendingLaws(vetoPending);
-        setLoadingLaws(false);
-      },
-      (error) => {
-        console.error("법안 데이터 로드 오류:", error);
-        setLoadingLaws(false);
-      }
-    );
-
-    return () => unsubscribe();
+      setApprovedLaws(approved);
+      setVetoPendingLaws(vetoPending);
+    } catch (error) {
+      console.error("법안 데이터 로드 오류:", error);
+    } finally {
+      setLoadingLaws(false);
+    }
   }, [classCode]);
+
+  usePolling(fetchLaws, 30000);
 
   // 관리자 모드 토글
   const toggleAdminMode = () => {
@@ -164,9 +154,8 @@ const OrganizationChart = ({ classCode }) => {
 
     try {
       await updateDoc(settingsDocRef, updatedSettingsData);
-      // setAdminSettings는 onSnapshot에 의해 자동으로 업데이트됨
+      await fetchSettings();
       setShowSettingsModal(false);
-      // setNewSettings는 useEffect에서 adminSettings 변경 시 업데이트됨
       alert("설정이 저장되었습니다.");
     } catch (error) {
       console.error("설정 저장 오류:", error);
@@ -188,7 +177,7 @@ const OrganizationChart = ({ classCode }) => {
         finalApprovalDate: serverTimestamp(),
         status: "final_approved", // 상태도 최종 승인으로 변경 (혼선 방지)
       });
-      // setApprovedLaws는 onSnapshot에 의해 자동으로 업데이트됨
+      await fetchLaws();
       alert(`"${law.title}" 법안이 최종 승인되었습니다.`);
     } catch (error) {
       console.error("법안 승인 오류:", error);
@@ -235,11 +224,11 @@ const OrganizationChart = ({ classCode }) => {
         vetoDeadline: vetoDeadline, // 재의결 기한 설정
         finalStatus: null, // 최종 상태 초기화
       });
+      await fetchLaws();
 
       // 국회 투표 이력(nationalAssemblyVotes)은 NationalAssembly 컴포넌트에서 관리하므로 여기서는 직접 건드리지 않음
       // 필요하다면, Cloud Function 등을 통해 국회 투표 이력도 초기화하는 로직을 고려할 수 있음
 
-      // setApprovedLaws는 onSnapshot에 의해 자동으로 업데이트됨
       setShowModal(false);
       setSelectedLaw(null);
       alert(

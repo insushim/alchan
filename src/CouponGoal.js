@@ -6,85 +6,27 @@ export default function CouponGoal({
   goalProgress,
   myContribution,
   currentCoupons,
-  couponValue, // Dashboard로부터 받는 prop
+  couponValue,
   setShowDonateModal,
   setShowSellCouponModal,
   setShowDonationHistoryModal,
   setShowGiftCouponModal,
   goalAchieved,
-  // --- 현재 목표 ID ---
-  currentGoalId = "mainGoal", // 현재 목표 ID (DonateCouponModal과 DonationHistoryModal에서 사용)
-  // --- 추가된 prop ---
-  resetGoalButton, // 목표 초기화 함수
-  isResettingGoal, // 초기화 중 로딩 상태
+  resetGoalButton,
+  isResettingGoal,
 }) {
-  // classCouponGoal이 0이거나 숫자가 아닐 경우를 대비하여 기본값 1 설정
   const validClassCouponGoal =
     typeof classCouponGoal === "number" && classCouponGoal > 0
       ? classCouponGoal
       : 1;
 
-  // 목표 대비 진행률 계산 (0-100% 범위 내로 제한)
   const goalPercentage = Math.min(
     Math.round((goalProgress / validClassCouponGoal) * 100),
     100
   );
 
-  // 내 기여도 퍼센트 계산 (0으로 나누기 방지)
   const myContributionPercentage =
     goalProgress > 0 ? Math.round((myContribution / goalProgress) * 100) : 0;
-
-  // --- 목표 초기화 시 기부 내역도 함께 초기화하는 함수 ---
-  const handleResetGoalAndHistory = () => {
-    console.log("초기화 함수 호출됨", currentGoalId);
-
-    // localStorage 기부 내역 삭제부터 먼저 수행
-    try {
-      const goalHistoryKey = `goalDonationHistory_${currentGoalId}`;
-      localStorage.removeItem(goalHistoryKey);
-      console.log(
-        `목표 ${currentGoalId}의 기부 내역이 로컬스토리지에서 초기화되었습니다.`
-      );
-    } catch (error) {
-      console.error("로컬스토리지 접근 중 오류:", error);
-    }
-
-    // 사용자 기여도 관련 로컬 스토리지도 삭제 (선택 사항)
-    try {
-      localStorage.removeItem(`goalProgress_${currentGoalId}`);
-      console.log(`목표 진행도 로컬 스토리지 삭제 완료`);
-    } catch (error) {
-      console.error("로컬스토리지 접근 중 오류:", error);
-    }
-
-    // 서버측 초기화 함수 호출
-    if (typeof resetGoalButton === "function") {
-      resetGoalButton(); // 서버측 목표 초기화 함수 호출
-    } else {
-      console.warn("resetGoalButton 함수가 전달되지 않았습니다.");
-      alert("서버 초기화 함수를 사용할 수 없습니다. 관리자에게 문의하세요.");
-    }
-
-    // 3. (선택 사항) 현재 목표 ID에 해당하는 내 기여도 및 목표 진행도 LocalStorage 값도 삭제
-    // 이는 setGoalProgress, setMyContribution이 호출될 때 해당 localStorage 값들이
-    // 어차피 0으로 갱신되므로 필수는 아닐 수 있습니다.
-    // 하지만 명시적으로 삭제하고 싶다면 아래 코드를 추가합니다.
-    // const userId = "현재_로그인된_사용자_ID"; // 실제 사용자 ID를 가져와야 합니다. (예: useAuth 등)
-    // localStorage.removeItem(`myContribution_${userId}_${currentGoalId}`);
-    // localStorage.removeItem(`goalProgress_${currentGoalId}`);
-
-    // 만약 기부 내역 모달이 열려있다면 닫기
-    if (typeof setShowDonationHistoryModal === "function") {
-      setShowDonationHistoryModal(false);
-    }
-
-    // 초기화 성공 메시지
-    alert(
-      "쿠폰 목표와 기부 내역이 초기화되었습니다. 변경사항이 곧 반영됩니다."
-    );
-
-    // 페이지 새로고침은 resetGoalButton 함수가 완료된 후 자동으로 일어나므로 여기서는 하지 않음
-  };
 
   return (
     <div
@@ -122,7 +64,7 @@ export default function CouponGoal({
         {/* --- 목표 초기화 버튼 (관리자에게만 표시) --- */}
         {resetGoalButton && (
           <button
-            onClick={handleResetGoalAndHistory}
+            onClick={resetGoalButton} // 🔥 바로 props로 받은 함수를 호출하도록 수정
             disabled={isResettingGoal}
             style={{
               backgroundColor: isResettingGoal ? "#9ca3af" : "#ef4444", // 비활성화 시 회색, 활성화 시 빨간색

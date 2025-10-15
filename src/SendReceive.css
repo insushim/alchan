@@ -14,18 +14,55 @@
   margin-bottom: 20px;
 }
 
+/* --- [수정됨] 자산 표시 영역 스타일 --- */
 .balance-display {
-  background-color: #fff;
+  background-color: #ffffff;
   padding: 15px;
   border-radius: 6px;
   margin-bottom: 20px;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
+.asset-summary hr {
+  border: none;
+  border-top: 1px solid #eee;
+  margin: 12px 0;
+}
+
+.asset-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  font-size: 1.05em;
+}
+
+.asset-label {
+  color: #555;
+  font-weight: 500;
+}
+
+.asset-value {
+  color: #2c3e50;
+  font-weight: bold;
+}
+
+.asset-row.treasury .asset-label {
+  color: #2980b9;
+}
+
+.asset-row.treasury .asset-value {
+  color: #2980b9;
+  font-size: 1.15em;
+}
+
+/* --- [기존] p 태그 스타일 (하위 호환성) --- */
 .balance-display p {
   margin: 8px 0;
   font-size: 1.1em;
   color: #555;
+  display: flex;
+  justify-content: space-between;
 }
 
 .balance-display p:first-child {
@@ -33,6 +70,7 @@
   color: #2c3e50;
 }
 
+/* --- 나머지 스타일은 기존과 동일 --- */
 .action-selector {
   display: flex;
   margin-bottom: 20px;
@@ -57,7 +95,7 @@
 }
 
 .action-selector button.active {
-  background-color: #3498db; /* 활성 탭 색상 */
+  background-color: #3498db;
   color: white;
   font-weight: bold;
 }
@@ -69,6 +107,28 @@
   background-color: #e9ecef;
   color: #adb5bd;
   cursor: not-allowed;
+}
+
+.source-selector, .destination-selector {
+  margin-bottom: 20px;
+  padding: 15px;
+  background-color: #f1f6f8;
+  border-radius: 5px;
+}
+
+.source-selector strong, .destination-selector strong {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.source-selector label, .destination-selector label {
+  display: block;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.source-selector input, .destination-selector input {
+  margin-right: 8px;
 }
 
 .transaction-form {
@@ -91,7 +151,7 @@
   font-size: 1em;
   border: none;
   border-radius: 6px;
-  background-color: #2ecc71; /* 제출 버튼 색상 */
+  background-color: #2ecc71;
   color: white;
   cursor: pointer;
   transition: background-color 0.3s ease;

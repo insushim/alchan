@@ -1,11 +1,11 @@
-/* src/Police.css - 요청사항 반영 및 스타일 개선 */
+/* Police.css - 모달 표시 문제 해결 버전 */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap");
 
 /* --- 기본 설정 및 변수 --- */
 :root {
-  --primary-color: #007bff; /* 밝은 파랑 (기본) */
-  --primary-dark: #0056b3; /* 더 진한 파랑 */
-  --secondary-color: #6c757d; /* 회색 */
+  --primary-color: #007bff;
+  --primary-dark: #0056b3;
+  --secondary-color: #6c757d;
   --light-gray: #f8f9fa;
   --medium-gray: #dee2e6;
   --dark-gray: #495057;
@@ -15,7 +15,7 @@
   --danger-color: #dc3545;
   --warning-color: #ffc107;
   --info-color: #17a2b8;
-  --fine-color: #e74c3c; /* 벌금 처리 버튼 색상 (붉은 계열) */
+  --fine-color: #e74c3c;
 
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
@@ -28,7 +28,7 @@
 
 body {
   font-family: "Noto Sans KR", sans-serif;
-  background-color: #eef2f7; /* 페이지 전체 배경색 약간 변경 */
+  background-color: #eef2f7;
   color: var(--text-color);
   line-height: 1.6;
 }
@@ -41,7 +41,9 @@ body {
   background-color: var(--white-color);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--box-shadow-lg);
-  overflow: hidden; /* 내부 요소 그림자 등 가리기 */
+  /* 🔥 overflow 문제 해결: overflow: hidden을 제거하고 visible로 변경 */
+  overflow: visible;
+  position: relative; /* z-index 컨텍스트 생성 */
 }
 
 /* --- 헤더 영역 --- */
@@ -49,15 +51,15 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  flex-wrap: wrap; /* 작은 화면에서 줄바꿈 */
-  gap: 15px; /* 요소 간 간격 */
+  flex-wrap: wrap;
+  gap: 15px;
   padding-bottom: 20px;
   margin-bottom: 25px;
   border-bottom: 2px solid var(--primary-color);
 }
 
 .police-header {
-  font-size: 2.2rem; /* 약간 크게 */
+  font-size: 2.2rem;
   font-weight: 700;
   color: var(--primary-dark);
   margin: 0;
@@ -66,7 +68,7 @@ body {
 .header-info {
   display: flex;
   align-items: center;
-  gap: 20px; /* 정보 요소 간 간격 */
+  gap: 20px;
   font-size: 0.95rem;
   color: var(--dark-gray);
 }
@@ -84,10 +86,10 @@ body {
 
 /* 관리 설정 버튼 (헤더 오른쪽) */
 .admin-settings-button {
-  padding: 8px 16px; /* 패딩 늘림 */
+  padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 500;
-  border-radius: var(--border-radius-md); /* 둥근 정도 증가 */
+  border-radius: var(--border-radius-md);
   cursor: pointer;
   border: 1px solid var(--medium-gray);
   color: var(--dark-gray);
@@ -103,84 +105,86 @@ body {
   transform: translateY(-1px);
 }
 .admin-settings-button.active {
-  /* 활성 탭 스타일 */
   background-color: var(--primary-color);
   border-color: var(--primary-color);
   color: var(--white-color);
-  font-weight: 700; /* 활성 시 굵게 */
+  font-weight: 700;
 }
 
 /* --- 탭 버튼 영역 --- */
 .police-tabs {
   display: flex;
-  gap: 8px; /* 탭 간격 */
+  gap: 8px;
   margin-bottom: 25px;
   border-bottom: 1px solid var(--medium-gray);
 }
 
 .police-tab-button {
-  padding: 12px 24px; /* 패딩 조정 */
+  padding: 12px 24px;
   cursor: pointer;
-  border: none; /* 테두리 제거 */
-  border-bottom: 3px solid transparent; /* 하단 테두리로 활성 표시 */
-  background-color: transparent; /* 기본 배경 투명 */
-  font-size: 1rem; /* 크기 조정 */
+  border: none;
+  border-bottom: 3px solid transparent;
+  background-color: transparent;
+  font-size: 1rem;
   font-weight: 500;
   color: var(--secondary-color);
   transition: all 0.25s ease-in-out;
-  border-radius: 0; /* 탭 모양을 위해 제거 */
+  border-radius: 0;
   position: relative;
-  bottom: -1px; /* 하단 테두리와 겹치도록 */
+  bottom: -1px;
 }
 
 .police-tab-button.active {
   color: var(--primary-color);
   border-bottom-color: var(--primary-color);
-  font-weight: 700; /* 활성 시 굵게 */
+  font-weight: 700;
 }
 
 .police-tab-button:hover:not(.active) {
   color: var(--primary-dark);
-  background-color: rgba(0, 123, 255, 0.05); /* 호버 시 연한 배경 */
+  background-color: rgba(0, 123, 255, 0.05);
 }
 
-/* --- 탭 콘텐츠 영역 --- */
+/* --- 탭 컨텐츠 영역 --- */
 .police-tab-content {
-  padding: 25px; /* 패딩 조정 */
-  background-color: var(--light-gray); /* 배경색 통일 */
-  border-radius: var(--border-radius-md); /* 콘텐츠 영역 둥글게 */
+  padding: 25px;
+  background-color: var(--light-gray);
+  border-radius: var(--border-radius-md);
   min-height: 350px;
-  /* box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04); */ /* 내부 그림자 제거 */
-  border: 1px solid var(--medium-gray); /* 테두리 추가 */
-  margin-top: -1px; /* 탭 경계선과 겹치도록 */
+  border: 1px solid var(--medium-gray);
+  margin-top: -1px;
+  /* 🔥 탭 컨텐츠도 overflow visible로 설정 */
+  overflow: visible;
 }
-/* 관리 설정 탭 콘텐츠 영역 */
+
 .police-admin-content {
   padding: 25px;
-  background-color: #f0f4f8; /* 관리 설정 영역 배경색 약간 다르게 */
+  background-color: #f0f4f8;
   border-radius: var(--border-radius-md);
-  margin-bottom: 25px; /* 탭과의 간격 */
+  margin-bottom: 25px;
   border: 1px solid var(--medium-gray);
+  /* 🔥 관리자 컨텐츠도 overflow visible로 설정 */
+  overflow: visible;
 }
 
-/* --- 공통 버튼 스타일 (둥근 테두리, 배경색) --- */
+/* --- 공통 버튼 스타일 --- */
 button {
   cursor: pointer;
   transition: all 0.2s ease-in-out;
-  font-family: inherit; /* 폰트 상속 */
+  font-family: inherit;
 }
 
 .submit-button,
 .report-actions button,
 .form-actions button,
 .police-admin-settings-container button,
-.save-button, .add-button, .deleteAllButton /* 구체적인 버튼 클래스 추가 */ {
+.save-button, .add-button, .deleteAllButton {
   padding: 10px 20px;
   font-size: 0.95rem;
   font-weight: 500;
-  border-radius: var(--border-radius-md); /* 둥근 테두리 적용 */
-  border: none; /* 테두리 제거 */
-  color: var(--white-color); /* 기본 텍스트 흰색 */
+  border-radius: var(--border-radius-md);
+  border: none;
+  color: var(--white-color);
   box-shadow: var(--box-shadow-sm);
 }
 
@@ -211,7 +215,6 @@ button {
   background-color: #1e7e34;
 }
 
-/* 벌금 버튼 - 디자인 변경 */
 .fine-button {
   background-color: var(--fine-color);
   color: var(--white-color);
@@ -220,11 +223,9 @@ button {
   background-color: #c0392b;
 }
 
-/* 압수 버튼 제거됨 */
-
 .settlement-button {
   background-color: var(--info-color);
-} /* 합의: 청록색 */
+}
 .settlement-button:hover {
   background-color: #117a8b;
 }
@@ -233,7 +234,7 @@ button {
 .delete-button,
 .deleteAllButton {
   background-color: var(--danger-color);
-} /* 기각/삭제: 빨간색 */
+}
 .dismiss-button:hover,
 .delete-button:hover,
 .deleteAllButton:hover {
@@ -242,26 +243,25 @@ button {
 
 .edit-button {
   background-color: var(--secondary-color);
-} /* 수정: 회색 */
+}
 .edit-button:hover {
   background-color: #5a6268;
 }
 
 .save-button {
   background-color: var(--success-color);
-} /* 저장: 초록색 */
+}
 .save-button:hover {
   background-color: #218838;
 }
 
 .add-button {
   background-color: var(--primary-color);
-} /* 추가: 파란색 */
+}
 .add-button:hover {
   background-color: var(--primary-dark);
 }
 
-/* 작은 버튼 스타일 */
 .small-button {
   padding: 5px 10px;
   font-size: 0.8rem;
@@ -269,13 +269,12 @@ button {
 
 /* --- 폼 스타일 --- */
 .submit-report-container,
-.report-status-container, /* 이 클래스 추가 또는 ReportStatus 컴포넌트 최상위에 적용 */
+.report-status-container,
 .report-results-container,
 .police-admin-settings-container {
   h2,
   h3,
   h4 {
-    /* 제목 스타일 통일 */
     margin-top: 0;
     margin-bottom: 20px;
     font-weight: 700;
@@ -289,13 +288,13 @@ button {
 .add-form {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* 그룹 간격 */
+  gap: 20px;
 }
 
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 8px; /* 라벨과 입력 요소 간격 */
+  gap: 8px;
 }
 
 .form-group label {
@@ -305,21 +304,19 @@ button {
 }
 
 .form-group select,
-.form-group input[type="text"],
-.form-group input[type="number"], /* number 타입 포함 */
+.form-group input,
 .form-group textarea {
   width: 100%;
   padding: 12px;
   border: 1px solid var(--medium-gray);
-  border-radius: var(--border-radius-md); /* 입력 요소도 둥글게 */
+  border-radius: var(--border-radius-md);
   font-size: 0.95rem;
   font-family: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  background-color: var(--white-color); /* 배경색 명시 */
+  background-color: var(--white-color);
 }
 .form-group select:focus,
-.form-group input[type="text"]:focus,
-.form-group input[type="number"]:focus,
+.form-group input:focus,
 .form-group textarea:focus {
   border-color: var(--primary-color);
   outline: 0;
@@ -333,225 +330,66 @@ button {
 
 .submit-report-form button,
 .report-form .submit-button {
-  /* 신고 제출 버튼 정렬 */
   align-self: flex-start;
   margin-top: 10px;
 }
 
 /* --- 신고 목록 카드 스타일 --- */
-.reports-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 20px; /* 카드 간격 */
-}
-
-.report-card {
-  background-color: var(--white-color);
-  border: 1px solid var(--medium-gray);
-  border-left: 5px solid var(--secondary-color); /* 기본 왼쪽 테두리 */
-  border-radius: var(--border-radius-md);
-  padding: 25px;
-  box-shadow: var(--box-shadow-md);
-  transition: box-shadow 0.2s ease-in-out, border-left-color 0.3s;
+.report-list {
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
-.report-card:hover {
-  box-shadow: var(--box-shadow-lg);
+
+.report-item {
+  background-color: var(--white-color);
+  border: 1px solid var(--medium-gray);
+  border-left: 5px solid var(--secondary-color);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  box-shadow: var(--box-shadow-sm);
 }
 
-/* 상태별 왼쪽 테두리 색상 및 배경색 (처리 현황 탭 포함) */
-.report-card.submitted {
-  border-left-color: var(--warning-color);
-  background-color: #fffaf0; /* 연한 주황 배경 */
-}
-.report-card.accepted {
-  border-left-color: var(--success-color);
-  background-color: #f0fff4; /* 연한 초록 배경 */
-}
-.report-card.resolved {
-  /* 처리 결과 탭 */
-  border-left-color: var(--primary-color);
-  /* background-color: #f8f9fa; /* 결과 탭은 기본 배경 유지 */
-}
-.report-card.dismissed {
-  /* 처리 결과 탭 */
-  border-left-color: var(--danger-color);
-  background-color: #fff5f5; /* 연한 빨강 배경 */
+.report-item.law-report {
+  border-left-color: var(--primary-dark);
+  background-color: #f0f4f8;
 }
 
-/* 신고 카드 헤더 */
 .report-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start; /* 제목과 오른쪽 요소를 위로 정렬 */
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-bottom: 15px;
+  align-items: center;
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  margin-bottom: 15px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #eee;
 }
 
-.report-header h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 700;
-  color: var(--text-color);
-  flex-grow: 1; /* 제목이 남는 공간 차지 */
+.report-content p {
+  margin: 8px 0;
+  font-size: 0.95rem;
 }
 
-.report-header-right {
-  display: flex;
-  flex-direction: column; /* 상태와 버튼을 세로로 배치 */
-  align-items: flex-end; /* 오른쪽 정렬 */
-  gap: 8px;
-  flex-shrink: 0; /* 줄어들지 않도록 */
-}
-
-/* 신고 상태 표시 (모든 탭 공통) */
-.report-status {
-  padding: 6px 14px; /* 패딩 조정 */
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 700; /* 굵게 */
-  text-align: center;
-  min-width: 100px; /* 최소 너비 */
-  border: 1px solid transparent; /* 기본 테두리 투명 */
-}
-/* 상태별 색상 및 테두리 */
-.report-status.submitted {
-  background-color: #fff3cd;
-  color: #856404;
-  border-color: #ffeeba;
-}
-.report-status.accepted {
-  background-color: #d4edda;
-  color: #155724;
-  border-color: #c3e6cb;
-}
-.report-status.resolved, /* resolved_fine, resolved_settlement 포함 */
-.report-status.resolved_fine,
-.report-status.resolved_settlement {
-  background-color: #cce5ff;
-  color: #004085;
-  border-color: #b8daff;
-}
-.report-status.dismissed {
-  background-color: #f8d7da;
-  color: #721c24;
-  border-color: #f5c6cb;
-}
-/* 압수 상태 제거됨 */
-
-/* 관리자 액션 버튼 (수정/삭제) */
-.admin-actions {
-  display: flex;
-  gap: 8px;
-}
-
-/* 신고 세부 정보 */
-.report-details {
-  font-size: 0.9rem;
-  color: var(--dark-gray);
-}
-.report-details p {
-  margin: 8px 0; /* 세부 항목 간격 */
-  line-height: 1.5;
-}
-.report-details strong {
+.report-content strong {
   font-weight: 500;
   color: var(--text-color);
   margin-right: 8px;
-  display: inline-block;
-  min-width: 100px; /* 레이블 너비 늘림 (가독성 향상) */
 }
 
-/* 개선된 신고 세부 정보 레이아웃 */
-.report-details-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px 20px;
-  margin-bottom: 15px;
-}
-
-.report-details-grid p {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-}
-
-.report-details-grid strong {
-  min-width: 100px;
-  flex-shrink: 0;
-}
-
-.report-details-full {
-  grid-column: 1 / -1;
-}
-
-/* --- 처리 현황 탭 관련 스타일 --- */
-/* 처리 현황 제목 */
-.report-status-container h2 {
-  color: var(--info-color); /* 처리 현황 제목 색상 변경 (선택 사항) */
-  border-bottom-color: var(--info-color);
-}
-
-/* 처리 현황 카드 내 액션 버튼 영역 */
 .report-actions {
   display: flex;
   gap: 10px;
-  margin-top: 15px;
+  margin-top: 20px;
   flex-wrap: wrap;
 }
 
-/* 처리 폼 (ReportStatus, ReportResults 등에서 사용될 수 있음) */
-.processing-form {
-  /* 공통 처리 폼 스타일 */
-  margin-top: 15px; /* 액션 버튼과의 간격 */
-  padding: 20px;
-  background-color: #e9ecef; /* 폼 배경색 */
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--medium-gray);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 15px; /* 폼 내부 요소 간격 */
-}
-.processing-form .form-group {
-  margin-bottom: 0; /* form-group 기본 마진 제거 */
-}
-.processing-form label {
-  font-weight: 500;
-  margin-bottom: 5px;
-  color: var(--dark-gray);
-  font-size: 0.9rem;
-}
-.processing-form input[type="number"],
-.processing-form input[type="text"] {
-  padding: 10px 12px; /* 패딩 조정 */
-  font-size: 0.95rem;
-  background-color: var(--white-color); /* 입력 필드 배경 흰색 */
-}
-/* 처리 폼 내 액션 버튼 */
-.processing-form .form-actions {
-  display: flex;
-  justify-content: flex-end; /* 폼 내부 버튼 오른쪽 정렬 */
-  gap: 10px;
-  margin-top: 10px; /* 입력 요소와 간격 */
-  padding-top: 15px;
-  border-top: 1px solid var(--medium-gray); /* 구분선 */
-}
-/* 버튼 비활성화 스타일 */
-.report-actions button:disabled,
-.form-actions button:disabled {
-  background-color: #adb5bd;
-  cursor: not-allowed;
-  opacity: 0.7;
-  box-shadow: none;
-  transform: none;
+.law-reason-highlight {
+  font-weight: bold;
+  color: var(--primary-dark);
+  background-color: rgba(0, 123, 255, 0.1);
+  padding: 2px 5px;
+  border-radius: var(--border-radius-sm);
 }
 
 /* --- 관리자 설정 탭 내부 --- */
@@ -566,41 +404,32 @@ button {
 .settings-section:last-child {
   margin-bottom: 0;
 }
-/* 관리자 설정 제목 */
 .police-admin-settings-container h3 {
-  /* PoliceAdminSettings 컴포넌트 제목 */
   color: var(--secondary-color);
   border-bottom-color: var(--secondary-color);
 }
 .settings-section h4 {
-  /* 섹션 제목 */
   color: var(--dark-gray);
   border-bottom-color: #eee;
   font-size: 1.1rem;
   font-weight: 600;
 }
 
-/* 신고 사유 목록 */
 .reason-list {
   list-style: none;
   padding: 0;
-  margin: 0; /* 기본 마진 제거 */
-  margin-bottom: 20px; /* 아래쪽 여백 추가 */
+  margin: 0 0 20px 0;
 }
 .reason-list-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 10px; /* 패딩 조정 */
+  padding: 15px 10px;
   border-bottom: 1px dashed var(--medium-gray);
   transition: background-color 0.2s ease;
 }
-.reason-list-item:last-child {
-  border-bottom: none;
-}
-.reason-list-item:hover {
-  background-color: #f8f9fa; /* 호버 효과 */
-}
+.reason-list-item:last-child { border-bottom: none; }
+.reason-list-item:hover { background-color: #f8f9fa; }
 
 .reason-text {
   font-size: 0.95rem;
@@ -617,7 +446,6 @@ button {
 }
 
 .amount-input {
-  /* 관리자 설정 내 금액 입력 */
   width: 100px;
   padding: 8px 10px;
   border: 1px solid var(--medium-gray);
@@ -626,8 +454,7 @@ button {
   font-size: 0.9rem;
 }
 .amount-input.small-input {
-  /* 새 사유 추가 폼의 금액 입력 */
-  width: 120px; /* 너비 약간 늘림 */
+  width: 120px;
 }
 
 .currency-unit {
@@ -635,170 +462,244 @@ button {
   color: var(--secondary-color);
 }
 
-/* 관리자 설정 내 삭제 버튼 */
-.reason-list-item .delete-button {
-  /* 공통 small-button 스타일 사용 */
-}
-
-/* 금액 저장 버튼 */
 .settings-section .save-button {
   margin-top: 15px;
-  display: block; /* 블록 요소로 만들어 왼쪽 정렬 */
+  display: block;
 }
 
-/* 사유 추가 폼 */
 .settings-section .add-form {
   margin-top: 25px;
   padding-top: 20px;
   border-top: 1px solid var(--medium-gray);
-  align-items: center; /* 요소들 수직 중앙 정렬 */
-  display: flex; /* 추가 */
-  gap: 10px; /* 추가 */
+  align-items: center;
+  display: flex;
+  gap: 10px;
 }
 .settings-section .reason-input {
-  /* 사유 이름 입력 */
-  flex-grow: 1; /* 남는 공간 차지 */
+  flex-grow: 1;
 }
 
-/* 데이터 관리 섹션 */
 .settings-section .deleteAllButton {
-  margin-right: 15px; /* 경고 텍스트와 간격 */
+  margin-right: 15px;
 }
 .warningText {
   color: var(--danger-color);
   font-size: 0.85rem;
   margin-top: 8px;
-  display: inline-block; /* 버튼 옆에 표시되도록 */
+  display: inline-block;
 }
 
 /* --- 기타 스타일 --- */
-.no-results-message {
+.empty-state, .no-results-message {
   text-align: center;
   color: var(--secondary-color);
   margin-top: 30px;
   font-style: italic;
+  padding: 20px;
+  background-color: var(--light-gray);
+  border-radius: var(--border-radius-md);
+}
+
+/* ==========================================================================
+   모달 (Modal) 스타일 - 🔥 문제 해결 버전
+   ========================================================================== */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  /* 🔥 z-index를 훨씬 높게 설정 */
+  z-index: 999999;
+  /* 🔥 백드롭 필터 추가 */
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
+}
+
+.modal-container {
+  background-color: var(--white-color);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--box-shadow-lg);
+  width: 90%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  /* 🔥 모달 컨테이너의 z-index도 높게 설정 */
+  z-index: 1000000;
+  /* 🔥 애니메이션 추가 */
+  animation: modalFadeIn 0.3s ease-out;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* 🔥 모달 애니메이션 추가 */
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 25px;
+  border-bottom: 1px solid var(--medium-gray);
+  background-color: var(--light-gray);
+}
+
+.modal-header h2,
+.modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--primary-dark);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  font-weight: 300;
+  line-height: 1;
+  color: var(--secondary-color);
+  cursor: pointer;
+  padding: 0;
+}
+.close-button:hover {
+  color: var(--text-color);
+}
+
+.modal-content {
+  padding: 25px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-content .form-group {
+  margin-bottom: 15px;
+}
+
+.modal-content .form-input,
+.modal-content .form-textarea,
+.modal-content .form-select {
+  padding: 10px;
+}
+
+.report-summary {
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: var(--border-radius-md);
+  padding: 15px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+.report-summary p {
+  margin: 5px 0;
+}
+
+.form-hint {
+  font-size: 0.85rem;
+  color: var(--secondary-color);
+  margin-top: 5px;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 20px 25px;
+  border-top: 1px solid var(--medium-gray);
+  background-color: var(--light-gray);
+}
+
+.modal-button {
+  padding: 10px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: var(--border-radius-md);
+  border: 1px solid transparent;
+}
+
+.modal-button.cancel {
+  background-color: var(--white-color);
+  border-color: var(--medium-gray);
+  color: var(--dark-gray);
+}
+.modal-button.cancel:hover {
+  background-color: #e9ecef;
+}
+
+.modal-button.process {
+  background-color: var(--primary-color);
+  color: var(--white-color);
+}
+.modal-button.process:hover {
+  background-color: var(--primary-dark);
 }
 
 /* --- 반응형 디자인 --- */
 @media (max-width: 768px) {
-  .police-container {
-    padding: 20px;
+  .police-container { 
+    padding: 20px; 
+    /* 🔥 모바일에서도 overflow visible 유지 */
+    overflow: visible;
   }
-  .police-header-container {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .header-info {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    width: 100%; /* 전체 너비 사용 */
-  }
-  .admin-settings-button {
-    align-self: flex-start; /* 왼쪽 정렬 */
+  .police-header-container { flex-direction: column; align-items: flex-start; }
+  .header-info { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
+  .admin-settings-button { align-self: flex-start; }
+
+  .police-tabs { flex-direction: column; align-items: stretch; border-bottom: none; }
+  .police-tab-button { text-align: center; border-bottom: none; border: 1px solid var(--medium-gray); border-radius: var(--border-radius-md); margin-bottom: 5px; }
+  .police-tab-button.active { border-color: var(--primary-color); background-color: var(--primary-color); color: var(--white-color); }
+  .police-tab-content, .police-admin-content { 
+    padding: 15px; 
+    /* 🔥 모바일에서도 overflow visible 유지 */
+    overflow: visible;
   }
 
-  .police-tabs {
-    flex-direction: column; /* 탭 세로 정렬 */
-    align-items: stretch; /* 탭 너비 100% */
-    border-bottom: none; /* 세로 정렬 시 하단 테두리 제거 */
-  }
-  .police-tab-button {
-    text-align: center;
-    border-bottom: none; /* 하단 테두리 제거 */
-    border: 1px solid var(--medium-gray); /* 일반 테두리 추가 */
-    border-radius: var(--border-radius-md); /* 둥글게 */
-    margin-bottom: 5px;
-  }
-  .police-tab-button.active {
-    border-color: var(--primary-color);
-    background-color: var(--primary-color);
-    color: var(--white-color);
-  }
-  .police-tab-content,
-  .police-admin-content {
-    padding: 15px;
-  }
+  .report-header { flex-direction: column; align-items: flex-start; }
+  
+  .report-actions, .form-actions { flex-direction: column; align-items: stretch; }
+  .report-actions button, .form-actions button { width: 100%; }
 
-  .report-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .report-header-right {
-    align-items: flex-start; /* 상태/버튼 왼쪽 정렬 */
-    margin-top: 10px;
-    width: 100%; /* 너비 100% */
-    flex-direction: row; /* 상태와 버튼 가로 배치 */
-    justify-content: space-between; /* 양쪽 끝 정렬 */
-  }
-  .admin-actions {
-    /* 모바일에서 관리자 버튼 오른쪽 정렬 */
-    justify-content: flex-end;
-  }
+  .settings-section .add-form { flex-direction: column; align-items: stretch; }
+  .settings-section .reason-input, .settings-section .amount-input.small-input { width: 100%; }
 
-  .report-details-grid {
-    grid-template-columns: 1fr;
-  }
+  .reason-list-item { flex-direction: column; align-items: flex-start; }
+  .amount-control { margin-top: 10px; width: 100%; justify-content: space-between; }
+  .reason-list-item .delete-button { align-self: flex-end; }
+  .settings-section .warningText { display: block; margin-top: 10px; }
 
-  .report-actions,
-  .form-actions {
-    /* 액션 버튼 그룹 세로 정렬 */
-    flex-direction: column;
-    align-items: stretch; /* 버튼 너비 100% */
+  /* 🔥 모바일에서 모달 z-index 더 높게 */
+  .modal-overlay {
+    z-index: 9999999;
   }
-  .report-actions button,
-  .form-actions button {
-    /* 개별 버튼 너비 100% */
-    width: 100%;
+  .modal-container {
+    width: 95%;
+    z-index: 10000000;
   }
-
-  .settings-section .add-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .settings-section .reason-input,
-  .settings-section .amount-input.small-input {
-    width: 100%; /* 입력 필드 너비 100% */
-  }
-
-  .reason-list-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  .amount-control {
-    margin-top: 10px;
-    width: 100%;
-    justify-content: space-between; /* 금액 입력과 버튼 양쪽 정렬 */
-  }
-  .reason-list-item .delete-button {
-    align-self: flex-end; /* 삭제 버튼 오른쪽 유지 */
-  }
-
-  .settings-section .warningText {
-    display: block; /* 버튼 아래로 이동 */
-    margin-top: 10px;
-  }
+  .modal-content { padding: 20px 15px; }
+  .modal-header, .modal-footer { padding: 15px; }
 }
 
 @media (max-width: 480px) {
-  .police-header {
-    font-size: 1.8rem;
-  }
-  .police-tab-button {
-    padding: 10px 15px;
-    font-size: 0.9rem;
-  }
-  .report-header h3 {
-    font-size: 1.1rem;
-  }
-  .report-details strong {
-    min-width: 90px; /* 모바일에서 레이블 너비 축소 */
-  }
-  .processing-form {
-    padding: 15px;
-  }
+  .police-header { font-size: 1.8rem; }
+  .police-tab-button { padding: 10px 15px; font-size: 0.9rem; }
+  .modal-container { width: 95%; }
+  .modal-content { padding: 20px 15px; }
+  .modal-header, .modal-footer { padding: 15px; }
 }
-/* Add these styles to your Police.css file */
 
 .admin-nav-buttons {
   display: flex;
@@ -821,37 +722,32 @@ button {
   gap: 8px;
 }
 
-.back-to-police-button:hover {
-  background-color: #2d4373;
-}
+.back-to-police-button:hover { background-color: #2d4373; }
+.back-to-police-button::before { content: "←"; display: inline-block; margin-right: 5px; }
 
-.back-to-police-button::before {
-  content: "←";
-  display: inline-block;
-  margin-right: 5px;
-}
-
-/* Responsive adjustments */
 @media (max-width: 768px) {
-  .admin-nav-buttons {
-    margin-bottom: 15px;
-  }
-
-  .back-to-police-button {
-    font-size: 0.9rem;
-    padding: 8px 12px;
-    width: 100%;
-    justify-content: center;
-  }
+  .admin-nav-buttons { margin-bottom: 15px; }
+  .back-to-police-button { font-size: 0.9rem; padding: 8px 12px; width: 100%; justify-content: center; }
 }
 
-/* Dark mode support */
-@media (prefers-color-scheme: dark) {
-  .back-to-police-button {
-    background-color: #4a6bab;
-  }
+/* 🔥 중복 제거: 기존의 Universal Modal Styles 섹션을 통합함 */
 
-  .back-to-police-button:hover {
-    background-color: #5b7bc6;
-  }
+/* 🔥 추가 디버깅을 위한 스타일 */
+.settlement-modal-container {
+  /* 합의 모달 전용 스타일 */
+  border: 2px solid #007bff !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 🔥 강제로 모달을 표시하기 위한 높은 우선순위 스타일 */
+.modal-overlay[style*="position: fixed"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.modal-container[style*="position: relative"] {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }

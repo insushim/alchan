@@ -1,6 +1,6 @@
 // src/SendReceive.js
-import { onSnapshot } from "firebase/firestore";
-import React, { useState, useEffect, useCallback } from "react";
+import { getDoc } from "firebase/firestore";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import {
   db,
@@ -8,87 +8,81 @@ import {
   runTransaction,
   serverTimestamp,
   collection,
-  addDoc,
-  getDoc,
   setDoc,
   increment,
-  Timestamp,
-} from "./firebase"; // firebase.js 경로 확인
-import "./SendReceive.css"; // 스타일 파일 (아래에 CSS 코드 제공)
+} from "./firebase";
+import { logActivity, LOG_TYPES } from "./database"; // logActivity와 LOG_TYPES 가져오기
+import { usePolling } from "./hooks/usePolling";
+import "./SendReceive.css";
 
 const SendReceive = ({ classCode }) => {
-  const { user, userDoc, refreshUserDocument } = useAuth();
+  const { user, userDoc, refreshUserDocument, isAdmin } = useAuth();
   const [amount, setAmount] = useState("");
-  const [actionType, setActionType] = useState("deposit"); // 'deposit' 또는 'withdraw'
+  const [actionType, setActionType] = useState("deposit");
+  const [depositSource, setDepositSource] = useState("personal"); // 'personal', 'nationalTreasury', 'mint'
+  const [withdrawDestination, setWithdrawDestination] = useState("personal"); // 'personal', 'nationalTreasury'
   const [isLoading, setIsLoading] = useState(false);
   const [feedback, setFeedback] = useState({ type: "", message: "" });
   const [treasuryBalance, setTreasuryBalance] = useState(0);
   const [userCash, setUserCash] = useState(userDoc?.cash || 0);
 
-  const treasuryRef = doc(db, "classes", classCode, "treasury", "balanceDoc");
-  const transactionsColRef = collection(
-    db,
-    "classes",
-    classCode,
-    "treasuryTransactions"
-  );
+  // --- 자산 정보 계산 로직 ---
+  // 보유 주식 수 계산: userDoc.stocks 객체의 모든 값을 합산합니다.
+  const userStocks = userDoc?.stocks
+    ? Object.values(userDoc.stocks).reduce((sum, count) => sum + count, 0)
+    : 0;
+    
+  // 보유 쿠폰 수 계산: userDoc.coupons 배열의 길이를 확인합니다.
+  const userCoupons = userDoc?.coupons?.length || 0;
+  
+  // 은행 계좌 잔액 계산: userDoc.accounts 객체의 모든 잔액을 합산합니다.
+  const bankBalance = userDoc?.accounts 
+    ? Object.values(userDoc.accounts).reduce((sum, acc) => sum + (acc.balance || 0), 0) 
+    : 0;
 
-  // 학급 금고 잔액 실시간 감시
-  useEffect(() => {
+  // 총 자산 계산 (현금 + 은행 예금)
+  const totalAssets = (userDoc?.cash || 0) + bankBalance;
+  // --- 자산 정보 계산 로직 끝 ---
+
+
+  const treasuryRef = doc(db, "classes", classCode, "treasury", "balanceDoc");
+  const nationalTreasuryRef = doc(db, "nationalTreasuries", classCode);
+
+  // 금고 잔액 폴링
+  const fetchTreasuryBalance = async () => {
     if (!classCode) return;
 
-    const unsubscribeTreasury = onSnapshot(
-      treasuryRef,
-      async (docSnap) => {
-        if (docSnap.exists()) {
-          setTreasuryBalance(docSnap.data().balance);
-        } else {
-          // 금고 문서가 없으면 0원으로 초기화
-          try {
-            await setDoc(treasuryRef, {
-              balance: 0,
-              classCode: classCode,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            setTreasuryBalance(0);
-            console.log(`학급 [${classCode}]의 금고가 없어 새로 생성했습니다.`);
-          } catch (error) {
-            console.error("금고 생성 중 오류:", error);
-            setFeedback({
-              type: "error",
-              message: "금고 정보를 가져오거나 생성하는데 실패했습니다.",
-            });
-          }
-        }
-      },
-      (error) => {
-        console.error("금고 잔액 실시간 감시 중 오류:", error);
-        setFeedback({
-          type: "error",
-          message: "금고 잔액을 가져오는데 실패했습니다.",
+    try {
+      const docSnap = await getDoc(treasuryRef);
+      if (docSnap.exists()) {
+        setTreasuryBalance(docSnap.data().balance);
+      } else {
+        await setDoc(treasuryRef, {
+          balance: 0,
+          classCode: classCode,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
         });
+        setTreasuryBalance(0);
       }
-    );
+    } catch (error) {
+      console.error("금고 잔액 조회 중 오류:", error);
+      setFeedback({
+        type: "error",
+        message: "금고 잔액을 가져오는데 실패했습니다.",
+      });
+    }
+  };
 
-    return () => unsubscribeTreasury();
-  }, [classCode, treasuryRef]);
+  const { refetch: refetchTreasuryBalance } = usePolling(fetchTreasuryBalance, 30000);
 
-  // 사용자 잔액 업데이트 (AuthContext의 userDoc 변경 감지)
   useEffect(() => {
     setUserCash(userDoc?.cash || 0);
   }, [userDoc?.cash]);
 
   const handleTransaction = async () => {
-    if (!user || !userDoc) {
-      setFeedback({ type: "error", message: "로그인이 필요합니다." });
-      return;
-    }
-    if (!classCode) {
-      setFeedback({
-        type: "error",
-        message: "학급 코드가 없어 작업을 수행할 수 없습니다.",
-      });
+    if (!user || !userDoc || !classCode) {
+      setFeedback({ type: "error", message: "필수 정보(로그인, 학급코드)가 없습니다." });
       return;
     }
 
@@ -104,89 +98,81 @@ const SendReceive = ({ classCode }) => {
     const userRef = doc(db, "users", user.uid);
 
     try {
+      let logInfo = {}; // 로그 정보를 담을 변수
+
       await runTransaction(db, async (transaction) => {
-        // 1. 최신 사용자 정보 가져오기
         const latestUserDocSnap = await transaction.get(userRef);
+        const latestTreasurySnap = await transaction.get(treasuryRef);
+        
         if (!latestUserDocSnap.exists()) {
           throw new Error("사용자 정보를 찾을 수 없습니다.");
         }
+
         const latestUserCash = latestUserDocSnap.data().cash || 0;
-
-        // 2. 최신 금고 정보 가져오기
-        const latestTreasurySnap = await transaction.get(treasuryRef);
-        let currentTreasuryBalance = 0;
-        if (latestTreasurySnap.exists()) {
-          currentTreasuryBalance = latestTreasurySnap.data().balance || 0;
-        } else {
-          // 이 경우는 useEffect에서 처리하지만, 만약을 대비
-          console.warn(
-            "금고 문서가 트랜잭션 중 존재하지 않아 0으로 간주합니다."
-          );
-        }
-
+        const currentTreasuryBalance = latestTreasurySnap.exists() ? latestTreasurySnap.data().balance || 0 : 0;
+        
         if (actionType === "deposit") {
-          if (latestUserCash < numAmount) {
-            throw new Error("입금할 금액이 현재 보유 현금보다 많습니다.");
-          }
-          // 사용자 현금 차감
-          transaction.update(userRef, { cash: increment(-numAmount) });
-          // 금고 잔액 증가
-          transaction.update(treasuryRef, {
-            balance: increment(numAmount),
-            updatedAt: serverTimestamp(),
-          });
+            let sourceText = '';
+            if (depositSource === "personal") {
+                if (latestUserCash < numAmount) throw new Error("입금할 금액이 현재 보유 현금보다 많습니다.");
+                transaction.update(userRef, { cash: increment(-numAmount) });
+                sourceText = '개인 현금';
+            } else if (depositSource === "nationalTreasury") {
+                if (!isAdmin?.()) throw new Error("국고 이체는 관리자만 가능합니다.");
+                const latestNationalTreasurySnap = await transaction.get(nationalTreasuryRef);
+                const currentNationalBalance = latestNationalTreasurySnap?.exists() ? latestNationalTreasurySnap.data().totalAmount || 0 : 0;
+                if (currentNationalBalance < numAmount) throw new Error("국고 잔액이 부족합니다.");
+                transaction.update(nationalTreasuryRef, { totalAmount: increment(-numAmount), lastUpdated: serverTimestamp() });
+                sourceText = '국고';
+            } else if (depositSource === "mint") {
+                if (!isAdmin?.()) throw new Error("신규 발행은 관리자만 가능합니다.");
+                sourceText = '신규 발행';
+            }
+            
+            transaction.update(treasuryRef, { balance: increment(numAmount), updatedAt: serverTimestamp() });
+            
+            // 로그 정보 저장
+            logInfo = {
+                type: LOG_TYPES.TREASURY_DEPOSIT,
+                description: `${sourceText}에서 학급 금고로 ${numAmount.toLocaleString()}원 입금했습니다.`,
+                metadata: { amount: numAmount, source: depositSource, treasuryBalance: currentTreasuryBalance + numAmount },
+            };
+
         } else if (actionType === "withdraw") {
-          if (currentTreasuryBalance < numAmount) {
-            throw new Error("출금할 금액이 금고 잔액보다 많습니다.");
-          }
-          if (
-            userDoc?.role !== "admin" &&
-            userDoc?.jobId !== "president" &&
-            userDoc?.jobName !== "대통령" &&
-            !userDoc.canWithdrawTreasury
-          ) {
-            // 예시: 관리자, 대통령, 또는 특정 권한(canWithdrawTreasury)이 있는 사용자만 출금 가능
-            // 실제 직업 ID나 역할은 애플리케이션에 맞게 조정 필요
-            throw new Error("금고에서 출금할 권한이 없습니다.");
-          }
-          // 금고 잔액 차감
-          transaction.update(treasuryRef, {
-            balance: increment(-numAmount),
-            updatedAt: serverTimestamp(),
-          });
-          // 사용자 현금 증가
-          transaction.update(userRef, { cash: increment(numAmount) });
+            if (currentTreasuryBalance < numAmount) throw new Error("출금할 금액이 금고 잔액보다 많습니다.");
+            if (!isAdmin?.() && !userDoc.canWithdrawTreasury) throw new Error("금고에서 출금할 권한이 없습니다.");
+
+            transaction.update(treasuryRef, { balance: increment(-numAmount), updatedAt: serverTimestamp() });
+
+            let destinationText = '';
+            if (withdrawDestination === "personal") {
+                transaction.update(userRef, { cash: increment(numAmount) });
+                destinationText = '개인 현금';
+            } else if (withdrawDestination === "nationalTreasury") {
+                if (!isAdmin?.()) throw new Error("국세청 이체는 관리자만 가능합니다.");
+                transaction.update(nationalTreasuryRef, { totalAmount: increment(numAmount), otherTaxRevenue: increment(numAmount), lastUpdated: serverTimestamp() });
+                destinationText = '국세청';
+            }
+
+            // 로그 정보 저장
+            logInfo = {
+                type: LOG_TYPES.TREASURY_WITHDRAW,
+                description: `학급 금고에서 ${destinationText}(으)로 ${numAmount.toLocaleString()}원 출금했습니다.`,
+                metadata: { amount: numAmount, destination: withdrawDestination, treasuryBalance: currentTreasuryBalance - numAmount },
+            };
         }
-
-        // 3. 거래 기록 남기기
-        const transactionData = {
-          type: actionType,
-          userId: user.uid,
-          userDisplayName: userDoc.name || userDoc.nickname || user.email,
-          amount: numAmount,
-          classCode: classCode,
-          timestamp: serverTimestamp(),
-          userCashBefore: latestUserCash,
-          userCashAfter:
-            latestUserCash +
-            (actionType === "deposit" ? -numAmount : numAmount),
-          treasuryBalanceBefore: currentTreasuryBalance,
-          treasuryBalanceAfter:
-            currentTreasuryBalance +
-            (actionType === "deposit" ? numAmount : -numAmount),
-        };
-        // addDoc은 트랜잭션 객체의 메서드가 아니므로, transaction.set(doc(transactionsColRef), data) 사용
-        transaction.set(doc(transactionsColRef), transactionData);
       });
+      
+      // 트랜잭션 성공 후 통합 로그 기록
+      if (logInfo.type) {
+        await logActivity(user.uid, logInfo.type, logInfo.description, logInfo.metadata);
+      }
 
-      setFeedback({
-        type: "success",
-        message: `${
-          actionType === "deposit" ? "입금" : "출금"
-        } 완료! (${numAmount.toLocaleString()}원)`,
-      });
-      setAmount(""); // 입력 필드 초기화
-      if (refreshUserDocument) refreshUserDocument(); // AuthContext의 사용자 정보 갱신
+      setFeedback({ type: "success", message: "거래가 성공적으로 완료되었습니다." });
+      setAmount("");
+      if (refreshUserDocument) refreshUserDocument();
+      refetchTreasuryBalance();
+
     } catch (error) {
       console.error("거래 처리 중 오류:", error);
       setFeedback({ type: "error", message: `오류: ${error.message}` });
@@ -198,10 +184,32 @@ const SendReceive = ({ classCode }) => {
   return (
     <div className="send-receive-panel">
       <h3>학급 금고 관리 (학급: {classCode})</h3>
-      <div className="balance-display">
-        <p>내 현금: {userCash.toLocaleString()} 원</p>
-        <p>학급 금고 잔액: {treasuryBalance.toLocaleString()} 원</p>
+      
+      {/* --- 수정된 자산 표시 부분 --- */}
+      <div className="balance-display asset-summary">
+        <div className="asset-row">
+            <span className="asset-label">내 현금:</span>
+            <span className="asset-value">{userCash.toLocaleString()} 원</span>
+        </div>
+        <div className="asset-row">
+            <span className="asset-label">총 자산 (현금+예금):</span>
+            <span className="asset-value">{totalAssets.toLocaleString()} 원</span>
+        </div>
+        <div className="asset-row">
+            <span className="asset-label">보유 주식:</span>
+            <span className="asset-value">{userStocks} 주</span>
+        </div>
+        <div className="asset-row">
+            <span className="asset-label">보유 쿠폰:</span>
+            <span className="asset-value">{userCoupons} 개</span>
+        </div>
+        <hr />
+        <div className="asset-row treasury">
+            <span className="asset-label">학급 금고 잔액:</span>
+            <span className="asset-value">{treasuryBalance.toLocaleString()} 원</span>
+        </div>
       </div>
+      {/* --- 자산 표시 부분 끝 --- */}
 
       <div className="action-selector">
         <button
@@ -220,6 +228,44 @@ const SendReceive = ({ classCode }) => {
         </button>
       </div>
 
+      {actionType === 'deposit' && (
+        <div className="source-selector">
+          <strong>어디에서 보내시겠습니까?</strong>
+          <label>
+            <input type="radio" name="source" value="personal" checked={depositSource === "personal"} onChange={(e) => setDepositSource(e.target.value)} disabled={isLoading} />
+            내 현금
+          </label>
+          {isAdmin?.() && (
+            <>
+              <label>
+                <input type="radio" name="source" value="nationalTreasury" checked={depositSource === "nationalTreasury"} onChange={(e) => setDepositSource(e.target.value)} disabled={isLoading}/>
+                국세청 (국고)
+              </label>
+              <label>
+                <input type="radio" name="source" value="mint" checked={depositSource === "mint"} onChange={(e) => setDepositSource(e.target.value)} disabled={isLoading} />
+                신규 발행
+              </label>
+            </>
+          )}
+        </div>
+      )}
+
+      {actionType === "withdraw" && (
+        <div className="destination-selector">
+          <strong>어디로 가져오시겠습니까?</strong>
+          <label>
+            <input type="radio" name="destination" value="personal" checked={withdrawDestination === "personal"} onChange={(e) => setWithdrawDestination(e.target.value)} disabled={isLoading} />
+            내 현금으로
+          </label>
+          {isAdmin?.() && (
+            <label>
+              <input type="radio" name="destination" value="nationalTreasury" checked={withdrawDestination === "nationalTreasury"} onChange={(e) => setWithdrawDestination(e.target.value)} disabled={isLoading} />
+              국세청으로
+            </label>
+          )}
+        </div>
+      )}
+
       <div className="transaction-form">
         <input
           type="number"
@@ -235,32 +281,18 @@ const SendReceive = ({ classCode }) => {
           disabled={isLoading || !amount}
           className="submit-button"
         >
-          {isLoading
-            ? "처리 중..."
-            : actionType === "deposit"
-            ? "금고에 입금하기"
-            : "금고에서 출금하기"}
+          {isLoading ? "처리 중..." : "실행하기"}
         </button>
       </div>
 
       {feedback.message && (
-        <p
-          className={`feedback-message ${
-            feedback.type === "error" ? "error" : "success"
-          }`}
-        >
+        <p className={`feedback-message ${feedback.type === "error" ? "error" : "success"}`}>
           {feedback.message}
         </p>
       )}
       <div className="info-text">
-        <p>
-          <strong>입금 (보내기):</strong> 자신의 현금을 학급 공용 금고로
-          보냅니다.
-        </p>
-        <p>
-          <strong>출금 (가져오기):</strong> 학급 공용 금고에서 자신의 현금으로
-          가져옵니다. (일반적으로 관리자 또는 특정 직책만 가능할 수 있습니다.)
-        </p>
+        <p><strong>입금:</strong> 선택한 자금 출처에서 학급 공용 금고로 돈을 보냅니다.</p>
+        <p><strong>출금:</strong> 학급 공용 금고의 돈을 개인 현금 또는 국세청(국고)으로 보냅니다. (국세청 이체는 관리자만 가능)</p>
       </div>
     </div>
   );

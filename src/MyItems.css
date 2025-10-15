@@ -1,960 +1,466 @@
-/* 내 아이템 페이지 추가 스타일 */
+/* src/MyItems.css */
 
-/* 기본 카드 스타일 (store-item-card, shop-item-card 등) */
+/* --- 기본 카드 스타일 --- */
 .store-item-card,
 .shop-item-card {
   background-color: white;
   border-radius: 12px;
   padding: 16px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  display: flex; /* 내부 item-content 정렬 위해 */
-  flex-direction: column; /* 내부 item-content 수직 정렬 */
-  height: 100%; /* 그리드 높이 맞춤 */
-  margin-top: 0; /* 상하 여백은 grid gap으로 제어 */
-  margin-bottom: 0; /* 상하 여백은 grid gap으로 제어 */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin: 0;
 }
 
 .item-content {
   display: flex;
   flex-direction: column;
-  flex-grow: 1; /* 카드 내 공간 채우도록 */
-  /* padding 조정 (필요 시) */
+  flex-grow: 1;
 }
 
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(280px, 1fr)
-  ); /* 카드 최소 너비 조정 */
-  gap: 16px; /* 카드 간 간격 */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
 }
 
-/* 페이지 컨테이너, 제목 등 (기존 styles.css 또는 App.css 에 있을 수 있음) */
 .page-container {
-  max-width: 1200px;
-  margin: 0 auto;
   padding: 20px;
 }
 
 .page-title {
-  font-size: 1.8rem;
-  font-weight: 700;
+  font-size: 1.75rem;
+  font-weight: bold;
+  color: #1f2937;
   margin-bottom: 24px;
-}
-
-.content-card-section {
-  background-color: #f9fafb; /* 섹션 배경색 (선택 사항) */
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .section-title {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 600;
+  color: #374151;
+  margin-top: 32px;
   margin-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 2px solid #e5e7eb;
   padding-bottom: 8px;
 }
 
-/* 알림 스타일 (기존 styles.css 또는 App.css 에 있을 수 있음) */
-.notification {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-weight: 500;
-  position: fixed; /* 화면 상단 고정 (선택 사항) */
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1100;
-  min-width: 300px;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-.bg-green-100 {
-  background-color: #d1fae5;
-}
-.text-green-800 {
-  color: #065f46;
-}
-.bg-red-100 {
-  background-color: #fee2e2;
-}
-.text-red-800 {
-  color: #991b1b;
-}
-.bg-blue-100 {
-  background-color: #dbeafe;
-}
-.text-blue-800 {
-  color: #1e40af;
-}
-
-/* 보유 아이템 이름 스타일 */
-.item-name {
-  /* 기본 item-name, 보유 아이템 카드에서 사용 */
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  /* 기존 position: relative; right: 1cm; 제거 */
-  text-align: right; /* 아이콘/배지와 분리된 느낌 주도록 오른쪽 정렬 */
-  flex-grow: 1; /* 남은 공간 채우기 */
-}
-
-/* 아이콘 관련 스타일 */
-.item-icon-group {
+/* --- 아이템 카드 내부 스타일 --- */
+.my-item-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
 }
+
+.item-icon-group {
+  position: relative;
+}
+
 .item-icon {
-  font-size: 24px; /* 기본 아이콘 크기 */
-  display: flex; /* 내부 정렬 위해 */
-  align-items: center;
-  justify-content: center;
-  width: 36px; /* 고정 크기 (선택 사항) */
-  height: 36px; /* 고정 크기 (선택 사항) */
-  border-radius: 50%; /* 원형 배경 */
-  background-color: #f3f4f6; /* 기본 배경색 */
-}
-
-/* 수량 배지 스타일 */
-.quantity-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 700;
-  /* margin-left 제거 또는 조정 */
-}
-
-.quantity-high {
-  background-color: #e6fffa;
-  color: #319795;
-  border: 1px solid #b2f5ea;
-}
-.quantity-medium {
-  background-color: #fefcbf;
-  color: #d69e2e;
-  border: 1px solid #faf089;
-}
-.quantity-low {
-  background-color: #f0f5ff;
-  color: #3182ce;
-  border: 1px solid #c3dafe;
-}
-
-/* 아이템 설명 */
-.item-description {
-  font-size: 0.9rem;
-  color: #4b5563;
-  margin: 12px 0;
-  flex-grow: 1; /* 설명 영역이 남은 공간 차지 */
-  line-height: 1.5;
-}
-
-/* 보유 아이템 카드 푸터 버튼 스타일 */
-.gift-item-button,
-.use-item-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
-  flex-grow: 1; /* 버튼이 공간 동일하게 차지 */
-  text-align: center;
-}
-
-.gift-item-button {
+  font-size: 2rem;
   background-color: #f3f4f6;
-  color: #374151;
-  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.gift-item-button:hover:not(:disabled) {
-  background-color: #e5e7eb;
+
+.quantity-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #4f46e5;
+  color: white;
+  border-radius: 50%;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  border: 2px solid white;
+}
+
+.item-name {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+.item-description {
+  color: #6b7280;
+  font-size: 0.9rem;
+  margin-bottom: 12px;
+  flex-grow: 1;
+}
+
+.my-item-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 3개 버튼을 위한 그리드 */
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* 사용 중인 아이템 카드의 버튼 그리드는 1개만 차지하도록 수정 */
+.active-item-card .my-item-actions {
+  grid-template-columns: 1fr;
+}
+
+
+.my-item-actions button {
+  padding: 10px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+  width: 100%;
 }
 
 .use-item-button {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  background-color: #4f46e5;
   color: white;
-  box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
 }
-.use-item-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 8px rgba(79, 70, 229, 0.3);
+.use-item-button:hover {
+  background-color: #4338ca;
 }
-.use-item-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
-}
-
-.gift-item-button:disabled,
 .use-item-button:disabled {
-  opacity: 0.6;
+  background-color: #a5b4fc;
   cursor: not-allowed;
 }
 
-/* 빈 메시지 스타일 */
-.empty-message {
-  text-align: center;
-  padding: 40px;
-  color: #6b7280;
+.gift-item-button {
+  background-color: #f59e0b;
+  color: white;
+}
+.gift-item-button:hover {
+  background-color: #d97706;
+}
+.gift-item-button:disabled {
+  background-color: #fcd34d;
+  cursor: not-allowed;
 }
 
-/* ============================ */
-/* 사용 중 아이템 카드 스타일 */
-/* ============================ */
+.sell-to-market-button {
+  background-color: #10b981;
+  color: white;
+}
+.sell-to-market-button:hover {
+  background-color: #059669;
+}
+.sell-to-market-button:disabled {
+  background-color: #6ee7b7;
+  cursor: not-allowed;
+}
 
+/* --- ✨새로운 스타일✨ 사용 중지 버튼 --- */
+.stop-using-button {
+  background-color: #ef4444; /* 빨간색 계열 */
+  color: white;
+}
+.stop-using-button:hover {
+  background-color: #dc2626;
+}
+.stop-using-button:disabled {
+  background-color: #fca5a5;
+  cursor: not-allowed;
+}
+
+
+/* --- 사용 중인 아이템 스타일 --- */
 .active-item-card {
-  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-  border: 1px solid rgba(191, 219, 254, 0.8);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  /* 기존 스타일과 동일하게 설정 */
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: relative; /* 취소 버튼 absolute 대비 */
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  margin-top: 0;
-  margin-bottom: 0;
-}
-.active-item-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 20px rgba(0, 0, 0, 0.07), 0 10px 10px rgba(0, 0, 0, 0.04);
+  background: linear-gradient(135deg, #f5f3ff, #eef2ff);
+  border: 1px solid #c7d2fe;
 }
 
-/* 사용 중 아이템 헤더 (아이템 정보와 취소 버튼 포함) */
-.active-item-header {
-  display: flex;
-  justify-content: space-between; /* 이름/배지 그룹과 버튼을 양 끝으로 분산 */
-  align-items: flex-start; /* 세로 상단 정렬로 변경 */
-  gap: 10px; /* 그룹과 버튼 사이 최소 간격 */
-  margin-bottom: 8px; /* 헤더와 설명 사이 간격 */
-}
-
-/* 사용 중 아이템 정보 그룹 (아이콘, 이름, 배지) */
-.active-item-details {
-  display: flex;
-  align-items: center;
-  gap: 8px; /* 아이콘과 이름/배지 그룹 사이 간격 */
-  flex-grow: 1; /* 가능한 많은 공간 차지 */
-  min-width: 0; /* 내용이 길어질 때 줄바꿈/숨김 처리 허용 */
-}
-
-/* 사용 중 아이템 아이콘 */
-.active-item-card .item-icon.active-icon {
-  font-size: 24px; /* 크기 동일하게 유지 */
-  background-color: rgba(191, 219, 254, 0.5); /* 배경색 적용 */
-  animation: pulsate 2s infinite ease-in-out;
-}
-
-@keyframes pulsate {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-  }
-}
-
-/* 이름과 수량 배지 그룹 */
-.name-badge-group {
-  display: flex; /* 이름과 배지를 가로로 배열 */
-  align-items: baseline; /* 이름과 배지 기준선 정렬 */
-  gap: 6px; /* 이름과 배지 사이 간격 */
-  flex-wrap: nowrap; /* 줄바꿈 방지 */
-  overflow: hidden; /* 넘치는 부분 숨김 */
-  min-width: 0; /* flex 아이템이 줄어들 수 있도록 */
-}
-
-/* 활성 아이템 카드 내 이름 스타일 (수정) */
-.active-item-card .item-name {
-  /* position, right, text-align 등 불필요 속성 제거 */
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  white-space: nowrap; /* 줄바꿈 방지 */
-  overflow: hidden; /* 넘치는 부분 숨김 */
-  text-overflow: ellipsis; /* ... 처리 */
-  min-width: 0; /* flex 아이템이 줄어들 수 있도록 */
-  color: #1f2937; /* 이름 색상 (선택 사항) */
-}
-
-/* 활성화된 아이템 수량 배지 (수정) */
-.active-quantity-badge {
-  /* position, right 제거 */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #3b82f6;
-  color: white;
-  border-radius: 20px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: 0; /* name-badge-group gap으로 제어 */
-  vertical-align: baseline; /* 이름과 기준선 맞춤 */
-  flex-shrink: 0; /* 배지 크기 유지 */
-}
-
-/* X 취소 버튼 스타일 (수정) */
-.active-item-cancel-button {
-  /* 위치 조정 - absolute 사용 대신 flex로 변경 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f87171; /* 약간 부드러운 빨강 */
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
-  font-weight: bold;
-  padding: 0; /* 패딩 제거로 X가 정가운데 오도록 */
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  flex-shrink: 0; /* 버튼 크기 유지 */
-  margin-top: 2px; /* 상단에 약간의 여백 추가 */
-}
-
-.active-item-cancel-button:hover {
-  background-color: #ef4444; /* 더 진한 빨강 */
-  transform: scale(1.1);
-}
-.active-item-cancel-button:active {
-  transform: scale(0.95);
-}
-
-/* 사용 중인 아이템 타이머 스타일 */
-.active-item-timer {
-  margin: 12px 0; /* 상하 여백 조정 */
+.timer-container {
+  margin-top: auto;
+  padding-top: 12px;
 }
 
 .timer-bar {
   width: 100%;
   height: 8px;
-  background-color: #e5e7eb; /* 타이머 바 배경 */
+  background-color: #e0e7ff;
   border-radius: 4px;
   overflow: hidden;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .timer-progress {
   height: 100%;
-  background: linear-gradient(90deg, #60a5fa, #3b82f6); /* 진행 바 색상 */
+  background-color: #6366f1;
   border-radius: 4px;
-  transition: width 1s linear; /* 부드러운 진행 효과 */
+  transition: width 1s linear;
 }
 
 .timer-text {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #4b5563; /* 시간 텍스트 색상 */
-  text-align: right; /* 오른쪽 정렬 (선택 사항) */
-  display: block; /* text-align 적용 위해 */
+  font-size: 0.9rem;
+  color: #4b5563;
+  font-variant-numeric: tabular-nums;
+  text-align: left; /* 왼쪽 정렬로 변경 */
+  margin-bottom: 12px;
+  flex-grow: 1;
 }
 
-/* 사용 중인 아이템 상태 표시 */
 .active-item-footer {
+  margin-top: 12px;
   display: flex;
-  justify-content: flex-end; /* 상태를 오른쪽으로 */
+  justify-content: space-between;
   align-items: center;
-  margin-top: auto; /* 푸터를 카드 하단으로 밀기 */
-  padding-top: 12px;
-  border-top: 1px solid rgba(226, 232, 240, 0.8);
 }
 
 .active-status {
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #3b82f6;
-  display: flex;
-  align-items: center;
-}
-
-.active-status::before {
-  /* 깜빡이는 효과 점 */
-  content: "";
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  background-color: #3b82f6;
-  border-radius: 50%;
-  margin-right: 6px;
-  animation: blink 1.5s infinite;
-}
-
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-/* 반응형 그리드 조정 */
-@media (max-width: 768px) {
-  .items-grid {
-    grid-template-columns: repeat(
-      auto-fill,
-      minmax(250px, 1fr)
-    ); /* 작은 화면에서 카드 최소 너비 줄임 */
-  }
-  .page-container {
-    padding: 15px;
-  }
-  .content-card-section {
-    padding: 16px;
-  }
-}
-
-@media (max-width: 640px) {
-  .items-grid {
-    grid-template-columns: 1fr; /* 아주 작은 화면에서는 1열 */
-  }
-  .notification {
-    width: 90%;
-  }
-}
-/* 내 아이템 페이지 추가 스타일 */
-
-/* 기본 카드 스타일 (store-item-card, shop-item-card 등) */
-.store-item-card,
-.shop-item-card {
-  background-color: white;
-  border-radius: 12px;
-  padding: 16px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  display: flex; /* 내부 item-content 정렬 위해 */
-  flex-direction: column; /* 내부 item-content 수직 정렬 */
-  height: 100%; /* 그리드 높이 맞춤 */
-  margin-top: 0; /* 상하 여백은 grid gap으로 제어 */
-  margin-bottom: 0; /* 상하 여백은 grid gap으로 제어 */
-}
-
-.item-content {
-  display: flex;
-  flex-direction: column;
-  flex-grow: 1; /* 카드 내 공간 채우도록 */
-  /* padding 조정 (필요 시) */
-}
-
-.items-grid {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(280px, 1fr)
-  ); /* 카드 최소 너비 조정 */
-  gap: 16px; /* 카드 간 간격 */
-}
-
-/* 페이지 컨테이너, 제목 등 (기존 styles.css 또는 App.css 에 있을 수 있음) */
-.page-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.page-title {
-  font-size: 1.8rem;
-  font-weight: 700;
-  margin-bottom: 24px;
-}
-
-.content-card-section {
-  background-color: #f9fafb; /* 섹션 배경색 (선택 사항) */
-  border-radius: 12px;
-  padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
-}
-
-.section-title {
-  font-size: 1.4rem;
-  font-weight: 600;
-  margin-bottom: 16px;
-  border-bottom: 1px solid #e5e7eb;
-  padding-bottom: 8px;
-}
-
-/* 알림 스타일 (기존 styles.css 또는 App.css 에 있을 수 있음) */
-.notification {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 16px;
-  font-weight: 500;
-  position: fixed; /* 화면 상단 고정 (선택 사항) */
-  top: 20px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1100;
-  min-width: 300px;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-.bg-green-100 {
-  background-color: #d1fae5;
-}
-.text-green-800 {
-  color: #065f46;
-}
-.bg-red-100 {
-  background-color: #fee2e2;
-}
-.text-red-800 {
-  color: #991b1b;
-}
-.bg-blue-100 {
-  background-color: #dbeafe;
-}
-.text-blue-800 {
-  color: #1e40af;
-}
-
-/* 보유 아이템 이름 스타일 */
-.item-name {
-  /* 기본 item-name, 보유 아이템 카드에서 사용 */
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  /* 기존 position: relative; right: 1cm; 제거 */
-  text-align: right; /* 아이콘/배지와 분리된 느낌 주도록 오른쪽 정렬 */
-  flex-grow: 1; /* 남은 공간 채우기 */
-}
-
-/* 아이콘 관련 스타일 */
-.item-icon-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.item-icon {
-  font-size: 24px; /* 기본 아이콘 크기 */
-  display: flex; /* 내부 정렬 위해 */
-  align-items: center;
-  justify-content: center;
-  width: 36px; /* 고정 크기 (선택 사항) */
-  height: 36px; /* 고정 크기 (선택 사항) */
-  border-radius: 50%; /* 원형 배경 */
-  background-color: #f3f4f6; /* 기본 배경색 */
-}
-
-/* 수량 배지 스타일 */
-.quantity-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px 10px;
-  border-radius: 20px;
   font-size: 0.85rem;
-  font-weight: 700;
-  /* margin-left 제거 또는 조정 */
+  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 12px;
+  background-color: #e0e7ff;
+  color: #3730a3;
 }
 
-.quantity-high {
-  background-color: #e6fffa;
-  color: #319795;
-  border: 1px solid #b2f5ea;
-}
-.quantity-medium {
-  background-color: #fefcbf;
-  color: #d69e2e;
-  border: 1px solid #faf089;
-}
-.quantity-low {
-  background-color: #f0f5ff;
-  color: #3182ce;
-  border: 1px solid #c3dafe;
-}
-
-/* 아이템 설명 */
-.item-description {
-  font-size: 0.9rem;
-  color: #4b5563;
-  margin: 12px 0;
-  flex-grow: 1; /* 설명 영역이 남은 공간 차지 */
-  line-height: 1.5;
-}
-
-/* 보유 아이템 카드 푸터 버튼 스타일 */
-.gift-item-button,
-.use-item-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 0.9rem;
-  flex-grow: 1; /* 버튼이 공간 동일하게 차지 */
-  text-align: center;
-}
-
-.gift-item-button {
-  background-color: #f3f4f6;
-  color: #374151;
-  border: 1px solid #e5e7eb;
-}
-.gift-item-button:hover:not(:disabled) {
-  background-color: #e5e7eb;
-}
-
-.use-item-button {
-  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-  color: white;
-  box-shadow: 0 4px 6px rgba(99, 102, 241, 0.2);
-}
-.use-item-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 8px rgba(79, 70, 229, 0.3);
-}
-.use-item-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);
-}
-
-.gift-item-button:disabled,
-.use-item-button:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* 빈 메시지 스타일 */
+/* --- 로딩 및 메시지 스타일 --- */
 .empty-message {
   text-align: center;
   padding: 40px;
   color: #6b7280;
-}
-
-/* ============================ */
-/* 사용 중 아이템 카드 스타일 */
-/* ============================ */
-
-.active-item-card {
-  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
-  border: 1px solid rgba(191, 219, 254, 0.8);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  /* 기존 스타일과 동일하게 설정 */
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  position: relative; /* 취소 버튼 absolute 대비 */
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  margin-top: 0;
-  margin-bottom: 0;
-}
-.active-item-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 20px rgba(0, 0, 0, 0.07), 0 10px 10px rgba(0, 0, 0, 0.04);
-}
-
-/* 사용 중 아이템 헤더 (아이템 정보와 취소 버튼 포함) */
-.active-item-header {
-  display: flex;
-  justify-content: space-between; /* 이름/배지 그룹과 버튼을 양 끝으로 분산 */
-  align-items: flex-start; /* 세로 상단 정렬로 변경 */
-  gap: 10px; /* 그룹과 버튼 사이 최소 간격 */
-  margin-bottom: 8px; /* 헤더와 설명 사이 간격 */
-}
-
-/* 사용 중 아이템 정보 그룹 (아이콘, 이름, 배지) */
-.active-item-details {
-  display: flex;
-  align-items: center;
-  gap: 8px; /* 아이콘과 이름/배지 그룹 사이 간격 */
-  flex-grow: 1; /* 가능한 많은 공간 차지 */
-  min-width: 0; /* 내용이 길어질 때 줄바꿈/숨김 처리 허용 */
-}
-
-/* 사용 중 아이템 아이콘 */
-.active-item-card .item-icon.active-icon {
-  font-size: 24px; /* 크기 동일하게 유지 */
-  background-color: rgba(191, 219, 254, 0.5); /* 배경색 적용 */
-  animation: pulsate 2s infinite ease-in-out;
-}
-
-@keyframes pulsate {
-  0% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 0 0 10px rgba(79, 70, 229, 0);
-  }
-  100% {
-    transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(79, 70, 229, 0);
-  }
-}
-
-/* 이름과 수량 배지 그룹 */
-.name-badge-group {
-  display: flex; /* 이름과 배지를 가로로 배열 */
-  align-items: baseline; /* 이름과 배지 기준선 정렬 */
-  gap: 6px; /* 이름과 배지 사이 간격 */
-  flex-wrap: nowrap; /* 줄바꿈 방지 */
-  overflow: hidden; /* 넘치는 부분 숨김 */
-  min-width: 0; /* flex 아이템이 줄어들 수 있도록 */
-}
-
-/* 활성 아이템 카드 내 이름 스타일 (수정) */
-.active-item-card .item-name {
-  /* position, right, text-align 등 불필요 속성 제거 */
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  white-space: nowrap; /* 줄바꿈 방지 */
-  overflow: hidden; /* 넘치는 부분 숨김 */
-  text-overflow: ellipsis; /* ... 처리 */
-  min-width: 0; /* flex 아이템이 줄어들 수 있도록 */
-  color: #1f2937; /* 이름 색상 (선택 사항) */
-}
-
-/* 활성화된 아이템 수량 배지 (수정) */
-.active-quantity-badge {
-  /* position, right 제거 */
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #3b82f6;
-  color: white;
-  border-radius: 20px;
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  margin-left: 0; /* name-badge-group gap으로 제어 */
-  vertical-align: baseline; /* 이름과 기준선 맞춤 */
-  flex-shrink: 0; /* 배지 크기 유지 */
-}
-
-/* X 취소 버튼 스타일 (수정) */
-.active-item-cancel-button {
-  /* 위치 조정 - absolute 사용 대신 flex로 변경 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f87171; /* 약간 부드러운 빨강 */
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
-  font-weight: bold;
-  padding: 0; /* 패딩 제거로 X가 정가운데 오도록 */
-  cursor: pointer;
-  transition: background-color 0.2s, transform 0.1s;
-  flex-shrink: 0; /* 버튼 크기 유지 */
-  margin-top: 2px;
-  /* src/ItemMarket.css (기존 CSS에 추가) */
-
-/* ... 기존 ItemMarket.css 내용 ... */
-
-.market-tabs {
-  display: flex;
-  margin-bottom: 20px;
-  border-bottom: 2px solid #ddd;
-}
-.market-tabs button {
-  padding: 10px 20px;
-  cursor: pointer;
-  border: none;
-  background-color: transparent;
   font-size: 1rem;
-  color: #555;
-  position: relative;
-  bottom: -2px; /* 탭 아래 선과 겹치도록 */
-  margin-right: 5px;
-}
-.market-tabs button.active {
-  font-weight: bold;
-  color: #3498db;
-  border-bottom: 2px solid #3498db;
-}
-.market-tabs button:hover {
-    background-color: #f0f0f0;
 }
 
-
-.market-listings-section, .market-offers-section {
-    margin-bottom: 30px;
+/* ========================================
+    모달 (Modal) 스타일 - myitems- 접두사 사용
+   ======================================== */
+.myitems-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.3s ease-out;
 }
 
-.button-make-offer {
-  background-color: #f39c12; /* 주황색 계열 */
-  color: white;
-  margin-left: 10px; /* 즉시 구매 버튼과의 간격 */
-}
-.button-make-offer:hover {
-  background-color: #e67e22;
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
-
-/* Offer Cards Styling */
-.offers-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 15px;
-}
-.offer-card {
-    background-color: #fff;
-    border: 1px solid #e0e0e0;
-    border-radius: 6px;
-    padding: 15px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-}
-.offer-card p {
-    margin: 5px 0;
-    font-size: 0.9rem;
-    color: #333;
-}
-.offer-card .offer-item-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
-}
-.offer-card .item-icon-small {
-    font-size: 1.8rem;
-}
-.offer-card strong {
-    font-weight: 600;
-}
-.offer-actions {
-    margin-top: 10px;
-    display: flex;
-    gap: 10px;
-}
-.button-accept-offer, .button-reject-offer {
-    padding: 8px 15px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: 500;
-}
-.button-accept-offer {
-    background-color: #2ecc71;
-    color: white;
-}
-.button-accept-offer:hover {
-    background-color: #27ae60;
-}
-.button-reject-offer {
-    background-color: #e74c3c;
-    color: white;
-}
-.button-reject-offer:hover {
-    background-color: #c0392b;
-}
-
-.status-badge {
-    padding: 3px 8px;
-    border-radius: 10px;
-    font-size: 0.8rem;
-    font-weight: bold;
-    color: white;
-}
-.status-badge.pending { background-color: #f39c12; }
-.status-badge.accepted { background-color: #2ecc71; }
-.status-badge.rejected { background-color: #e74c3c; }
-
-.response-message {
-    font-size: 0.8rem;
-    color: #777;
-    font-style: italic;
-}
-
-/* MyItems.js 에서 시장 판매 버튼 스타일 */
-.my-item-actions { /* 기존 item-footer에서 클래스명 변경 대응 */
-    display: flex;
-    justify-content: space-between; /* 버튼들 사이에 공간 배분 */
-    gap: 8px; /* 버튼들 사이 간격 */
-    margin-top: 12px;
-    flex-wrap: wrap; /* 버튼이 많을 경우 다음 줄로 넘어가도록 */
-}
-
-.my-item-actions button {
-    flex-grow: 1; /* 버튼들이 가능한 공간을 균등하게 차지하도록 */
-    padding: 8px 10px; /* 패딩 조정 */
-    min-width: 80px; /* 최소 너비 */
-    font-size: 0.85rem; /* 폰트 크기 조정 */
-}
-
-.sell-to-market-button {
-    background-color: #1abc9c; /* 청록색 계열 */
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    padding: 8px 12px;
-}
-.sell-to-market-button:hover {
-    background-color: #16a085;
-}
-.sell-to-market-button:disabled {
-    background-color: #bdc3c7;
-    cursor: not-allowed;
-}
-
-/* MyItems.css 에 추가될 수 있는 스타일 (모달 관련 일부는 ItemMarket.css 와 중복될 수 있음) */
-.my-item-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between; /* 아이콘 그룹과 이름 사이 공간 */
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-/* LoginWarning.css (필요시 생성) */
-.login-warning-container {
-  text-align: center;
-  padding: 40px 20px;
-  background-color: #fff3e0; /* 연한 주황색 배경 */
-  border: 1px solid #ffe0b2; /* 연한 주황색 테두리 */
+.myitems-modal-container {
+  background-color: white;
+  padding: 24px;
   border-radius: 8px;
-  margin: 20px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  width: 90%;
+  max-width: 450px;
+  animation: slideUp 0.3s ease-out;
 }
-.login-warning-container h3 {
-  color: #ef6c00; /* 주황색 텍스트 */
-  margin-bottom: 15px;
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
 }
-.login-warning-container p {
-  color: #5f4300; /* 어두운 주황색 텍스트 */
+
+.myitems-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 12px;
   margin-bottom: 20px;
 }
-.login-button-warning {
-  background-color: #fb8c00; /* 주황색 버튼 */
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  text-decoration: none;
-  font-weight: bold;
-  transition: background-color 0.2s;
+
+.myitems-modal-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
 }
-.login-button-warning:hover {
-  background-color: #e65100; /* 더 진한 주황색 */
+
+.myitems-close-button {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #9ca3af;
+  padding: 0;
+  line-height: 1;
+}
+.myitems-close-button:hover {
+  color: #374151;
+}
+
+.myitems-modal-body {
+  margin-bottom: 24px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #4b5563;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"],
+.form-group .form-select { /* ✨새로운 스타일✨ select 추가 */
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+  box-sizing: border-box; 
+  background-color: white; /* select 배경색 보장 */
+}
+.form-group input:focus,
+.form-group .form-select:focus { /* ✨새로운 스타일✨ select 추가 */
+  outline: none;
+  border-color: #4f46e5;
+  box-shadow: 0 0 0 2px #c7d2fe;
+}
+
+.quantity-controls {
+  display: flex;
+  align-items: center;
+}
+.quantity-controls button {
+  width: 38px;
+  height: 38px;
+  border: 1px solid #d1d5db;
+  background-color: #f9fafb;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #374151;
+}
+.quantity-controls button:first-of-type {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
+}
+.quantity-controls button:last-of-type {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+.quantity-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #e5e7eb;
+}
+.quantity-controls input {
+  text-align: center;
+  border-top: 1px solid #d1d5db;
+  border-bottom: 1px solid #d1d5db;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  width: 60px;
+  height: 38px;
+  box-sizing: border-box;
+}
+
+.myitems-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.button-secondary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  background-color: #e5e7eb;
+  color: #374151;
+  font-size: 14px;
+}
+.button-secondary:hover {
+  background-color: #d1d5db;
+}
+
+.button-primary {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  background-color: #4f46e5;
+  color: white;
+  font-size: 14px;
+}
+.button-primary:hover {
+  background-color: #4338ca;
+}
+
+.item-preview-simple {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+}
+
+.item-icon-small {
+  font-size: 1.5rem;
+}
+
+.total-price-preview {
+  padding: 12px;
+  background: #f0f4ff;
+  border-radius: 4px;
+  margin-top: 8px;
+  text-align: right;
+  font-size: 1rem;
+}
+.total-price-preview strong {
+  color: #4f46e5;
+  font-size: 1.1rem;
+}
+
+.sell-button {
+  background-color: #10b981;
+}
+.sell-button:hover {
+  background-color: #059669;
+}
+
+
+/* ========================================
+    반응형 (모바일) 스타일 추가
+   ======================================== */
+@media (max-width: 640px) {
+  .my-item-actions {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .my-item-actions button {
+    padding: 12px;
+    font-size: 1rem;
+  }
+  .items-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .page-title {
+    font-size: 1.5rem;
+  }
+  .section-title {
+    font-size: 1.25rem;
+  }
+  .item-name {
+    font-size: 1rem;
+  }
 }

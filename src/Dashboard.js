@@ -1,9 +1,9 @@
-// src/Dashboard.js
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+// src/Dashboard.js - Firestore 최적화 버전 + 일일 할일 리셋 기능
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import "./Dashboard.css";
 import { useAuth } from "./AuthContext";
-import { db } from "./firebase";
+import { db, functions } from "./firebase"; // functions import 추가
 import {
   doc,
   getDoc,
@@ -19,8 +19,11 @@ import {
   where,
   addDoc,
   collection as firestoreCollection,
+  limit,
+  orderBy,
 } from "firebase/firestore";
-
+import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
+import { formatKoreanCurrency, formatCouponCount } from './numberFormatter';
 import JobList from "./JobList";
 import CommonTaskList from "./CommonTaskList";
 import TransferModal from "./TransferModal";
@@ -30,15 +33,159 @@ import SellCouponModal from "./SellCouponModal";
 import AdminSettingsModal from "./AdminSettingsModal";
 import GiftCouponModal from "./GiftCouponModal";
 
-// Utility functions
+// Cloud Functions 호출 함수 설정
+const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
+
+// 캐시 관리 클래스
+class DataCache {
+  constructor() {
+    this.cache = new Map();
+    this.timestamps = new Map();
+    this.defaultTTL = 5 * 60 * 1000; // 5분
+  }
+
+  set(key, data, ttl = this.defaultTTL) {
+    this.cache.set(key, data);
+    this.timestamps.set(key, Date.now() + ttl);
+  }
+
+  get(key) {
+    if (!this.cache.has(key)) return null;
+    
+    const expiry = this.timestamps.get(key);
+    if (Date.now() > expiry) {
+      this.cache.delete(key);
+      this.timestamps.delete(key);
+      return null;
+    }
+    
+    return this.cache.get(key);
+  }
+
+  invalidate(key) {
+    this.cache.delete(key);
+    this.timestamps.delete(key);
+  }
+
+  clear() {
+    this.cache.clear();
+    this.timestamps.clear();
+  }
+}
+
+// 전역 캐시 인스턴스
+const dataCache = new DataCache();
+
+// 배치 작업 관리 클래스
+class BatchManager {
+  constructor() {
+    this.pendingWrites = [];
+    this.batchTimeout = null;
+    this.BATCH_DELAY = 2000; // 2초 지연
+    this.MAX_BATCH_SIZE = 500; // Firestore 제한
+  }
+
+  addWrite(operation) {
+    this.pendingWrites.push(operation);
+    
+    if (this.pendingWrites.length >= this.MAX_BATCH_SIZE) {
+      this.executeBatch();
+    } else {
+      this.scheduleBatch();
+    }
+  }
+
+  scheduleBatch() {
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+    }
+    
+    this.batchTimeout = setTimeout(() => {
+      this.executeBatch();
+    }, this.BATCH_DELAY);
+  }
+
+  async executeBatch() {
+    if (this.pendingWrites.length === 0) return;
+    
+    if (this.batchTimeout) {
+      clearTimeout(this.batchTimeout);
+      this.batchTimeout = null;
+    }
+
+    const batch = writeBatch(db);
+    const operations = [...this.pendingWrites];
+    this.pendingWrites = [];
+
+    try {
+      operations.forEach(({ type, ref, data }) => {
+        switch (type) {
+          case 'set':
+            batch.set(ref, data);
+            break;
+          case 'update':
+            batch.update(ref, data);
+            break;
+          case 'delete':
+            batch.delete(ref);
+            break;
+        }
+      });
+
+      await batch.commit();
+      console.log(`배치 실행 완료: ${operations.length}개 작업`);
+    } catch (error) {
+      console.error('배치 실행 실패:', error);
+      // 실패한 작업들을 다시 큐에 추가할 수 있음
+    }
+  }
+}
+
+const batchManager = new BatchManager();
+
+// 실시간 리스너 관리 클래스
+class RealtimeManager {
+  constructor() {
+    this.listeners = new Map();
+  }
+
+  addListener(key, unsubscribe) {
+    if (this.listeners.has(key)) {
+      this.listeners.get(key)();
+    }
+    this.listeners.set(key, unsubscribe);
+  }
+
+  removeListener(key) {
+    if (this.listeners.has(key)) {
+      this.listeners.get(key)();
+      this.listeners.delete(key);
+    }
+  }
+
+  removeAllListeners() {
+    this.listeners.forEach(unsubscribe => unsubscribe());
+    this.listeners.clear();
+  }
+}
+
+// Utility functions - 캐시 및 최적화 적용
 const fetchClassData = async (classCode) => {
+  const cacheKey = `classData_${classCode}`;
+  const cached = dataCache.get(cacheKey);
+  if (cached) return cached;
+
   try {
     const q = query(
       firestoreCollection(db, "sharedData"),
-      where("classCode", "==", classCode)
+      where("classCode", "==", classCode),
+      limit(100) // 제한 추가
     );
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    
+    dataCache.set(cacheKey, data);
+    return data;
   } catch (error) {
     console.error("Error fetching class data:", error);
     return [];
@@ -47,11 +194,20 @@ const fetchClassData = async (classCode) => {
 
 const saveSharedData = async (data, classCode) => {
   try {
-    await addDoc(firestoreCollection(db, "sharedData"), {
-      ...data,
-      classCode,
-      createdAt: serverTimestamp(),
+    // 배치 매니저 사용
+    const newDocRef = doc(firestoreCollection(db, "sharedData"));
+    batchManager.addWrite({
+      type: 'set',
+      ref: newDocRef,
+      data: {
+        ...data,
+        classCode,
+        createdAt: serverTimestamp(),
+      }
     });
+    
+    // 캐시 무효화
+    dataCache.invalidate(`classData_${classCode}`);
     return true;
   } catch (error) {
     console.error("Error saving shared data:", error);
@@ -190,119 +346,7 @@ function SelectMultipleJobsView({
   );
 }
 
-const styles = {
-  pageTitle: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "15px 20px",
-    backgroundColor: "#ffffff",
-    borderBottom: "1px solid #e5e7eb",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
-    position: "sticky",
-    top: 0,
-    zIndex: 10,
-  },
-  pageTitleText: {
-    fontSize: "24px",
-    fontWeight: "bold",
-    color: "#1f2937",
-  },
-  welcomeMessage: {
-    fontSize: "20px",
-    fontWeight: "600",
-    color: "#374151",
-  },
-  sectionContainer: {
-    backgroundColor: "#ffffff",
-    padding: "20px",
-    borderRadius: "8px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    marginBottom: "25px",
-  },
-  sectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-    paddingBottom: "10px",
-    borderBottom: "1px solid #e5e7eb",
-  },
-  sectionHeaderTitle: {
-    fontSize: "20px",
-    fontWeight: "600",
-    color: "#111827",
-  },
-  subsectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: "30px",
-    marginBottom: "15px",
-  },
-  subsectionHeaderTitle: {
-    fontSize: "18px",
-    fontWeight: "600",
-    color: "#1f2937",
-  },
-  jobTaskListGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: "10px",
-  },
-};
-
-const buttonStyles = {
-  adminSettings: {
-    padding: "8px 16px",
-    fontSize: "14px",
-    fontWeight: "500",
-    backgroundColor: "#4f46e5",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-  },
-  goBack: {
-    padding: "8px 16px",
-    fontSize: "14px",
-    backgroundColor: "#d1d5db",
-    color: "#1f2937",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  headerButton: {
-    padding: "8px 12px",
-    fontSize: "14px",
-    fontWeight: "500",
-    backgroundColor: "#22c55e",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  greenButton: {
-    padding: "8px 12px",
-    fontSize: "14px",
-    fontWeight: "500",
-    backgroundColor: "#10b981",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    cursor: "pointer",
-  },
-  addJobTaskButton: {
-    padding: "6px 10px",
-    fontSize: "13px",
-    backgroundColor: "#6366f1",
-    color: "white",
-  },
-};
-
-function Dashboard() {
-  console.log("Dashboard 컴포넌트 렌더링");
+function Dashboard({ adminTabMode }) {
   const navigate = useNavigate();
   const {
     user,
@@ -313,11 +357,16 @@ function Dashboard() {
     isSuperAdmin,
   } = useAuth();
 
+  // Refs for cleanup
+  const realtimeManager = useRef(new RealtimeManager());
+  const lastFetchTime = useRef(0);
+  const fetchPromise = useRef(null);
+
   // State management
   const [appLoading, setAppLoading] = useState(true);
   const [viewMode, setViewMode] = useState("list");
   const [showAdminSettingsModal, setShowAdminSettingsModal] = useState(false);
-  const [adminSelectedMenu, setAdminSelectedMenu] = useState("goal");
+  const [adminSelectedMenu, setAdminSelectedMenu] = useState("generalSettings");
 
   const [jobs, setJobs] = useState([]);
   const [commonTasks, setCommonTasks] = useState([]);
@@ -343,6 +392,14 @@ function Dashboard() {
     String(1000)
   );
   const [classCodes, setClassCodes] = useState([]);
+
+  // adminTabMode가 있으면 모달 열기
+  useEffect(() => {
+    if (adminTabMode && isAdmin?.()) {
+      setAdminSelectedMenu(adminTabMode);
+      setShowAdminSettingsModal(true);
+    }
+  }, [adminTabMode, isAdmin]);
 
   // Memoized values
   const currentGoalId = useMemo(() => {
@@ -377,52 +434,22 @@ function Dashboard() {
     }
   }, []);
 
-  // Data loading function
-  const loadTasksData = useCallback(async () => {
-    if (!userDoc?.id || !userDoc?.classCode) {
-      console.log("Dashboard: userDoc 또는 classCode 없음, 데이터 로드 중단");
-      setAppLoading(false);
-      setJobs([]);
-      setCommonTasks([]);
-      return;
-    }
+  // 🔥 [최적화] Polling 방식으로 전환 (30초마다)
+  const setupPolling = useCallback(async (classCode) => {
+    if (!classCode) return;
 
-    console.log("Dashboard: 데이터 로드 시작");
-    setAppLoading(true);
+    const pollData = async () => {
+      try {
+        // Jobs 조회
+        const jobsQuery = query(
+          firestoreCollection(db, "jobs"),
+          where("classCode", "==", classCode),
+          orderBy("updatedAt", "desc"),
+          limit(50)
+        );
 
-    try {
-      const classCode = userDoc.classCode;
-
-      // Firestore queries with error handling
-      const [
-        jobsSnapshot,
-        commonTasksSnapshot,
-        settingsSnap,
-        goalSnap,
-        classCodeSnap,
-      ] = await Promise.allSettled([
-        getDocs(
-          query(
-            firestoreCollection(db, "jobs"),
-            where("classCode", "==", classCode)
-          )
-        ),
-        getDocs(
-          query(
-            firestoreCollection(db, "commonTasks"),
-            where("classCode", "==", classCode)
-          )
-        ),
-        getDoc(doc(db, "settings", "mainSettings")),
-        currentGoalId && isAdmin?.()
-          ? getDoc(doc(db, "goals", currentGoalId))
-          : Promise.resolve({ exists: () => false }),
-        getDoc(doc(db, "settings", "classCodes")),
-      ]);
-
-      // Process jobs
-      if (jobsSnapshot.status === "fulfilled") {
-        const loadedJobs = jobsSnapshot.value.docs.map((d) => ({
+        const jobsSnap = await getDocs(jobsQuery);
+        const loadedJobs = jobsSnap.docs.map((d) => ({
           id: d.id,
           ...d.data(),
           tasks: (d.data().tasks || []).map((task) => ({
@@ -434,14 +461,18 @@ function Dashboard() {
           active: d.data().active !== false,
         }));
         setJobs(loadedJobs);
-      } else {
-        console.error("Jobs 로드 실패:", jobsSnapshot.reason);
-        setJobs([]);
-      }
+        dataCache.set(`jobs_${classCode}`, loadedJobs, 10 * 60 * 1000);
 
-      // Process common tasks
-      if (commonTasksSnapshot.status === "fulfilled") {
-        const loadedCommonTasks = commonTasksSnapshot.value.docs.map((d) => ({
+        // Common Tasks 조회
+        const tasksQuery = query(
+          firestoreCollection(db, "commonTasks"),
+          where("classCode", "==", classCode),
+          orderBy("updatedAt", "desc"),
+          limit(50)
+        );
+
+        const tasksSnap = await getDocs(tasksQuery);
+        const loadedCommonTasks = tasksSnap.docs.map((d) => ({
           id: d.id,
           ...d.data(),
           reward: d.data().reward || 0,
@@ -449,58 +480,162 @@ function Dashboard() {
           maxClicks: d.data().maxClicks || 5,
         }));
         setCommonTasks(loadedCommonTasks);
-      } else {
-        console.error("CommonTasks 로드 실패:", commonTasksSnapshot.reason);
-        setCommonTasks([]);
+        dataCache.set(`commonTasks_${classCode}`, loadedCommonTasks, 10 * 60 * 1000);
+      } catch (error) {
+        console.error("Polling 에러:", error);
       }
+    };
 
-      // Process settings
-      if (settingsSnap.status === "fulfilled" && settingsSnap.value.exists()) {
-        const settingsData = settingsSnap.value.data();
-        const newCouponValue = settingsData.couponValue || 1000;
-        setCouponValue(newCouponValue);
-        setAdminCouponValueInput(String(newCouponValue));
-      }
+    // 즉시 한 번 실행
+    await pollData();
 
-      // Process goal (admin only)
-      if (
-        goalSnap.status === "fulfilled" &&
-        goalSnap.value.exists &&
-        goalSnap.value.exists() &&
-        isAdmin?.()
-      ) {
-        const goalData = goalSnap.value.data();
-        if (goalData.classCode === classCode) {
-          const targetAmount = goalData.targetAmount || 1000;
-          setClassCouponGoal(targetAmount);
-          setAdminGoalAmountInput(String(targetAmount));
-        }
-      }
+    // 30초마다 실행
+    const intervalId = setInterval(pollData, 30000);
 
-      // Process class codes
-      if (
-        classCodeSnap.status === "fulfilled" &&
-        classCodeSnap.value.exists()
-      ) {
-        setClassCodes(classCodeSnap.value.data().validCodes || []);
-      }
+    // Cleanup 함수 저장
+    realtimeManager.current.addListener('polling', () => clearInterval(intervalId));
+  }, []);
 
-      console.log("Dashboard: 데이터 로드 완료");
-    } catch (error) {
-      console.error("Dashboard: 데이터 로드 오류:", error);
-    } finally {
-      setAppLoading(false);
+  // 캐시된 데이터 로드 함수
+  const loadCachedData = useCallback(async (classCode) => {
+    const jobsCache = dataCache.get(`jobs_${classCode}`);
+    const tasksCache = dataCache.get(`commonTasks_${classCode}`);
+    const settingsCache = dataCache.get('mainSettings');
+
+    if (jobsCache) {
+      setJobs(jobsCache);
     }
-  }, [userDoc, currentGoalId, isAdmin]);
+    if (tasksCache) {
+      setCommonTasks(tasksCache);
+    }
+    if (settingsCache) {
+      setCouponValue(settingsCache.couponValue || 1000);
+      setAdminCouponValueInput(String(settingsCache.couponValue || 1000));
+    }
+
+    return {
+      hasJobsCache: !!jobsCache,
+      hasTasksCache: !!tasksCache,
+      hasSettingsCache: !!settingsCache
+    };
+  }, []);
+
+  // 최적화된 데이터 로드 함수
+  const loadTasksData = useCallback(async (forceRefresh = false) => {
+    if (!userDoc?.classCode) {
+      setAppLoading(false);
+      return;
+    }
+
+    const now = Date.now();
+    const classCode = userDoc.classCode;
+
+    // 중복 요청 방지
+    if (fetchPromise.current && !forceRefresh) {
+      return fetchPromise.current;
+    }
+
+    // 최소 요청 간격 보장 (30초)
+    if (!forceRefresh && now - lastFetchTime.current < 30000) {
+      setAppLoading(false);
+      return;
+    }
+
+    // 초기 로딩 표시
+    setAppLoading(true);
+
+    const fetchData = async () => {
+      try {
+        // 1단계: 캐시된 데이터 먼저 로드하여 즉시 UI 표시
+        const cacheStatus = await loadCachedData(classCode);
+
+        // 캐시 데이터가 있으면 즉시 로딩 상태 해제하여 빠른 UI 표시
+        if (cacheStatus.hasJobsCache && cacheStatus.hasTasksCache) {
+          setAppLoading(false);
+        }
+
+        // 2단계: 백그라운드에서 실시간 리스너 설정 (한 번만)
+        if (!realtimeManager.current.listeners.has('jobs')) {
+          // 리스너 설정을 다음 틱으로 지연하여 초기 렌더링 차단 방지
+          setTimeout(() => setupPolling(classCode), 0);
+        }
+
+        // 3단계: 캐시되지 않은 정적 데이터만 가져오기
+        const promises = [];
+
+        if (!cacheStatus.hasSettingsCache || forceRefresh) {
+          promises.push(
+            getDoc(doc(db, "settings", "mainSettings")).then(snap => ({
+              type: 'settings',
+              data: snap.exists() ? snap.data() : null
+            }))
+          );
+        }
+
+        if (currentGoalId && (!dataCache.get(`goal_${currentGoalId}`) || forceRefresh)) {
+          promises.push(
+            getDoc(doc(db, "goals", currentGoalId)).then(snap => ({
+              type: 'goal',
+              data: snap.exists() ? snap.data() : null
+            }))
+          );
+        }
+
+        if (isSuperAdmin() && (!dataCache.get('classCodes') || forceRefresh)) {
+          promises.push(
+            getDoc(doc(db, "settings", "classCodes")).then(snap => ({
+              type: 'classCodes',
+              data: snap.exists() ? snap.data() : null
+            }))
+          );
+        }
+
+        // 필요한 데이터만 병렬로 가져오기
+        if (promises.length > 0) {
+          const results = await Promise.all(promises);
+
+          results.forEach(result => {
+            switch (result.type) {
+              case 'settings':
+                if (result.data) {
+                  const newCouponValue = result.data.couponValue || 1000;
+                  setCouponValue(newCouponValue);
+                  setAdminCouponValueInput(String(newCouponValue));
+                  dataCache.set('mainSettings', result.data, 30 * 60 * 1000); // 30분
+                }
+                break;
+              case 'goal':
+                if (result.data && result.data.classCode === classCode) {
+                  const targetAmount = result.data.targetAmount || 1000;
+                  setClassCouponGoal(targetAmount);
+                  setAdminGoalAmountInput(String(targetAmount));
+                  dataCache.set(`goal_${currentGoalId}`, result.data, 15 * 60 * 1000); // 15분
+                }
+                break;
+              case 'classCodes':
+                if (result.data) {
+                  setClassCodes(result.data.validCodes || []);
+                  dataCache.set('classCodes', result.data, 60 * 60 * 1000); // 1시간
+                }
+                break;
+            }
+          });
+        }
+
+        lastFetchTime.current = now;
+      } catch (error) {
+      } finally {
+        setAppLoading(false);
+        fetchPromise.current = null;
+      }
+    };
+
+    fetchPromise.current = fetchData();
+    return fetchPromise.current;
+  }, [userDoc?.classCode, currentGoalId, isSuperAdmin, setupPolling, loadCachedData]);
 
   // Effect for data loading
   useEffect(() => {
-    console.log("Dashboard useEffect:", {
-      authLoading,
-      user: !!user,
-      userDoc: !!userDoc,
-    });
-
     if (authLoading) {
       setAppLoading(true);
       return;
@@ -510,20 +645,22 @@ function Dashboard() {
       setAppLoading(false);
       setJobs([]);
       setCommonTasks([]);
+      // 리스너 정리
+      realtimeManager.current.removeAllListeners();
       return;
     }
 
-    if (!userDoc) {
-      setAppLoading(true);
-      return;
-    }
-
-    if (userDoc.id && userDoc.classCode) {
+    if (userDoc?.id && userDoc?.classCode) {
       loadTasksData();
     } else {
       setAppLoading(false);
     }
-  }, [authLoading, user, userDoc, loadTasksData]);
+
+    // 컴포넌트 언마운트 시 리스너 정리
+    return () => {
+      realtimeManager.current.removeAllListeners();
+    };
+  }, [authLoading, user, userDoc?.id, userDoc?.classCode, loadTasksData]);
 
   // Job management handlers
   const handleSaveJob = useCallback(async () => {
@@ -542,31 +679,46 @@ function Dashboard() {
     try {
       if (editingJob) {
         const jobRef = doc(db, "jobs", editingJob.id);
-        await updateDoc(jobRef, { title, updatedAt: serverTimestamp() });
+        // 배치 매니저 사용
+        batchManager.addWrite({
+          type: 'update',
+          ref: jobRef,
+          data: { title, updatedAt: serverTimestamp() }
+        });
+        
+        alert(`직업이 수정되었습니다.`);
+        setAdminNewJobTitle("");
+        setEditingJob(null);
+        setShowAdminSettingsModal(false);
       } else {
         const newJobId = generateId();
-        await setDoc(doc(db, "jobs", newJobId), {
-          title,
-          active: true,
-          tasks: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          classCode: userDoc.classCode,
+        const jobRef = doc(db, "jobs", newJobId);
+        batchManager.addWrite({
+          type: 'set',
+          ref: jobRef,
+          data: {
+            title,
+            active: true,
+            tasks: [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            classCode: userDoc.classCode,
+          }
         });
+        
+        alert(`직업이 추가되었습니다.`);
+        setAdminNewJobTitle("");
       }
 
-      setAdminNewJobTitle("");
-      setEditingJob(null);
-      setShowAdminSettingsModal(false);
-      alert(`직업이 ${editingJob ? "수정" : "추가"}되었습니다.`);
-      await loadTasksData();
+      // 캐시 무효화
+      dataCache.invalidate(`jobs_${userDoc.classCode}`);
     } catch (error) {
       console.error("handleSaveJob 오류:", error);
       alert("직업 저장 중 오류 발생");
     } finally {
       setAppLoading(false);
     }
-  }, [adminNewJobTitle, editingJob, loadTasksData, generateId, userDoc]);
+  }, [adminNewJobTitle, editingJob, generateId, userDoc]);
 
   const handleDeleteJob = useCallback(
     async (jobIdToDelete) => {
@@ -585,7 +737,13 @@ function Dashboard() {
 
       setAppLoading(true);
       try {
-        await deleteDoc(doc(db, "jobs", jobIdToDelete));
+        // 배치 매니저 사용
+        const jobRef = doc(db, "jobs", jobIdToDelete);
+        batchManager.addWrite({
+          type: 'delete',
+          ref: jobRef,
+          data: null
+        });
 
         if (user && userDoc?.selectedJobIds?.includes(jobIdToDelete)) {
           const updatedSelectedIds = userDoc.selectedJobIds.filter(
@@ -601,7 +759,9 @@ function Dashboard() {
 
         setShowAdminSettingsModal(false);
         alert("직업이 삭제되었습니다.");
-        await loadTasksData();
+        
+        // 캐시 무효화
+        dataCache.invalidate(`jobs_${userDoc.classCode}`);
       } catch (error) {
         console.error("handleDeleteJob 오류:", error);
         alert("직업 삭제 중 오류 발생");
@@ -609,14 +769,14 @@ function Dashboard() {
         setAppLoading(false);
       }
     },
-    [user, userDoc, editingJob, updateUser, loadTasksData]
+    [user, userDoc, editingJob, updateUser]
   );
 
   const handleEditJob = useCallback((jobToEdit) => {
     if (jobToEdit) {
       setEditingJob(jobToEdit);
       setAdminNewJobTitle(jobToEdit.title);
-      setAdminSelectedMenu("jobs");
+      setAdminSelectedMenu("jobSettings");
       setShowAdminSettingsModal(true);
     } else {
       alert("해당 직업을 찾을 수 없습니다.");
@@ -631,7 +791,7 @@ function Dashboard() {
     setAdminNewTaskReward("");
     setAdminNewTaskMaxClicks("5");
     setEditingTask(null);
-    setAdminSelectedMenu("tasks");
+    setAdminSelectedMenu("taskManagement");
     setShowAddTaskForm(true);
     setShowAdminSettingsModal(true);
   }, []);
@@ -644,7 +804,7 @@ function Dashboard() {
       setAdminNewTaskMaxClicks(String(taskToEdit.maxClicks || 5));
       setIsJobTaskForForm(!!jobId);
       setCurrentJobIdForTask(jobId);
-      setAdminSelectedMenu("tasks");
+      setAdminSelectedMenu("taskManagement");
       setShowAddTaskForm(true);
       setShowAdminSettingsModal(true);
     } else {
@@ -702,40 +862,69 @@ function Dashboard() {
           }
           const updatedTasks = [...jobTasks];
           updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], ...taskData };
-          await updateDoc(jobRef, {
-            tasks: updatedTasks,
-            updatedAt: serverTimestamp(),
+          
+          // 배치 매니저 사용
+          batchManager.addWrite({
+            type: 'update',
+            ref: jobRef,
+            data: {
+              tasks: updatedTasks,
+              updatedAt: serverTimestamp(),
+            }
           });
         } else {
-          await updateDoc(doc(db, "commonTasks", taskId), {
-            ...taskData,
-            updatedAt: serverTimestamp(),
+          const taskRef = doc(db, "commonTasks", taskId);
+          batchManager.addWrite({
+            type: 'update',
+            ref: taskRef,
+            data: {
+              ...taskData,
+              updatedAt: serverTimestamp(),
+            }
           });
         }
+        setShowAddTaskForm(false);
+        setEditingTask(null);
+        setShowAdminSettingsModal(false);
+        alert(`할일이 수정되었습니다.`);
       } else {
         const newTaskId = generateId();
         const newTaskDataWithId = { ...taskData, id: newTaskId, clicks: 0 };
         if (isJobTaskForForm && currentJobIdForTask) {
           const jobRef = doc(db, "jobs", currentJobIdForTask);
-          await updateDoc(jobRef, {
-            tasks: arrayUnion(newTaskDataWithId),
-            updatedAt: serverTimestamp(),
+          batchManager.addWrite({
+            type: 'update',
+            ref: jobRef,
+            data: {
+              tasks: arrayUnion(newTaskDataWithId),
+              updatedAt: serverTimestamp(),
+            }
           });
         } else {
-          await setDoc(doc(db, "commonTasks", newTaskId), {
-            ...newTaskDataWithId,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            classCode: userDoc.classCode,
+          const newTaskRef = doc(db, "commonTasks", newTaskId);
+          batchManager.addWrite({
+            type: 'set',
+            ref: newTaskRef,
+            data: {
+              ...newTaskDataWithId,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+              classCode: userDoc.classCode,
+            }
           });
         }
+        setAdminNewTaskName("");
+        setAdminNewTaskReward("");
+        setAdminNewTaskMaxClicks("5");
+        alert(`할일이 추가되었습니다.`);
       }
 
-      setShowAddTaskForm(false);
-      setEditingTask(null);
-      setShowAdminSettingsModal(false);
-      alert(`할일이 ${editingTask ? "수정" : "추가"}되었습니다.`);
-      await loadTasksData();
+      // 캐시 무효화
+      if (isJobTaskForForm) {
+        dataCache.invalidate(`jobs_${userDoc.classCode}`);
+      } else {
+        dataCache.invalidate(`commonTasks_${userDoc.classCode}`);
+      }
     } catch (error) {
       console.error("handleSaveTask 오류:", error);
       alert("할일 저장 중 오류 발생: " + error.message);
@@ -749,7 +938,6 @@ function Dashboard() {
     editingTask,
     isJobTaskForForm,
     currentJobIdForTask,
-    loadTasksData,
     generateId,
     userDoc,
   ]);
@@ -775,12 +963,23 @@ function Dashboard() {
           }
           const tasks = jobSnap.data().tasks || [];
           const updatedTasks = tasks.filter((t) => t.id !== taskIdToDelete);
-          await updateDoc(jobRef, {
-            tasks: updatedTasks,
-            updatedAt: serverTimestamp(),
+          
+          // 배치 매니저 사용
+          batchManager.addWrite({
+            type: 'update',
+            ref: jobRef,
+            data: {
+              tasks: updatedTasks,
+              updatedAt: serverTimestamp(),
+            }
           });
         } else {
-          await deleteDoc(doc(db, "commonTasks", taskIdToDelete));
+          const taskRef = doc(db, "commonTasks", taskIdToDelete);
+          batchManager.addWrite({
+            type: 'delete',
+            ref: taskRef,
+            data: null
+          });
         }
 
         if (editingTask?.id === taskIdToDelete) {
@@ -790,7 +989,13 @@ function Dashboard() {
 
         setShowAdminSettingsModal(false);
         alert("할일이 삭제되었습니다.");
-        await loadTasksData();
+        
+        // 캐시 무효화
+        if (jobId) {
+          dataCache.invalidate(`jobs_${userDoc.classCode}`);
+        } else {
+          dataCache.invalidate(`commonTasks_${userDoc.classCode}`);
+        }
       } catch (error) {
         console.error("handleDeleteTask 오류:", error);
         alert("할일 삭제 중 오류 발생: " + error.message);
@@ -798,7 +1003,7 @@ function Dashboard() {
         setAppLoading(false);
       }
     },
-    [editingTask, loadTasksData]
+    [editingTask, userDoc]
   );
 
   // Job selection handlers
@@ -840,7 +1045,7 @@ function Dashboard() {
     setViewMode("list");
   }, []);
 
-  // Task completion handler
+  // Task completion handler - 디바운싱 및 낙관적 업데이트 적용
   const handleTaskEarnCoupon = useCallback(
     async (taskId, jobId = null, isJobTask = false) => {
       if (!db || !userDoc?.id || isHandlingTask) {
@@ -863,11 +1068,30 @@ function Dashboard() {
             throw new Error("직업 할일을 찾을 수 없습니다.");
 
           if (currentTaskData.clicks >= currentTaskData.maxClicks) {
-            alert(`${currentTaskData.name} 할일은 이미 최대 완료했습니다.`);
+            alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
+            setIsHandlingTask(false);
             return;
           }
 
           taskReward = currentTaskData.reward;
+          
+          // 낙관적 업데이트
+          setJobs(prevJobs => 
+            prevJobs.map(j => 
+              j.id === jobId 
+                ? {
+                    ...j,
+                    tasks: j.tasks.map(t => 
+                      t.id === taskId 
+                        ? { ...t, clicks: t.clicks + 1 }
+                        : t
+                    )
+                  }
+                : j
+            )
+          );
+
+          // 배치 매니저를 통한 비동기 업데이트
           const jobRef = doc(db, "jobs", jobId);
           const jobSnap = await getDoc(jobRef);
 
@@ -884,9 +1108,13 @@ function Dashboard() {
           updatedDbTasks[taskIndex].clicks =
             (updatedDbTasks[taskIndex].clicks || 0) + 1;
 
-          await updateDoc(jobRef, {
-            tasks: updatedDbTasks,
-            updatedAt: serverTimestamp(),
+          batchManager.addWrite({
+            type: 'update',
+            ref: jobRef,
+            data: {
+              tasks: updatedDbTasks,
+              updatedAt: serverTimestamp(),
+            }
           });
         } else {
           currentTaskData = commonTasks.find((t) => t.id === taskId);
@@ -894,15 +1122,30 @@ function Dashboard() {
             throw new Error("공통 할일을 찾을 수 없습니다.");
 
           if (currentTaskData.clicks >= currentTaskData.maxClicks) {
-            alert(`${currentTaskData.name} 할일은 이미 최대 완료했습니다.`);
+            alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
+            setIsHandlingTask(false);
             return;
           }
 
           taskReward = currentTaskData.reward;
+          
+          // 낙관적 업데이트
+          setCommonTasks(prevTasks =>
+            prevTasks.map(t =>
+              t.id === taskId
+                ? { ...t, clicks: t.clicks + 1 }
+                : t
+            )
+          );
+
           const currentTaskRef = doc(db, "commonTasks", taskId);
-          await updateDoc(currentTaskRef, {
-            clicks: increment(1),
-            updatedAt: serverTimestamp(),
+          batchManager.addWrite({
+            type: 'update',
+            ref: currentTaskRef,
+            data: {
+              clicks: increment(1),
+              updatedAt: serverTimestamp(),
+            }
           });
         }
 
@@ -916,6 +1159,30 @@ function Dashboard() {
             alert("쿠폰 지급에 실패했습니다. 관리자에게 문의하세요.");
             throw new Error("쿠폰 지급 실패");
           }
+
+          // 🔥 쿠폰 획득 활동 로그 기록
+          try {
+            const activityLogRef = doc(firestoreCollection(db, "activity_logs"));
+            await setDoc(activityLogRef, {
+              userId: userDoc.id,
+              userName: userDoc.name || userDoc.nickname || "사용자",
+              type: "쿠폰 획득",
+              description: `'${currentTaskData.name}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`,
+              metadata: {
+                taskName: currentTaskData.name,
+                reward: taskReward,
+                taskId: taskId,
+                isJobTask: isJobTask,
+                jobId: jobId || null
+              },
+              timestamp: serverTimestamp(),
+              classCode: userDoc.classCode
+            });
+            console.log(`[Dashboard] 쿠폰 획득 활동 로그 기록 완료: ${taskReward}개`);
+          } catch (logError) {
+            console.error("[Dashboard] 활동 로그 기록 실패:", logError);
+            // 로그 실패는 전체 작업을 실패시키지 않음
+          }
         }
 
         alert(
@@ -923,23 +1190,47 @@ function Dashboard() {
             taskReward > 0 ? `+${taskReward} 쿠폰!` : ""
           }`
         );
-        await loadTasksData();
       } catch (error) {
         console.error("handleTaskEarnCoupon 오류:", error);
         alert(`오류 발생: ${error.message}`);
-        await loadTasksData();
+        
+        // 실패 시 낙관적 업데이트 롤백
+        if (isJobTask && jobId) {
+          setJobs(prevJobs => 
+            prevJobs.map(j => 
+              j.id === jobId 
+                ? {
+                    ...j,
+                    tasks: j.tasks.map(t => 
+                      t.id === taskId 
+                        ? { ...t, clicks: Math.max(0, t.clicks - 1) }
+                        : t
+                    )
+                  }
+                : j
+            )
+          );
+        } else {
+          setCommonTasks(prevTasks =>
+            prevTasks.map(t =>
+              t.id === taskId
+                ? { ...t, clicks: Math.max(0, t.clicks - 1) }
+                : t
+            )
+          );
+        }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [userDoc, jobs, commonTasks, isHandlingTask, updateUser, loadTasksData]
+    [userDoc, isHandlingTask, jobs, commonTasks, updateUser]
   );
 
   // Admin settings handlers
-  const handleOpenAdminSettings = useCallback(() => {
+  const handleOpenAdminSettings = useCallback((tabName = "generalSettings") => {
     setAdminGoalAmountInput(String(classCouponGoal));
     setAdminCouponValueInput(String(couponValue));
-    setAdminSelectedMenu("goal");
+    setAdminSelectedMenu(tabName);
     setShowAdminSettingsModal(true);
   }, [classCouponGoal, couponValue]);
 
@@ -959,54 +1250,58 @@ function Dashboard() {
 
     setAppLoading(true);
     try {
-      const batch = writeBatch(db);
       const settingsRef = doc(db, "settings", "mainSettings");
-
       const settingsSnap = await getDoc(settingsRef);
+      
       if (
         !settingsSnap.exists() ||
         settingsSnap.data().couponValue !== newValue
       ) {
-        batch.set(
-          settingsRef,
-          { couponValue: newValue, updatedAt: serverTimestamp() },
-          { merge: true }
-        );
+        batchManager.addWrite({
+          type: 'set',
+          ref: settingsRef,
+          data: { couponValue: newValue, updatedAt: serverTimestamp() }
+        });
       }
 
-      // Goals collection access with permission check
       if (currentGoalId && isAdmin?.()) {
         try {
           const goalRef = doc(db, "goals", currentGoalId);
           const goalSnap = await getDoc(goalRef);
 
           if (!goalSnap.exists()) {
-            batch.set(goalRef, {
-              targetAmount: newGoal,
-              progress: 0,
-              donations: [],
-              donationCount: 0,
-              classCode: userDoc.classCode,
-              title: `${userDoc.classCode} 학급 목표`,
-              description: `${userDoc.classCode} 학급의 쿠폰 목표입니다.`,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
+            batchManager.addWrite({
+              type: 'set',
+              ref: goalRef,
+              data: {
+                targetAmount: newGoal,
+                progress: 0,
+                donations: [],
+                donationCount: 0,
+                classCode: userDoc.classCode,
+                title: `${userDoc.classCode} 학급 목표`,
+                description: `${userDoc.classCode} 학급의 쿠폰 목표입니다.`,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }
             });
           } else if (goalSnap.data().targetAmount !== newGoal) {
-            batch.update(goalRef, {
-              targetAmount: newGoal,
-              updatedAt: serverTimestamp(),
+            batchManager.addWrite({
+              type: 'update',
+              ref: goalRef,
+              data: {
+                targetAmount: newGoal,
+                updatedAt: serverTimestamp(),
+              }
             });
           }
         } catch (goalError) {
           console.warn(
-            "목표 설정 권한이 없어 목표 금액 설정을 건너뜁니다:",
+            "목표 설정 권한이 없어 목표 금액 설정을 건너뜀:",
             goalError.code
           );
         }
       }
-
-      await batch.commit();
 
       setCouponValue(newValue);
       if (currentGoalId && isAdmin?.()) {
@@ -1014,6 +1309,12 @@ function Dashboard() {
       }
       setShowAdminSettingsModal(false);
       alert("관리자 설정이 저장되었습니다.");
+      
+      // 캐시 무효화
+      dataCache.invalidate('mainSettings');
+      if (currentGoalId) {
+        dataCache.invalidate(`goal_${currentGoalId}`);
+      }
     } catch (error) {
       console.error("관리자 설정 저장 오류:", error);
       alert("관리자 설정 저장 중 오류: " + error.message);
@@ -1028,25 +1329,36 @@ function Dashboard() {
     isAdmin,
   ]);
 
-  // Class code management
+  // Class code management - 캐시 및 배치 처리 적용
   const loadClassCodes = useCallback(async () => {
     if (!db || !isAdmin?.()) return;
+
+    // 캐시 확인
+    const cached = dataCache.get('classCodes');
+    if (cached) {
+      setClassCodes(cached.validCodes || []);
+      return;
+    }
 
     try {
       const codeRef = doc(db, "settings", "classCodes");
       const codeDoc = await getDoc(codeRef);
 
       if (codeDoc.exists()) {
-        setClassCodes(
-          Array.isArray(codeDoc.data().validCodes)
-            ? codeDoc.data().validCodes
-            : []
-        );
+        const codes = Array.isArray(codeDoc.data().validCodes)
+          ? codeDoc.data().validCodes
+          : [];
+        setClassCodes(codes);
+        dataCache.set('classCodes', codeDoc.data(), 60 * 60 * 1000); // 1시간
       } else {
-        await setDoc(codeRef, {
-          validCodes: [],
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+        batchManager.addWrite({
+          type: 'set',
+          ref: codeRef,
+          data: {
+            validCodes: [],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          }
         });
         setClassCodes([]);
       }
@@ -1085,13 +1397,23 @@ function Dashboard() {
           ? codeSnap.data().validCodes || []
           : [];
 
-        await updateDoc(codeRef, {
-          validCodes: [...currentValidCodes, trimmedCode],
-          updatedAt: serverTimestamp(),
+        batchManager.addWrite({
+          type: 'update',
+          ref: codeRef,
+          data: {
+            validCodes: [...currentValidCodes, trimmedCode],
+            updatedAt: serverTimestamp(),
+          }
         });
 
         alert("학급 코드가 추가되었습니다.");
-        await loadClassCodes();
+        
+        // 낙관적 업데이트
+        setClassCodes(prev => [...prev, trimmedCode]);
+        
+        // 캐시 무효화
+        dataCache.invalidate('classCodes');
+        
         return true;
       } catch (error) {
         console.error("학급 코드 추가 오류:", error);
@@ -1101,7 +1423,7 @@ function Dashboard() {
         setAppLoading(false);
       }
     },
-    [classCodes, loadClassCodes]
+    [classCodes]
   );
 
   const handleRemoveClassCode = useCallback(
@@ -1126,13 +1448,23 @@ function Dashboard() {
           (code) => code !== codeToRemove
         );
 
-        await updateDoc(codeRef, {
-          validCodes: updatedCodes,
-          updatedAt: serverTimestamp(),
+        batchManager.addWrite({
+          type: 'update',
+          ref: codeRef,
+          data: {
+            validCodes: updatedCodes,
+            updatedAt: serverTimestamp(),
+          }
         });
 
         alert("학급 코드가 삭제되었습니다.");
-        await loadClassCodes();
+        
+        // 낙관적 업데이트
+        setClassCodes(prev => prev.filter(code => code !== codeToRemove));
+        
+        // 캐시 무효화
+        dataCache.invalidate('classCodes');
+        
         return true;
       } catch (error) {
         console.error("학급 코드 삭제 오류:", error);
@@ -1142,8 +1474,53 @@ function Dashboard() {
         setAppLoading(false);
       }
     },
-    [loadClassCodes]
+    []
   );
+
+  // 강제 새로고침 핸들러
+  const handleForceRefresh = useCallback(() => {
+    // 캐시 클리어
+    dataCache.clear();
+    
+    // 리스너 재설정
+    realtimeManager.current.removeAllListeners();
+    if (userDoc?.classCode) {
+      setupPolling(userDoc.classCode);
+    }
+    
+    // 데이터 강제 로드
+    loadTasksData(true);
+  }, [loadTasksData, userDoc?.classCode, setupPolling]);
+
+  // 🔄 수동 할일 리셋 핸들러 (새로 추가)
+  const handleManualTaskReset = useCallback(async () => {
+    if (!userDoc?.classCode) {
+      alert("학급 코드 정보가 없습니다.");
+      return;
+    }
+
+    if (!window.confirm(`'${userDoc.classCode}' 클래스의 모든 할일을 리셋하시겠습니까?\n\n이 작업은 클래스의 모든 사용자에게 적용되며 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setAppLoading(true);
+    try {
+      const result = await manualResetClassTasks({ classCode: userDoc.classCode });
+      
+      if (result.data.success) {
+        alert(`성공적으로 리셋되었습니다!\n\n${result.data.message}`);
+        // 데이터 새로고침
+        handleForceRefresh();
+      } else {
+        throw new Error(result.data.message || "알 수 없는 오류");
+      }
+    } catch (error) {
+      console.error("할일 리셋 실패:", error);
+      alert(`할일 리셋 실패: ${error.message}`);
+    } finally {
+      setAppLoading(false);
+    }
+  }, [userDoc?.classCode, handleForceRefresh]);
 
   // Loading and error states
   if (authLoading || appLoading) {
@@ -1177,44 +1554,59 @@ function Dashboard() {
 
   return (
     <div className="dashboard-container">
-      <div
-        className="dashboard-content-area"
-        style={{ padding: "0", backgroundColor: "#f9fafb" }}
-      >
+      <div className="dashboard-content-area">
         <div style={{ marginBottom: "15px" }}>
-          <h2 className="dashboard-page-title" style={styles.pageTitle}>
-            <span style={{ ...styles.pageTitleText, ...styles.welcomeMessage }}>
+          <h2 className="dashboard-page-title">
+            <span className="welcome-message">
               오늘의 할일 ✨ ({userNickname}님)
             </span>
-            {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && (
-              <button
-                onClick={handleOpenAdminSettings}
-                style={buttonStyles.adminSettings}
-              >
-                앱 설정 (할일/직업)
-              </button>
+            {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
+              <div className="admin-buttons-group">
+                <button
+                  onClick={() => handleOpenAdminSettings("generalSettings")}
+                  className="admin-settings-button"
+                >
+                  관리자 기능
+                </button>
+                <button
+                  onClick={handleForceRefresh}
+                  className="admin-settings-button"
+                  style={{ backgroundColor: "#28a745" }}
+                >
+                  새로고침
+                </button>
+                {/* 🔄 할일 리셋 버튼 (관리자 전용) */}
+                <button
+                  onClick={handleManualTaskReset}
+                  className="admin-settings-button"
+                  style={{ backgroundColor: "#dc3545", color: "white" }}
+                  title="이 클래스의 모든 사용자 할일을 리셋합니다"
+                >
+                  할일 리셋
+                </button>
+              </div>
             )}
             {viewMode === "selectJob" && (
-              <button onClick={handleCancelForm} style={buttonStyles.goBack}>
+              <button onClick={handleCancelForm} className="go-back-button">
                 ← 뒤로가기
               </button>
             )}
           </h2>
         </div>
 
-        {viewMode === "list" && !showAdminSettingsModal && (
+        {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
           <>
-            <div style={styles.sectionContainer}>
-              <div style={styles.sectionHeader}>
-                <h3 style={styles.sectionHeaderTitle}>나의 직업 할일</h3>
+            <div className="section-container">
+              <div className="section-header">
+                <h3 className="section-header-title">나의 직업 할일</h3>
                 <button
                   onClick={handleSelectJobClick}
-                  style={buttonStyles.headerButton}
+                  className="header-button"
                 >
                   직업 추가/선택
                 </button>
               </div>
-              <div className="job-tasks-grid" style={styles.jobTaskListGrid}>
+              <div className="job-tasks-grid">
                 {jobsToShow.length > 0 ? (
                   jobsToShow.map((job) => (
                     <JobList
@@ -1231,7 +1623,6 @@ function Dashboard() {
                       onDeleteTask={(taskId) =>
                         handleDeleteTask(taskId, job.id)
                       }
-                      addJobTaskButtonStyle={buttonStyles.addJobTaskButton}
                       isHandlingTask={isHandlingTask}
                     />
                   ))
@@ -1250,12 +1641,12 @@ function Dashboard() {
                 )}
               </div>
 
-              <div style={styles.subsectionHeader}>
-                <h4 style={styles.subsectionHeaderTitle}>공통 할일</h4>
+              <div className="subsection-header">
+                <h4 className="subsection-header-title">공통 할일</h4>
                 {isAdmin?.() && (
                   <button
                     onClick={() => handleAddTaskClick(null, false)}
-                    style={buttonStyles.greenButton}
+                    className="green-button"
                   >
                     + 공통 할일 추가
                   </button>

@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(npm start)",
+      "WebFetch(domain:reactjs.org)",
+      "WebFetch(domain:legacy.reactjs.org)",
+      "Bash(firebase deploy:*)",
+      "Bash(firebase functions:log:*)",
+      "Bash(firebase functions:delete:*)",
+      "Bash(firebase firestore:get:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(for file in App.js Auction.js AuthContext.js ChessGame.js Court.js Government.js Investment.js ItemMarket.js LearningBoard.js MusicRequest.js MusicRoom.js NationalAssembly.js NationalTaxService.js OmokGame.js PoliceStation.js RealEstateRegistry.js SendReceive.js TrialRoom.js)",
+      "Bash(done)",
+      "Bash(taskkill:*)",
+      "Bash(firebase emulators:*)",
+      "Bash(firebase auth:export:*)",
+      "Bash(firebase auth:import:*)",
+      "Bash(curl -X POST \"http://localhost:9099/identitytoolkit.googleapis.com/v1/projects/default/accounts\" -H \"Content-Type: application/json\" -d \"{\"\"email\"\":\"\"admin@test.com\"\",\"\"password\"\":\"\"test1234\"\",\"\"returnSecureToken\"\":true}\")",
+      "Bash(npm run deploy)",
+      "Bash(git remote remove:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

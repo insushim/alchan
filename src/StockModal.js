@@ -1,6 +1,7 @@
 // src/StockModal.js
 import React, { useState, useEffect } from "react";
 import "./StockExchange.css"; // 스타일 공유
+import { formatKoreanCurrency } from './numberFormatter';
 
 function StockModal({ isOpen, onClose, onSave, stock, isAdmin }) {
   const [name, setName] = useState("");

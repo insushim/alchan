@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "./AuthContext"; // AuthContext에서 user 정보 가져오기
+import { formatKoreanCurrency } from './numberFormatter';
+import { usePolling } from './hooks/usePolling';
 
 // Firestore 관련 함수 임포트
 import {
@@ -12,17 +14,17 @@ import {
   collection,
   // addDoc, // 더 이상 직접 사용하지 않음 (transaction.set 사용)
   getDoc,
+  getDocs,
   setDoc,
   increment,
   // query, orderBy, limit 등은 firebase/firestore에서 직접 가져옴
 } from "./firebase"; // firebase.js 경로 확인
 
-// ⭐️ query, orderBy, limit, onSnapshot, Timestamp를 firebase/firestore에서 직접 가져옵니다.
+// ⭐️ query, orderBy, limit, Timestamp를 firebase/firestore에서 직접 가져옵니다.
 import {
   query,
   orderBy,
   limit,
-  onSnapshot,
   Timestamp,
 } from "firebase/firestore";
 
@@ -58,82 +60,74 @@ const Investment = ({ classCode }) => {
     setAdminCash(userDoc?.cash || 0);
   }, [userDoc?.cash]);
 
-  // 국고 잔액 및 최근 거래 내역 실시간 감시
-  useEffect(() => {
-    if (!classCode || !treasuryRef || !treasuryTransactionsColRef) {
-      setTreasuryBalance(0);
-      setLastTransactions([]);
-      setIsLoading(false); // 로딩 상태 초기화
-      return;
-    }
+  // 국고 잔액 폴링
+  const { data: treasuryData } = usePolling(
+    async () => {
+      if (!classCode || !treasuryRef) return null;
 
-    setIsLoading(true);
-    // 국고 잔액 감시
-    const unsubscribeTreasury = onSnapshot(
-      treasuryRef,
-      async (docSnap) => {
-        if (docSnap.exists()) {
-          setTreasuryBalance(docSnap.data().balance || 0);
-        } else {
-          try {
-            await setDoc(treasuryRef, {
-              balance: 0,
-              classCode: classCode,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            setTreasuryBalance(0);
-            console.log(`학급 [${classCode}]의 금고가 없어 새로 생성했습니다.`);
-          } catch (error) {
-            console.error("금고 생성 중 오류:", error);
-            setMessage({
-              type: "error",
-              text: "금고 정보를 초기화하는 데 실패했습니다.",
-            });
-          }
+      const docSnap = await getDoc(treasuryRef);
+      if (docSnap.exists()) {
+        return docSnap.data().balance || 0;
+      } else {
+        try {
+          await setDoc(treasuryRef, {
+            balance: 0,
+            classCode: classCode,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          console.log(`학급 [${classCode}]의 금고가 없어 새로 생성했습니다.`);
+          return 0;
+        } catch (error) {
+          console.error("금고 생성 중 오류:", error);
+          setMessage({
+            type: "error",
+            text: "금고 정보를 초기화하는 데 실패했습니다.",
+          });
+          return 0;
         }
-      },
-      (error) => {
-        console.error("국고 잔액 감시 오류:", error);
-        setMessage({
-          type: "error",
-          text: "국고 잔액을 불러오는데 실패했습니다.",
-        });
       }
-    );
+    },
+    { interval: 30000, enabled: !!classCode && !!treasuryRef, deps: [classCode] }
+  );
 
-    // 최근 거래 내역 감시 (예: 최근 5건)
-    // ⭐️ 수정된 import에 따라 query, orderBy, limit 정상 작동해야 함
-    const q = query(
-      treasuryTransactionsColRef,
-      orderBy("timestamp", "desc"),
-      limit(5)
-    );
-    const unsubscribeTransactions = onSnapshot(
-      q,
-      (snapshot) => {
-        const transactions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        setLastTransactions(transactions);
-        setIsLoading(false); // 데이터 로드 완료
-      },
-      (error) => {
-        console.error("최근 거래 내역 감시 오류:", error);
-        setMessage({
-          type: "error",
-          text: "최근 거래 내역을 불러오는데 실패했습니다.",
-        });
-        setIsLoading(false);
-      }
-    );
+  // 최근 거래 내역 폴링
+  const { data: transactionsData } = usePolling(
+    async () => {
+      if (!classCode || !treasuryTransactionsColRef) return [];
 
-    return () => {
-      unsubscribeTreasury();
-      unsubscribeTransactions();
-    };
-  }, [classCode]); // classCode가 변경될 때 treasuryRef, treasuryTransactionsColRef도 변경되므로, 이를 직접 의존성으로 넣거나 재생성 로직 고려
+      const q = query(
+        treasuryTransactionsColRef,
+        orderBy("timestamp", "desc"),
+        limit(5)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    { interval: 30000, enabled: !!classCode && !!treasuryTransactionsColRef, deps: [classCode] }
+  );
+
+  // treasuryData와 transactionsData를 state에 반영
+  useEffect(() => {
+    if (treasuryData !== undefined && treasuryData !== null) {
+      setTreasuryBalance(treasuryData);
+    } else if (!classCode || !treasuryRef) {
+      setTreasuryBalance(0);
+    }
+  }, [treasuryData, classCode, treasuryRef]);
+
+  useEffect(() => {
+    if (transactionsData !== undefined) {
+      setLastTransactions(transactionsData);
+      setIsLoading(false);
+    } else if (!classCode || !treasuryTransactionsColRef) {
+      setLastTransactions([]);
+      setIsLoading(false);
+    }
+  }, [transactionsData, classCode, treasuryTransactionsColRef]);
 
   // 국고 ↔ 관리자 현금 이체 함수
   const handleTreasuryTransfer = async (e, operationType) => {

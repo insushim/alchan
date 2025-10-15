@@ -1,8 +1,8 @@
 // ItemCard.js
 
 import React, { useState, useEffect } from "react";
-import { useAuth } from "./App"; // 가정: useAuth는 App.js 또는 AuthContext.js에서 export됨
-import { useItems } from "./ItemContext"; // 가정: useItems는 ItemContext.js에서 export됨
+import { useAuth } from "./AuthContext"; // 올바른 경로로 수정
+import { useItems } from "./ItemContext"; // 올바른 경로로 수정
 import "./styles.css"; // CombinedShop에서 사용된 스타일
 import "./ItemCard.css"; // ItemCard에서 사용된 스타일 (원본 ItemCard.js 코드에서 가져옴)
 import LoginWarning from "./LoginWarning"; // 가정: 해당 컴포넌트가 있음
@@ -190,17 +190,15 @@ const AdminItemForm = ({
 // --- 메인 상점 및 인벤토리 컴포넌트 (원본 ItemCard (6).js 파일 코드) ---
 const CombinedShop = () => {
   // 컨텍스트 훅 사용, null/undefined 반환 시 기본값 제공
-  const { user, deductCash } = useAuth() || {};
+  const { user, userDoc, deductCash } = useAuth() || {};
   const { items, purchaseItem, getUserItems, addItem, updateItemPrice } =
-    useItems
-      ? useItems()
-      : {
-          items: [],
-          purchaseItem: null,
-          getUserItems: () => [], // getUserItems 기본값 추가
-          addItem: null,
-          updateItemPrice: null,
-        };
+    useItems() || {
+      items: [],
+      purchaseItem: null,
+      getUserItems: () => [], // getUserItems 기본값 추가
+      addItem: null,
+      updateItemPrice: null,
+    };
 
   // 상태 관리
   const [shopItems, setShopItems] = useState([]); // 상점 탭에 표시될 아이템
@@ -231,15 +229,25 @@ const CombinedShop = () => {
   };
 
   // 새 아이템 추가 핸들러 (AdminItemForm에서 호출)
-  const handleAddItem = (newItemData) => {
+  const handleAddItem = async (newItemData) => {
     if (!addItem) {
       console.error("addItem 함수를 ItemContext에서 찾을 수 없습니다."); //
       showNotification("error", "아이템 추가 기능을 사용할 수 없습니다.");
       return;
     }
-    addItem(newItemData); // ItemContext의 addItem 호출
-    showNotification("success", `${newItemData.name} 아이템이 추가되었습니다.`);
-    setShowAdminPanel(false); // 추가 후 패널 닫기 (선택 사항)
+    
+    try {
+      const success = await addItem(newItemData, userDoc?.classCode);
+      if (success) {
+        showNotification("success", `${newItemData.name} 아이템이 추가되었습니다.`);
+        setShowAdminPanel(false); // 추가 후 패널 닫기 (선택 사항)
+      } else {
+        showNotification("error", "아이템 추가에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("아이템 추가 중 오류:", error);
+      showNotification("error", "아이템 추가 중 오류가 발생했습니다.");
+    }
   };
 
   // 가격 상승률 변경 핸들러
@@ -248,7 +256,7 @@ const CombinedShop = () => {
   };
 
   // 아이템 구매 핸들러 (ItemStore.js 로직 기반)
-  const handlePurchase = (item) => {
+  const handlePurchase = async (item) => {
     if (!item) return; // 아이템 객체 유효성 검사
 
     // --- 유효성 검사 ---
@@ -256,12 +264,12 @@ const CombinedShop = () => {
       showNotification("error", "로그인이 필요합니다.");
       return;
     }
-    if (typeof user.cash === "undefined") {
+    if (typeof userDoc?.cash === "undefined") {
       console.error("사용자 잔액 정보를 찾을 수 없습니다."); //
       showNotification("error", "사용자 잔액 정보를 불러올 수 없습니다.");
       return;
     }
-    if (user.cash < item.price) {
+    if (userDoc.cash < item.price) {
       showNotification("error", "잔액이 부족합니다.");
       return;
     }
@@ -270,42 +278,24 @@ const CombinedShop = () => {
       showNotification("error", "아이템 재고가 없습니다.");
       return;
     }
-    if (!deductCash || !purchaseItem) {
-      //
-      // updateItemPrice는 purchaseItem 내에서 처리될 수 있음
-      console.error("필수 함수(deductCash, purchaseItem)를 찾을 수 없습니다."); //
+    if (!purchaseItem) {
+      console.error("필수 함수(purchaseItem)를 찾을 수 없습니다."); //
       showNotification("error", "구매 처리 중 오류가 발생했습니다.");
       return;
     }
     // --- 유효성 검사 끝 ---
 
-    // 1. 잔액 차감 시도
-    const deductSuccess = deductCash(item.price); // AuthContext의 deductCash 사용
-
-    if (deductSuccess) {
-      // 2. 잔액 차감 성공 시 아이템 구매 시도
-      // ItemContext의 purchaseItem이 재고 감소 및 가격 업데이트 로직을 처리한다고 가정
-      const purchaseSuccess = purchaseItem(item.id, priceIncreasePercentage);
-
-      if (purchaseSuccess) {
-        // 구매 성공
+    try {
+      const result = await purchaseItem(item.id, 1, priceIncreasePercentage, false);
+      
+      if (result.success) {
         showNotification("success", `${item.name} 아이템을 구매했습니다!`);
-        // 중요: 재고 0일 때 가격 업데이트 로직은 원자성을 위해
-        // ItemContext의 purchaseItem 함수 내에서 처리하는 것이 이상적입니다.
       } else {
-        // 구매 실패 (예: 확인과 구매 사이에 재고 소진)
-        console.error("purchaseItem 실패, 잔액 롤백 필요 가능성 있음"); //
-        // !! 중요: 필요한 경우 잔액 롤백 로직 구현 !!
-        // 예: auth.addCash(item.price); // AuthContext에 addCash 함수 필요
-        showNotification(
-          "error",
-          `${item.name} 아이템 구매에 실패했습니다. (재고 부족 등)`
-        );
+        showNotification("error", result.message || "구매에 실패했습니다.");
       }
-    } else {
-      // 잔액 차감 실패
-      console.error("deductCash 함수 실패"); //
-      showNotification("error", "잔액 처리 중 오류가 발생했습니다.");
+    } catch (error) {
+      console.error("구매 처리 중 오류:", error);
+      showNotification("error", "구매 처리 중 오류가 발생했습니다.");
     }
   };
 
@@ -375,41 +365,6 @@ const CombinedShop = () => {
                     iconUrl={item.iconUrl || `/icons/${item.id}.png`} // 아이콘 경로 예시
                     onBuy={() => handlePurchase(item)}
                   />
-                  /* 아래는 기존 CombinedShop의 인라인 아이템 렌더링 로직 (참고용)
-                  <div key={item.id} className="store-item-card shop-item-card">
-                    <div className="p-4">
-                      <div className="item-icon-container item-icon">
-                        {item.icon}
-                      </div>
-                      <div className="item-info">
-                        <h3 className="item-name">{item.name}</h3>
-                        <p className="item-description">{item.description}</p>
-                        <p className="item-stock">
-                          재고:{" "}
-                          {item.stock !== undefined ? item.stock : "확인 불가"}
-                        </p>
-                        <div className="item-details-footer item-footer">
-                          <span className="item-price">
-                            {item.price.toLocaleString()} 원
-                          </span>
-                          <button
-                            onClick={() => handlePurchase(item)}
-                            className="buy-item-button buy-button"
-                            disabled={
-                              (item.stock !== undefined && item.stock <= 0) ||
-                              (typeof user?.cash !== "undefined" &&
-                                user.cash < item.price)
-                            }
-                          >
-                            {item.stock !== undefined && item.stock <= 0
-                              ? "품절"
-                              : "구매하기"}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  */
                 ))}
               </div>
             ) : (
@@ -432,4 +387,4 @@ const CombinedShop = () => {
 };
 
 // CombinedShop을 기본으로 내보냅니다.
-export default CombinedShop; //
+export default CombinedShop;

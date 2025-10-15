@@ -6,9 +6,7 @@ export default function DonateCouponModal({
   setShowDonateModal,
   currentCoupons,
   onDonate,
-  userId,
-  currentGoalId,
-  classCode, // 🔥 학급 코드 추가
+  classCode, // 🔥 userId, currentGoalId는 더 이상 필요 없음
 }) {
   const [donateAmount, setDonateAmount] = useState("");
   const [donateMessage, setDonateMessage] = useState("");
@@ -27,39 +25,14 @@ export default function DonateCouponModal({
 
     setIsDonating(true);
     try {
+      // onDonate는 MyAssets.js의 handleDonateCoupon 함수
       const success = await onDonate(amount, donateMessage);
       if (success) {
-        // 🔥 학급별 localStorage 기부 내역 업데이트
-        try {
-          const goalHistoryKey = classCode
-            ? `goalDonationHistory_${classCode}_goal`
-            : `goalDonationHistory_${currentGoalId}`;
-
-          const historyString = localStorage.getItem(goalHistoryKey);
-          let currentHistory = historyString
-            ? JSON.parse(historyString) || []
-            : [];
-
-          currentHistory.push({
-            userId,
-            amount,
-            memo: donateMessage || "",
-            timestamp: new Date().toISOString(),
-          });
-
-          localStorage.setItem(goalHistoryKey, JSON.stringify(currentHistory));
-          console.log(
-            `[DonateCouponModal] 기부 내역 localStorage 업데이트 완료: ${goalHistoryKey}`
-          );
-        } catch (localStorageErr) {
-          console.error(
-            "[DonateCouponModal] localStorage 기부 내역 동기화 오류:",
-            localStorageErr
-          );
-        }
-
+        // 🔥 성공 시 모달을 닫고 상태를 초기화하는 로직만 남김
+        // 🔥 localStorage 업데이트 로직은 MyAssets.js로 이전되었으므로 여기서 삭제
         setDonateAmount("");
         setDonateMessage("");
+        // setShowDonateModal(false)는 handleDonateCoupon에서 처리
       }
     } catch (error) {
       console.error("[DonateCouponModal] 기부 처리 중 오류:", error);

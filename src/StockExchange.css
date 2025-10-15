@@ -1,5 +1,3 @@
-/* /src/StockExchange.css */
-
 /* Stock Exchange - Modern & Clean Styles - Mobile Optimized */
 
 :root {
@@ -124,7 +122,7 @@
 .market-section {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 0 var(--spacing-lg) var(--spacing-lg); /* Added bottom padding */
+  padding: 0 var(--spacing-lg) var(--spacing-lg);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-xl);
@@ -265,9 +263,85 @@
   background: var(--neutral-gray-dark);
 }
 
-/* Market & Transaction Section */
+/* News Section - Compact */
+.news-section {
+  background: white;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.news-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-sm);
+  border-bottom: 1px solid var(--neutral-gray-medium);
+  margin-bottom: var(--spacing-sm);
+  cursor: pointer;
+  user-select: none;
+}
+
+.news-header:hover {
+  background: var(--neutral-gray-light);
+  margin: -4px;
+  padding: 12px 4px 8px 4px;
+  border-radius: var(--radius-md);
+}
+
+.news-title {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin: 0;
+}
+
+.news-toggle {
+  color: var(--neutral-gray);
+  transition: transform 0.2s;
+}
+
+.news-toggle.expanded {
+  transform: rotate(180deg);
+}
+
+.news-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease-out;
+}
+
+.news-content.expanded {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.news-item {
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--neutral-gray-light);
+  font-size: 0.85rem;
+}
+
+.news-item:last-child {
+  border-bottom: none;
+}
+
+.news-time {
+  color: var(--neutral-gray);
+  font-size: 0.75rem;
+}
+
+.news-headline {
+  font-weight: 600;
+  margin: 2px 0;
+}
+
+/* Market Section */
 .market-list-section,
-.transaction-section {
+.portfolio-section {
   background: white;
   padding: var(--spacing-lg);
   border-radius: var(--radius-xl);
@@ -445,14 +519,7 @@
   margin-top: -8px;
 }
 
-/* --- Portfolio Section --- */
-.portfolio-section {
-  background: white;
-  padding: var(--spacing-lg);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-md);
-}
-
+/* Portfolio Section */
 .portfolio-section .section-header {
   border-bottom: 2px solid var(--neutral-gray-light);
   padding-bottom: var(--spacing-md);
@@ -592,8 +659,8 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  display: inline-block; /* 추가 */
-  width: fit-content; /* 추가 */
+  display: inline-block;
+  width: fit-content;
 }
 
 .stock-status.delisted {
@@ -612,7 +679,7 @@
   color: var(--neutral-gray-dark);
   text-align: right;
   line-height: 1;
-  flex-shrink: 0; /* 추가 */
+  flex-shrink: 0;
 }
 
 .stock-quantity .unit {
@@ -625,7 +692,7 @@
 .portfolio-metrics-compact {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm); /* 간격 조정 */
+  gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
 }
 
@@ -642,11 +709,11 @@
   background: rgba(255, 255, 255, 0.6);
   border-radius: var(--radius-md);
   border: 1px solid var(--neutral-gray-light);
-  flex: 1; /* 동일한 너비로 분할 */
+  flex: 1;
 }
 
 .metric-label {
-  font-size: 0.7rem; /* 가장 작은 버전으로 통일 */
+  font-size: 0.7rem;
   color: var(--neutral-gray);
   font-weight: 600;
   text-transform: uppercase;
@@ -654,7 +721,7 @@
 }
 
 .metric-value {
-  font-size: 0.85rem; /* 가장 작은 버전으로 통일 */
+  font-size: 0.85rem;
   font-weight: 700;
   color: var(--neutral-gray-dark);
 }
@@ -669,7 +736,7 @@
   text-align: center;
   position: relative;
   overflow: hidden;
-  margin-top: var(--spacing-sm); /* 추가 */
+  margin-top: var(--spacing-sm);
 }
 
 .profit-summary::before {
@@ -761,7 +828,7 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
-  justify-content: center; /* 추가 */
+  justify-content: center;
   gap: var(--spacing-xs);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -826,20 +893,20 @@
   background: var(--neutral-gray-light);
   border-radius: var(--radius-sm);
   font-weight: 600;
-  margin-top: var(--spacing-xs); /* 추가 */
+  margin-top: var(--spacing-xs);
 }
 
-/* --- Admin Panel Fullscreen --- */
+/* Admin Panel Fullscreen */
 .admin-panel-fullscreen {
-  position: fixed; /* 전체 화면을 덮도록 수정 */
+  position: fixed;
   top: 0;
   left: 0;
   width: 100%;
   height: 100%;
   background-color: var(--neutral-gray-light);
-  z-index: var(--z-admin-panel); /* z-index 추가 */
-  overflow-y: hidden; /* 전체 패널 스크롤 방지, 내부에서 스크롤 */
-  display: flex; /* Flexbox 레이아웃 사용 */
+  z-index: var(--z-admin-panel);
+  overflow-y: hidden;
+  display: flex;
   flex-direction: column;
   animation: fadeIn 0.3s ease-in-out;
 }
@@ -856,11 +923,11 @@
 }
 
 .admin-panel-fullscreen .admin-header {
-  background-color: white; /* 헤더 배경색 추가 */
+  background-color: white;
   padding: var(--spacing-md) var(--spacing-lg);
   border-bottom: 1px solid var(--neutral-gray-medium);
   box-shadow: var(--shadow-sm);
-  flex-shrink: 0; /* 헤더 크기 고정 */
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -871,14 +938,14 @@
 .admin-panel-fullscreen .admin-header h2 {
   font-size: 1.5rem;
   margin: 0;
-  display: flex; /* 아이콘과 텍스트 정렬 */
+  display: flex;
   align-items: center;
   gap: var(--spacing-sm);
 }
 
 .admin-panel-fullscreen .admin-content {
-  flex-grow: 1; /* 컨텐츠 영역이 남은 공간 채우도록 */
-  overflow-y: auto; /* 컨텐츠 영역만 스크롤되도록 */
+  flex-grow: 1;
+  overflow-y: auto;
   padding: var(--spacing-lg);
   display: flex;
   flex-direction: column;
@@ -886,17 +953,17 @@
 }
 
 .admin-section {
-  background-color: white; /* 섹션 배경색 변경 */
-  padding: var(--spacing-lg); /* 패딩 조정 */
+  background-color: white;
+  padding: var(--spacing-lg);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm); /* 그림자 추가 */
-  border: 1px solid var(--neutral-gray-medium); /* 테두리 추가 */
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--neutral-gray-medium);
 }
 
 .admin-section h3 {
   margin-top: 0;
-  margin-bottom: var(--spacing-lg); /* 마진 조정 */
-  border-bottom: 1px solid var(--neutral-gray-light); /* 구분선 추가 */
+  margin-bottom: var(--spacing-lg);
+  border-bottom: 1px solid var(--neutral-gray-light);
   padding-bottom: var(--spacing-sm);
 }
 
@@ -978,7 +1045,7 @@
 }
 
 .add-stock-form {
-  background-color: var(--neutral-gray-light); /* 배경색 변경 */
+  background-color: var(--neutral-gray-light);
   padding: var(--spacing-md);
   border: 1px solid var(--neutral-gray-medium);
   border-radius: var(--radius-lg);
@@ -991,8 +1058,7 @@
   margin-top: var(--spacing-md);
 }
 
-/* --- Transaction Section & Others --- */
-
+/* Others */
 .loading-message,
 .no-transactions {
   padding: var(--spacing-xl);
@@ -1014,81 +1080,6 @@
   gap: var(--spacing-sm);
 }
 
-.transaction-table-container {
-  overflow-x: auto;
-  border: 1px solid var(--neutral-gray-medium);
-  border-radius: var(--radius-lg);
-}
-
-.transaction-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  min-width: 600px;
-}
-
-.transaction-table th,
-.transaction-table td {
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-bottom: 1px solid var(--neutral-gray-medium);
-  text-align: left;
-  vertical-align: middle;
-  white-space: nowrap;
-}
-.transaction-table th:nth-child(4),
-.transaction-table td:nth-child(4),
-.transaction-table th:nth-child(5),
-.transaction-table td:nth-child(5),
-.transaction-table th:nth-child(6),
-.transaction-table td:nth-child(6) {
-  text-align: right;
-}
-
-.transaction-table th {
-  background: var(--neutral-gray-light);
-  font-weight: 600;
-  color: var(--neutral-gray-dark);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-}
-
-.transaction-table tr:hover td {
-  background: var(--neutral-gray-light);
-}
-
-/* Status Badges */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  padding: 3px 8px;
-  border-radius: var(--radius-md);
-  font-size: 0.7rem;
-  font-weight: 600;
-  white-space: nowrap;
-  text-transform: uppercase;
-  color: white;
-}
-.status-badge.active {
-  background: var(--secondary-green);
-}
-.status-badge.delisted {
-  background: var(--neutral-gray);
-}
-.status-badge.buy {
-  background: var(--accent-red);
-}
-.status-badge.sell {
-  background: var(--primary-blue);
-}
-
-/* 불필요한 portfolio table 관련 CSS 제거 */
-.portfolio-table-container,
-.portfolio-stats-grid, /* 제거 */
-.portfolio-stat /* 제거 */ {
-  display: none;
-}
-
 /* Responsive Design */
 @media (min-width: 640px) {
   .asset-cards {
@@ -1107,10 +1098,10 @@
     grid-template-columns: repeat(2, 1fr);
   }
   .admin-stock-item {
-    flex-wrap: nowrap; /* 데스크탑에서는 줄바꿈 안 함 */
+    flex-wrap: nowrap;
   }
   .admin-stock-info {
-    flex-direction: row; /* 데스크탑에서는 가로로 */
+    flex-direction: row;
     align-items: center;
     gap: var(--spacing-md);
   }
@@ -1135,7 +1126,7 @@
     grid-template-columns: repeat(3, 1fr);
   }
   .form-grid {
-    grid-template-columns: repeat(4, 1fr); /* 더 넓게 */
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -1152,22 +1143,19 @@
     flex-grow: 1;
     text-align: left;
   }
-
   .admin-panel-fullscreen .admin-header {
     flex-direction: column;
     align-items: flex-start;
   }
-
   .market-section {
     padding: 0 var(--spacing-md);
   }
-
   .admin-stock-item {
     flex-direction: column;
     align-items: flex-start;
   }
   .admin-stock-info {
-    flex-direction: column; /* 모바일에서는 다시 세로로 */
+    flex-direction: column;
     align-items: flex-start;
   }
 }
@@ -1180,11 +1168,11 @@
     font-size: 1.25rem;
   }
   .metrics-row {
-    flex-direction: column; /* 모바일에서는 세로로 */
+    flex-direction: column;
     margin-bottom: 0;
   }
   .metrics-row .metric-item:not(:last-child) {
-    margin-bottom: var(--spacing-sm); /* 세로 배치 시 아이템 간 간격 추가 */
+    margin-bottom: var(--spacing-sm);
   }
   .profit-amount {
     font-size: 1.1rem;
@@ -1195,4 +1183,19 @@
   .action-btn {
     width: 100%;
   }
+}
+.market-status {
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-weight: bold;
+    color: white;
+    font-size: 0.9rem;
+}
+
+.market-status.open {
+    background-color: #10b981; /* 초록색 */
+}
+
+.market-status.closed {
+    background-color: #ef4444; /* 빨간색 */
 }

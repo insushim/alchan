@@ -1,0 +1,56 @@
+name: Scheduled Tasks
+
+on:
+  schedule:
+    # 주식 시장 업데이트 - 5분마다 (평일 8시-15시)
+    - cron: '*/5 8-14 * * 1-5'
+    # 뉴스 생성 - 3분마다 (평일 8시-15시)
+    - cron: '*/3 8-14 * * 1-5'
+    # 통계 집계 - 10분마다
+    - cron: '*/10 * * * *'
+    # 매일 자정 - 일일 작업 리셋
+    - cron: '0 0 * * *'
+    # 매주 월요일 8:30 - 급여 지급
+    - cron: '30 8 * * 1'
+    # 매주 금요일 8:30 - 임대료 징수
+    - cron: '30 8 * * 5'
+    # 매일 아침 8시 - 사회안전망
+    - cron: '0 8 * * *'
+    # 시장 개장 - 평일 8시
+    - cron: '0 8 * * 1-5'
+    # 시장 폐장 - 평일 15시
+    - cron: '0 15 * * 1-5'
+
+  # 수동 실행 옵션
+  workflow_dispatch:
+
+jobs:
+  run-scheduled-functions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: |
+          cd functions
+          npm ci
+
+      - name: Set up Firebase credentials
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > $HOME/service-account.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
+
+      - name: Run scheduled tasks
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          node .github/scripts/run-scheduler.js

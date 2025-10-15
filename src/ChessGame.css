@@ -1,0 +1,406 @@
+/* ChessGame.css */
+.chess-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: linear-gradient(135deg, #6a82fb 0%, #fc5c7d 100%);
+    padding: 10px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #333;
+}
+
+/* 방 생성 화면 */
+.room-creation {
+    width: 100%;
+    max-width: 500px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+.room-creation h2 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+.room-creation p {
+    margin-bottom: 20px;
+    color: #555;
+}
+
+.time-control-selector h3, .available-rooms h3 {
+    margin-bottom: 15px;
+}
+
+.time-options {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.time-options button {
+    padding: 10px 15px;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    background-color: #eee;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-options button.selected, .time-options button:hover {
+    background-color: #6a82fb;
+    color: white;
+    border-color: #5068d8;
+}
+
+.room-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.create-room-btn {
+    padding: 12px;
+    font-size: 1.1em;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(135deg, #fc5c7d, #6a82fb);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.join-room {
+    display: flex;
+    gap: 10px;
+}
+
+.join-room input {
+    flex-grow: 1;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+.join-room button {
+    padding: 0 15px;
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.available-rooms {
+    margin-top: 20px;
+}
+
+.rooms-list {
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f9f9f9;
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.room-info {
+    text-align: left;
+}
+.room-info span {
+    display: block;
+    font-size: 0.9em;
+    margin: 2px 0;
+}
+.room-host { font-weight: bold; }
+.room-code { color: #777; }
+
+.join-btn {
+    padding: 8px 12px;
+    background-color: #6a82fb;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.chess-rules {
+    margin-top: 20px;
+    font-size: 0.9em;
+    text-align: left;
+    background: #f0f0f0;
+    padding: 15px;
+    border-radius: 8px;
+}
+.chess-rules ul {
+    list-style-position: inside;
+}
+
+
+/* 게임 화면 */
+.game-info {
+    width: 100%;
+    max-width: 90vw;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    color: white;
+    padding: 0 10px;
+}
+
+.player {
+    background: rgba(0,0,0,0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    text-align: center;
+    width: 40%;
+    transition: all 0.3s ease;
+}
+
+.player.active {
+    background: rgba(255,255,255,0.3);
+    transform: scale(1.05);
+}
+
+.player.my-player {
+    box-shadow: 0 0 15px gold;
+}
+
+.player-name {
+    font-weight: bold;
+    display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.player-rank {
+    font-weight: normal;
+    font-size: 0.9em;
+    margin-left: 5px;
+    color: #f0e68c;
+}
+
+.player-time {
+    font-size: 1.2em;
+    font-family: 'monospace';
+}
+
+.game-status {
+    font-weight: bold;
+    text-align: center;
+}
+.winner { color: #aaffaa; }
+.loser { color: #ffaaaa; }
+
+
+/* 체스판 */
+.board-container {
+    position: relative;
+    width: 90vw;
+    max-width: 600px;
+    aspect-ratio: 1;
+}
+
+.chess-board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    width: 100%;
+    height: 100%;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    border: 5px solid #6f4f28;
+    border-radius: 5px;
+    transition: transform 0.5s;
+}
+
+/*
+ * 보드 회전 클래스는 더 이상 사용하지 않습니다.
+ * 대신 JavaScript에서 행/열 순서를 반전하여 black 플레이어에게
+ * 반전된 보드가 표시되도록 처리합니다. 따라서 transform 스타일을 제거합니다.
+ */
+
+
+.square {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    cursor: pointer;
+    /* 모바일에서 더블 탭 확대 등의 기본 동작을 방지하여 기물 선택이 안정적이도록 처리 */
+    touch-action: manipulation;
+}
+.square.light { background-color: #f0d9b5; }
+.square.dark { background-color: #b58863; }
+.square.selected { background-color: #6a82fb !important; }
+.square.check {
+    background-image: radial-gradient(circle, rgba(255,0,0,0.5) 20%, transparent 80%);
+}
+
+.piece {
+    /*
+     * 기물 크기: 작은 화면에서는 화면 너비 비율에 따라 크기가 조정되고,
+     * 큰 화면에서는 너무 크게 확장되지 않도록 제한합니다. clamp()를 사용하여
+     * 2rem(32px) 이상, 8vw 이하, 60px 이하로 설정합니다.
+     */
+    font-size: clamp(2rem, 8vw, 60px);
+    line-height: 1;
+    user-select: none;
+    -webkit-user-select: none;
+    text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+}
+.white-piece { color: #fff; }
+.black-piece { color: #222; }
+
+.possible::after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(106,130,251,0.5) 20%, transparent 80%);
+}
+
+.move-dot {
+    width: 30%;
+    height: 30%;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 50%;
+}
+.capture-hint {
+    position: absolute;
+    top:0; left: 0; right: 0; bottom: 0;
+    border: 4px solid rgba(0,0,0,0.2);
+    border-radius: 50%;
+}
+
+/* 프로모션 모달 */
+.promotion-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+.promotion-content {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+.promotion-pieces button {
+    font-size: 2.5em;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+}
+
+
+/* 게임 컨트롤 & 기록 */
+.game-controls {
+    margin-top: 15px;
+}
+.leave-button {
+    padding: 10px 20px;
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.move-history {
+    width: 100%;
+    max-width: 90vw;
+    margin-top: 15px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px;
+    border-radius: 8px;
+}
+.move-history h4 {
+    text-align: center;
+    margin-bottom: 10px;
+}
+.moves-list {
+    max-height: 100px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 10px;
+}
+.move {
+    font-size: 0.9em;
+}
+
+/* 피드백 메시지 */
+.feedback {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    z-index: 101;
+}
+.feedback.success { background-color: #4caf50; }
+.feedback.error { background-color: #f44336; }
+
+/* 랭크 정보 표시 */
+.rank-info {
+    margin-top: 10px;
+    background: rgba(0, 0, 0, 0.25);
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9em;
+    text-align: center;
+    max-width: 90vw;
+}
+.rank-info div {
+    margin: 2px 0;
+}
+
+
+/* 반응형 디자인 */
+@media (min-width: 620px) {
+    .game-info {
+        max-width: 600px;
+    }
+    .move-history {
+        max-width: 600px;
+    }
+    .piece {
+        font-size: 50px;
+    }
+}
+@media (max-width: 480px) {
+    .room-creation {
+        padding: 15px;
+    }
+    .game-info {
+        flex-direction: column;
+        gap: 10px;
+    }
+    .player {
+        width: 100%;
+    }
+    .player.black { order: -1; }
+    .player.white { order: 1; }
+    .game-status { order: 0; }
+}

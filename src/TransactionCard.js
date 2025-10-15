@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { formatKoreanCurrency } from './numberFormatter';
 import { useAuth } from "./AuthContext"; // 올바른 경로
 
 const TransactionCard = ({ title, amount, color, showFullCard = false }) => {

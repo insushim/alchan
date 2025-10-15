@@ -3,12 +3,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { db } from "./firebase";
 import {
   doc,
-  onSnapshot,
+  getDoc,
   updateDoc,
   setDoc,
   serverTimestamp,
   increment, // 국고 업데이트 시 사용
 } from "firebase/firestore";
+import { usePolling } from "./hooks/usePolling";
 
 // 유틸리티 함수 (기존과 동일)
 const formatCurrency = (amount) => {
@@ -23,18 +24,19 @@ const formatDate = (timestamp) => {
   return date.toLocaleString("ko-KR");
 };
 
-// 기본 국고 데이터
+// [수정] 기본 국고 데이터에 stockCommissionRevenue 추가
 const DEFAULT_TREASURY_DATA = {
   totalAmount: 0,
-  stockTaxRevenue: 0, // 주식 거래세 수입
-  realEstateTransactionTaxRevenue: 0, // 부동산 거래세 수입
-  vatRevenue: 0, // 부가가치세(아이템 상점) 수입
-  auctionTaxRevenue: 0, // 경매장 거래세 수입
-  propertyHoldingTaxRevenue: 0, // 부동산 보유세 수입
-  itemMarketTaxRevenue: 0, // 아이템 시장 거래세 수입
-  incomeTaxRevenue: 0, // (기존) 소득세 (구현은 별도)
-  corporateTaxRevenue: 0, // (기존) 법인세 (구현은 별도)
-  otherTaxRevenue: 0, // 기타 세수
+  stockTaxRevenue: 0,
+  stockCommissionRevenue: 0, // 주식 거래 수수료 수입
+  realEstateTransactionTaxRevenue: 0,
+  vatRevenue: 0,
+  auctionTaxRevenue: 0,
+  propertyHoldingTaxRevenue: 0,
+  itemMarketTaxRevenue: 0,
+  incomeTaxRevenue: 0,
+  corporateTaxRevenue: 0,
+  otherTaxRevenue: 0,
   lastUpdated: null,
 };
 
@@ -59,8 +61,8 @@ const NationalTaxService = ({ classCode }) => {
   const [editableSettings, setEditableSettings] =
     useState(DEFAULT_TAX_SETTINGS);
 
-  // 국고 데이터 실시간 구독 (classCode 기반)
-  useEffect(() => {
+  // 국고 데이터 폴링 (classCode 기반)
+  const fetchTreasuryData = useCallback(async () => {
     if (!classCode) {
       setLoadingTreasury(false);
       setTreasuryData(DEFAULT_TREASURY_DATA);
@@ -68,34 +70,33 @@ const NationalTaxService = ({ classCode }) => {
     }
     setLoadingTreasury(true);
     const treasuryRef = doc(db, "nationalTreasuries", classCode);
-    const unsubscribe = onSnapshot(
-      treasuryRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setTreasuryData(docSnap.data());
-        } else {
-          setDoc(treasuryRef, {
-            ...DEFAULT_TREASURY_DATA,
-            lastUpdated: serverTimestamp(),
-          }).then(() =>
-            setTreasuryData({
-              ...DEFAULT_TREASURY_DATA,
-              lastUpdated: new Date(),
-            })
-          );
-        }
-        setLoadingTreasury(false);
-      },
-      (error) => {
-        console.error(`[${classCode}] 국고 데이터 로드 실패:`, error);
-        setLoadingTreasury(false);
+    try {
+      const docSnap = await getDoc(treasuryRef);
+      if (docSnap.exists()) {
+        // [수정] 기본값과 합쳐서 누락된 필드가 없도록 보장
+        setTreasuryData({ ...DEFAULT_TREASURY_DATA, ...docSnap.data() });
+      } else {
+        await setDoc(treasuryRef, {
+          ...DEFAULT_TREASURY_DATA,
+          createdAt: serverTimestamp(), // 생성 시점 추가
+          lastUpdated: serverTimestamp(),
+        });
+        setTreasuryData({
+          ...DEFAULT_TREASURY_DATA,
+          lastUpdated: new Date(),
+        });
       }
-    );
-    return () => unsubscribe();
+      setLoadingTreasury(false);
+    } catch (error) {
+      console.error(`[${classCode}] 국고 데이터 로드 실패:`, error);
+      setLoadingTreasury(false);
+    }
   }, [classCode]);
 
-  // 세금 정책 설정 실시간 구독 (classCode 기반)
-  useEffect(() => {
+  const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, 30000);
+
+  // 세금 정책 설정 폴링 (classCode 기반)
+  const fetchTaxSettings = useCallback(async () => {
     if (!classCode) {
       setLoadingSettings(false);
       setTaxSettings(DEFAULT_TAX_SETTINGS);
@@ -104,41 +105,38 @@ const NationalTaxService = ({ classCode }) => {
     }
     setLoadingSettings(true);
     const settingsRef = doc(db, "governmentSettings", classCode); // 세율은 governmentSettings에 통합
-    const unsubscribe = onSnapshot(
-      settingsRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const newSettings = {
-            ...DEFAULT_TAX_SETTINGS,
-            ...docSnap.data().taxSettings,
-          }; // taxSettings 하위 객체로 관리
-          setTaxSettings(newSettings);
-          setEditableSettings(newSettings);
-        } else {
-          // 기본 설정값으로 문서 생성 (taxSettings 하위 객체 포함)
-          setDoc(
-            settingsRef,
-            {
-              taxSettings: {
-                ...DEFAULT_TAX_SETTINGS,
-                lastUpdated: serverTimestamp(),
-              },
+    try {
+      const docSnap = await getDoc(settingsRef);
+      if (docSnap.exists() && docSnap.data().taxSettings) {
+        const newSettings = {
+          ...DEFAULT_TAX_SETTINGS,
+          ...docSnap.data().taxSettings,
+        }; // taxSettings 하위 객체로 관리
+        setTaxSettings(newSettings);
+        setEditableSettings(newSettings);
+      } else {
+        // 기본 설정값으로 문서 생성 (taxSettings 하위 객체 포함)
+        await setDoc(
+          settingsRef,
+          {
+            taxSettings: {
+              ...DEFAULT_TAX_SETTINGS,
+              lastUpdated: serverTimestamp(),
             },
-            { merge: true }
-          ).then(() => {
-            setTaxSettings(DEFAULT_TAX_SETTINGS);
-            setEditableSettings(DEFAULT_TAX_SETTINGS);
-          });
-        }
-        setLoadingSettings(false);
-      },
-      (error) => {
-        console.error(`[${classCode}] 세금 정책 로드 실패:`, error);
-        setLoadingSettings(false);
+          },
+          { merge: true }
+        );
+        setTaxSettings(DEFAULT_TAX_SETTINGS);
+        setEditableSettings(DEFAULT_TAX_SETTINGS);
       }
-    );
-    return () => unsubscribe();
+      setLoadingSettings(false);
+    } catch (error) {
+      console.error(`[${classCode}] 세금 정책 로드 실패:`, error);
+      setLoadingSettings(false);
+    }
   }, [classCode]);
+
+  const { refetch: refetchSettings } = usePolling(fetchTaxSettings, 30000);
 
   const handleSettingChange = (e) => {
     const { name, value } = e.target;
@@ -188,6 +186,7 @@ const NationalTaxService = ({ classCode }) => {
           lastUpdated: serverTimestamp(),
         },
       });
+      refetchSettings();
       alert("세금 정책이 성공적으로 업데이트되었습니다.");
     } catch (error) {
       console.error("세금 정책 업데이트 실패:", error);
@@ -228,6 +227,12 @@ const NationalTaxService = ({ classCode }) => {
       </div>
     );
   }
+
+  // ✨ --- 핵심 수정 사항 --- ✨
+  // 모든 세금 수입 항목을 더하여 '순수 세수 총합'을 계산합니다.
+  const totalTaxRevenue = Object.keys(treasuryData)
+    .filter((key) => key.endsWith("Revenue") && key !== "totalAmount")
+    .reduce((sum, key) => sum + (treasuryData[key] || 0), 0);
 
   const taxPolicyFields = [
     {
@@ -401,6 +406,29 @@ const NationalTaxService = ({ classCode }) => {
                 {formatCurrency(treasuryData.stockTaxRevenue)}
               </p>
             </div>
+            {/* [신규] 주식 거래 수수료 카드 */}
+            <div
+              style={{
+                background: "linear-gradient(135deg, #3F51B5, #303F9F)",
+                borderRadius: "16px",
+                padding: "25px",
+                color: "white",
+                boxShadow: "0 8px 32px rgba(63, 81, 181, 0.3)",
+              }}
+            >
+              <h3
+                style={{
+                  margin: "0 0 10px 0",
+                  fontSize: "1.1em",
+                  opacity: 0.9,
+                }}
+              >
+                📋 주식 거래 수수료 수입
+              </h3>
+              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
+                {formatCurrency(treasuryData.stockCommissionRevenue)}
+              </p>
+            </div>
             <div
               style={{
                 background: "linear-gradient(135deg, #FFC107, #FF8F00)",
@@ -553,7 +581,32 @@ const NationalTaxService = ({ classCode }) => {
               marginBottom: "20px",
             }}
           >
-            <h3 style={{ marginBottom: "20px", color: "#333" }}>세수 구성</h3>
+            {/* ✨ --- 수정된 부분 --- ✨ */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "25px",
+              }}
+            >
+              <h3 style={{ margin: 0, color: "#333" }}>세수 구성</h3>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ color: "#666", fontSize: "1em" }}>
+                  세수 총합
+                </span>
+                <p
+                  style={{
+                    margin: "5px 0 0 0",
+                    fontSize: "1.5em",
+                    fontWeight: "bold",
+                    color: "#333",
+                  }}
+                >
+                  {formatCurrency(totalTaxRevenue)}
+                </p>
+              </div>
+            </div>
             <div
               style={{ display: "flex", flexDirection: "column", gap: "15px" }}
             >
@@ -562,6 +615,11 @@ const NationalTaxService = ({ classCode }) => {
                   label: "주식세",
                   amount: treasuryData.stockTaxRevenue,
                   color: "#2196F3",
+                },
+                {
+                  label: "주식 수수료",
+                  amount: treasuryData.stockCommissionRevenue,
+                  color: "#3F51B5",
                 },
                 {
                   label: "부동산 거래세",
@@ -604,11 +662,13 @@ const NationalTaxService = ({ classCode }) => {
                   color: "#607D8B",
                 },
               ].map((item) => {
-                const totalTax = treasuryData.totalAmount || 0;
+                // ✨ --- 핵심 수정 사항 --- ✨
+                // 비율 계산의 기준을 'totalTaxRevenue' (순수 세수 총합)으로 변경합니다.
+                const totalTaxForPercentage = totalTaxRevenue || 1; // 0으로 나누는 것 방지
                 const itemAmount = item.amount || 0;
                 const percentage =
-                  totalTax > 0
-                    ? ((itemAmount / totalTax) * 100).toFixed(1)
+                  totalTaxForPercentage > 0
+                    ? ((itemAmount / totalTaxForPercentage) * 100).toFixed(1)
                     : "0.0";
                 return (
                   <div
@@ -681,7 +741,7 @@ const NationalTaxService = ({ classCode }) => {
                   {field.label} (현재:{" "}
                   {field.type === "select"
                     ? taxSettings[field.name]
-                    : `${(taxSettings[field.name] * 100).toFixed(
+                    : `${((taxSettings[field.name] || 0) * 100).toFixed(
                         field.name.includes("propertyHoldingTaxRate") ? 2 : 1
                       )}%`}
                   )

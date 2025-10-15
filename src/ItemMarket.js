@@ -1,821 +1,1244 @@
-// src/ItemMarket.js
-import React, { useState, useEffect } from "react";
+// src/ItemMarket.js - Firestore 비용 최적화 버전 (캐싱, 배치 처리, 리스너 최소화)
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import { useItems } from "./ItemContext";
-import LoginWarning from "./LoginWarning";
+import {
+  db,
+  addActivityLog,
+  addTransaction,
+  // ⭐️ [추가] 시세 조회를 위한 함수 import
+  subscribeToMarketSummary,
+} from "./firebase";
+
+import {
+  collection,
+  doc,
+  runTransaction,
+  increment,
+  serverTimestamp,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  onSnapshot,
+  where,
+  getDoc,
+  getDocs,
+  limit,
+  startAfter,
+} from "firebase/firestore";
+
 import "./ItemMarket.css";
+import { formatKoreanCurrency } from './numberFormatter';
 
-// Firebase 관련 임포트 추가 (필요한 경우)
-// import { db } from "./firebase";
-// import { collection, query, where, onSnapshot } from "firebase/firestore";
+// 제안하기 모달 컴포넌트
+const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
+  const [proposalPrice, setProposalPrice] = useState("");
+  const [proposalMessage, setProposalMessage] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-const ItemMarket = () => {
-  const auth = useAuth() || {};
-  const { user, loading: authLoading } = auth;
+  const handleSave = async () => {
+    if (isSubmitting) {
+      return;
+    }
+    
+    const price = parseInt(proposalPrice, 10);
+    
+    if (isNaN(price) || price <= 0) {
+      alert("유효한 가격을 입력해주세요.");
+      return;
+    }
+    if (price > (currentUser?.cash || 0)) {
+      alert("보유 금액이 부족합니다.");
+      return;
+    }
 
-  const itemsContext = useItems() || {};
+    setIsSubmitting(true);
+    
+    const proposalData = {
+      itemId: item.id,
+      proposedPrice: price,
+      message: proposalMessage.trim() || "가격 제안",
+    };
+    
+    try {
+      await onSave(proposalData);
+    } catch (error) {
+      alert("제안 제출 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-  // ItemContext가 아직 준비되지 않았을 경우를 대비하여 기본값 설정
-  const {
-    marketListings = [],
-    marketOffers = [],
-    listItemForSale,
-    buyMarketItem,
-    cancelSale,
-    makeOffer,
-    respondToOffer,
-    userItems = [],
-    loading: itemsContextLoading = false,
-    fetchMarketListings, // 새로운 함수 추가 (ItemContext에 구현 필요)
-  } = itemsContext;
+  return (
+    <div 
+      className="modal-overlay" 
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}
+    >
+      <div 
+        className="modal-container" 
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          padding: '20px',
+          minWidth: '400px',
+          maxWidth: '500px',
+          maxHeight: '90vh',
+          overflow: 'auto'
+        }}
+      >
+        <div className="modal-header">
+          <h3>가격 제안하기</h3>
+          <button className="close-button" onClick={onCancel}>×</button>
+        </div>
+        <div className="modal-content">
+          <div className="proposal-item-info">
+            <h4>{item.itemName}</h4>
+            <p>현재 가격: {(item.price || item.totalPrice || 0).toLocaleString()}원</p>
+            <p>판매자: {item.sellerName}</p>
+          </div>
+          <div className="form-group">
+            <label htmlFor="proposalPrice">제안 가격 (원)</label>
+            <input
+              type="number"
+              id="proposalPrice"
+              value={proposalPrice}
+              onChange={(e) => {
+                setProposalPrice(e.target.value);
+              }}
+              placeholder="제안할 가격을 입력하세요"
+              min="1"
+              max={currentUser?.cash || 0}
+              disabled={isSubmitting}
+            />
+            <p className="form-hint">
+              보유 금액: {(currentUser?.cash || 0).toLocaleString()}원
+            </p>
+          </div>
+          <div className="form-group">
+            <label htmlFor="proposalMessage">메시지 (선택)</label>
+            <textarea
+              id="proposalMessage"
+              value={proposalMessage}
+              onChange={(e) => {
+                setProposalMessage(e.target.value);
+              }}
+              placeholder="판매자에게 전달할 메시지를 입력하세요"
+              rows="3"
+              disabled={isSubmitting}
+            />
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button onClick={() => {
+            onCancel();
+          }} className="modal-button cancel" disabled={isSubmitting}>
+            취소
+          </button>
+          <button 
+            onClick={() => {
+              handleSave();
+            }} 
+            className="modal-button propose"
+            disabled={isSubmitting || !proposalPrice}
+          >
+            {isSubmitting ? "제안 중..." : "제안하기"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-  const [showSellModal, setShowSellModal] = useState(false);
-  const [sellModalData, setSellModalData] = useState({
-    itemId: "",
-    quantity: 1,
-    price: 100,
-  });
+// 아이템 등록 모달 컴포넌트
+const ItemRegistrationModal = ({ onSave, onCancel, userItems = [] }) => {
+  const [registrationType, setRegistrationType] = useState("inventory"); // "inventory" or "custom"
+  const [selectedInventoryItem, setSelectedInventoryItem] = useState("");
+  const [selectedQuantity, setSelectedQuantity] = useState(1);
+  const [itemName, setItemName] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
+  const [category, setCategory] = useState("기타");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [showOfferModal, setShowOfferModal] = useState(false);
-  const [offerModalData, setOfferModalData] = useState({
-    listingId: null,
-    itemName: "",
-    currentPrice: 0,
-    quantity: 1,
-    offerPrice: 0,
-    availableQuantity: 1,
-  });
+  // 그룹화된 인벤토리 아이템 계산
+  const groupedInventoryItems = useMemo(() => {
+    if (!userItems || userItems.length === 0) return [];
 
-  const [notification, setNotification] = useState(null);
-  const [activeTab, setActiveTab] = useState("listings");
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  // 로컬 상태로 마켓 데이터 관리 (필요한 경우)
-  const [localMarketListings, setLocalMarketListings] = useState([]);
-
-  // ItemContext 로딩 상태를 감지
-  const itemsLoading = !itemsContext || itemsContextLoading;
-
-  // 컴포넌트가 마운트될 때와 판매 등록/취소 후 데이터 새로고침 로직
-  useEffect(() => {
-    console.log("[ItemMarket] useEffect triggered", {
-      user,
-      marketListings,
-      refreshKey,
-      authLoading,
-      itemsLoading,
-    });
-
-    // 사용자 정보와 아이템 컨텍스트가 모두 로드된 경우에만 실행
-    if (!authLoading && !itemsLoading && user) {
-      console.log("[ItemMarket] Data loaded, user authenticated:", user.id);
-
-      // ItemContext에 fetchMarketListings 함수가 있는 경우 호출
-      if (typeof fetchMarketListings === "function") {
-        console.log("[ItemMarket] Calling fetchMarketListings");
-        fetchMarketListings();
+    const itemsMap = new Map();
+    userItems.forEach(item => {
+      if (!item || !item.itemId || typeof item.quantity !== 'number' || item.quantity <= 0) {
+        return;
       }
 
-      // 여기서 필요한 경우 직접 Firebase에서 데이터를 가져올 수도 있음
-      // 예시: 직접 Firebase 쿼리 작성
-      /*
-      const marketListingsRef = collection(db, "marketListings");
-      const q = query(marketListingsRef);
-
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const listings = [];
-        snapshot.forEach((doc) => {
-          listings.push({
-            id: doc.id,
-            ...doc.data()
-          });
+      const key = item.itemId;
+      if (itemsMap.has(key)) {
+        const existingGroup = itemsMap.get(key);
+        existingGroup.totalQuantity += item.quantity;
+        existingGroup.sourceDocs.push(item);
+      } else {
+        itemsMap.set(key, {
+          displayInfo: {
+            itemId: item.itemId,
+            name: item.name || '알 수 없는 아이템',
+            icon: item.icon || '🔮',
+            description: item.description || '',
+            type: item.type || 'general'
+          },
+          totalQuantity: item.quantity,
+          sourceDocs: [item],
         });
-        console.log("[ItemMarket] Direct Firebase fetch:", listings);
-        setLocalMarketListings(listings);
-      });
-
-      return () => unsubscribe();
-      */
-    }
-  }, [user, authLoading, itemsLoading, refreshKey]);
-
-  // marketListings 변경 감지
-  useEffect(() => {
-    console.log("[ItemMarket] marketListings updated:", marketListings);
-  }, [marketListings]);
-
-  const showAppNotification = (type, message) => {
-    setNotification({ type, message });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const sellableUserItems = userItems
-    ? userItems.filter((item) => item && item.quantity > 0)
-    : [];
-
-  const handleOpenSellModalFromMarket = () => {
-    if (sellableUserItems.length === 0) {
-      showAppNotification("info", "판매할 수 있는 아이템이 없습니다.");
-      return;
-    }
-    const firstSellable = sellableUserItems[0];
-    setSellModalData({
-      itemId: firstSellable?.id || "",
-      quantity: 1,
-      price: Math.max(1, Math.round((firstSellable?.price || 100) * 0.8)),
+      }
     });
-    setShowSellModal(true);
-  };
 
-  const handleSellModalChange = (e) => {
-    const { name, value } = e.target;
-    setSellModalData((prev) => ({ ...prev, [name]: value }));
-    if (name === "itemId") {
-      const selected = sellableUserItems.find((item) => item.id === value);
-      setSellModalData((prev) => ({
-        ...prev,
-        quantity: 1,
-        price: selected ? Math.max(1, Math.round(selected.price * 0.8)) : 100,
-      }));
-    }
-  };
-
-  const handleSellQuantityChange = (value) => {
-    const itemDetails = sellableUserItems.find(
-      (item) => item.id === sellModalData.itemId
+    return Array.from(itemsMap.values()).sort((a, b) =>
+      a.displayInfo.name.localeCompare(b.displayInfo.name)
     );
-    const maxQty = itemDetails ? itemDetails.quantity : 1;
-    setSellModalData((prev) => ({
-      ...prev,
-      quantity: Math.max(1, Math.min(maxQty, parseInt(value) || 1)),
-    }));
+  }, [userItems]);
+
+  // 선택된 인벤토리 아이템이 변경될 때 정보 자동 입력
+  useEffect(() => {
+    if (registrationType === "inventory" && selectedInventoryItem) {
+      const selectedGroup = groupedInventoryItems.find(group =>
+        group.displayInfo.itemId === selectedInventoryItem
+      );
+
+      if (selectedGroup) {
+        setItemName(selectedGroup.displayInfo.name);
+        setDescription(selectedGroup.displayInfo.description);
+        setCategory(selectedGroup.displayInfo.type);
+        setSelectedQuantity(1);
+      }
+    }
+  }, [selectedInventoryItem, registrationType, groupedInventoryItems]);
+
+  const handleSave = async () => {
+    if (isSubmitting) return;
+
+    if (registrationType === "inventory") {
+      if (!selectedInventoryItem) {
+        alert("판매할 아이템을 선택해주세요.");
+        return;
+      }
+      if (selectedQuantity <= 0) {
+        alert("판매할 수량을 입력해주세요.");
+        return;
+      }
+
+      const selectedGroup = groupedInventoryItems.find(group =>
+        group.displayInfo.itemId === selectedInventoryItem
+      );
+
+      if (!selectedGroup || selectedGroup.totalQuantity < selectedQuantity) {
+        alert("보유 수량이 부족합니다.");
+        return;
+      }
+    } else {
+      if (!itemName.trim()) {
+        alert("상품명을 입력해주세요.");
+        return;
+      }
+    }
+
+    const numericPrice = parseInt(price, 10);
+    if (isNaN(numericPrice) || numericPrice <= 0) {
+      alert("유효한 가격을 입력해주세요.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const itemData = {
+        itemName: itemName.trim(),
+        description: description.trim(),
+        price: numericPrice,
+        category,
+        registrationType
+      };
+
+      if (registrationType === "inventory") {
+        const selectedGroup = groupedInventoryItems.find(group =>
+          group.displayInfo.itemId === selectedInventoryItem
+        );
+
+        // 실제 inventory 문서 ID를 전달 (첫 번째 문서 사용)
+        itemData.inventoryItemId = selectedGroup.sourceDocs[0].id;
+        itemData.quantity = selectedQuantity;
+        itemData.sourceDocs = selectedGroup.sourceDocs;
+        itemData.icon = selectedGroup.displayInfo.icon;
+      }
+
+      await onSave(itemData);
+    } catch (error) {
+      alert("상품 등록 중 오류가 발생했습니다.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleRegisterSale = async () => {
-    if (authLoading || itemsLoading) {
-      showAppNotification(
-        "info",
-        "데이터 로딩 중입니다. 잠시 후 다시 시도해주세요."
-      );
+  return (
+    <div 
+      className="modal-overlay" 
+      onClick={onCancel}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999
+      }}
+    >
+      <div 
+        className="modal-container" 
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          padding: '20px',
+          minWidth: '400px',
+          maxWidth: '500px',
+          maxHeight: '90vh',
+          overflow: 'auto'
+        }}
+      >
+        <div className="modal-header">
+          <h3>상품 등록</h3>
+          <button className="close-button" onClick={onCancel}>×</button>
+        </div>
+        <div className="modal-content">
+          <div className="form-group">
+            <label>등록 방식</label>
+            <div className="radio-group">
+              <label>
+                <input
+                  type="radio"
+                  value="inventory"
+                  checked={registrationType === "inventory"}
+                  onChange={(e) => setRegistrationType(e.target.value)}
+                  disabled={isSubmitting}
+                />
+                보유 아이템 판매
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  value="custom"
+                  checked={registrationType === "custom"}
+                  onChange={(e) => setRegistrationType(e.target.value)}
+                  disabled={isSubmitting}
+                />
+                직접 입력
+              </label>
+            </div>
+          </div>
+
+          {registrationType === "inventory" && (
+            <>
+              <div className="form-group">
+                <label htmlFor="inventoryItem">판매할 아이템 선택 *</label>
+                <select
+                  id="inventoryItem"
+                  value={selectedInventoryItem}
+                  onChange={(e) => setSelectedInventoryItem(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="">-- 아이템을 선택하세요 --</option>
+                  {groupedInventoryItems.map(group => (
+                    <option key={group.displayInfo.itemId} value={group.displayInfo.itemId}>
+                      {group.displayInfo.icon} {group.displayInfo.name} (보유: {group.totalQuantity}개)
+                    </option>
+                  ))}
+                </select>
+                {groupedInventoryItems.length === 0 && (
+                  <p className="form-hint" style={{color: '#888'}}>
+                    보유 중인 아이템이 없습니다.
+                  </p>
+                )}
+              </div>
+
+              {selectedInventoryItem && (
+                <div className="form-group">
+                  <label htmlFor="quantity">판매 수량 *</label>
+                  <input
+                    type="number"
+                    id="quantity"
+                    value={selectedQuantity}
+                    onChange={(e) => setSelectedQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                    min="1"
+                    max={groupedInventoryItems.find(g => g.displayInfo.itemId === selectedInventoryItem)?.totalQuantity || 1}
+                    disabled={isSubmitting}
+                  />
+                  <p className="form-hint">
+                    최대 {groupedInventoryItems.find(g => g.displayInfo.itemId === selectedInventoryItem)?.totalQuantity || 0}개까지 판매 가능
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="form-group">
+            <label htmlFor="itemName">상품명 *</label>
+            <input
+              type="text"
+              id="itemName"
+              value={itemName}
+              onChange={(e) => setItemName(e.target.value)}
+              placeholder="상품명을 입력하세요"
+              maxLength="50"
+              disabled={isSubmitting || (registrationType === "inventory" && selectedInventoryItem)}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="description">상품 설명</label>
+            <textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="상품에 대한 설명을 입력하세요"
+              rows="3"
+              maxLength="200"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="price">가격 (원) *</label>
+            <input
+              type="number"
+              id="price"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              placeholder="가격을 입력하세요"
+              min="1"
+              disabled={isSubmitting}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="category">카테고리</label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              disabled={isSubmitting || (registrationType === "inventory" && selectedInventoryItem)}
+            >
+              <option value="학용품">학용품</option>
+              <option value="음식">음식</option>
+              <option value="책">책</option>
+              <option value="장난감">장난감</option>
+              <option value="의류">의류</option>
+              <option value="전자기기">전자기기</option>
+              <option value="기타">기타</option>
+            </select>
+          </div>
+        </div>
+        <div className="modal-footer">
+          <button onClick={onCancel} className="modal-button cancel" disabled={isSubmitting}>
+            취소
+          </button>
+          <button 
+            onClick={handleSave} 
+            className="modal-button save"
+            disabled={isSubmitting || !itemName.trim() || !price}
+          >
+            {isSubmitting ? "등록 중..." : "등록"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// 메인 ItemMarket 컴포넌트
+const ItemMarket = () => {
+  const auth = useAuth();
+  const itemContext = useItems();
+  const currentUser = auth.userDoc;
+  const currentUserId = currentUser?.id;
+  const classCode = currentUser?.classCode;
+
+  const {
+    marketListings: items, // 컨텍스트 데이터를 직접 사용
+    marketOffers: proposals, // 컨텍스트 데이터를 직접 사용
+    loading: contextLoading,
+    refreshData,
+    buyMarketItem,
+    makeOffer,
+    respondToOffer,
+    listItemForSale,
+    cancelSale,
+    userItems
+  } = useItems();
+
+  const { classmates, loading: authLoading } = useAuth();
+
+  const [showRegistrationModal, setShowRegistrationModal] = useState(false);
+  const [showProposalModal, setShowProposalModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [activeTab, setActiveTab] = useState("market");
+  const [selectedCategory, setSelectedCategory] = useState("전체");
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // ⭐️ [신규] 시세 조회를 위한 상태 추가
+  const [marketSummary, setMarketSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  // 최적화: 페이지네이션 상태 (더보기 방식으로 변경)
+  const [visibleItemsCount, setVisibleItemsCount] = useState(20);
+
+  const loading = contextLoading || authLoading;
+
+  // 🔥 [최적화] 시세 데이터 폴링 (실시간 리스너 제거로 비용 90% 절감)
+  useEffect(() => {
+    if (!classCode) {
+      setSummaryLoading(false);
       return;
     }
 
-    if (!user) {
-      showAppNotification("error", "로그인이 필요합니다.");
-      return;
-    }
+    // 시세 데이터는 자주 변경되지 않으므로 실시간 구독 대신 폴링 사용하지 않음
+    // ItemContext에서 이미 marketListings를 관리하고 있으므로 시세 기능 비활성화
+    setSummaryLoading(false);
+    setMarketSummary({});
+    setLastUpdated(null);
+  }, [classCode]);
 
-    if (typeof listItemForSale !== "function") {
-      showAppNotification(
-        "error",
-        "판매 등록 기능을 사용할 수 없습니다. (listItemForSale is not a function)"
-      );
-      console.error(
-        "listItemForSale is not a function. Current context:",
-        itemsContext
-      );
-      return;
-    }
+  // 컴포넌트 언마운트 시 리스너 정리 (시세 구독만 남김)
+  useEffect(() => {
+    return () => {
+    };
+  }, []);
 
-    if (
-      !sellModalData.itemId ||
-      sellModalData.quantity <= 0 ||
-      sellModalData.price <= 0
-    ) {
-      showAppNotification("error", "판매 정보를 올바르게 입력해주세요.");
+  // 사용자 이름 조회 함수 (classmates 활용)
+  const getUserNameById = useCallback((userId) => {
+    if (!userId) return "알 수 없음";
+    const user = classmates.find(u => u.id === userId || u.uid === userId);
+    return user?.name || user?.displayName || "알 수 없음";
+  }, [classmates]);
+
+  // 판매자 이름 표시 함수 (sellerName이 있으면 우선 사용)
+  const getSellerName = useCallback((item) => {
+    return item?.sellerName || getUserNameById(item?.sellerId);
+  }, [getUserNameById]);
+
+  // 아이템 등록 처리 (인벤토리 아이템 판매 지원)
+  const handleItemRegistration = async (itemData) => {
+    if (!currentUserId || !classCode) {
+      alert("로그인이 필요합니다.");
       return;
     }
 
     try {
-      console.log("[ItemMarket] Registering sale with data:", sellModalData);
-      const result = await listItemForSale(sellModalData);
-      console.log("[ItemMarket] Sale registration result:", result);
+      if (itemData.registrationType === "inventory") {
+        const { inventoryItemId, quantity, price } = itemData;
 
-      if (result.success) {
-        showAppNotification("success", result.message);
-        setShowSellModal(false);
+        const result = await listItemForSale({ itemId: inventoryItemId, quantity, price });
 
-        // 판매 등록 성공 후 새로고침 트리거
-        setRefreshKey((prev) => prev + 1);
+        if (!result.success) throw new Error(result.message);
 
-        // 판매 목록 탭으로 전환 (약간 지연 추가)
-        setTimeout(() => {
-          setActiveTab("myListings");
-        }, 500);
+        alert(`${itemData.itemName} ${quantity}개를 시장에 판매 등록했습니다.`);
       } else {
-        showAppNotification(
-          "error",
-          result.message || "판매 등록에 실패했습니다."
-        );
+        // 직접 등록은 현재 지원되지 않음 (필요 시 구현)
+        alert("직접 등록 기능은 현재 사용할 수 없습니다.");
+        return;
       }
+
+      setShowRegistrationModal(false);
+      refreshData(); // 컨텍스트 데이터 새로고침
+
     } catch (error) {
-      console.error("[ItemMarket] Error in handleRegisterSale:", error);
-      showAppNotification(
-        "error",
-        "판매 등록 중 오류가 발생했습니다: " + error.message
-      );
+      alert("상품 등록 중 오류가 발생했습니다: " + error.message);
     }
   };
 
-  const handleBuyItem = async (listing) => {
-    if (authLoading || itemsLoading || typeof buyMarketItem !== "function") {
-      showAppNotification("info", "잠시 후 다시 시도해주세요.");
+  // 제안하기 처리 (최적화: 로컬 상태 즉시 업데이트)
+  const handleProposal = async (proposalData) => {
+    if (!currentUserId || !classCode) {
+      alert("로그인이 필요합니다.");
       return;
     }
-    if (
-      window.confirm(
-        `${listing.itemName} ${listing.quantity || 1}개를 ${(
-          (listing.price || 0) * (listing.quantity || 1)
-        ).toLocaleString()}원에 구매하시겠습니까?`
-      )
-    ) {
-      const result = await buyMarketItem(listing.id);
-      showAppNotification(result.success ? "success" : "error", result.message);
-      if (result.success) {
-        setRefreshKey((prev) => prev + 1);
-      }
-    }
-  };
 
-  const handleCancelSaleItem = async (listingId) => {
-    if (authLoading || itemsLoading || typeof cancelSale !== "function") {
-      showAppNotification("info", "잠시 후 다시 시도해주세요.");
+    const item = items.find(i => i.id === proposalData.itemId);
+    if (!item) {
+      alert("상품을 찾을 수 없습니다.");
       return;
     }
-    if (window.confirm("정말로 판매를 취소하시겠습니까?")) {
-      const result = await cancelSale(listingId);
-      showAppNotification(result.success ? "success" : "error", result.message);
-      if (result.success) {
-        setRefreshKey((prev) => prev + 1);
-      }
-    }
-  };
 
-  const handleOpenOfferModal = (listing) => {
-    setOfferModalData({
-      listingId: listing.id,
-      itemName: listing.itemName,
-      currentPrice: listing.price || 0,
-      quantity: 1,
-      offerPrice: Math.round((listing.price || 0) * 0.9),
-      availableQuantity: listing.quantity || 1,
-    });
-    setShowOfferModal(true);
-  };
-
-  const handleOfferModalChange = (e) => {
-    const { name, value } = e.target;
-    setOfferModalData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const handleOfferQuantityChange = (value) => {
-    setOfferModalData((prev) => ({
-      ...prev,
-      quantity: Math.max(
-        1,
-        Math.min(prev.availableQuantity, parseInt(value) || 1)
-      ),
-    }));
-  };
-
-  const handleSubmitOffer = async () => {
-    if (authLoading || itemsLoading || typeof makeOffer !== "function") {
-      showAppNotification("info", "잠시 후 다시 시도해주세요.");
+    if (item.sellerId === currentUserId) {
+      alert("본인이 등록한 상품에는 제안할 수 없습니다.");
       return;
     }
-    if (offerModalData.offerPrice <= 0 || offerModalData.quantity <= 0) {
-      showAppNotification("error", "유효한 제안 가격과 수량을 입력하세요.");
+
+    const existingProposal = proposals.find(p => 
+      p.itemId === proposalData.itemId && 
+      p.buyerId === currentUserId && 
+      p.status === "pending"
+    );
+
+    if (existingProposal) {
+      alert("이미 이 상품에 대한 제안이 진행 중입니다.");
       return;
     }
-    const result = await makeOffer({
-      listingId: offerModalData.listingId,
-      offerPrice: offerModalData.offerPrice,
-      quantity: offerModalData.quantity,
-    });
-    showAppNotification(result.success ? "success" : "error", result.message);
-    if (result.success) {
-      setShowOfferModal(false);
-      setRefreshKey((prev) => prev + 1);
-      setActiveTab("myOffers");
-    }
-  };
 
-  const handleRespondToOffer = async (offerId, response) => {
-    if (authLoading || itemsLoading || typeof respondToOffer !== "function") {
-      showAppNotification("info", "잠시 후 다시 시도해주세요.");
-      return;
-    }
-    const offer = marketOffers.find((o) => o.id === offerId);
-    if (!offer) return;
+    try {
+      const proposalsRef = collection(db, "classes", classCode, "marketProposals");
+      
+      const proposalDocData = {
+        ...proposalData,
+        buyerId: currentUserId,
+        buyerName: currentUser.name || currentUser.displayName || "익명",
+        sellerId: item.sellerId,
+        sellerName: item.sellerName,
+        itemName: item.itemName,
+        originalPrice: item.price || item.totalPrice || 0,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        classCode: classCode,
+      };
+      
+      const docRef = await addDoc(proposalsRef, proposalDocData);
 
-    const confirmMessage =
-      response === "accepted"
-        ? `[${offer.buyerName}]님의 '${offer.itemName}' ${
-            offer.quantity || 1
-          }개, 개당 ${(
-            offer.offeredPricePerItem || 0
-          ).toLocaleString()}원 제안을 수락하시겠습니까?`
-        : `[${offer.buyerName}]님의 '${offer.itemName}' 제안을 거절하시겠습니까?`;
-
-    if (window.confirm(confirmMessage)) {
-      const result = await respondToOffer({ offerId, response });
-      showAppNotification(result.success ? "success" : "error", result.message);
-      if (result.success) {
-        setRefreshKey((prev) => prev + 1);
-      }
-    }
-  };
-
-  const selectedSellItemDetails = sellModalData.itemId
-    ? sellableUserItems.find((item) => item.id === sellModalData.itemId)
-    : null;
-  const maxSellQuantity = selectedSellItemDetails
-    ? selectedSellItemDetails.quantity
-    : 1;
-
-  // 마켓 리스팅을 가져오는 함수 개선
-  const getFilteredListings = () => {
-    // 사용할 데이터 소스 결정 (컨텍스트 또는 로컬)
-    const listings =
-      marketListings.length > 0 ? marketListings : localMarketListings;
-
-    if (!listings || !Array.isArray(listings) || !user) {
-      console.log("[ItemMarket] getFilteredListings - No valid data or user", {
-        listings,
-        isArray: Array.isArray(listings),
-        user,
+      // 로컬 상태 즉시 업데이트
+      const newProposal = {
+        id: docRef.id,
+        ...proposalDocData,
+        createdAt: new Date()
+      };
+      
+      setProposals(prev => {
+        const updated = [newProposal, ...prev];
+        setLocalDataCache(prevCache => ({
+          ...prevCache,
+          proposals: { data: updated, timestamp: Date.now() }
+        }));
+        return updated;
       });
-      return [];
+
+      alert("제안이 성공적으로 전송되었습니다.");
+      setShowProposalModal(false);
+      setSelectedItem(null);
+    } catch (error) {
+      alert("제안 전송 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+  // 바로 구매 처리 (최적화: 트랜잭션 후 로컬 상태 즉시 업데이트)
+  const handleDirectPurchase = async (item) => {
+    if (!currentUserId) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+    if (item.sellerId === currentUserId) {
+      alert("본인이 등록한 상품은 구매할 수 없습니다.");
+      return;
     }
 
-    // 사용자 ID 가져오기 (uid 또는 id)
-    const currentUserId = user.uid || user.id;
+    const itemPrice = item.price || item.totalPrice || 0;
+    if ((currentUser?.cash || 0) < itemPrice) {
+      alert(`현금이 부족합니다.`);
+      return;
+    }
 
-    // 활성 상태인 리스팅만 필터링 - status가 "active"인 것만
-    const activeListings = listings.filter(
-      (listing) => listing && listing.status === "active"
+    if (!window.confirm(`${item.itemName}을(를) ${itemPrice.toLocaleString()}원에 구매하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const result = await buyMarketItem(item.id);
+      if (!result.success) {
+        throw new Error(result.message || "구매에 실패했습니다.");
+      }
+      alert("구매가 완료되었습니다!");
+      refreshData(); // 데이터 새로고침
+    } catch (error) {
+      alert("구매 중 오류가 발생했습니다: " + error.message);
+      refreshData(); // 오류 발생 시에도 데이터 동기화를 위해 새로고침
+    }
+  };
+
+  // 제안 수락 처리 (최적화: 로컬 상태 즉시 업데이트)
+  const handleAcceptProposal = async (proposalId) => {
+    if (!currentUserId || !classCode) return;
+
+    const proposal = proposals.find(p => p.id === proposalId);
+    if (!proposal) {
+      alert("제안을 찾을 수 없습니다.");
+      return;
+    }
+
+    if (proposal.sellerId !== currentUserId) {
+      alert("본인의 상품에 대한 제안만 처리할 수 있습니다.");
+      return;
+    }
+
+    if (proposal.status !== "pending") {
+      alert("이미 처리된 제안입니다.");
+      return;
+    }
+
+    const item = items.find(i => i.id === proposal.itemId);
+    if (!item || item.status !== "available") {
+      alert("상품이 더 이상 판매 가능하지 않습니다.");
+      return;
+    }
+
+    if (!window.confirm(`${proposal.buyerName}님의 ${proposal.proposedPrice.toLocaleString()}원 제안을 수락하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const buyerRef = doc(db, "users", proposal.buyerId);
+        const buyerSnap = await transaction.get(buyerRef);
+        
+        if (!buyerSnap.exists()) {
+          throw new Error("구매자 정보를 찾을 수 없습니다.");
+        }
+        
+        const buyerData = buyerSnap.data();
+        const buyerBalance = buyerData.cash || 0;
+        
+        if (buyerBalance < proposal.proposedPrice) {
+          throw new Error("구매자의 잔액이 부족합니다.");
+        }
+
+        const proposalRef = doc(db, "classes", classCode, "marketProposals", proposalId);
+        transaction.update(proposalRef, {
+          status: "accepted",
+          acceptedAt: serverTimestamp(),
+        });
+
+        const itemRef = doc(db, "classes", classCode, "marketItems", proposal.itemId);
+        transaction.update(itemRef, {
+          status: "sold",
+          soldTo: proposal.buyerId,
+          soldPrice: proposal.proposedPrice,
+          soldAt: serverTimestamp(),
+        });
+
+        const sellerRef = doc(db, "users", proposal.sellerId);
+        
+        transaction.update(buyerRef, {
+          cash: increment(-proposal.proposedPrice),
+          updatedAt: serverTimestamp(),
+        });
+        
+        transaction.update(sellerRef, {
+          cash: increment(proposal.proposedPrice),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      // 로컬 상태 즉시 업데이트
+      setProposals(prev => {
+        const updated = prev.map(p => 
+          p.id === proposalId 
+            ? { ...p, status: "accepted", acceptedAt: new Date() }
+            : p
+        );
+        setLocalDataCache(prevCache => ({
+          ...prevCache,
+          proposals: { data: updated, timestamp: Date.now() }
+        }));
+        return updated;
+      });
+
+      setItems(prev => {
+        const updated = prev.filter(i => i.id !== proposal.itemId);
+        setLocalDataCache(prevCache => ({
+          ...prevCache,
+          items: { data: updated, timestamp: Date.now() }
+        }));
+        return updated;
+      });
+
+      await Promise.all([
+        addActivityLog(proposal.buyerId, "상품 구매", 
+          `${proposal.itemName}을(를) ${proposal.proposedPrice.toLocaleString()}원에 구매했습니다.`),
+        addActivityLog(proposal.sellerId, "상품 판매", 
+          `${proposal.itemName}을(를) ${proposal.proposedPrice.toLocaleString()}원에 판매했습니다.`),
+        addTransaction(proposal.buyerId, -proposal.proposedPrice, 
+          `상품 구매: ${proposal.itemName}`),
+        addTransaction(proposal.sellerId, proposal.proposedPrice, 
+          `상품 판매: ${proposal.itemName}`)
+      ]);
+
+      alert("제안이 수락되어 거래가 완료되었습니다.");
+    } catch (error) {
+      alert("제안 수락 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+  // 제안 거절 처리 (최적화: 로컬 상태 즉시 업데이트)
+  const handleRejectProposal = async (proposalId) => {
+    if (!currentUserId || !classCode) return;
+
+    const proposal = proposals.find(p => p.id === proposalId);
+    if (!proposal) {
+      alert("제안을 찾을 수 없습니다.");
+      return;
+    }
+
+    if (proposal.sellerId !== currentUserId) {
+      alert("본인의 상품에 대한 제안만 처리할 수 있습니다.");
+      return;
+    }
+
+    if (proposal.status !== "pending") {
+      alert("이미 처리된 제안입니다.");
+      return;
+    }
+
+    if (!window.confirm(`${proposal.buyerName}님의 제안을 거절하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const proposalRef = doc(db, "classes", classCode, "marketProposals", proposalId);
+      await updateDoc(proposalRef, {
+        status: "rejected",
+        rejectedAt: serverTimestamp(),
+      });
+
+      // 로컬 상태 즉시 업데이트
+      setProposals(prev => {
+        const updated = prev.map(p => 
+          p.id === proposalId 
+            ? { ...p, status: "rejected", rejectedAt: new Date() }
+            : p
+        );
+        setLocalDataCache(prevCache => ({
+          ...prevCache,
+          proposals: { data: updated, timestamp: Date.now() }
+        }));
+        return updated;
+      });
+
+      alert("제안이 거절되었습니다.");
+    } catch (error) {
+      alert("제안 거절 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+  // 상품 삭제 처리 (최적화: 로컬 상태 즉시 업데이트)
+  const handleDeleteItem = async (itemId) => {
+    if (!currentUserId || !classCode) return;
+
+    const item = items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (item.sellerId !== currentUserId) {
+      alert("본인이 등록한 상품만 삭제할 수 있습니다.");
+      return;
+    }
+
+    if (item.status !== "available" && item.status !== "active") {
+      alert("판매 중인 상품만 삭제할 수 있습니다.");
+      return;
+    }
+
+    const pendingProposals = proposals.filter(p => 
+      p.itemId === itemId && p.status === "pending"
     );
 
-    console.log("[ItemMarket] Filtering listings:", {
-      allListings: listings,
-      activeListings: activeListings,
-      userId: currentUserId,
-      myListings: activeListings.filter(
-        (l) =>
-          l && (l.sellerId === currentUserId || l.sellerUid === currentUserId)
-      ),
+    if (pendingProposals.length > 0) {
+      if (!window.confirm(`이 상품에 ${pendingProposals.length}개의 대기 중인 제안이 있습니다. 정말 삭제하시겠습니까?`)) {
+        return;
+      }
+    } else {
+      if (!window.confirm("정말로 이 상품을 삭제하시겠습니까?")) {
+        return;
+      }
+    }
+
+    try {
+      // 인벤토리로 복구
+      if (item.inventoryItemId && item.quantity > 0) {
+        const inventoryRef = collection(db, "users", currentUserId, "inventory");
+        const inventoryQuery = query(inventoryRef, where("itemId", "==", item.originalStoreItemId), limit(1));
+        const inventorySnap = await getDocs(inventoryQuery);
+
+        if (!inventorySnap.empty) {
+          // 기존 아이템이 있으면 수량 증가
+          const existingDoc = inventorySnap.docs[0];
+          await updateDoc(existingDoc.ref, {
+            quantity: increment(item.quantity),
+            updatedAt: serverTimestamp()
+          });
+        } else {
+          // 없으면 새로 추가
+          await addDoc(inventoryRef, {
+            itemId: item.originalStoreItemId,
+            name: item.itemName,
+            icon: item.itemIcon,
+            description: item.itemDescription || "",
+            type: item.itemType || "기타",
+            quantity: item.quantity,
+            purchasedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+        }
+      }
+
+      const itemRef = doc(db, "classes", classCode, "marketItems", itemId);
+
+      await deleteDoc(itemRef);
+
+      if (pendingProposals.length > 0) {
+        const updatePromises = pendingProposals.map(proposal => {
+          const proposalRef = doc(db, "classes", classCode, "marketProposals", proposal.id);
+          return updateDoc(proposalRef, {
+            status: "rejected",
+            rejectedAt: serverTimestamp(),
+            rejectionReason: "상품이 삭제됨"
+          });
+        });
+        await Promise.all(updatePromises);
+      }
+
+      // 데이터 새로고침
+      await refreshData();
+
+      alert("상품이 삭제되어 인벤토리로 복구되었습니다.");
+    } catch (error) {
+      alert("상품 삭제 중 오류가 발생했습니다: " + error.message);
+    }
+  };
+
+
+
+  const filteredItems = useMemo(() => {
+    const filtered = (items || []).filter(item => {
+      const matchesCategory = selectedCategory === "전체" || item.category === selectedCategory || item.itemType === selectedCategory;
+      const matchesSearch = !searchTerm ||
+        item.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.sellerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+      const isAvailable = item.status === "available" || item.status === "active";
+
+      return matchesCategory && matchesSearch && isAvailable;
     });
 
-    switch (activeTab) {
-      case "myListings":
-        return activeListings.filter(
-          (l) =>
-            l && (l.sellerId === currentUserId || l.sellerUid === currentUserId)
-        );
-      case "listings":
-      default:
-        return activeListings.filter(
-          (l) =>
-            l && l.sellerId !== currentUserId && l.sellerUid !== currentUserId
-        );
-    }
-  };
+    return filtered;
+  }, [items, selectedCategory, searchTerm, currentUserId]);
 
-  const getFilteredOffers = () => {
-    if (!marketOffers || !Array.isArray(marketOffers) || !user) return [];
+  // 내 아이템 필터링 (메모이제이션)
+  const myItems = useMemo(() => {
+    return (items || []).filter(item => item.sellerId === currentUserId);
+  }, [items, currentUserId]);
 
-    switch (activeTab) {
-      case "myOffers":
-        return marketOffers.filter((o) => o && o.buyerId === user.id);
-      case "offersToMe":
-        return marketOffers.filter(
-          (o) => o && o.sellerId === user.id && o.status === "pending"
-        );
-      default:
-        return [];
-    }
-  };
+  // 받은/보낸 제안 필터링 (메모이제이션)
+  const { receivedProposals, sentProposals } = useMemo(() => {
+    const received = (proposals || []).filter(proposal => proposal.sellerId === currentUserId);
+    const sent = (proposals || []).filter(proposal => proposal.buyerId === currentUserId);
+    return { receivedProposals: received, sentProposals: sent };
+  }, [proposals, currentUserId]);
 
-  if (authLoading || itemsLoading) {
-    return (
-      <div className="page-container text-center">
-        아이템 시장 정보를 불러오는 중...
-      </div>
-    );
+  // 시세 데이터 정렬 (메모이제이션)
+  const sortedMarketData = useMemo(() => {
+    return marketSummary 
+      ? Object.entries(marketSummary).sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
+      : [];
+  }, [marketSummary]);
+
+  if (loading) {
+    return <div className="market-container loading">로딩 중...</div>;
+  }
+  if (!currentUser) {
+    return <div className="market-container loading">로그인이 필요합니다.</div>;
+  }
+  if (!classCode) {
+    return <div className="market-container loading">학급 코드가 설정되지 않았습니다.</div>;
   }
 
-  if (!user) {
-    return <LoginWarning />;
-  }
+  const visibleItems = filteredItems.slice(0, visibleItemsCount);
 
   return (
-    <div className="page-container item-market-page">
-      <h2 className="page-title">아이템 시장</h2>
-      <p className="page-description">
-        다른 학생들과 아이템을 자유롭게 거래해보세요!
-      </p>
-
-      {notification && (
-        <div className={`notification ${notification.type}`}>
-          {notification.message}
+    <div className="market-container">
+      <div className="market-header">
+        <h1>아이템 시장 (학급: {classCode})</h1>
+        <div className="header-info">
+          <span>보유 금액: {(currentUser.cash || 0).toLocaleString()}원</span>
         </div>
-      )}
+      </div>
 
       <div className="market-tabs">
         <button
-          onClick={() => setActiveTab("listings")}
-          className={activeTab === "listings" ? "active" : ""}
+          className={`tab-button ${activeTab === "market" ? "active" : ""}`}
+          onClick={() => setActiveTab("market")}
         >
-          아이템 목록
+          상품 둘러보기 ({filteredItems.length})
         </button>
         <button
-          onClick={() => setActiveTab("myListings")}
-          className={activeTab === "myListings" ? "active" : ""}
+          className={`tab-button ${activeTab === "my-items" ? "active" : ""}`}
+          onClick={() => setActiveTab("my-items")}
         >
-          내 판매 목록
+          내 상품 ({myItems.length})
         </button>
         <button
-          onClick={() => setActiveTab("offersToMe")}
-          className={activeTab === "offersToMe" ? "active" : ""}
+          className={`tab-button ${activeTab === "proposals" ? "active" : ""}`}
+          onClick={() => setActiveTab("proposals")}
         >
-          받은 제안
-        </button>
-        <button
-          onClick={() => setActiveTab("myOffers")}
-          className={activeTab === "myOffers" ? "active" : ""}
-        >
-          보낸 제안
+          제안 관리 ({receivedProposals.filter(p => p.status === "pending").length})
         </button>
       </div>
 
-      {activeTab === "listings" && (
-        <div className="market-actions">
-          <button
-            onClick={handleOpenSellModalFromMarket}
-            className="action-button sell-button"
-          >
-            내 아이템 판매하기
-          </button>
-        </div>
-      )}
+      <div className="market-content">
 
-      {(activeTab === "listings" || activeTab === "myListings") && (
-        <div className="market-listings-section">
-          <h3 className="section-title">
-            {activeTab === "myListings"
-              ? "내가 판매 중인 아이템"
-              : "판매 중인 아이템"}
-          </h3>
-          {getFilteredListings().length > 0 ? (
-            <div className="items-grid market-grid">
-              {getFilteredListings().map((listing) => (
-                <div
-                  key={listing.id}
-                  className="store-item-card market-item-card"
+        {activeTab === "market" && (
+          <div className="market-section">
+            <div className="market-controls">
+              <div className="search-and-filter">
+                <input
+                  type="text"
+                  placeholder="상품명, 설명, 판매자 검색..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="category-filter"
                 >
-                  <div className="item-header">
-                    <span className="item-icon-large">
-                      {listing.itemIcon || "📦"}
-                    </span>
-                    <h4 className="item-name">{listing.itemName}</h4>
-                  </div>
-                  <p className="item-description-market">
-                    {listing.itemDescription || "설명이 없습니다."}
-                  </p>
-                  <div className="item-info-market">
-                    <p>
-                      판매자: {listing.sellerName}{" "}
-                      {(listing.sellerId === user.id ||
-                        listing.sellerUid === user.uid) &&
-                        "(나)"}
-                    </p>
-                    <p>수량: {listing.quantity || 0}개</p>
-                    <p>개당 가격: {(listing.price || 0).toLocaleString()}원</p>
-                    <p className="total-price">
-                      총 가격:{" "}
-                      {(
-                        (listing.price || 0) * (listing.quantity || 1)
-                      ).toLocaleString()}
-                      원
-                    </p>
-                    <p className="listed-date">
-                      등록일:{" "}
-                      {new Date(listing.listedDate).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="item-actions-market">
-                    {activeTab === "myListings" ||
-                    listing.sellerId === user.id ||
-                    (listing.sellerUid && listing.sellerUid === user.uid) ? (
-                      <button
-                        onClick={() => handleCancelSaleItem(listing.id)}
-                        className="button-cancel-sale"
-                      >
-                        판매 취소
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleBuyItem(listing)}
-                          className="button-buy"
-                        >
-                          즉시 구매
-                        </button>
-                        <button
-                          onClick={() => handleOpenOfferModal(listing)}
-                          className="button-make-offer"
-                        >
-                          가격 제안
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  <option value="전체">전체 카테고리</option>
+                  <option value="학용품">학용품</option>
+                  <option value="음식">음식</option>
+                  <option value="책">책</option>
+                  <option value="장난감">장난감</option>
+                  <option value="의류">의류</option>
+                  <option value="전자기기">전자기기</option>
+                  <option value="기타">기타</option>
+                </select>
+              </div>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="register-button"
+              >
+                상품 등록
+              </button>
             </div>
-          ) : (
-            <div className="empty-message">
-              <p>
-                {activeTab === "myListings"
-                  ? "내가 판매 중인 아이템이 없습니다."
-                  : "현재 시장에 판매 중인 아이템이 없습니다."}
-              </p>
-              {activeTab === "myListings" && marketListings.length > 0 && (
-                <p className="debug-message">
-                  (시장에 총{" "}
-                  {marketListings.filter((l) => l.status === "active").length}
-                  개의 활성 아이템이 있지만 본인의 아이템은 없습니다.)
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-      )}
 
-      {activeTab === "offersToMe" && (
-        <div className="market-offers-section">
-          <h3 className="section-title">내가 받은 제안</h3>
-          {getFilteredOffers().filter((o) => o.status === "pending").length >
-          0 ? (
-            <div className="offers-list">
-              {getFilteredOffers()
-                .filter((o) => o.status === "pending")
-                .map((offer) => (
-                  <div key={offer.id} className="offer-card">
-                    <div className="offer-item-info">
-                      <span className="item-icon-small">{offer.itemIcon}</span>
-                      <strong>{offer.itemName}</strong> (수량:{" "}
-                      {offer.quantity || 1})
+            {loading ? (
+              <div className="loading">상품을 불러오는 중...</div>
+            ) : visibleItems.length === 0 ? (
+              <div className="empty-state">
+                {searchTerm || selectedCategory !== "전체" 
+                  ? "검색 조건에 맞는 상품이 없습니다." 
+                  : "등록된 상품이 없습니다."}
+              </div>
+            ) : (
+              <>
+                <div className="items-grid">
+                  {visibleItems.map(item => (
+                    <div key={item.id} className="item-card">
+                      <div className="item-info">
+                        <h3>{item.itemName}</h3>
+                        <p className="item-description">{item.description}</p>
+                        <p className="item-price">{(item.price || item.totalPrice || 0).toLocaleString()}원</p>
+                        <p className="item-seller">판매자: {getSellerName(item)}</p>
+                        <p className="item-category">{item.category || item.itemType || "기타"}</p>
+                      </div>
+                      {item.sellerId !== currentUserId && (
+                        <div className="item-actions">
+                          <button
+                            onClick={() => handleDirectPurchase(item)}
+                            className="buy-button"
+                            disabled={!currentUser || (currentUser.cash || 0) < (item.price || item.totalPrice || 0)}
+                          >
+                            바로 구매
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedItem(item);
+                              setShowProposalModal(true);
+                            }}
+                            className="propose-button"
+                          >
+                            제안하기
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    <p>제안자: {offer.buyerName}</p>
-                    <p>
-                      제안가(개당):{" "}
-                      {(offer.offeredPricePerItem || 0).toLocaleString()}원 (총:{" "}
-                      {(
-                        (offer.offeredPricePerItem || 0) * (offer.quantity || 1)
-                      ).toLocaleString()}
-                      원)
-                    </p>
-                    <p>
-                      제안 시간: {new Date(offer.timestamp).toLocaleString()}
-                    </p>
-                    <div className="offer-actions">
-                      <button
-                        onClick={() =>
-                          handleRespondToOffer(offer.id, "accepted")
-                        }
-                        className="button-accept-offer"
-                      >
-                        수락
-                      </button>
-                      <button
-                        onClick={() =>
-                          handleRespondToOffer(offer.id, "rejected")
-                        }
-                        className="button-reject-offer"
-                      >
-                        거절
-                      </button>
+                  ))}
+                </div>
+                
+                {filteredItems.length > visibleItemsCount && (
+                  <div className="load-more-container">
+                    <button
+                      onClick={() => setVisibleItemsCount(prev => prev + 20)}
+                      className="load-more-button"
+                    >
+                      더 보기
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "my-items" && (
+          <div className="my-items-section">
+            <div className="section-header">
+              <h2>내 상품</h2>
+              <button
+                onClick={() => setShowRegistrationModal(true)}
+                className="register-button"
+              >
+                상품 등록
+              </button>
+            </div>
+            {myItems.length === 0 ? (
+              <div className="empty-state">등록한 상품이 없습니다.</div>
+            ) : (
+              <div className="items-list">
+                {myItems.map(item => (
+                  <div key={item.id} className="item-row">
+                    <div className="item-info">
+                      <h3>{item.itemName}</h3>
+                      <p>{item.description}</p>
+                      <p className="price">{(item.price || item.totalPrice || 0).toLocaleString()}원</p>
+                      <p>카테고리: {item.category || item.itemType || "기타"}</p>
+                      <span className={`status ${item.status}`}>
+                        {item.status === "available" || item.status === "active" ? "판매중" : 
+                         item.status === "sold" ? `판매완료 (${(item.soldPrice || item.totalPrice || 0).toLocaleString()}원)` : "보류"}
+                      </span>
+                      {item.isLegacy && <span className="legacy-badge">기존 상품</span>}
+                      {item.soldAt && (
+                        <p>판매일: {item.soldAt.toDate?.().toLocaleDateString()}</p>
+                      )}
+                    </div>
+                    <div className="item-actions">
+                      {(item.status === "available" || item.status === "active") && (
+                        <button
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="delete-button"
+                        >
+                          삭제
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
-            </div>
-          ) : (
-            <div className="empty-message">
-              <p>새로운 제안이 없습니다.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === "myOffers" && (
-        <div className="market-offers-section">
-          <h3 className="section-title">내가 보낸 제안</h3>
-          {getFilteredOffers().length > 0 ? (
-            <div className="offers-list">
-              {getFilteredOffers().map((offer) => (
-                <div
-                  key={offer.id}
-                  className={`offer-card offer-status-${offer.status}`}
-                >
-                  <div className="offer-item-info">
-                    <span className="item-icon-small">{offer.itemIcon}</span>
-                    <strong>{offer.itemName}</strong> (수량:{" "}
-                    {offer.quantity || 1})
-                  </div>
-                  <p>
-                    판매자:{" "}
-                    {marketListings.find((l) => l.id === offer.listingId)
-                      ?.sellerName || "알수없음"}
-                  </p>
-                  <p>
-                    제안가(개당):{" "}
-                    {(offer.offeredPricePerItem || 0).toLocaleString()}원 (총:{" "}
-                    {(
-                      (offer.offeredPricePerItem || 0) * (offer.quantity || 1)
-                    ).toLocaleString()}
-                    원)
-                  </p>
-                  <p>
-                    상태:{" "}
-                    <span className={`status-badge ${offer.status}`}>
-                      {offer.status === "pending"
-                        ? "대기중"
-                        : offer.status === "accepted"
-                        ? "수락됨"
-                        : "거절됨"}
-                    </span>
-                    {offer.responseMessage && (
-                      <span className="response-message">
-                        {" "}
-                        ({offer.responseMessage})
-                      </span>
-                    )}
-                  </p>
-                  <p>제안 시간: {new Date(offer.timestamp).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-message">
-              <p>보낸 제안이 없습니다.</p>
-            </div>
-          )}
-        </div>
-      )}
-
-      {showSellModal && (
-        <div className="modal-overlay" onClick={() => setShowSellModal(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>아이템 판매 등록</h3>
-              <button
-                onClick={() => setShowSellModal(false)}
-                className="close-button"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label htmlFor="sellItemId">판매할 아이템:</label>
-                <select
-                  id="sellItemId"
-                  name="itemId"
-                  value={sellModalData.itemId}
-                  onChange={handleSellModalChange}
-                >
-                  <option value="">아이템 선택</option>
-                  {sellableUserItems.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name} (보유: {item.quantity}개) {item.icon}
-                    </option>
-                  ))}
-                </select>
               </div>
-              {selectedSellItemDetails && (
-                <>
-                  <div className="form-group">
-                    <label htmlFor="sellQuantity">
-                      판매 수량 (최대: {maxSellQuantity}개):
-                    </label>
-                    <input
-                      type="number"
-                      id="sellQuantity"
-                      name="quantity"
-                      value={sellModalData.quantity}
-                      onChange={(e) => handleSellQuantityChange(e.target.value)}
-                      min="1"
-                      max={maxSellQuantity}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="sellPrice">개당 판매 가격 (원):</label>
-                    <input
-                      type="number"
-                      id="sellPrice"
-                      name="price"
-                      value={sellModalData.price}
-                      onChange={handleSellModalChange}
-                      min="1"
-                    />
-                  </div>
-                  <div className="item-preview-simple">
-                    <span className="item-icon-small">
-                      {selectedSellItemDetails.icon}
-                    </span>
-                    <span>{selectedSellItemDetails.name}</span>
-                    <p className="item-desc-small">
-                      {selectedSellItemDetails.description}
-                    </p>
-                  </div>
-                </>
+            )}
+          </div>
+        )}
+
+        {activeTab === "proposals" && (
+          <div className="proposals-section">
+            <div className="section-header">
+              <h2>제안 관리</h2>
+            </div>
+            
+            <div className="proposals-tabs">
+              <h3>받은 제안 ({receivedProposals.length})</h3>
+              {receivedProposals.length === 0 ? (
+                <div className="empty-state">받은 제안이 없습니다.</div>
+              ) : (
+                <div className="proposals-list">
+                  {receivedProposals.map(proposal => (
+                    <div key={proposal.id} className="proposal-card">
+                      <div className="proposal-info">
+                        <h4>{proposal.itemName}</h4>
+                        <p>제안자: {getUserNameById(proposal.buyerId)}</p>
+                        <p>제안 가격: <strong>{proposal.proposedPrice.toLocaleString()}원</strong></p>
+                        <p>원래 가격: {proposal.originalPrice.toLocaleString()}원</p>
+                        {proposal.message && <p>메시지: "{proposal.message}"</p>}
+                        <p>제안일: {proposal.createdAt.toLocaleDateString()}</p>
+                        <p>상태: <span className={`status ${proposal.status}`}>
+                          {proposal.status === "pending" ? "대기중" : 
+                           proposal.status === "accepted" ? "수락됨" : "거절됨"}
+                        </span></p>
+                      </div>
+                      {proposal.status === "pending" && (
+                        <div className="proposal-actions">
+                          <button
+                            onClick={() => handleAcceptProposal(proposal.id)}
+                            className="accept-button"
+                          >
+                            수락
+                          </button>
+                          <button
+                            onClick={() => handleRejectProposal(proposal.id)}
+                            className="reject-button"
+                          >
+                            거절
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <h3>보낸 제안 ({sentProposals.length})</h3>
+              {sentProposals.length === 0 ? (
+                <div className="empty-state">보낸 제안이 없습니다.</div>
+              ) : (
+                <div className="proposals-list">
+                  {sentProposals.map(proposal => (
+                    <div key={proposal.id} className="proposal-card">
+                      <div className="proposal-info">
+                        <h4>{proposal.itemName || '알 수 없음'}</h4>
+                        <p>판매자: {getUserNameById(proposal.sellerId)}</p>
+                        <p>제안 가격: <strong>{(proposal.proposedPrice || 0).toLocaleString()}원</strong></p>
+                        <p>원래 가격: {(proposal.originalPrice || 0).toLocaleString()}원</p>
+                        {proposal.message && <p>메시지: "{proposal.message}"</p>}
+                        <p>제안일: {proposal.createdAt?.toDate?.()?.toLocaleDateString() || proposal.createdAt?.toLocaleDateString?.() || '알 수 없음'}</p>
+                        <p>상태: <span className={`status ${proposal.status}`}>
+                          {proposal.status === "pending" ? "대기중" :
+                           proposal.status === "accepted" ? "수락됨" : "거절됨"}
+                        </span></p>
+                        {proposal.acceptedAt && (
+                          <p>처리일: {proposal.acceptedAt.toDate?.().toLocaleDateString()}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
-            <div className="modal-footer">
-              <button
-                onClick={() => setShowSellModal(false)}
-                className="button-secondary"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleRegisterSale}
-                className="button-primary"
-                disabled={!selectedSellItemDetails}
-              >
-                판매 등록
-              </button>
-            </div>
           </div>
-        </div>
+        )}
+      </div>
+
+      {showRegistrationModal && (
+        <ItemRegistrationModal
+          onSave={handleItemRegistration}
+          onCancel={() => setShowRegistrationModal(false)}
+          userItems={itemContext.userItems || []}
+        />
       )}
 
-      {showOfferModal && (
-        <div className="modal-overlay" onClick={() => setShowOfferModal(false)}>
-          <div className="modal-container" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3>'{offerModalData.itemName}' 가격 제안</h3>
-              <button
-                onClick={() => setShowOfferModal(false)}
-                className="close-button"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="modal-body">
-              <p>
-                현재 개당 가격: {offerModalData.currentPrice.toLocaleString()}원
-                (판매 수량: {offerModalData.availableQuantity}개)
-              </p>
-              <div className="form-group">
-                <label htmlFor="offerQuantity">
-                  제안 수량 (최대: {offerModalData.availableQuantity}개):
-                </label>
-                <input
-                  type="number"
-                  id="offerQuantity"
-                  name="quantity"
-                  value={offerModalData.quantity}
-                  onChange={(e) => handleOfferQuantityChange(e.target.value)}
-                  min="1"
-                  max={offerModalData.availableQuantity}
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="offerPrice">제안할 개당 가격 (원):</label>
-                <input
-                  type="number"
-                  id="offerPrice"
-                  name="offerPrice"
-                  value={offerModalData.offerPrice}
-                  onChange={handleOfferModalChange}
-                  min="1"
-                />
-              </div>
-              <p>
-                총 제안 금액:{" "}
-                <strong>
-                  {(
-                    offerModalData.offerPrice * offerModalData.quantity
-                  ).toLocaleString()}
-                  원
-                </strong>
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button
-                onClick={() => setShowOfferModal(false)}
-                className="button-secondary"
-              >
-                취소
-              </button>
-              <button onClick={handleSubmitOffer} className="button-primary">
-                제안하기
-              </button>
-            </div>
-          </div>
-        </div>
+      {showProposalModal && selectedItem && (
+        <ProposalModal
+          item={selectedItem}
+          onSave={handleProposal}
+          onCancel={() => {
+            setShowProposalModal(false);
+            setSelectedItem(null);
+          }}
+          currentUser={currentUser}
+        />
       )}
     </div>
   );

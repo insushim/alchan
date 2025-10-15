@@ -5,120 +5,228 @@ import React, {
   useMemo,
   useRef,
 } from "react";
-import "./StockExchange.css"; // 이 CSS 파일이 프로젝트 내에 있어야 합니다.
-import { useAuth } from "./AuthContext"; // AuthContext가 필요합니다.
-import { db } from "./firebase"; // firebase 설정 파일이 필요합니다.
+import "./StockExchange.css";
+import { formatKoreanCurrency } from './numberFormatter';
+import { useAuth } from "./AuthContext";
+import { db } from "./firebase";
+import { applyStockTax } from "./utils/taxUtils";
+// 자동 상장/폐지는 Firebase Functions에서 처리 (10분마다)
+// import { startAutoManagementScheduler } from "./services/stockAutoManagementService";
 import {
   collection,
   doc,
-  onSnapshot,
-  addDoc,
+  getDoc,
+  getDocs,
   setDoc,
   updateDoc,
   deleteDoc,
   query,
   orderBy,
   limit,
-  where,
-  getDoc,
-  getDocs,
   serverTimestamp,
   increment,
   writeBatch,
   runTransaction,
+  where,
+  collectionGroup,
 } from "firebase/firestore";
+
+import { globalCache, cacheStats } from "./services/globalCacheService";
+
+// === 배치 데이터 로딩 시스템 ===
+const batchDataLoader = {
+  pendingRequests: new Map(),
+  
+  // 배치로 여러 데이터를 한 번에 로드
+  loadBatchData: async function(classCode, userId, forceRefresh = false) {
+    const batchKey = globalCache.generateKey('BATCH', { classCode, userId });
+    
+    if (!forceRefresh) {
+      const cached = globalCache.get(batchKey);
+      if (cached) return cached;
+    }
+
+    // 이미 같은 배치 요청이 진행 중이면 대기
+    if (this.pendingRequests.has(batchKey)) {
+      return await this.pendingRequests.get(batchKey);
+    }
+
+    const batchPromise = this._executeBatchLoad(classCode, userId);
+    this.pendingRequests.set(batchKey, batchPromise);
+    
+    try {
+      const result = await batchPromise;
+      globalCache.set(batchKey, result, 3 * 60 * 1000);
+      return result;
+    } finally {
+      this.pendingRequests.delete(batchKey);
+    }
+  },
+
+  _executeBatchLoad: async function(classCode, userId) {
+    const [stocks, portfolio, news, marketOpen] = await Promise.all([
+      this._loadStocks(classCode),
+      this._loadPortfolio(userId, classCode),
+      this._loadNews(classCode),
+      this._loadMarketStatus(classCode)
+    ]);
+
+    return {
+      stocks: stocks || [],
+      portfolio: portfolio || [],
+      news: news || [],
+      marketOpen: marketOpen || false,
+      errors: []
+    };
+  },
+
+  _loadStocks: async function(classCode) {
+    try {
+      const stocksRef = collection(db, "CentralStocks");
+      const q = query(stocksRef, where("isListed", "==", true));
+      const querySnapshot = await getDocs(q);
+
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('[batchDataLoader] Stocks load error:', error);
+      return [];
+    }
+  },
+
+  _loadPortfolio: async function(userId, classCode) {
+    try {
+      const portfolioRef = collection(db, "users", userId, "portfolio");
+      const q = query(portfolioRef, where("classCode", "==", classCode));
+      const querySnapshot = await getDocs(q);
+
+      return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    } catch (error) {
+      console.error('[batchDataLoader] Portfolio load error:', error);
+      return [];
+    }
+  },
+
+  _loadNews: async function(classCode) {
+    try {
+      const allNews = [];
+
+      // 중앙 뉴스만 가져오기
+      try {
+        const centralNewsRef = collection(db, "CentralNews");
+        const centralActiveQuery = query(
+          centralNewsRef,
+          where("isActive", "==", true),
+          orderBy("timestamp", "desc"),
+          limit(15)
+        );
+        const centralSnapshot = await getDocs(centralActiveQuery);
+
+        centralSnapshot.docs.forEach(doc => {
+          const data = doc.data();
+          allNews.push({
+            id: doc.id,
+            ...data,
+            timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
+            source: 'central'
+          });
+        });
+      } catch (centralError) {
+        console.warn('[batchDataLoader] Central news load failed:', centralError);
+      }
+
+      // 시간순으로 정렬
+      return allNews.sort((a, b) => b.timestamp - a.timestamp);
+
+    } catch (error) {
+      console.error('[batchDataLoader] News load error:', error);
+      return [];
+    }
+  },
+
+  _loadMarketStatus: async function(classCode) {
+    try {
+      const marketStatusRef = doc(db, "ClassStock", classCode, "marketStatus", "status");
+      const statusDoc = await getDoc(marketStatusRef);
+      return statusDoc.exists() ? statusDoc.data().isOpen : false;
+    } catch (error) {
+      console.error('[batchDataLoader] Market status load error:', error);
+      return false;
+    }
+  }
+};
+
+
 
 // === 아이콘 컴포넌트들 ===
 const TrendingUp = ({ size = 24, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-  >
-    <polyline points="22,7 13.5,15.5 8.5,10.5 2,17" />
-    <polyline points="16,7 22,7 22,13" />
-  </svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="22,7 13.5,15.5 8.5,10.5 2,17" /><polyline points="16,7 22,7 22,13" /></svg>
 );
-
 const TrendingDown = ({ size = 24, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-  >
-    <polyline points="22,17 13.5,8.5 8.5,13.5 2,7" />
-    <polyline points="16,17 22,17 22,11" />
-  </svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="22,17 13.5,8.5 8.5,13.5 2,7" /><polyline points="16,17 22,17 22,11" /></svg>
 );
-
 const Settings = ({ size = 24, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-  >
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m17.5-3.5L19 10m-2 2l-2.5 2.5M6.5 6.5L9 9m-2 2l-2.5 2.5" />
-  </svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m17.5-3.5L19 10m-2 2l-2.5 2.5M6.5 6.5L9 9m-2 2l-2.5 2.5" /></svg>
 );
-
-const Plus = ({ size = 24, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-  >
-    <line x1="12" y1="5" x2="12" y2="19" />
-    <line x1="5" y1="12" x2="19" y2="12" />
-  </svg>
+const RefreshCw = ({ size = 16, color = "currentColor" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L3.51 14"></path></svg>
 );
-
 const BarChart3 = ({ size = 24, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-  >
-    <line x1="12" y1="20" x2="12" y2="10" />
-    <line x1="18" y1="20" x2="18" y2="4" />
-    <line x1="6" y1="20" x2="6" y2="16" />
-  </svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></svg>
+);
+const ChevronDown = ({ size = 24, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
+);
+const ChevronUp = ({ size = 24, color = "currentColor" }) => (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="18 15 12 9 6 15" /></svg>
+);
+const Lock = ({ size = 24, color = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
 );
 
-const Trash2 = ({ size = 16, color = "currentColor" }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke={color}
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <polyline points="3 6 5 6 21 6"></polyline>
-    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-    <line x1="10" y1="11" x2="10" y2="17"></line>
-    <line x1="14" y1="11" x2="14" y2="17"></line>
-  </svg>
-);
+// === 상수 및 유틸리티 함수들 ===
+const PRODUCT_TYPES = {
+  STOCK: "stock",
+  ETF: "etf",
+  BOND: "bond"
+};
 
-// === 포맷 함수 ===
+const SECTORS = {
+  TECH: { name: "기술" },
+  FINANCE: { name: "금융" },
+  CONSUMER: { name: "소비재" },
+  HEALTHCARE: { name: "헬스케어" },
+  ENERGY: { name: "에너지" },
+  INDUSTRIAL: { name: "산업" },
+  MATERIALS: { name: "소재" },
+  REALESTATE: { name: "부동산" },
+  UTILITIES: { name: "유틸리티" },
+  COMMUNICATION: { name: "통신" },
+  ENTERTAINMENT: { name: "엔터테인먼트" },
+  INDEX: { name: "지수" },
+  GOVERNMENT: { name: "국채" },
+  CORPORATE: { name: "회사채" }
+};
+
+const HOLDING_LOCK_PERIOD = 5 * 60 * 1000;
+const COMMISSION_RATE = 0.003;
+const TAX_RATE = 0.22;
+const BOND_TAX_RATE = 0.154;
+
+const CACHE_TTL = {
+  BATCH_DATA: 1000 * 60, // 1 minute
+  STOCKS: 1000 * 60 * 5, // 5 minutes
+  PORTFOLIO: 1000 * 30, // 30 seconds
+  NEWS: 1000 * 60 * 2, // 2 minutes
+  MARKET_STATUS: 1000 * 60 * 10, // 10 minutes
+};
+
+// === 유틸리티 함수들 ===
 const formatCurrency = (amount) => {
   if (typeof amount !== "number" || isNaN(amount)) return "0원";
   return new Intl.NumberFormat("ko-KR").format(Math.round(amount)) + "원";
@@ -130,2340 +238,1054 @@ const formatPercent = (percent) => {
   return (num >= 0 ? "+" : "") + num.toFixed(2) + "%";
 };
 
-// === 세금 계산 함수 ===
-const calculateStockTax = (profit) => {
-  return profit > 0 ? Math.round(profit * 0.01) : 0;
+const calculateStockTax = (profit, productType = PRODUCT_TYPES.STOCK) => {
+  if (profit <= 0) return 0;
+  if (productType === PRODUCT_TYPES.BOND) {
+    return Math.round(profit * BOND_TAX_RATE);
+  }
+  return Math.round(profit * TAX_RATE);
 };
 
-// === 국고 연동 함수 ===
-const updateNationalTreasury = async (taxAmount) => {
-  if (taxAmount <= 0) return;
+// 배치 처리를 위한 국고 업데이트 최적화
+const treasuryUpdateQueue = new Map();
+const updateNationalTreasury = async (amount, type, classCode) => {
+  if (amount <= 0 || !classCode) return;
+  
+  const key = `${classCode}_${type}`;
+  const existing = treasuryUpdateQueue.get(key) || { amount: 0, type, classCode };
+  existing.amount += amount;
+  treasuryUpdateQueue.set(key, existing);
+  
+  // 배치 처리를 위해 지연
+  setTimeout(() => processTreasuryQueue(), 1000);
+};
+
+const processTreasuryQueue = async () => {
+  if (treasuryUpdateQueue.size === 0) return;
+  
+  const batch = writeBatch(db);
+  const updates = Array.from(treasuryUpdateQueue.values());
+  treasuryUpdateQueue.clear();
+  
+  for (const { amount, type, classCode } of updates) {
+    const treasuryRef = doc(db, "nationalTreasuries", classCode);
+    const updateData = {
+      totalAmount: increment(amount),
+      lastUpdated: serverTimestamp(),
+    };
+    
+    if (type === 'tax') {
+      updateData.stockTaxRevenue = increment(amount);
+    } else if (type === 'commission') {
+      updateData.stockCommissionRevenue = increment(amount);
+    }
+    
+    batch.update(treasuryRef, updateData, { merge: true });
+  }
+  
   try {
-    const treasuryRef = doc(db, "government", "nationalTreasury");
-    await runTransaction(db, async (transaction) => {
-      const treasuryDoc = await transaction.get(treasuryRef);
-      if (treasuryDoc.exists()) {
-        transaction.update(treasuryRef, {
-          totalAmount: increment(taxAmount),
-          stockTaxRevenue: increment(taxAmount),
-          lastStockTaxUpdate: serverTimestamp(),
-          lastUpdated: serverTimestamp(),
-        });
-      } else {
-        transaction.set(treasuryRef, {
-          totalAmount: taxAmount,
-          stockTaxRevenue: taxAmount,
-          incomeTaxRevenue: 0,
-          corporateTaxRevenue: 0,
-          otherTaxRevenue: 0,
-          createdAt: serverTimestamp(),
-          lastStockTaxUpdate: serverTimestamp(),
-          lastUpdated: serverTimestamp(),
-        });
-      }
-    });
-    console.log(`국고에 주식세 ${formatCurrency(taxAmount)} 납부 완료`);
+    await batch.commit();
   } catch (error) {
-    console.error("국고 업데이트 실패:", error);
+    // 실패한 업데이트들을 다시 큐에 추가
+    updates.forEach(update => {
+      const key = `${update.classCode}_${update.type}`;
+      treasuryUpdateQueue.set(key, update);
+    });
   }
 };
 
-// === 국고 현황 조회 훅 ===
-const useNationalTreasury = () => {
-  const [treasuryData, setTreasuryData] = useState({
-    totalAmount: 0,
-    stockTaxRevenue: 0,
-    incomeTaxRevenue: 0,
-    corporateTaxRevenue: 0,
-    otherTaxRevenue: 0,
-  });
-  const [loading, setLoading] = useState(true);
+const calculateMarketIndex = (stocks) => {
+  if (!stocks || stocks.length === 0) return 1000;
+  const listedStocks = stocks.filter(s => s && s.isListed && s.productType === PRODUCT_TYPES.STOCK);
+  if (listedStocks.length === 0) return 1000;
 
-  useEffect(() => {
-    const treasuryRef = doc(db, "government", "nationalTreasury");
-    const unsubscribe = onSnapshot(
-      treasuryRef,
-      (doc) => {
-        if (doc.exists()) {
-          setTreasuryData(doc.data());
-        } else {
-          setTreasuryData({
-            totalAmount: 0,
-            stockTaxRevenue: 0,
-            incomeTaxRevenue: 0,
-            corporateTaxRevenue: 0,
-            otherTaxRevenue: 0,
-          });
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error("국고 데이터 로드 실패:", error);
-        setLoading(false);
-      }
-    );
+  const totalMarketCap = listedStocks.reduce((sum, stock) => {
+    const shares = 1000;
+    return sum + (stock.price * shares);
+  }, 0);
 
-    return unsubscribe;
-  }, []);
+  const baseMarketCap = listedStocks.reduce((sum, stock) => {
+    const shares = 1000;
+    const basePrice = stock.initialPrice || stock.minListingPrice || stock.price;
+    return sum + (basePrice * shares);
+  }, 0);
 
-  return { treasuryData, loading };
+  if (baseMarketCap === 0) return 1000;
+
+  return Math.round((totalMarketCap / baseMarketCap) * 1000);
 };
 
-// === 데이터 압축 훅 ===
-const useCompressedData = (data) => {
-  return useMemo(() => {
-    if (!data || data.length === 0) return [];
-    return data.map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      isListed: item.isListed,
-      isManual: item.isManual,
-      minListingPrice: item.minListingPrice,
-      initialPrice: item.initialPrice,
-      priceHistory: (item.priceHistory || []).slice(-5),
-      relistCount: item.relistCount || 0,
-      delistedAt: item.delistedAt,
-    }));
-  }, [data]);
+const canSellHolding = (holding) => {
+  if (!holding.lastBuyTime) return true;
+  const timeSinceBuy = Date.now() - holding.lastBuyTime.toDate().getTime();
+  return timeSinceBuy >= HOLDING_LOCK_PERIOD;
 };
 
-// === 지연 로딩 훅 ===
-const useLazyTransactions = (user, showTransactions) => {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!showTransactions || !user) {
-      setTransactions([]);
-      return;
-    }
-
-    setLoading(true);
-    const q = query(
-      collection(db, "users", user.uid, "transactions"),
-      orderBy("timestamp", "desc"),
-      limit(10)
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const transactionsData = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-        timestamp: doc.data().timestamp?.toDate() || new Date(),
-      }));
-      setTransactions(transactionsData);
-      setLoading(false);
-    });
-
-    return unsubscribe;
-  }, [user, showTransactions]);
-
-  return { transactions, loading };
+const getRemainingLockTime = (holding) => {
+  if (!holding.lastBuyTime) return 0;
+  const timeSinceBuy = Date.now() - holding.lastBuyTime.toDate().getTime();
+  const remaining = HOLDING_LOCK_PERIOD - timeSinceBuy;
+  return Math.max(0, remaining);
 };
 
-// === 관리자 설정 저장/로드 훅 ===
-const useAdminSettings = () => {
-  const [settings, setSettings] = useState({
-    relistMultiplier: 1.15,
-  });
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    const settingsRef = doc(db, "admin", "settings");
-    const unsubscribe = onSnapshot(
-      settingsRef,
-      (doc) => {
-        if (doc.exists()) {
-          setSettings(doc.data());
-        } else {
-          setSettings({
-            relistMultiplier: 1.15,
-          });
-        }
-        setLoading(false);
-      },
-      (error) => {
-        console.error("관리자 설정 로드 실패:", error);
-        setLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, []);
-
-  const saveSettings = useCallback(async (newSettings) => {
-    setSaving(true);
-    try {
-      const settingsRef = doc(db, "admin", "settings");
-      await setDoc(settingsRef, {
-        ...newSettings,
-        lastUpdated: serverTimestamp(),
-        updatedBy: "admin",
-      });
-      console.log("관리자 설정 저장 완료:", newSettings);
-      return true;
-    } catch (error) {
-      console.error("관리자 설정 저장 실패:", error);
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  }, []);
-
-  return { settings, loading, saving, saveSettings };
+const formatTime = (milliseconds) => {
+  const seconds = Math.floor(milliseconds / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  return `${minutes}분 ${remainingSeconds}초`;
 };
 
-// === 최적화된 주식 가격 관리 훅 ===
-const useOptimizedStockPrices = (initialStocks) => {
-  const [stocksData, setStocksData] = useState(initialStocks);
-  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
-  const batchUpdateQueue = useRef(new Map());
-  const isUpdatingRef = useRef(false);
-
-  const flushBatchUpdates = useCallback(async () => {
-    if (isUpdatingRef.current || batchUpdateQueue.current.size === 0) return;
-
-    isUpdatingRef.current = true;
-    const batch = writeBatch(db);
-    const updates = Array.from(batchUpdateQueue.current.entries());
-
-    try {
-      updates.forEach(([stockId, updateData]) => {
-        const stockRef = doc(db, "stocks", stockId);
-        batch.set(
-          stockRef,
-          {
-            ...updateData,
-            lastUpdated: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      });
-
-      const marketDataRef = doc(db, "marketData", "currentPrices");
-      const marketUpdate = {};
-      updates.forEach(([stockId, updateData]) => {
-        marketUpdate[stockId] = updateData;
-      });
-
-      batch.set(
-        marketDataRef,
-        {
-          ...marketUpdate,
-          lastUpdate: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      await batch.commit();
-      batchUpdateQueue.current.clear();
-      setLastUpdateTime(Date.now());
-      console.log(`배치 업데이트 완료: ${updates.length}개 주식`);
-    } catch (error) {
-      console.error("배치 업데이트 실패:", error);
-      console.error("실패한 업데이트:", updates);
-      try {
-        console.log("개별 업데이트 재시도 중...");
-        for (const [stockId, updateData] of updates) {
-          const stockRef = doc(db, "stocks", stockId);
-          await setDoc(
-            stockRef,
-            {
-              ...updateData,
-              lastUpdated: serverTimestamp(),
-            },
-            { merge: true }
-          );
-        }
-        console.log("개별 업데이트 재시도 성공");
-        batchUpdateQueue.current.clear();
-        setLastUpdateTime(Date.now());
-      } catch (retryError) {
-        console.error("개별 업데이트 재시도도 실패:", retryError);
-      }
-    } finally {
-      isUpdatingRef.current = false;
-    }
-  }, []);
-
-  const updateStockPrices = useCallback(() => {
-    setStocksData((prevStocks) => {
-      if (!prevStocks || prevStocks.length === 0) return [];
-
-      const updatedStocks = prevStocks.map((stock) => {
-        if (!stock || !stock.isListed || stock.isManual) return stock;
-
-        const change = (Math.random() - 0.5) * 0.24;
-        const newPrice = Math.max(1, Math.round(stock.price * (1 + change)));
-
-        if (newPrice < (stock.minListingPrice || 1)) {
-          console.log(
-            `${stock.name} 상장폐지: 현재가 ${newPrice} < 최소가 ${stock.minListingPrice}`
-          );
-
-          const updateData = {
-            price: newPrice,
-            isListed: false,
-            delistedAt: new Date(),
-            priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-          };
-
-          batchUpdateQueue.current.set(stock.id, {
-            ...updateData,
-            delistedAt: serverTimestamp(),
-          });
-
-          return { ...stock, ...updateData };
-        }
-
-        const changePercent = Math.abs(newPrice - stock.price) / stock.price;
-        if (changePercent >= 0.01) {
-          const updateData = {
-            price: newPrice,
-            priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-          };
-          batchUpdateQueue.current.set(stock.id, updateData);
-        }
-
-        return { ...stock, price: newPrice };
-      });
-
-      return updatedStocks;
-    });
-  }, []);
-
-  return {
-    stocks: stocksData,
-    setStocks: setStocksData,
-    updateStockPrices,
-    flushBatchUpdates,
-    lastUpdateTime,
-  };
+const getProductIcon = (productType) => {
+  switch(productType) {
+    case PRODUCT_TYPES.ETF: return "📊";
+    case PRODUCT_TYPES.BOND: return "📜";
+    default: return "📈";
+  }
 };
 
-// === 캐시된 데이터 훅 ===
-const useCachedFirestoreData = (collectionPath, queryOptions = {}) => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const cacheRef = useRef({});
-  const lastFetchRef = useRef(0);
-
-  useEffect(() => {
-    if (collectionPath === "dummy") {
-      setData([]);
-      setLoading(false);
-      return;
-    }
-
-    const now = Date.now();
-    const cacheKey = JSON.stringify({ collectionPath, queryOptions });
-
-    if (
-      cacheRef.current[cacheKey] &&
-      now - lastFetchRef.current < 5 * 60 * 1000
-    ) {
-      setData(cacheRef.current[cacheKey]);
-      setLoading(false);
-      return;
-    }
-
-    let q = collection(db, collectionPath);
-    if (queryOptions.orderBy) {
-      q = query(
-        q,
-        orderBy(queryOptions.orderBy.field, queryOptions.orderBy.direction)
-      );
-    }
-    if (queryOptions.limit) {
-      q = query(q, limit(queryOptions.limit));
-    }
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const newData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-        cacheRef.current[cacheKey] = newData;
-        lastFetchRef.current = now;
-        setData(newData);
-        setLoading(false);
-      },
-      (error) => {
-        console.error(`데이터 로드 실패 (${collectionPath}):`, error);
-        setLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, [collectionPath, JSON.stringify(queryOptions)]); // 의존성 배열에 queryOptions를 JSON 문자열로 추가
-
-  return { data, loading };
+const getProductBadgeClass = (productType) => {
+  switch(productType) {
+    case PRODUCT_TYPES.ETF: return "etf";
+    case PRODUCT_TYPES.BOND: return "bond";
+    default: return "stock";
+  }
 };
 
-// === 실시간 상장폐지 감지 훅 ===
-const useDelistedStockDetector = (portfolio, stocksData, user) => {
-  useEffect(() => {
-    if (!portfolio || !stocksData || !user) return;
-
-    const checkDelistedStocks = async () => {
-      const batch = writeBatch(db);
-      let hasUpdates = false;
-
-      for (const holding of portfolio) {
-        if (holding.isDelisted) continue;
-
-        const stock = stocksData.find((s) => s && s.id === holding.stockId);
-
-        if (stock && stock.delistedAt && !stock.isListed) {
-          const holdingCreatedAt = holding.createdAt?.seconds
-            ? new Date(holding.createdAt.seconds * 1000)
-            : holding.createdAt?.toDate
-            ? holding.createdAt.toDate()
-            : new Date(0);
-
-          const stockDelistedAt = stock.delistedAt?.seconds
-            ? new Date(stock.delistedAt.seconds * 1000)
-            : stock.delistedAt?.toDate
-            ? stock.delistedAt.toDate()
-            : new Date();
-
-          if (holdingCreatedAt < stockDelistedAt) {
-            const holdingRef = doc(
-              db,
-              "users",
-              user.uid,
-              "portfolio",
-              holding.id
-            );
-            batch.update(holdingRef, {
-              isDelisted: true,
-              delistedAt: stock.delistedAt,
-              updatedAt: serverTimestamp(),
-            });
-            hasUpdates = true;
-            console.log(
-              `실시간 감지: ${holding.stockName} 보유분을 상장폐지 처리`
-            );
-          }
-        }
-      }
-
-      if (hasUpdates) {
-        try {
-          await batch.commit();
-          console.log("실시간 상장폐지 감지 및 업데이트 완료");
-        } catch (error) {
-          console.error("실시간 상장폐지 처리 실패:", error);
-        }
-      }
-    };
-
-    checkDelistedStocks();
-  }, [portfolio, stocksData, user]);
-};
-
-// === 자동 삭제 스케줄러 훅 ===
-const useAutoDeleteDelistedHoldings = (portfolio, user) => {
-  useEffect(() => {
-    if (!portfolio || !user) return;
-
-    const scheduleAutoDelete = () => {
-      portfolio.forEach((holding) => {
-        if (holding.isDelisted && holding.delistedAt) {
-          const delistedTime = holding.delistedAt?.seconds
-            ? new Date(holding.delistedAt.seconds * 1000)
-            : holding.delistedAt?.toDate
-            ? holding.delistedAt.toDate()
-            : new Date();
-
-          const deleteTime = new Date(
-            delistedTime.getTime() + 24 * 60 * 60 * 1000
-          );
-          const now = new Date();
-          const timeUntilDelete = deleteTime.getTime() - now.getTime();
-
-          if (timeUntilDelete > 0 && timeUntilDelete <= 24 * 60 * 60 * 1000) {
-            console.log(
-              `${holding.stockName} 자동 삭제 예약: ${Math.round(
-                timeUntilDelete / 1000 / 60
-              )}분 후`
-            );
-
-            setTimeout(async () => {
-              try {
-                const holdingRef = doc(
-                  db,
-                  "users",
-                  user.uid,
-                  "portfolio",
-                  holding.id
-                );
-                const docSnap = await getDoc(holdingRef);
-                if (docSnap.exists() && docSnap.data().isDelisted) {
-                  await deleteDoc(holdingRef);
-                  console.log(
-                    `${holding.stockName} 상장폐지 보유분 자동 삭제 완료`
-                  );
-                  alert(
-                    `${holding.stockName} 상장폐지된 보유 주식이 자동으로 삭제되었습니다.`
-                  );
-                }
-              } catch (error) {
-                console.error("자동 삭제 실패:", error);
-              }
-            }, timeUntilDelete);
-          } else if (timeUntilDelete <= 0) {
-            const holdingRef = doc(
-              db,
-              "users",
-              user.uid,
-              "portfolio",
-              holding.id
-            );
-            deleteDoc(holdingRef)
-              .then(() => {
-                console.log(
-                  `${holding.stockName} 만료된 상장폐지 보유분 즉시 삭제 완료`
-                );
-              })
-              .catch((error) => {
-                console.error("만료된 보유분 삭제 실패:", error);
-              });
-          }
-        }
-      });
-    };
-
-    const timerId = setTimeout(scheduleAutoDelete, 5000);
-    return () => clearTimeout(timerId);
-  }, [portfolio, user]);
+// === 캐시 무효화 함수 ===
+const invalidateCache = (pattern) => {
+  const keysToDelete = [];
+  for (const key of globalCache.keys()) {
+    if (key.includes(pattern)) {
+      keysToDelete.push(key);
+    }
+  }
+  keysToDelete.forEach(key => globalCache.delete(key));
 };
 
 // === 관리자 패널 컴포넌트 ===
-const AdminPanel = ({
-  stocksList,
-  relistMultiplier,
-  setRelistMultiplier,
-  addStock,
-  toggleManualStock,
-  deleteStock,
-  editStock,
-  onClose,
-}) => {
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newStock, setNewStock] = useState({
-    name: "",
-    price: "",
-    minListingPrice: "",
-    isManual: false,
-  });
-
-  const {
-    settings,
-    loading: settingsLoading,
-    saving,
-    saveSettings,
-  } = useAdminSettings();
-  const [tempRelistMultiplier, setTempRelistMultiplier] =
-    useState(relistMultiplier);
-
-  useEffect(() => {
-    if (!settingsLoading && settings.relistMultiplier) {
-      setTempRelistMultiplier(settings.relistMultiplier);
-      setRelistMultiplier(settings.relistMultiplier);
-    }
-  }, [settings, settingsLoading, setRelistMultiplier]);
-
-  const handleSaveRelistMultiplier = async () => {
-    const success = await saveSettings({
-      ...settings,
-      relistMultiplier: tempRelistMultiplier,
-    });
-
-    if (success) {
-      setRelistMultiplier(tempRelistMultiplier);
-      alert(
-        `재상장 비율이 ${((tempRelistMultiplier - 1) * 100).toFixed(
-          0
-        )}%로 저장되었습니다.`
-      );
-    } else {
-      alert("재상장 비율 저장에 실패했습니다. 다시 시도해주세요.");
-    }
-  };
-
-  const handleAddStock = async () => {
-    if (!newStock.name || !newStock.price || !newStock.minListingPrice) {
-      alert("모든 필드를 입력해주세요.");
-      return;
-    }
-    const price = parseFloat(newStock.price);
-    const minPrice = parseFloat(newStock.minListingPrice);
-    if (price <= 0 || minPrice <= 0) {
-      alert("가격은 0보다 커야 합니다.");
-      return;
-    }
-    try {
-      await addStock({
-        name: newStock.name,
-        price: price,
-        minListingPrice: minPrice,
-        isListed: true,
-        isManual: newStock.isManual,
-      });
-      setNewStock({
+const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats }) => {
+    const [showAddForm, setShowAddForm] = useState(false);
+    const [newStock, setNewStock] = useState({
         name: "",
         price: "",
         minListingPrice: "",
         isManual: false,
-      });
-      setShowAddForm(false);
-      alert("새 주식이 성공적으로 추가되었습니다.");
-    } catch (error) {
-      console.error("주식 추가 오류:", error);
-      alert("주식 추가 중 오류가 발생했습니다.");
-    }
-  };
+        sector: "TECH",
+        productType: PRODUCT_TYPES.STOCK,
+        maturityYears: "",
+        couponRate: ""
+    });
 
-  const handleToggleManualStock = async (stockId, currentIsListed) => {
-    try {
-      await toggleManualStock(stockId, currentIsListed);
-    } catch (error) {
-      console.error("주식 상태 변경 오류:", error);
-      alert("주식 상태 변경 중 오류가 발생했습니다.");
-    }
-  };
+    const handleAddStock = async () => {
+        if (!newStock.name || !newStock.price || !newStock.minListingPrice) return alert("모든 필드를 입력해주세요.");
+        const price = parseFloat(newStock.price);
+        const minPrice = parseFloat(newStock.minListingPrice);
+        if (price <= 0 || minPrice <= 0) return alert("가격은 0보다 커야 합니다.");
 
-  const handleDeleteStock = async (stockId, stockName) => {
-    if (
-      window.confirm(
-        `정말로 '${stockName}' 주식을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
-      )
-    ) {
-      try {
-        await deleteStock(stockId);
-        alert("주식이 성공적으로 삭제되었습니다.");
-      } catch (error) {
-        console.error("주식 삭제 오류:", error);
-        alert("주식 삭제 중 오류가 발생했습니다.");
-      }
-    }
-  };
+        const stockData = {
+            name: newStock.name,
+            price,
+            minListingPrice: minPrice,
+            isListed: true,
+            isManual: newStock.isManual,
+            sector: newStock.sector,
+            productType: newStock.productType,
+            buyVolume: 0,
+            sellVolume: 0,
+            recentBuyVolume: 0,
+            recentSellVolume: 0,
+            volatility: newStock.productType === PRODUCT_TYPES.BOND ? 0.005 : 0.02
+        };
 
-  const handleEditStockClick = async (stockId) => {
-    try {
-      await editStock(stockId);
-    } catch (error) {
-      console.error("주식 가격 수정 오류:", error);
-      alert("주식 가격 수정 중 오류가 발생했습니다.");
-    }
-  };
+        if (newStock.productType === PRODUCT_TYPES.BOND) {
+            stockData.maturityYears = parseFloat(newStock.maturityYears) || 10;
+            stockData.couponRate = parseFloat(newStock.couponRate) || 3.5;
+            stockData.sector = "GOVERNMENT";
+        }
 
-  return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: "rgba(0,0,0,0.8)",
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "white",
-          borderRadius: "12px",
-          padding: "30px",
-          maxWidth: "900px",
-          width: "100%",
-          maxHeight: "90vh",
-          overflow: "auto",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "30px",
-            borderBottom: "2px solid #f0f0f0",
-            paddingBottom: "20px",
-          }}
-        >
-          <h2 style={{ margin: 0, color: "#333", fontSize: "1.8em" }}>
-            <Settings size={24} style={{ marginRight: "10px" }} />
-            관리자 패널
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "#e74c3c",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              padding: "12px 20px",
-              cursor: "pointer",
-              fontSize: "16px",
-              fontWeight: "bold",
-            }}
-          >
-            ✕ 닫기
-          </button>
-        </div>
+        if (newStock.productType === PRODUCT_TYPES.ETF) {
+            stockData.sector = "INDEX";
+        }
 
-        <div style={{ marginBottom: "30px" }}>
-          <h3 style={{ color: "#2196F3", marginBottom: "15px" }}>
-            ⚙️ 자동 재상장 설정
-          </h3>
-          <div
-            style={{
-              background: "#f8f9fa",
-              padding: "20px",
-              borderRadius: "8px",
-              border: "1px solid #e9ecef",
-            }}
-          >
-            <label
-              style={{
-                display: "block",
-                marginBottom: "10px",
-                fontWeight: "bold",
-              }}
-            >
-              재상장 비율 (기본값: 115%):
-            </label>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "15px",
-                marginBottom: "15px",
-              }}
-            >
-              <input
-                type="number"
-                step="0.01"
-                min="1"
-                value={tempRelistMultiplier}
-                onChange={(e) =>
-                  setTempRelistMultiplier(parseFloat(e.target.value) || 1.15)
-                }
-                style={{
-                  padding: "10px",
-                  border: "1px solid #ddd",
-                  borderRadius: "6px",
-                  width: "120px",
-                  fontSize: "16px",
-                }}
-              />
-              <span style={{ color: "#666" }}>
-                현재: {((tempRelistMultiplier - 1) * 100).toFixed(0)}% 프리미엄
-              </span>
-              <button
-                onClick={handleSaveRelistMultiplier}
-                disabled={saving || settingsLoading}
-                style={{
-                  background: saving ? "#95a5a6" : "#27ae60",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  padding: "10px 20px",
-                  cursor: saving ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  fontWeight: "bold",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "5px",
-                }}
-              >
-                {saving ? "저장 중..." : "💾 저장"}
-              </button>
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                marginBottom: "10px",
-              }}
-            >
-              <span style={{ fontSize: "14px", color: "#666" }}>
-                저장된 설정:{" "}
-                {((settings.relistMultiplier - 1) * 100).toFixed(0)}% 프리미엄
-              </span>
-              {tempRelistMultiplier !== settings.relistMultiplier && (
-                <span
-                  style={{
-                    fontSize: "12px",
-                    color: "#e74c3c",
-                    fontWeight: "bold",
-                  }}
-                >
-                  ⚠️ 변경사항이 저장되지 않았습니다
-                </span>
-              )}
-              {tempRelistMultiplier === settings.relistMultiplier &&
-                !settingsLoading && (
-                  <span
-                    style={{
-                      fontSize: "12px",
-                      color: "#27ae60",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    ✅ 저장됨
-                  </span>
-                )}
-            </div>
-            <p style={{ margin: "0", color: "#666", fontSize: "14px" }}>
-              자동 관리 주식이 상장폐지 후 재상장될 때 적용되는 가격 비율입니다.
-              (2분마다 체크)
-            </p>
-          </div>
-        </div>
+        await onAddStock(stockData);
+        setNewStock({ name: "", price: "", minListingPrice: "", isManual: false, sector: "TECH", productType: PRODUCT_TYPES.STOCK, maturityYears: "", couponRate: "" });
+        setShowAddForm(false);
+    };
 
-        <div style={{ marginBottom: "30px" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "15px",
-            }}
-          >
-            <h3 style={{ color: "#4CAF50", margin: 0 }}>➕ 새 주식 추가</h3>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              style={{
-                background: showAddForm ? "#95a5a6" : "#4CAF50",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                padding: "10px 20px",
-                cursor: "pointer",
-                fontSize: "14px",
-              }}
-            >
-              {showAddForm ? "취소" : "+ 추가"}
-            </button>
-          </div>
-          {showAddForm && (
-            <div
-              style={{
-                background: "#f8f9fa",
-                padding: "20px",
-                borderRadius: "8px",
-                border: "1px solid #e9ecef",
-              }}
-            >
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1fr 1fr",
-                  gap: "15px",
-                  marginBottom: "15px",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "5px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    종목명
-                  </label>
-                  <input
-                    type="text"
-                    value={newStock.name}
-                    onChange={(e) =>
-                      setNewStock((prev) => ({ ...prev, name: e.target.value }))
-                    }
-                    placeholder="예: 카카오"
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid #ddd",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "5px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    초기 가격
-                  </label>
-                  <input
-                    type="number"
-                    value={newStock.price}
-                    onChange={(e) =>
-                      setNewStock((prev) => ({
-                        ...prev,
-                        price: e.target.value,
-                      }))
-                    }
-                    placeholder="100000"
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid #ddd",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                    }}
-                  />
-                </div>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      marginBottom: "5px",
-                      fontWeight: "bold",
-                    }}
-                  >
-                    최소 상장가
-                  </label>
-                  <input
-                    type="number"
-                    value={newStock.minListingPrice}
-                    onChange={(e) =>
-                      setNewStock((prev) => ({
-                        ...prev,
-                        minListingPrice: e.target.value,
-                      }))
-                    }
-                    placeholder="50000"
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      border: "1px solid #ddd",
-                      borderRadius: "6px",
-                      fontSize: "14px",
-                    }}
-                  />
-                </div>
-                <div
-                  style={{ display: "flex", alignItems: "center", gap: "10px" }}
-                >
-                  <input
-                    type="checkbox"
-                    id="isManual"
-                    checked={newStock.isManual}
-                    onChange={(e) =>
-                      setNewStock((prev) => ({
-                        ...prev,
-                        isManual: e.target.checked,
-                      }))
-                    }
-                    style={{ width: "18px", height: "18px" }}
-                  />
-                  <label htmlFor="isManual" style={{ fontWeight: "bold" }}>
-                    수동 관리 주식
-                  </label>
-                </div>
-              </div>
-              <button
-                onClick={handleAddStock}
-                style={{
-                  background: "#4CAF50",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "8px",
-                  padding: "12px 24px",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  fontWeight: "bold",
-                }}
-              >
-                추가하기
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3 style={{ color: "#FF9800", marginBottom: "15px" }}>
-            📊 주식 관리
-          </h3>
-          <div style={{ maxHeight: "400px", overflow: "auto" }}>
-            {stocksList &&
-              stocksList.map((stock) => (
-                <div
-                  key={stock.id}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "15px",
-                    border: "1px solid #e9ecef",
-                    borderRadius: "8px",
-                    marginBottom: "10px",
-                    background: stock.isListed ? "#fff" : "#f8f9fa",
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontWeight: "bold",
-                        fontSize: "16px",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      {stock.name}
+    return (
+        <div className="admin-panel-fullscreen">
+            <div className="admin-header">
+                <h2><Settings size={24} /> 관리자 패널 ({classCode})</h2>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#666' }}>
+                        캐시 통계: 적중 {cacheStats.hits}, 누락 {cacheStats.misses}, 절약 {cacheStats.savings}회
                     </div>
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: "10px",
-                        marginBottom: "5px",
-                      }}
-                    >
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "bold",
-                          background: stock.isManual ? "#e74c3c" : "#3498db",
-                          color: "white",
-                        }}
-                      >
-                        {stock.isManual ? "수동" : "자동"}
-                      </span>
-                      <span
-                        style={{
-                          padding: "2px 8px",
-                          borderRadius: "12px",
-                          fontSize: "12px",
-                          fontWeight: "bold",
-                          background: stock.isListed ? "#27ae60" : "#e74c3c",
-                          color: "white",
-                        }}
-                      >
-                        {stock.isListed ? "상장" : "상장폐지"}
-                      </span>
+                    <button onClick={onClose} className="btn btn-danger">닫기</button>
+                </div>
+            </div>
+            <div className="admin-content">
+                <div className="admin-section">
+                    <h3><BarChart3 size={20} /> 상품 목록 관리</h3>
+                    <div className="admin-stock-list">
+                        {stocks.map(stock => (
+                            <div key={stock.id} className="admin-stock-item">
+                                <div className="admin-stock-info">
+                                    <span className="stock-name">{getProductIcon(stock.productType)} {stock.name}</span>
+                                    <span className="stock-details">
+                                        {formatCurrency(stock.price)} | {SECTORS[stock.sector]?.name || '기타'} | {stock.isListed ? '상장' : '상장폐지'} | {stock.isManual ? '수동' : '자동'}
+                                        {stock.productType === PRODUCT_TYPES.BOND && ` | 만기: ${stock.maturityYears}년 | 이자율: ${stock.couponRate}%`}
+                                    </span>
+                                </div>
+                                <div className="form-actions">
+                                    <button onClick={() => onEditStock(stock.id)} className="btn btn-primary">가격 수정</button>
+                                    <button onClick={() => onToggleManualStock(stock.id, stock.isListed)} className={`btn ${stock.isListed ? 'btn-secondary' : 'btn-success'}`}>{stock.isListed ? '상장폐지' : '재상장'}</button>
+                                    <button onClick={() => onDeleteStock(stock.id, stock.name)} className="btn btn-danger">삭제</button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div style={{ fontSize: "14px", color: "#666" }}>
-                      현재가: {formatCurrency(stock.price)} | 최소가:{" "}
-                      {formatCurrency(stock.minListingPrice)} | 재상장:{" "}
-                      {stock.relistCount || 0}회
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", gap: "10px" }}>
-                    <button
-                      onClick={() => handleEditStockClick(stock.id)}
-                      style={{
-                        background: "#3498db",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "8px 16px",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                    >
-                      ✏️ 가격 수정
-                    </button>
-                    {stock.isManual && (
-                      <button
-                        onClick={() =>
-                          handleToggleManualStock(stock.id, stock.isListed)
-                        }
-                        style={{
-                          background: stock.isListed ? "#e74c3c" : "#3498db",
-                          color: "white",
-                          border: "none",
-                          borderRadius: "6px",
-                          padding: "8px 16px",
-                          cursor: "pointer",
-                          fontSize: "14px",
-                        }}
-                      >
-                        {stock.isListed ? "🚫 상장폐지" : "📈 재상장"}
-                      </button>
+                </div>
+                <div className="admin-section">
+                    <h3>새 상품 추가</h3>
+                    <button onClick={() => setShowAddForm(!showAddForm)} className="btn btn-primary">{showAddForm ? '취소' : '새 상품 추가 양식 열기'}</button>
+                    {showAddForm && (
+                        <div className="add-stock-form">
+                            <div className="form-grid">
+                                <div className="form-group">
+                                    <label className="form-label">상품 유형</label>
+                                    <select value={newStock.productType} onChange={e => setNewStock(p => ({ ...p, productType: e.target.value }))} className="form-input">
+                                        <option value={PRODUCT_TYPES.STOCK}>주식</option>
+                                        <option value={PRODUCT_TYPES.ETF}>ETF/지수</option>
+                                        <option value={PRODUCT_TYPES.BOND}>채권</option>
+                                    </select>
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">상품명</label>
+                                    <input type="text" value={newStock.name} onChange={e => setNewStock(p => ({ ...p, name: e.target.value }))} className="form-input"
+                                        placeholder={newStock.productType === PRODUCT_TYPES.BOND ? "예: 국고채 10년" : newStock.productType === PRODUCT_TYPES.ETF ? "예: KOSPI 200" : "예: 삼성전자"} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">초기 가격</label>
+                                    <input type="number" value={newStock.price} onChange={e => setNewStock(p => ({ ...p, price: e.target.value }))} className="form-input" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">최소 상장가</label>
+                                    <input type="number" value={newStock.minListingPrice} onChange={e => setNewStock(p => ({ ...p, minListingPrice: e.target.value }))} className="form-input" />
+                                </div>
+                                {newStock.productType === PRODUCT_TYPES.STOCK && (
+                                    <div className="form-group">
+                                        <label className="form-label">섹터</label>
+                                        <select value={newStock.sector} onChange={e => setNewStock(p => ({ ...p, sector: e.target.value }))} className="form-input">
+                                            {Object.entries(SECTORS).filter(([key]) => !['INDEX', 'GOVERNMENT', 'CORPORATE'].includes(key)).map(([key, value]) => (
+                                                <option key={key} value={key}>{value.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+                                {newStock.productType === PRODUCT_TYPES.BOND && (
+                                    <>
+                                        <div className="form-group">
+                                            <label className="form-label">만기 (년)</label>
+                                            <input type="number" value={newStock.maturityYears} onChange={e => setNewStock(p => ({ ...p, maturityYears: e.target.value }))} className="form-input" placeholder="예: 10" />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="form-label">표면이자율 (%)</label>
+                                            <input type="number" step="0.1" value={newStock.couponRate} onChange={e => setNewStock(p => ({ ...p, couponRate: e.target.value }))} className="form-input" placeholder="예: 3.5" />
+                                        </div>
+                                    </>
+                                )}
+                                <div className="form-group checkbox-group">
+                                    <input type="checkbox" checked={newStock.isManual} onChange={e => setNewStock(p => ({ ...p, isManual: e.target.checked }))} id="isManualCheckbox" className="checkbox-input" />
+                                    <label htmlFor="isManualCheckbox">수동 관리 (자동 가격 변동 제외)</label>
+                                </div>
+                            </div>
+                            <div className="form-actions">
+                                <button onClick={handleAddStock} className="btn btn-success">상품 추가</button>
+                            </div>
+                        </div>
                     )}
-                    <button
-                      onClick={() => handleDeleteStock(stock.id, stock.name)}
-                      style={{
-                        background: "#e74c3c",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "6px",
-                        padding: "8px 16px",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                      }}
-                    >
-                      🗑️ 삭제
-                    </button>
-                  </div>
                 </div>
-              ))}
-          </div>
+            </div>
         </div>
-      </div>
-    </div>
-  );
-};
+    );
+});
 
 // === 메인 컴포넌트 ===
-const OptimizedStockExchange = () => {
-  const {
-    user,
-    userDoc,
-    isAdmin,
-    loading: authLoading,
-    firebaseReady,
-  } = useAuth();
+const StockExchange = () => {
+  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady } = useAuth();
 
-  const { data: initialStocks, loading: loadingStocks } =
-    useCachedFirestoreData("stocks");
-  const { data: portfolio, loading: loadingPortfolio } = useCachedFirestoreData(
-    user ? `users/${user.uid}/portfolio` : "dummy"
-  );
-
-  const [showTransactions, setShowTransactions] = useState(false);
+  const [classCode, setClassCode] = useState(null);
+  const [stocks, setStocks] = useState([]);
+  const [portfolio, setPortfolio] = useState([]);
+  const [marketCondition, setMarketCondition] = useState({ index: 1000, trend: "neutral", volatility: "normal" });
+  const [newsFeed, setNewsFeed] = useState([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [relistMultiplier, setRelistMultiplier] = useState(1.15);
   const [buyQuantities, setBuyQuantities] = useState({});
   const [sellQuantities, setSellQuantities] = useState({});
+  const [isTrading, setIsTrading] = useState(false);
+  const [showNews, setShowNews] = useState(true);
+  const [lockTimers, setLockTimers] = useState({});
+  const [activeTab, setActiveTab] = useState("stocks");
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [isFetching, setIsFetching] = useState(false);
+  const [showAllNews, setShowAllNews] = useState(false);
+  const [marketOpen, setMarketOpen] = useState(false);
+  
+  // 성능 최적화를 위한 상태 추가
+  const [cacheStatus, setCacheStatus] = useState({ hits: 0, misses: 0, savings: 0 });
+  const [lastBatchLoad, setLastBatchLoad] = useState(null);
 
-  const { settings: adminSettings, loading: adminSettingsLoading } =
-    useAdminSettings();
-
-  const compressedStocks = useCompressedData(initialStocks);
-  const { transactions: lazyTransactions, loading: transactionsLoading } =
-    useLazyTransactions(user, showTransactions);
-
-  const { treasuryData, loading: treasuryLoading } = useNationalTreasury();
-
-  const {
-    stocks,
-    setStocks,
-    updateStockPrices,
-    flushBatchUpdates,
-    lastUpdateTime,
-  } = useOptimizedStockPrices(compressedStocks);
+  const lastFetchTimeRef = useRef({
+    stocks: 0,
+    portfolio: 0,
+    news: 0,
+    marketStatus: 0,
+    batchLoad: 0
+  });
 
   useEffect(() => {
-    if (!adminSettingsLoading && adminSettings.relistMultiplier) {
-      setRelistMultiplier(adminSettings.relistMultiplier);
+    if (userDoc?.classCode) {
+      setClassCode(userDoc.classCode);
     }
-  }, [adminSettings, adminSettingsLoading]);
-
-  useDelistedStockDetector(portfolio, stocks, user);
-  useAutoDeleteDelistedHoldings(portfolio, user);
+  }, [userDoc]);
 
   useEffect(() => {
-    if (
-      compressedStocks.length > 0 &&
-      JSON.stringify(stocks) !== JSON.stringify(compressedStocks)
-    ) {
-      setStocks(compressedStocks);
-    }
-  }, [compressedStocks, stocks, setStocks]);
-
-  useEffect(() => {
-    if (!firebaseReady) return;
-
-    console.log("자동 주식 가격 업데이트 시작");
-    const priceUpdateInterval = setInterval(() => {
-      console.log("가격 업데이트 실행 중...");
-      updateStockPrices();
-    }, 20000);
-
-    const batchFlushInterval = setInterval(() => {
-      console.log("배치 업데이트 실행 중...");
-      flushBatchUpdates();
-    }, 30000);
-
-    return () => {
-      clearInterval(priceUpdateInterval);
-      clearInterval(batchFlushInterval);
-    };
-  }, [firebaseReady, updateStockPrices, flushBatchUpdates]);
-
-  useEffect(() => {
-    if (!firebaseReady || !stocks || stocks.length === 0) return;
-
-    console.log("자동 재상장 체크 시작 (2분 간격)");
-    const relistInterval = setInterval(async () => {
-      console.log("재상장 체크 실행 중...");
-
-      const delistedStocks = stocks.filter(
-        (stock) => stock && !stock.isListed && !stock.isManual
-      );
-
-      console.log(`상장폐지된 자동 주식 ${delistedStocks.length}개 발견`);
-
-      if (delistedStocks.length === 0) return;
-
-      const batch = writeBatch(db);
-      const updatedStockList = [...stocks];
-      let hasUpdates = false;
-
-      delistedStocks.forEach((stock) => {
-        const newPrice = Math.round(stock.minListingPrice * relistMultiplier);
-        const newRelistCount = (stock.relistCount || 0) + 1;
-
-        console.log(
-          `${stock.name} 재상장: ${formatCurrency(
-            stock.minListingPrice
-          )} → ${formatCurrency(newPrice)} (${newRelistCount}회째)`
-        );
-
-        const stockRef = doc(db, "stocks", stock.id);
-        batch.set(
-          stockRef,
-          {
-            price: newPrice,
-            isListed: true,
-            relistCount: newRelistCount,
-            delistedAt: null,
-            priceHistory: [newPrice],
-            lastUpdated: serverTimestamp(),
-            name: stock.name,
-            minListingPrice: stock.minListingPrice,
-            initialPrice: stock.initialPrice || stock.minListingPrice,
-            isManual: stock.isManual || false,
-          },
-          { merge: true }
-        );
-
-        const marketDataRef = doc(db, "marketData", "currentPrices");
-        batch.set(
-          marketDataRef,
-          {
-            [stock.id]: {
-              price: newPrice,
-              isListed: true,
-              relistCount: newRelistCount,
-              delistedAt: null,
-              priceHistory: [newPrice],
-            },
-            lastUpdate: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        const index = updatedStockList.findIndex((s) => s && s.id === stock.id);
-        if (index !== -1) {
-          updatedStockList[index] = {
-            ...updatedStockList[index],
-            price: newPrice,
-            isListed: true,
-            relistCount: newRelistCount,
-            delistedAt: null,
-            priceHistory: [newPrice],
-          };
-          hasUpdates = true;
+    const interval = setInterval(() => {
+      const newTimers = {};
+      portfolio.forEach(holding => {
+        const remaining = getRemainingLockTime(holding);
+        if (remaining > 0) {
+          newTimers[holding.id] = remaining;
         }
       });
+      setLockTimers(newTimers);
+      
+      // 캐시 통계 업데이트
+      setCacheStatus({
+        hits: cacheStats.hits,
+        misses: cacheStats.misses,
+        savings: cacheStats.savings
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [portfolio]);
 
-      if (hasUpdates) {
-        try {
-          await batch.commit();
-          console.log(`${delistedStocks.length}개 주식 재상장 완료`);
-          setStocks(updatedStockList);
-        } catch (error) {
-          console.error("재상장 배치 처리 실패:", error);
-        }
-      }
-    }, 2 * 60 * 1000);
+  // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
+  const fetchAllData = useCallback(async (forceRefresh = false) => {
+    if (!classCode || !user) return;
 
-    return () => clearInterval(relistInterval);
-  }, [stocks, relistMultiplier, firebaseReady, setStocks]);
+    if (isFetching) {
+      return;
+    }
 
-  const addStock = useCallback(async (stockData) => {
+    const now = Date.now();
+    const timeSinceLastBatch = now - lastFetchTimeRef.current.batchLoad;
+
+    // 강제 새로고침이거나 캐시가 만료된 경우에만 로드
+    if (!forceRefresh && timeSinceLastBatch <= CACHE_TTL.BATCH_DATA) {
+      return;
+    }
+
+    setIsFetching(true);
+
     try {
-      console.log("새 주식 추가 시도:", stockData);
+      const batchResult = await batchDataLoader.loadBatchData(classCode, user.uid, forceRefresh);
 
-      const stockId = `stock_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-      const stockRef = doc(db, "stocks", stockId);
+      if (batchResult.errors && batchResult.errors.length > 0) {
+        console.warn('[StockExchange] 배치 로드 중 일부 오류 발생:', batchResult.errors);
+      }
 
+      setStocks(batchResult.stocks || []);
+      setPortfolio(batchResult.portfolio || []);
+      setNewsFeed(batchResult.news || []);
+      setMarketOpen(batchResult.marketOpen || false);
+
+      lastFetchTimeRef.current.batchLoad = now;
+      lastFetchTimeRef.current.stocks = now;
+      lastFetchTimeRef.current.portfolio = now;
+      lastFetchTimeRef.current.news = now;
+      lastFetchTimeRef.current.marketStatus = now;
+
+      setLastBatchLoad(new Date());
+      setLastUpdated(new Date());
+
+    } catch (error) {
+      console.error('[StockExchange] 배치 로드 실패:', error);
+      alert('데이터를 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsFetching(false);
+    }
+  }, [classCode, user, isFetching]);
+
+  // === 초기 데이터 로드 및 조건부 자동 새로고침 (읽기 비용 최적화) ===
+  useEffect(() => {
+    if (!user || !firebaseReady || !classCode) return;
+
+    // 초기 로드
+    fetchAllData(true);
+
+    // 페이지 가시성 상태 추적
+    let isPageVisible = !document.hidden;
+    let pollingInterval = null;
+
+    // 폴링 시작/중지 함수
+    const startPolling = () => {
+      if (pollingInterval) return; // 이미 실행 중이면 무시
+
+      pollingInterval = setInterval(() => {
+        // 페이지가 보이고 있고, 시장이 열려있을 때만 폴링
+        if (isPageVisible && marketOpen) {
+          fetchAllData(false);
+        }
+      }, 5 * 60 * 1000); // 5분 간격
+    };
+
+    const stopPolling = () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    };
+
+    // 페이지 가시성 변경 감지
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+
+      if (isPageVisible && marketOpen) {
+        // 페이지가 다시 활성화되고 시장이 열려있으면 즉시 데이터 갱신 후 폴링 시작
+        fetchAllData(false);
+        startPolling();
+      } else {
+        // 페이지가 비활성화되거나 시장이 닫혔으면 폴링 중지
+        stopPolling();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 시장이 열려있고 페이지가 활성화되어 있으면 폴링 시작
+    if (marketOpen && isPageVisible) {
+      startPolling();
+    }
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [user, firebaseReady, classCode, marketOpen, fetchAllData]);
+
+  // === 자동 상장/폐지 관리는 Firebase Functions에서 처리 ===
+  // 10분마다 서버에서 자동으로 실행됨 (autoManageStocks 함수)
+  // 클라이언트에서는 별도 스케줄러 불필요
+
+  // === 시장 지수 계산 ===
+  useEffect(() => {
+    if (!stocks || stocks.length === 0) return;
+    const index = calculateMarketIndex(stocks);
+    let trend = "neutral";
+    if (index > 1100) trend = "bull";
+    else if (index < 900) trend = "bear";
+    setMarketCondition({ index, trend, volatility: "normal" });
+  }, [stocks]);
+
+  // === 거래 함수들 (최적화된 캐시 무효화) ===
+  const addStock = useCallback(async (stockData) => {
+    if (!classCode) return alert("클래스 정보가 없습니다.");
+    try {
+      const stockRef = doc(collection(db, "CentralStocks"));
       await setDoc(stockRef, {
         ...stockData,
         initialPrice: stockData.price,
-        relistCount: 0,
         priceHistory: [stockData.price],
         createdAt: serverTimestamp(),
+        holderCount: 0,
+        tradingVolume: 1000,
+        buyVolume: 0,
+        sellVolume: 0,
+        recentBuyVolume: 0,
+        recentSellVolume: 0,
+        volatility: stockData.volatility || 0.02
       });
-
-      console.log("주식 문서 생성 완료:", stockId);
-
-      const marketDataRef = doc(db, "marketData", "currentPrices");
-      await setDoc(
-        marketDataRef,
-        {
-          [stockId]: {
-            price: stockData.price,
-            isListed: true,
-            relistCount: 0,
-            priceHistory: [stockData.price],
-            isManual: stockData.isManual,
-            minListingPrice: stockData.minListingPrice,
-            initialPrice: stockData.price,
-          },
-        },
-        { merge: true }
-      );
-
-      console.log("시장 데이터 업데이트 완료");
-    } catch (error) {
-      console.error("주식 추가 오류:", error);
-      throw error;
+      
+      // 선택적 캐시 무효화
+      invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH_${classCode}`);
+      await fetchAllData(true);
+      
+      alert(`${stockData.name} 상품이 추가되었습니다.`);
+    } catch (error) { 
+      alert("상품 추가 중 오류가 발생했습니다."); 
     }
-  }, []);
+  }, [classCode, fetchAllData]);
 
-  const deleteStock = useCallback(
-    async (stockId) => {
+  const deleteStock = useCallback(async (stockId, stockName) => {
+    if (!classCode) return alert("클래스 정보가 없습니다.");
+    if (window.confirm(`'${stockName}' 상품을 정말로 삭제하시겠습니까?`)) {
       try {
-        console.log("주식 삭제 시도:", stockId);
-
-        const stockRef = doc(db, "stocks", stockId);
-        const batch = writeBatch(db);
-        batch.delete(stockRef);
-        await batch.commit();
-
-        console.log("주식 삭제 완료:", stockId);
-        setStocks((prevStocks) => prevStocks.filter((s) => s.id !== stockId));
-      } catch (error) {
-        console.error("주식 삭제 오류:", error);
-        throw error;
+        await deleteDoc(doc(db, "CentralStocks", stockId));
+        
+        invalidateCache(`STOCKS_${classCode}`);
+        invalidateCache(`BATCH_${classCode}`);
+        await fetchAllData(true);
+        
+        alert(`${stockName} 상품이 삭제되었습니다.`);
+      } catch (error) { 
+        alert("상품 삭제 중 오류가 발생했습니다."); 
       }
-    },
-    [setStocks]
-  );
+    }
+  }, [classCode, fetchAllData]);
 
-  const editStock = useCallback(
-    async (stockId) => {
-      const stock = stocks.find((s) => s.id === stockId);
-      if (!stock) return;
+  const editStock = useCallback(async (stockId) => {
+    if (!classCode) return alert("클래스 정보가 없습니다.");
+    const stock = stocks.find(s => s.id === stockId);
+    if (!stock) return;
+    const newPriceStr = prompt(`'${stock.name}'의 새로운 가격:`, stock.price.toString());
+    const newPrice = parseFloat(newPriceStr);
+    if (isNaN(newPrice) || newPrice <= 0) return alert("유효한 가격을 입력해주세요.");
+    try {
+      await updateDoc(doc(db, "CentralStocks", stockId), { 
+        price: newPrice, 
+        priceHistory: [...(stock.priceHistory || []).slice(-19), newPrice] 
+      });
+      
+      invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH_${classCode}`);
+      await fetchAllData(true);
+      
+      alert('가격이 수정되었습니다.');
+    } catch (error) { 
+      alert("가격 수정 중 오류가 발생했습니다."); 
+    }
+  }, [stocks, classCode, fetchAllData]);
 
-      const newPriceStr = prompt(
-        `'${stock.name}'의 새로운 가격을 입력하세요:`,
-        stock.price.toString()
-      );
-      const newPrice = parseFloat(newPriceStr);
+  const toggleManualStock = useCallback(async (stockId, currentIsListed) => {
+    if (!classCode) return alert("클래스 정보가 없습니다.");
+    const stock = stocks.find(s => s.id === stockId);
+    if (!stock) return;
+    const action = currentIsListed ? '상장폐지' : '재상장';
 
-      if (isNaN(newPrice) || newPrice <= 0) {
-        alert("유효한 가격을 입력해주세요.");
-        return;
-      }
-
+    if (window.confirm(`'${stock.name}' 상품을 ${action}하시겠습니까?`)) {
       try {
-        const stockRef = doc(db, "stocks", stockId);
-        const marketDataRef = doc(db, "marketData", "currentPrices");
-        const batch = writeBatch(db);
+        const updateData = currentIsListed
+            ? { isListed: false, price: 0, delistedAt: serverTimestamp() }
+            : { isListed: true, price: stock.minListingPrice, priceHistory: [stock.minListingPrice], delistedAt: null };
 
-        const updateData = {
-          price: newPrice,
-          priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-          updatedAt: serverTimestamp(),
-        };
+        await updateDoc(doc(db, "CentralStocks", stockId), updateData);
 
-        batch.update(stockRef, updateData);
-        batch.set(
-          marketDataRef,
-          {
-            [stockId]: {
-              price: newPrice,
-              priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-            },
-          },
-          { merge: true }
-        );
-
-        await batch.commit();
-        console.log("주식 가격 수정 완료:", stockId);
-
-        setStocks((prevStocks) =>
-          prevStocks.map((s) => {
-            if (s.id === stockId) {
-              return { ...s, ...updateData };
-            }
-            return s;
-          })
-        );
-
-        alert(
-          `${stock.name} 주식 가격이 ${formatCurrency(
-            newPrice
-          )}로 성공적으로 수정되었습니다.`
-        );
-      } catch (error) {
-        console.error("주식 가격 수정 오류:", error);
-        alert("주식 가격 수정 중 오류가 발생했습니다.");
-      }
-    },
-    [stocks, setStocks]
-  );
-
-  const toggleManualStock = useCallback(
-    async (stockId, currentIsListed) => {
-      const stockRef = doc(db, "stocks", stockId);
-      const marketDataRef = doc(db, "marketData", "currentPrices");
-      const stock = stocks.find((s) => s.id === stockId);
-      if (!stock || !stock.isManual || !user) return;
-
-      const batch = writeBatch(db);
-      let newPrice;
-      let newIsListed;
-      let updateData;
-      let marketUpdateField;
-
-      if (currentIsListed) {
-        const confirmDelist = window.confirm(
-          `${stock.name} 주식을 상장폐지 하시겠습니까?\n\n⚠️ 경고:\n- 보유자들의 주식 가치가 0이 됩니다\n- 하루 후 자동으로 삭제됩니다\n- 이 작업은 되돌릴 수 없습니다\n- 한번 상장폐지된 보유 주식은 재상장되어도 복구되지 않습니다`
-        );
-
-        if (!confirmDelist) return;
-
-        newPrice = 0;
-        newIsListed = false;
-        const delistTime = serverTimestamp();
-
-        updateData = {
-          price: newPrice,
-          isListed: newIsListed,
-          delistedAt: delistTime,
-          priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-          updatedAt: serverTimestamp(),
-        };
-        marketUpdateField = {
-          price: newPrice,
-          isListed: newIsListed,
-          delistedAt: delistTime,
-          priceHistory: [...(stock.priceHistory || []).slice(-9), newPrice],
-        };
-
-        alert(
-          `${stock.name} 주식이 상장폐지되었습니다.\n보유자들은 다음 로그인 시 또는 실시간 감지를 통해 주식이 상장폐지 처리됩니다.`
-        );
-      } else {
-        newPrice = stock.minListingPrice;
-        if (typeof newPrice !== "number" || newPrice <= 0) {
-          alert("최소 상장가가 유효하지 않습니다.");
-          return;
-        }
-
-        const newRelistCount = (stock.relistCount || 0) + 1;
-        newIsListed = true;
-
-        updateData = {
-          isListed: newIsListed,
-          price: newPrice,
-          priceHistory: [newPrice],
-          relistCount: increment(1),
-          delistedAt: null,
-          updatedAt: serverTimestamp(),
-        };
-        marketUpdateField = {
-          isListed: newIsListed,
-          price: newPrice,
-          priceHistory: [newPrice],
-          relistCount: newRelistCount,
-          delistedAt: null,
-        };
-
-        alert(
-          `${stock.name} 주식이 ${formatCurrency(
-            newPrice
-          )}로 재상장되었습니다.\n⚠️ 기존 보유자들의 상장폐지된 주식은 복구되지 않습니다.\n새로 매수해야만 해당 주식을 보유할 수 있습니다.`
-        );
-      }
-
-      batch.update(stockRef, updateData);
-      batch.set(
-        marketDataRef,
-        { [stockId]: marketUpdateField },
-        { merge: true }
-      );
-
-      try {
-        await batch.commit();
-        setStocks((prevStocks) =>
-          prevStocks.map((s) => {
-            if (s.id === stockId) {
-              const updated = { ...s, ...updateData };
-              if (updateData.relistCount) {
-                updated.relistCount = (s.relistCount || 0) + 1;
-              }
-              updated.price = newPrice;
-              updated.isListed = newIsListed;
-              updated.priceHistory = marketUpdateField.priceHistory;
-              updated.delistedAt = updateData.delistedAt;
-              return updated;
-            }
-            return s;
-          })
-        );
-      } catch (error) {
-        console.error("수동 주식 상태 변경 오류:", error);
-        alert("주식 상태 변경 중 오류가 발생했습니다.");
-        throw error;
-      }
-    },
-    [stocks, setStocks, user]
-  );
-
-  const buyStock = useCallback(
-    async (stockId, quantityString) => {
-      const quantity = parseInt(quantityString);
-      if (isNaN(quantity) || quantity <= 0) {
-        alert("유효한 수량을 입력해주세요.");
-        return;
-      }
-
-      const stock = stocks.find((s) => s.id === stockId);
-      if (!user || !userDoc || !stock || !stock.isListed) {
-        alert("매수할 수 없는 상태입니다.");
-        return;
-      }
-
-      if (userDoc.cash < stock.price * quantity) {
-        alert("현금이 부족합니다.");
-        return;
-      }
-
-      const cost = stock.price * quantity;
-
-      try {
-        const portfolioQuery = query(
-          collection(db, "users", user.uid, "portfolio"),
-          where("stockId", "==", stockId)
-        );
-        const portfolioSnapshot = await getDocs(portfolioQuery);
-        const existingHolding = portfolioSnapshot.empty
-          ? null
-          : {
-              id: portfolioSnapshot.docs[0].id,
-              ...portfolioSnapshot.docs[0].data(),
-            };
-
-        await runTransaction(db, async (transaction) => {
-          const userRef = doc(db, "users", user.uid);
-
-          const userSnapshot = await transaction.get(userRef);
-          if (!userSnapshot.exists()) {
-            throw new Error("사용자 문서를 찾을 수 없습니다.");
-          }
-
-          const userData = userSnapshot.data();
-          if (userData.cash < cost) {
-            throw new Error("현금이 부족합니다.");
-          }
-
-          transaction.update(userRef, { cash: increment(-cost) });
-
-          if (existingHolding) {
-            const holdingRef = doc(
-              db,
-              "users",
-              user.uid,
-              "portfolio",
-              existingHolding.id
-            );
-
-            if (existingHolding.isDelisted) {
-              transaction.update(holdingRef, {
-                quantity: quantity,
-                averagePrice: stock.price,
-                isDelisted: false,
-                delistedAt: null,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              });
-            } else {
-              const newQuantity = existingHolding.quantity + quantity;
-              const newAveragePrice = Math.round(
-                (existingHolding.averagePrice * existingHolding.quantity +
-                  cost) /
-                  newQuantity
-              );
-
-              transaction.update(holdingRef, {
-                quantity: newQuantity,
-                averagePrice: newAveragePrice,
-                updatedAt: serverTimestamp(),
-              });
-            }
-          } else {
-            const portfolioDocId = `${stockId}_${Date.now()}_${Math.random()
-              .toString(36)
-              .substr(2, 9)}`;
-            const newHoldingRef = doc(
-              db,
-              "users",
-              user.uid,
-              "portfolio",
-              portfolioDocId
-            );
-
-            transaction.set(newHoldingRef, {
-              stockId,
-              stockName: stock.name,
-              quantity,
-              averagePrice: stock.price,
-              isDelisted: false,
-              delistedAt: null,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-          }
-
-          const transactionId = `buy_${stockId}_${Date.now()}_${Math.random()
-            .toString(36)
-            .substr(2, 9)}`;
-          const txRef = doc(
-            db,
-            "users",
-            user.uid,
-            "transactions",
-            transactionId
+        if (currentIsListed) {
+          const batch = writeBatch(db);
+          
+          const portfoliosToDelistQuery = query(
+            collectionGroup(db, 'portfolio'),
+            where('classCode', '==', classCode),
+            where('stockId', '==', stockId)
           );
 
-          transaction.set(txRef, {
-            type: "매수",
+          const snapshot = await getDocs(portfoliosToDelistQuery);
+          
+          snapshot.forEach(doc => {
+            batch.update(doc.ref, { delistedAt: serverTimestamp() });
+          });
+
+          await batch.commit();
+        }
+        
+        invalidateCache(`STOCKS_${classCode}`);
+        invalidateCache(`PORTFOLIO`);
+        invalidateCache(`BATCH_${classCode}`);
+        await fetchAllData(true);
+        
+        alert(`${action} 처리되었습니다.`);
+      } catch (error) { 
+        alert(`${action} 처리 중 오류가 발생했습니다.`); 
+      }
+    }
+  }, [stocks, classCode, fetchAllData]);
+
+  const buyStock = useCallback(async (stockId, quantityString) => {
+    if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
+    if (isTrading || !classCode) return;
+    const quantity = parseInt(quantityString, 10);
+    if (isNaN(quantity) || quantity <= 0) return alert("유효한 수량을 입력해주세요.");
+    const stock = stocks.find(s => s.id === stockId);
+    if (!user || !stock || !stock.isListed) return alert("매수할 수 없는 상태입니다.");
+    const cost = stock.price * quantity;
+    const commission = Math.round(cost * COMMISSION_RATE);
+
+    // 거래세 계산
+    const taxResult = await applyStockTax(classCode, user.uid, cost, '매수');
+    const { taxAmount } = taxResult;
+    const totalCost = cost + commission + taxAmount;
+
+    setIsTrading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, "users", user.uid);
+        const stockRef = doc(db, "CentralStocks", stockId);
+        const holdingRef = doc(db, "users", user.uid, "portfolio", stockId);
+
+        const userDocSnapshot = await transaction.get(userRef);
+        if (!userDocSnapshot.exists() || userDocSnapshot.data().cash < totalCost)
+          throw new Error(`현금이 부족합니다. (매수비용: ${cost.toLocaleString()}원 + 수수료: ${commission.toLocaleString()}원 + 거래세: ${taxAmount.toLocaleString()}원 = 총 ${totalCost.toLocaleString()}원 필요)`);
+        
+        const holdingDoc = await transaction.get(holdingRef);
+        if (holdingDoc.exists()) {
+          const holdingData = holdingDoc.data();
+          const newQuantity = holdingData.quantity + quantity;
+          const newAveragePrice = Math.round(((holdingData.averagePrice * holdingData.quantity) + cost) / newQuantity);
+          transaction.update(holdingRef, {
+            quantity: newQuantity,
+            averagePrice: newAveragePrice,
+            updatedAt: serverTimestamp(),
+            lastBuyTime: serverTimestamp()
+          });
+        } else {
+          transaction.set(holdingRef, {
             stockId,
             stockName: stock.name,
             quantity,
-            price: stock.price,
-            total: cost,
-            timestamp: serverTimestamp(),
+            averagePrice: stock.price,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            lastBuyTime: serverTimestamp(),
+            delistedAt: null,
+            classCode,
+            productType: stock.productType || PRODUCT_TYPES.STOCK
           });
-        });
-
-        setBuyQuantities((prev) => ({ ...prev, [stockId]: "" }));
-        alert(`${stock.name} ${quantity}주 매수 완료!`);
-      } catch (error) {
-        console.error("매수 처리 오류:", error);
-        alert(`매수 처리 중 오류가 발생했습니다: ${error.message}`);
-      }
-    },
-    [stocks, user, userDoc]
-  );
-
-  const sellStock = useCallback(
-    async (holdingId, quantityString) => {
-      const quantity = parseInt(quantityString);
-      if (isNaN(quantity) || quantity <= 0) {
-        alert("유효한 수량을 입력해주세요.");
-        return;
-      }
-
-      const holding = portfolio.find((h) => h.id === holdingId);
-      if (!user || !holding || quantity > holding.quantity) {
-        alert("매도할 수 없는 상태입니다. (수량 확인)");
-        return;
-      }
-
-      if (holding.isDelisted) {
-        alert("상장폐지된 주식은 매도할 수 없습니다.");
-        return;
-      }
-
-      const stock = stocks.find((s) => s.id === holding.stockId);
-      if (!stock || !stock.isListed) {
-        alert("매도할 수 없는 상태입니다. (상장 상태 확인)");
-        return;
-      }
-
-      const sellPrice = stock.price * quantity;
-      const averageCost = holding.averagePrice * quantity;
-      const profit = sellPrice - averageCost;
-      const stockTax = calculateStockTax(profit);
-      const netRevenue = sellPrice - stockTax;
-
-      try {
-        await runTransaction(db, async (transaction) => {
-          const userRef = doc(db, "users", user.uid);
-          const holdingRef = doc(db, "users", user.uid, "portfolio", holdingId);
-
-          const userSnapshot = await transaction.get(userRef);
-          const holdingSnapshot = await transaction.get(holdingRef);
-
-          if (!userSnapshot.exists() || !holdingSnapshot.exists()) {
-            throw new Error("문서를 찾을 수 없습니다.");
-          }
-
-          const currentHoldingData = holdingSnapshot.data();
-          if (currentHoldingData.quantity < quantity) {
-            throw new Error("보유 수량이 부족합니다.");
-          }
-
-          transaction.update(userRef, { cash: increment(netRevenue) });
-
-          if (currentHoldingData.quantity === quantity) {
-            transaction.delete(holdingRef);
-          } else {
-            transaction.update(holdingRef, {
-              quantity: increment(-quantity),
-              updatedAt: serverTimestamp(),
-            });
-          }
-
-          const transactionId = `sell_${
-            holding.stockId
-          }_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-          const txRef = doc(
-            db,
-            "users",
-            user.uid,
-            "transactions",
-            transactionId
-          );
-          transaction.set(txRef, {
-            type: "매도",
-            stockId: holding.stockId,
-            stockName: stock.name,
-            quantity,
-            price: stock.price,
-            total: sellPrice,
-            profit: profit,
-            stockTax: stockTax,
-            netAmount: netRevenue,
-            timestamp: serverTimestamp(),
+          transaction.update(stockRef, {
+            holderCount: increment(1),
           });
-        });
-
-        if (stockTax > 0) {
-          await updateNationalTreasury(stockTax);
         }
+        
+        transaction.update(stockRef, {
+          tradingVolume: increment(quantity),
+          buyVolume: increment(quantity),
+          recentBuyVolume: increment(quantity * 0.3)
+        });
+        
+        transaction.update(userRef, { cash: increment(-totalCost) });
+      });
+      
+      if (commission > 0 && userDoc?.classCode) 
+        await updateNationalTreasury(commission, 'commission', userDoc.classCode);
+      
+      invalidateCache(`PORTFOLIO_user_${user.uid}`);
+      invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH_${classCode}`);
+      await fetchAllData(true);
+      
+      setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
+      alert(`${stock.name} ${quantity}주 매수 완료!\n수수료: ${formatCurrency(commission)}`);
+    } catch (error) { 
+      alert(error.message); 
+    } finally { 
+      setIsTrading(false); 
+    }
+  }, [stocks, user, userDoc, isTrading, classCode, marketOpen, fetchAllData]);
 
-        setSellQuantities((prev) => ({ ...prev, [holdingId]: "" }));
+  const sellStock = useCallback(async (holdingId, quantityString) => {
+    if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
+    if (isTrading) return;
+    const quantity = parseInt(quantityString, 10);
+    if (isNaN(quantity) || quantity <= 0) return alert("유효한 수량을 입력해주세요.");
+    const holding = portfolio.find(h => h.id === holdingId);
+    if (!user || !userDoc || !holding || quantity > holding.quantity) return alert("매도할 수 없는 상태입니다.");
+    if (holding.delistedAt) return alert("상장폐지된 상품은 매도할 수 없습니다.");
 
-        if (stockTax > 0) {
-          alert(
-            `${stock.name} ${quantity}주 매도 완료!\n수익: ${formatCurrency(
-              profit
-            )}\n주식세: ${formatCurrency(
-              stockTax
-            )}\n실제 수령액: ${formatCurrency(netRevenue)}`
-          );
+    if (!canSellHolding(holding)) {
+      const remaining = getRemainingLockTime(holding);
+      return alert(`매수 후 ${HOLDING_LOCK_PERIOD / 60000}분간은 매도할 수 없습니다.\n남은 시간: ${formatTime(remaining)}`);
+    }
+
+    const stock = stocks.find(s => s.id === holding.stockId);
+    if (!stock || !stock.isListed) return alert("현재 거래할 수 없는 상품입니다.");
+    const sellPrice = stock.price * quantity;
+    const commission = Math.round(sellPrice * COMMISSION_RATE);
+    const profit = (stock.price - holding.averagePrice) * quantity;
+
+    // 기존 양도소득세와 새로운 거래세 모두 적용
+    const existingTax = calculateStockTax(profit, stock.productType);
+    const taxResult = await applyStockTax(classCode, user.uid, sellPrice, '매도');
+    const { taxAmount: transactionTax } = taxResult;
+    const totalTax = existingTax + transactionTax;
+    const netRevenue = sellPrice - commission - totalTax;
+    setIsTrading(true);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const userRef = doc(db, "users", user.uid);
+        const holdingRef = doc(db, "users", user.uid, "portfolio", holdingId);
+        const stockRef = doc(db, "CentralStocks", holding.stockId);
+        
+        const currentHoldingDoc = await transaction.get(holdingRef);
+        if (!currentHoldingDoc.exists() || currentHoldingDoc.data().quantity < quantity) 
+          throw new Error("보유 수량이 변경되었습니다.");
+        
+        transaction.update(userRef, { cash: increment(netRevenue) });
+        
+        if (currentHoldingDoc.data().quantity === quantity) {
+          transaction.delete(holdingRef);
+          transaction.update(stockRef, {
+            holderCount: increment(-1),
+          });
         } else {
-          alert(
-            `${stock.name} ${quantity}주 매도 완료!\n${
-              profit < 0 ? "손실" : "수익"
-            }: ${formatCurrency(Math.abs(profit))}\n수령액: ${formatCurrency(
-              netRevenue
-            )}`
-          );
+          transaction.update(holdingRef, {
+            quantity: increment(-quantity),
+            updatedAt: serverTimestamp()
+          });
         }
-      } catch (error) {
-        console.error("매도 처리 오류:", error);
-        alert(`매도 처리 중 오류가 발생했습니다: ${error.message}`);
-      }
-    },
-    [stocks, portfolio, user]
-  );
+        
+        transaction.update(stockRef, {
+          sellVolume: increment(quantity),
+          recentSellVolume: increment(quantity * 0.3)
+        });
+      });
+      
+      if (totalTax > 0 && userDoc?.classCode) await updateNationalTreasury(totalTax, 'tax', userDoc.classCode);
+      if (commission > 0 && userDoc?.classCode) await updateNationalTreasury(commission, 'commission', userDoc.classCode);
 
-  const deleteHolding = useCallback(
-    async (holdingId, stockName) => {
-      if (!user) return;
-      if (
-        window.confirm(
-          `정말로 '${stockName}' 보유 주식을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
-        )
-      ) {
-        try {
-          const holdingRef = doc(db, "users", user.uid, "portfolio", holdingId);
-          await deleteDoc(holdingRef);
-          alert(`${stockName} 보유 주식이 성공적으로 삭제되었습니다.`);
-        } catch (error) {
-          console.error("보유 주식 삭제 오류:", error);
-          alert("보유 주식 삭제 중 오류가 발생했습니다.");
-        }
-      }
-    },
-    [user]
-  );
+      invalidateCache(`PORTFOLIO_user_${user.uid}`);
+      invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH_${classCode}`);
+      await fetchAllData(true);
 
+      setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
+      const taxInfo = totalTax > 0 ? `\n세금: ${formatCurrency(totalTax)}` : '';
+      alert(`${stock.name} ${quantity}주 매도 완료!\n수익: ${formatCurrency(profit)}${taxInfo}\n수수료: ${formatCurrency(commission)}\n순수익: ${formatCurrency(netRevenue)}`);
+    } catch (error) { 
+      alert(error.message); 
+    } finally { 
+      setIsTrading(false); 
+    }
+  }, [stocks, portfolio, user, userDoc, isTrading, marketOpen, fetchAllData]);
+
+  const deleteHolding = useCallback(async (holdingId) => {
+    if (!user) return;
+    if (window.confirm("이 상품(휴지조각)을 포트폴리오에서 삭제하시겠습니까?")) {
+      try {
+        await deleteDoc(doc(db, "users", user.uid, "portfolio", holdingId));
+        
+        invalidateCache(`PORTFOLIO_user_${user.uid}`);
+        invalidateCache(`BATCH_${classCode}`);
+        await fetchAllData(true);
+        
+        alert("삭제되었습니다.");
+      } catch (error) { 
+        alert("삭제 중 오류가 발생했습니다."); 
+      }
+    }
+  }, [user, classCode, fetchAllData]);
+
+  // === stocks 데이터를 Map으로 변환하여 조회 성능 향상 ===
+  const stocksMap = useMemo(() => {
+    const map = new Map();
+    stocks.forEach(stock => map.set(stock.id, stock));
+    return map;
+  }, [stocks]);
+
+  // === 계산된 값들 ===
   const portfolioStats = useMemo(() => {
-    let totalValue = 0,
-      totalInvested = 0,
-      totalProfit = 0;
-
-    portfolio.forEach((holding) => {
-      const stock = stocks.find((s) => s && s.id === holding.stockId);
-
-      if (holding.isDelisted) {
-        const investedValue = holding.averagePrice * holding.quantity;
-        totalInvested += investedValue;
-        totalProfit -= investedValue;
-      } else if (stock && stock.isListed) {
-        const currentValue = stock.price * holding.quantity;
-        const investedValue = holding.averagePrice * holding.quantity;
-        totalValue += currentValue;
-        totalInvested += investedValue;
-        totalProfit += currentValue - investedValue;
-      } else {
-        totalInvested += holding.averagePrice * holding.quantity;
-        totalProfit -= holding.averagePrice * holding.quantity;
+    let totalValue = 0, totalInvested = 0;
+    portfolio.forEach(holding => {
+      const investedValue = holding.averagePrice * holding.quantity;
+      totalInvested += investedValue;
+      if (!holding.delistedAt) {
+        const stock = stocksMap.get(holding.stockId);
+        if (stock && stock.isListed) totalValue += stock.price * holding.quantity;
       }
     });
-
-    const profitPercent =
-      totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
+    const totalProfit = totalValue - totalInvested;
+    const profitPercent = totalInvested > 0 ? (totalProfit / totalInvested) * 100 : 0;
     return { totalValue, totalInvested, totalProfit, profitPercent };
-  }, [portfolio, stocks]);
+  }, [portfolio, stocksMap]);
 
-  const getPriceChangeInfo = useCallback((stock) => {
-    if (!stock) return { change: 0, percent: 0, direction: "neutral" };
-    const history = stock.priceHistory || [stock.price];
-    if (history.length < 2)
-      return { change: 0, percent: 0, direction: "neutral" };
+  const filteredStocks = useMemo(() => {
+    return stocks.filter(s => {
+      if (!s.isListed) return false;
+      if (activeTab === "stocks") return s.productType === PRODUCT_TYPES.STOCK || !s.productType;
+      if (activeTab === "etfs") return s.productType === PRODUCT_TYPES.ETF;
+      if (activeTab === "bonds") return s.productType === PRODUCT_TYPES.BOND;
+      return false;
+    });
+  }, [stocks, activeTab]);
 
-    const current = history[history.length - 1];
-    const previous = history[history.length - 2];
-    const change = current - previous;
-    const percent = previous === 0 ? 0 : (change / previous) * 100;
+  const [showAllStocks, setShowAllStocks] = useState(false);
 
-    return {
-      change,
-      percent,
-      direction: change > 0 ? "up" : change < 0 ? "down" : "neutral",
-    };
-  }, []);
+  const displayedStocks = useMemo(() => {
+    return showAllStocks ? filteredStocks : filteredStocks.slice(0, 20);
+  }, [filteredStocks, showAllStocks]);
 
-  if (authLoading || !firebaseReady || loadingStocks) {
-    return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
-  }
+  const displayedNews = useMemo(() => {
+    return showAllNews ? newsFeed : newsFeed.slice(0, 3);
+  }, [newsFeed, showAllNews]);
 
-  if (!user || !userDoc) {
-    return <div className="loading-message">로그인이 필요합니다.</div>;
-  }
+  // === 수동 새로고침 함수 ===
+  const handleManualRefresh = useCallback(() => {
+    fetchAllData(true);
+  }, [fetchAllData]);
 
-  if (showAdminPanel && isAdmin()) {
-    return (
-      <AdminPanel
-        stocksList={stocks}
-        relistMultiplier={relistMultiplier}
-        setRelistMultiplier={setRelistMultiplier}
-        addStock={addStock}
-        toggleManualStock={toggleManualStock}
-        deleteStock={deleteStock}
-        editStock={editStock}
-        onClose={() => setShowAdminPanel(false)}
-      />
-    );
-  }
+  if (authLoading || !firebaseReady) return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
+  if (!user || !userDoc) return <div className="loading-message">로그인이 필요합니다.</div>;
+  if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
+  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} />; 
 
   return (
     <div className="stock-exchange-container">
-      <div className="stock-header">
-        <div className="stock-header-content">
-          <div className="logo-title">
-            <BarChart3 size={32} color="white" />
-            <h1>최적화된 주식 거래소</h1>
-          </div>
-          <div className="stock-header-actions">
-            <div className="user-info-display">
-              <span>{userDoc.name || user.displayName || "사용자"}님</span>
-              <small style={{ color: "#ccc", marginLeft: 8 }}>
-                마지막 업데이트: {new Date(lastUpdateTime).toLocaleTimeString()}
-              </small>
-              {!treasuryLoading && (
-                <div
-                  style={{
-                    fontSize: "0.9em",
-                    color: "#4CAF50",
-                    marginLeft: 16,
-                  }}
-                >
-                  💰 국고: {formatCurrency(treasuryData.totalAmount)}
-                  <span style={{ fontSize: "0.8em", marginLeft: 8 }}>
-                    (주식세: {formatCurrency(treasuryData.stockTaxRevenue)})
-                  </span>
+        <header className="stock-header">
+            <div className="stock-header-content">
+                <div className="logo-title">
+                    <BarChart3 size={32} color="white" /><h1>투자 거래소 ({classCode})</h1>
                 </div>
-              )}
+                <div className={`market-status ${marketOpen ? 'open' : 'closed'}`}>
+                    {marketOpen ? '● 개장' : '○ 마감'}
+                </div>
+                <div className="stock-header-actions">
+                    <div className="user-info-display">{formatCurrency(userDoc.cash)}</div>
+                    {isAdmin() && <button onClick={() => setShowAdminPanel(true)} className="btn btn-primary"><Settings size={16} /> 관리</button>}
+                </div>
             </div>
-            {isAdmin() && (
-              <button
-                onClick={() => setShowAdminPanel(true)}
-                className="btn btn-primary"
-              >
-                <Settings size={16} />
-                <span>관리자</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="market-section">
-        <div className="asset-summary">
-          <div className="asset-cards">
-            <div className="asset-card">
-              <div className="asset-card-content">
-                <div className="asset-card-info">
-                  <h3>보유 현금</h3>
-                  <p className="value">{formatCurrency(userDoc.cash)}</p>
+        </header>
+        <main className="market-section">
+            <section className="asset-summary">
+                <div className="asset-cards">
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div><div className="asset-card-icon blue">📊</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div><div className="asset-card-icon purple">💎</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div><div className={`asset-card-icon ${portfolioStats.totalProfit >= 0 ? 'red' : 'blue'}`}>{portfolioStats.totalProfit >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div><div className={`asset-card-icon ${portfolioStats.profitPercent >= 0 ? 'red' : 'blue'}`}>{portfolioStats.profitPercent >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
                 </div>
-                <div className="asset-card-icon green">
-                  <span>💰</span>
-                </div>
-              </div>
-            </div>
-            <div className="asset-card">
-              <div className="asset-card-content">
-                <div className="asset-card-info">
-                  <h3>주식 평가액</h3>
-                  <p className="value">
-                    {formatCurrency(portfolioStats.totalValue)}
-                  </p>
-                </div>
-                <div className="asset-card-icon blue">
-                  <span>📊</span>
-                </div>
-              </div>
-            </div>
-            <div className="asset-card">
-              <div className="asset-card-content">
-                <div className="asset-card-info">
-                  <h3>총 자산</h3>
-                  <p className="value">
-                    {formatCurrency(userDoc.cash + portfolioStats.totalValue)}
-                  </p>
-                </div>
-                <div className="asset-card-icon purple">
-                  <span>💎</span>
-                </div>
-              </div>
-            </div>
-            <div className="asset-card">
-              <div className="asset-card-content">
-                <div className="asset-card-info">
-                  <h3>수익률</h3>
-                  <p
-                    className={`value ${
-                      portfolioStats.profitPercent >= 0
-                        ? "profit-positive"
-                        : "profit-negative"
-                    }`}
-                  >
-                    {formatPercent(portfolioStats.profitPercent)}
-                  </p>
-                </div>
-                <div
-                  className={`asset-card-icon ${
-                    portfolioStats.profitPercent >= 0 ? "red" : "blue"
-                  }`}
-                >
-                  {portfolioStats.profitPercent >= 0 ? (
-                    <TrendingUp size={24} color="white" />
-                  ) : (
-                    <TrendingDown size={24} color="white" />
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="market-list-section">
-          <div className="section-header">
-            <h2 className="section-title">
-              <BarChart3 size={24} />
-              주식 시장 (최적화됨)
-            </h2>
-            <div className="update-indicator">
-              <span>🔄 20초마다 가격 업데이트, 2분마다 재상장 체크</span>
-            </div>
-          </div>
-          <div className="market-grid">
-            {stocks &&
-              stocks
-                .filter((stock) => stock && stock.isListed)
-                .map((stock) => {
-                  const priceChange = getPriceChangeInfo(stock);
-                  const quantity = buyQuantities[stock.id] || "";
-                  const currentCost = stock.price * parseInt(quantity || "0");
-                  const canAfford =
-                    userDoc.cash >= currentCost &&
-                    parseInt(quantity || "0") > 0;
-
-                  return (
-                    <div
-                      key={stock.id}
-                      className={`stock-card ${
-                        priceChange.direction === "up"
-                          ? "price-up"
-                          : priceChange.direction === "down"
-                          ? "price-down"
-                          : ""
-                      }`}
-                    >
-                      <div className="stock-card-header">
-                        <div className="stock-info">
-                          <h3>{stock.name}</h3>
-                          <div className="stock-badges">
-                            <span
-                              className={`stock-badge ${
-                                stock.isManual ? "manual" : "auto"
-                              }`}
-                            >
-                              {stock.isManual ? "수동" : "자동"}
-                            </span>
-                            {(stock.relistCount || 0) > 0 && (
-                              <span className="stock-badge relist">
-                                재상장 {stock.relistCount}회
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="stock-price-section">
-                          <div className="stock-price">
-                            {formatCurrency(stock.price)}
-                          </div>
-                          {priceChange.direction !== "neutral" && (
-                            <div
-                              className={`stock-change ${priceChange.direction}`}
-                            >
-                              {priceChange.direction === "up" ? (
-                                <TrendingUp size={16} />
-                              ) : (
-                                <TrendingDown size={16} />
-                              )}
-                              <span>{formatPercent(priceChange.percent)}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="stock-actions">
-                        <input
-                          type="number"
-                          min="1"
-                          value={quantity}
-                          onChange={(e) =>
-                            setBuyQuantities((prev) => ({
-                              ...prev,
-                              [stock.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="수량"
-                          className="quantity-input"
-                        />
-                        <button
-                          onClick={() => buyStock(stock.id, quantity)}
-                          disabled={!canAfford}
-                          className={`trade-button buy ${
-                            !canAfford ? "disabled" : ""
-                          }`}
-                        >
-                          매수
-                        </button>
-                      </div>
-                      {parseInt(quantity || "0") > 0 && (
-                        <div className="cost-display">
-                          총 금액: {formatCurrency(currentCost)}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-          </div>
-        </div>
-
-        <div className="portfolio-section">
-          <div className="section-header">
-            <h2 className="section-title">내 포트폴리오</h2>
-            {portfolio.length > 0 && (
-              <div className="portfolio-summary-badge">
-                <span
-                  className={`total-profit ${
-                    portfolioStats.totalProfit >= 0 ? "profit" : "loss"
-                  }`}
-                >
-                  {formatCurrency(portfolioStats.totalProfit)} (
-                  {formatPercent(portfolioStats.profitPercent)})
-                </span>
-              </div>
-            )}
-          </div>
-          {loadingPortfolio ? (
-            <div style={{ textAlign: "center", padding: "20px" }}>
-              포트폴리오를 불러오는 중...
-            </div>
-          ) : portfolio.length === 0 ? (
-            <p className="no-transactions">보유한 주식이 없습니다.</p>
-          ) : (
-            <div className="portfolio-cards">
-              {portfolio.map((holding) => {
-                const stock = stocks.find((s) => s && s.id === holding.stockId);
-                const isDelisted = holding.isDelisted;
-                const isUnlistedOrInfoMissing = !stock || !stock.isListed;
-
-                if (isDelisted || isUnlistedOrInfoMissing) {
-                  const title = isDelisted
-                    ? `${holding.stockName} ⚠️ (상장폐지됨)`
-                    : `${holding.stockName} (정보없음/비상장)`;
-
-                  return (
-                    <div
-                      key={holding.id}
-                      className="portfolio-card delisted"
-                      style={{ border: "2px solid #e74c3c" }}
-                    >
-                      <div className="portfolio-card-header">
-                        <h4>{title}</h4>
-                        <span>{holding.quantity.toLocaleString()}주</span>
-                      </div>
-                      <div className="portfolio-metrics">
+                
+                {/* 성능 통계 표시 (관리자 전용) */}
+                {isAdmin() && (
+                    <div style={{ 
+                        marginTop: '10px', 
+                        padding: '8px 12px', 
+                        background: '#f0f9ff', 
+                        borderRadius: '6px', 
+                        fontSize: '0.8rem', 
+                        color: '#0369a1',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
                         <div>
-                          평균매수가: {formatCurrency(holding.averagePrice)}
+                            🚀 성능 최적화 상태: 캐시 적중 {cacheStatus.hits}회, 누락 {cacheStatus.misses}회 
+                            (절약률: {cacheStatus.hits + cacheStatus.misses > 0 ? Math.round((cacheStatus.hits / (cacheStatus.hits + cacheStatus.misses)) * 100) : 0}%)
                         </div>
-                        <div style={{ color: "#e74c3c", fontWeight: "bold" }}>
-                          현재가: 0원 (가치 없음)
-                        </div>
-                        <div style={{ color: "#e74c3c", fontWeight: "bold" }}>
-                          평가손익: -
-                          {formatCurrency(
-                            holding.averagePrice * holding.quantity
-                          )}{" "}
-                          (-100%)
-                        </div>
-                        {isDelisted && (
-                          <div
-                            style={{
-                              fontSize: "0.9em",
-                              color: "#666",
-                              marginTop: "10px",
-                            }}
-                          >
-                            ⏰ 상장폐지된 주식은 24시간 후 자동 삭제될 수
-                            있습니다.
-                          </div>
+                        {lastBatchLoad && (
+                            <div>마지막 배치로드: {lastBatchLoad.toLocaleTimeString()}</div>
                         )}
-                      </div>
-                      <div
-                        className="portfolio-card-actions"
-                        style={{ marginTop: "10px" }}
-                      >
-                        <button
-                          onClick={() =>
-                            deleteHolding(holding.id, holding.stockName)
-                          }
-                          style={{
-                            background: "#e74c3c",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "6px",
-                            padding: "8px 15px",
-                            cursor: "pointer",
-                            fontSize: "14px",
-                            width: "100%",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            gap: "5px",
-                          }}
-                        >
-                          <Trash2 size={14} /> 즉시 삭제
-                        </button>
-                      </div>
                     </div>
-                  );
-                }
+                )}
+            </section>
 
-                const currentValue = stock.price * holding.quantity;
-                const investedValue = holding.averagePrice * holding.quantity;
-                const profit = currentValue - investedValue;
-                const profitPercent =
-                  investedValue > 0 ? (profit / investedValue) * 100 : 0;
-                const sellQuantityValue = sellQuantities[holding.id] || "";
-                const canSell =
-                  parseInt(sellQuantityValue || "0") > 0 &&
-                  parseInt(sellQuantityValue || "0") <= holding.quantity;
-
-                return (
-                  <div
-                    key={holding.id}
-                    className={`portfolio-card ${
-                      profit >= 0 ? "profit" : "loss"
-                    }`}
-                  >
-                    <div className="portfolio-card-header">
-                      <h4>{holding.stockName}</h4>
-                      <span>{holding.quantity.toLocaleString()}주</span>
+            <section className="news-section">
+                <div className="news-header" onClick={() => setShowNews(!showNews)}>
+                    <h3 className="news-title">📰 최신 뉴스</h3>
+                    <div className={`news-toggle ${showNews ? 'expanded' : ''}`}>
+                        {showNews ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
                     </div>
-                    <div className="portfolio-metrics">
-                      <div>
-                        평균매수가: {formatCurrency(holding.averagePrice)}
-                      </div>
-                      <div>현재가: {formatCurrency(stock.price)}</div>
-                      <div>
-                        평가손익:{" "}
-                        <span className={profit >= 0 ? "profit" : "loss"}>
-                          {formatCurrency(profit)} (
-                          {formatPercent(profitPercent)})
-                        </span>
-                      </div>
-                    </div>
-                    <div className="portfolio-card-actions">
-                      <div className="trade-section">
-                        <input
-                          type="number"
-                          min="1"
-                          max={holding.quantity}
-                          value={sellQuantityValue}
-                          onChange={(e) =>
-                            setSellQuantities((prev) => ({
-                              ...prev,
-                              [holding.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="매도수량"
-                          className="trade-input"
-                        />
-                        <button
-                          onClick={() =>
-                            sellStock(holding.id, sellQuantityValue)
-                          }
-                          disabled={!canSell}
-                          className={`action-btn sell-btn ${
-                            !canSell ? "disabled" : ""
-                          }`}
-                        >
-                          매도
-                        </button>
-                      </div>
-                      {parseInt(sellQuantityValue || "0") > 0 && (
-                        <div className="expected-amount">
-                          <div>
-                            예상 수령액:{" "}
-                            {formatCurrency(
-                              stock.price * parseInt(sellQuantityValue)
-                            )}
-                          </div>
-                          {(() => {
-                            const sellAmount =
-                              stock.price * parseInt(sellQuantityValue);
-                            const costBasis =
-                              holding.averagePrice *
-                              parseInt(sellQuantityValue);
-                            const expectedProfit = sellAmount - costBasis;
-                            const expectedTax =
-                              calculateStockTax(expectedProfit);
+                </div>
+                <div className={`news-content ${showNews ? 'expanded' : ''}`}>
+                    {displayedNews.length > 0 ? (
+                        <>
+                            {displayedNews.map(news => {
+                                // 안전한 타임스탬프 처리
+                                const newsTime = news.timestamp instanceof Date
+                                    ? news.timestamp
+                                    : new Date(news.timestamp || Date.now());
 
-                            if (expectedTax > 0) {
-                              return (
-                                <div
-                                  style={{ fontSize: "0.8em", color: "#666" }}
+                                return (
+                                    <div key={news.id} className="news-item">
+                                        <div className="news-meta">
+                                            <span className="news-time">
+                                                {newsTime.toLocaleTimeString('ko-KR', {
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    second: '2-digit',
+                                                    hour12: true
+                                                })}
+                                            </span>
+                                            {news.source && (
+                                                <span className={`news-source ${news.source}`}>
+                                                    {news.source === 'central' ? '🌐 중앙' : '🏫 클래스'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="news-headline">
+                                            <strong>{news.title || '제목 없음'}</strong>
+                                            {news.content && <span className="news-content"> - {news.content}</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {newsFeed.length > 3 && (
+                                <button
+                                    onClick={() => setShowAllNews(!showAllNews)}
+                                    className="btn btn-secondary"
+                                    style={{ marginTop: '10px', width: '100%' }}
                                 >
-                                  수익: {formatCurrency(expectedProfit)} → 세금:{" "}
-                                  {formatCurrency(expectedTax)} → 실수령:{" "}
-                                  {formatCurrency(sellAmount - expectedTax)}
-                                </div>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div className="transaction-section">
-          <div className="section-header">
-            <h2 className="section-title">거래 내역</h2>
-            <button
-              onClick={() => setShowTransactions(!showTransactions)}
-              className="btn btn-secondary"
-            >
-              {showTransactions ? "숨기기" : "보기"}
-            </button>
-          </div>
-          {showTransactions && (
-            <div>
-              {transactionsLoading ? (
-                <div style={{ textAlign: "center", padding: "20px" }}>
-                  거래내역을 불러오는 중...
-                </div>
-              ) : lazyTransactions.length === 0 ? (
-                <p className="no-transactions">거래내역이 없습니다.</p>
-              ) : (
-                <div className="transaction-table-container">
-                  <table className="transaction-table">
-                    <thead>
-                      <tr>
-                        <th>시간</th>
-                        <th>구분</th>
-                        <th>종목</th>
-                        <th>수량</th>
-                        <th>가격</th>
-                        <th>총액</th>
-                        <th>세금</th>
-                        <th>실수령액/총액</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {lazyTransactions.map((tx) => (
-                        <tr key={tx.id}>
-                          <td>{tx.timestamp.toLocaleString()}</td>
-                          <td>
-                            <span
-                              className={`status-badge ${
-                                tx.type === "매수" ? "buy" : "sell"
-                              }`}
-                            >
-                              {tx.type}
-                            </span>
-                          </td>
-                          <td>{tx.stockName}</td>
-                          <td>{tx.quantity.toLocaleString()}</td>
-                          <td>{formatCurrency(tx.price)}</td>
-                          <td>{formatCurrency(tx.total)}</td>
-                          <td>
-                            {tx.type === "매도" && tx.stockTax > 0 ? (
-                              <span style={{ color: "#e74c3c" }}>
-                                {formatCurrency(tx.stockTax)}
-                              </span>
-                            ) : (
-                              <span>-</span>
+                                    {showAllNews ? `접기` : `더보기 (${newsFeed.length - 3}개 더)`}
+                                </button>
                             )}
-                          </td>
-                          <td>
-                            {tx.type === "매도"
-                              ? formatCurrency(tx.netAmount)
-                              : formatCurrency(tx.total)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                        </>
+                    ) : (
+                        <p>새로운 뉴스가 없습니다.</p>
+                    )}
                 </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+            </section>
+
+            <section className="market-list-section">
+                <div className="section-header">
+                    <h2 className="section-title">📈 투자 시장</h2>
+                    <div className="update-indicator">
+                        <span>종합지수: {marketCondition.index} {marketCondition.trend === 'bull' ? '📼' : marketCondition.trend === 'bear' ? '📽' : ''}</span>
+                        <button onClick={handleManualRefresh} disabled={isFetching} className="btn btn-secondary" style={{padding: '4px 8px', fontSize: '0.75rem'}}>
+                            <RefreshCw size={12} />
+                            {isFetching ? '갱신중...' : '새로고침'}
+                        </button>
+                        {lastUpdated && <span style={{fontSize: '0.75rem', color: '#6b7280'}}>마지막 갱신: {lastUpdated.toLocaleTimeString()}</span>}
+                    </div>
+                </div>
+
+                <div className="market-tabs">
+                    <button onClick={() => setActiveTab("stocks")} className={`tab-button ${activeTab === "stocks" ? "active" : ""}`}>주식</button>
+                    <button onClick={() => setActiveTab("etfs")} className={`tab-button ${activeTab === "etfs" ? "active" : ""}`}>ETF/지수</button>
+                    <button onClick={() => setActiveTab("bonds")} className={`tab-button ${activeTab === "bonds" ? "active" : ""}`}>채권</button>
+                </div>
+
+                <div className="market-grid">
+                    {displayedStocks.map(stock => {
+                        const priceHistory = stock.priceHistory || [stock.price];
+                        const priceChange = priceHistory.length >= 2 ? ((priceHistory.slice(-1)[0] - priceHistory.slice(-2)[0]) / priceHistory.slice(-2)[0]) * 100 : 0;
+                        return (
+                            <div key={stock.id} className={`stock-card ${priceChange > 0 ? 'price-up' : priceChange < 0 ? 'price-down' : ''}`}>
+                                <div className="stock-card-header">
+                                    <div className="stock-info">
+                                        <h3>{getProductIcon(stock.productType)} {stock.name}</h3>
+                                        <div className="stock-badges">
+                                            <span className={`stock-badge ${getProductBadgeClass(stock.productType)}`}>
+                                                {stock.productType === PRODUCT_TYPES.BOND ? `${stock.maturityYears}년 ${stock.couponRate}%` : SECTORS[stock.sector]?.name || '기타'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div className="stock-price-section">
+                                        <div className="stock-price">{formatCurrency(stock.price)}</div>
+                                        <div className={`stock-change ${priceChange > 0 ? 'up' : 'down'}`}>
+                                            <span>{formatPercent(priceChange)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="stock-actions">
+                                    <input type="number" min="1" value={buyQuantities[stock.id] || ''} onChange={e => setBuyQuantities(p => ({ ...p, [stock.id]: e.target.value }))} placeholder="수량" className="quantity-input" />
+                                    <button onClick={() => buyStock(stock.id, buyQuantities[stock.id])} disabled={!buyQuantities[stock.id] || isTrading || !marketOpen} className="trade-button buy">매수</button>
+                                </div>
+                                <div className="cost-display">
+                                    {buyQuantities[stock.id] && `예상 비용: ${formatCurrency(stock.price * parseInt(buyQuantities[stock.id]) * (1 + COMMISSION_RATE))}`}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                {filteredStocks.length > 20 && (
+                  <div className="load-more-container">
+                    <button onClick={() => setShowAllStocks(!showAllStocks)} className="load-more-button">
+                      {showAllStocks ? "접기" : "더 보기"}
+                    </button>
+                  </div>
+                )}
+            </section>
+            <section className="portfolio-section">
+                <div className="section-header">
+                    <h2 className="section-title">💼 내 포트폴리오</h2>
+                </div>
+                <div className="portfolio-cards">
+                    {portfolio.length === 0 ? <p className="no-transactions">보유한 상품이 없습니다.</p> : portfolio.map(holding => {
+                        const stock = stocksMap.get(holding.stockId);
+
+                        // 휴지조각 주식 처리 (상장폐지로 가치 0이 된 주식)
+                        if (holding.isWorthless) {
+                            return (
+                                <div key={holding.id} className="portfolio-card delisted">
+                                    <div className="portfolio-card-header">
+                                        <div className="stock-title-section">
+                                            <h3 className="stock-name">{holding.stockName}</h3>
+                                            <span className="stock-status delisted">🗑️ 휴지조각</span>
+                                        </div>
+                                        <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
+                                    </div>
+                                    <div className="portfolio-metrics-compact">
+                                        <div className="metrics-row">
+                                            <div className="metric-item"><span className="metric-label">현재 가치</span><span className="metric-value" style={{color: '#ef4444', fontWeight: 'bold'}}>0원</span></div>
+                                            <div className="metric-item"><span className="metric-label">손실</span><span className="metric-value" style={{color: '#ef4444'}}>-100%</span></div>
+                                        </div>
+                                    </div>
+                                    <p style={{fontSize: '0.85rem', color: '#6b7280', marginTop: '8px'}}>상장폐지된 상품입니다. 10분 후 자동 삭제됩니다.</p>
+                                    <div className="portfolio-card-actions">
+                                        <button onClick={() => deleteHolding(holding.id)} className="action-btn delete-btn">지금 삭제</button>
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        if (!stock) return null;
+                        const currentValue = stock.price * holding.quantity;
+                        const investedValue = holding.averagePrice * holding.quantity;
+                        const profit = currentValue - investedValue;
+                        const profitPercent = investedValue > 0 ? (profit / investedValue) * 100 : 0;
+                        return (
+                            <div key={holding.id} className={`portfolio-card ${profit >= 0 ? 'profit' : 'loss'}`}>
+                                <div className="portfolio-card-header">
+                                    <div className="stock-title-section">
+                                        <h3 className="stock-name">{getProductIcon(stock.productType)} {holding.stockName}</h3>
+                                    </div>
+                                    <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
+                                </div>
+                                <div className="portfolio-metrics-compact">
+                                    <div className="metrics-row">
+                                        <div className="metric-item"><span className="metric-label">평균 매수가</span><span className="metric-value">{formatCurrency(holding.averagePrice)}</span></div>
+                                        <div className="metric-item"><span className="metric-label">현재가</span><span className="metric-value current">{formatCurrency(stock.price)}</span></div>
+                                    </div>
+                                </div>
+                                <div className={`profit-summary ${profit >= 0 ? 'profit' : 'loss'}`}>
+                                    <div className="profit-amount">{formatCurrency(profit)}</div>
+                                    <div className="profit-percent">{formatPercent(profitPercent)}</div>
+                                </div>
+                                {lockTimers[holding.id] && (
+                                    <div style={{
+                                        padding: '8px',
+                                        background: '#fef3c7',
+                                        borderRadius: '8px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        fontSize: '0.85rem',
+                                        color: '#92400e',
+                                        marginTop: '8px'
+                                    }}>
+                                        <Lock size={16} />
+                                        <span>매도 제한: {formatTime(lockTimers[holding.id])} 남음</span>
+                                    </div>
+                                )}
+                                <div className="portfolio-card-actions">
+                                    <div className="trade-section">
+                                        <div className="trade-input-group">
+                                            <input type="number" min="1" max={holding.quantity} value={sellQuantities[holding.id] || ''} onChange={e => setSellQuantities(p => ({ ...p, [holding.id]: e.target.value }))} placeholder="매도 수량" className="trade-input" disabled={!!lockTimers[holding.id] || !marketOpen} />
+                                            <button onClick={() => sellStock(holding.id, sellQuantities[holding.id])} disabled={!sellQuantities[holding.id] || isTrading || !!lockTimers[holding.id] || !marketOpen} className="action-btn sell-btn">매도</button>
+                                        </div>
+                                        {sellQuantities[holding.id] && !lockTimers[holding.id] && (
+                                            <div className="expected-amount">
+                                                예상 수익: {formatCurrency((stock.price * parseInt(sellQuantities[holding.id])) * (1 - COMMISSION_RATE) - calculateStockTax(Math.max(0, (stock.price - holding.averagePrice) * parseInt(sellQuantities[holding.id])), stock.productType))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            </section>
+        </main>
     </div>
   );
 };
 
-export default OptimizedStockExchange;
+export default StockExchange;

@@ -12,6 +12,8 @@ const initialUsers = [
     role: "student",
     coupons: 0,
     email: "minjun@example.com",
+    classCode: "A-101",
+    password: "password123",
   },
   {
     id: "user2",
@@ -19,6 +21,8 @@ const initialUsers = [
     role: "student",
     coupons: 0,
     email: "seoyeon@example.com",
+    classCode: "B-202",
+    password: "password456",
   },
   {
     id: "admin1",
@@ -27,6 +31,8 @@ const initialUsers = [
     isAdmin: true,
     coupons: 0,
     email: "admin@example.com",
+    classCode: "ADMIN",
+    password: "adminpassword",
   },
   {
     id: "homework1",
@@ -35,6 +41,8 @@ const initialUsers = [
     job: "숙제관리인",
     coupons: 0,
     email: "homework@example.com",
+    classCode: "STAFF",
+    password: "staffpassword",
   },
 ];
 
@@ -133,6 +141,39 @@ export const getUserById = async (userId) => {
       }, 200);
     } catch (error) {
       console.error("사용자 조회 오류:", error);
+      reject(error);
+    }
+  });
+};
+
+/**
+ * 사용자 정보를 업데이트하는 함수
+ * @param {string} userId - 업데이트할 사용자의 ID
+ * @param {object} updatedData - 업데이트할 사용자 정보 객체
+ * @returns {Promise<object>} 업데이트된 사용자 객체
+ */
+export const updateUser = async (userId, updatedData) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const usersJson = localStorage.getItem(USERS_STORAGE_KEY);
+      let users = usersJson ? JSON.parse(usersJson) : initialUsers;
+
+      const userIndex = users.findIndex((user) => user.id === userId);
+
+      if (userIndex === -1) {
+        throw new Error(`사용자 ID(${userId})를 찾을 수 없습니다.`);
+      }
+
+      // 기존 사용자 정보에 새로운 데이터를 병합
+      users[userIndex] = { ...users[userIndex], ...updatedData };
+
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+
+      setTimeout(() => {
+        resolve(users[userIndex]);
+      }, 200);
+    } catch (error) {
+      console.error("사용자 정보 업데이트 오류:", error);
       reject(error);
     }
   });

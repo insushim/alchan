@@ -1,5 +1,5 @@
-// src/MyAssets.js
-import React, { useState, useEffect, useCallback } from "react";
+// src/MyAssets.js - Firestore 직접 조회 방식으로 수정된 최종 버전
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
 import {
   db,
@@ -14,21 +14,21 @@ import {
   collection,
   query,
   where,
+  functions,
+  httpsCallable,
 } from "./firebase";
-
-import CouponGoal from "./CouponGoal";
+import { orderBy, limit, runTransaction } from "firebase/firestore";
+import { formatKoreanCurrency } from './numberFormatter';
 import LoginWarning from "./LoginWarning";
-import DonateCouponModal from "./DonateCouponModal";
-import SellCouponModal from "./SellCouponModal";
-import GiftCouponModal from "./GiftCouponModal";
-import DonationHistoryModal from "./DonationHistoryModal";
 import TransferModal from "./TransferModal";
 
 export default function MyAssets() {
   const {
     user,
     userDoc,
-    users,
+    users, // 전체 사용자 목록 (송금 대상 찾기 등에서 필요)
+    classmates, // '나'를 제외한 학급 친구 목록 (송금, 선물 모달용)
+    allClassMembers, // 🔥 [추가] '나'를 포함한 학급 전체 구성원 목록 (기부 내역 모달용)
     loading: authLoading,
     updateUser: updateUserInAuth,
     addCashToUserById,
@@ -38,15 +38,27 @@ export default function MyAssets() {
   const userId = user?.uid;
   const userName =
     userDoc?.name || userDoc?.nickname || user?.displayName || "사용자";
-  const currentUserClassCode = userDoc?.classCode; // 현재 사용자의 학급 코드
+  const currentUserClassCode = userDoc?.classCode;
 
+  // 🔥 [최적화 1] 상태 및 레퍼런스
   const [assetsLoading, setAssetsLoading] = useState(true);
+  const loadingRef = useRef(false); // 로딩 중복 방지용 플래그
   const [parkingBalance, setParkingBalance] = useState(0);
   const [loans, setLoans] = useState([]);
   const [realEstateAssets, setRealEstateAssets] = useState([]);
   const [totalNetAssets, setTotalNetAssets] = useState(0);
+  const [goalDonations, setGoalDonations] = useState([]);
+  const [transactionHistory, setTransactionHistory] = useState([]);
 
-  // 🔥 학급별 목표 ID 생성 - mainGoal 대신 {classCode}_goal 형태 사용
+  // 🔥 [최적화 2] Firebase Functions 호출 함수들
+  const getUserAssetsDataFunction = httpsCallable(functions, 'getUserAssetsData');
+  const donateCouponFunction = httpsCallable(functions, 'donateCoupon');
+  const sellCouponFunction = httpsCallable(functions, 'sellCoupon');
+  const giftCouponFunction = httpsCallable(functions, 'giftCoupon');
+
+  // 🔥 [최적화 4] 캐시 유효 시간 설정
+  const CACHE_DURATION = 5 * 60 * 1000; // 5분 (MyAssets 전용)
+
   const currentGoalId = currentUserClassCode
     ? `${currentUserClassCode}_goal`
     : null;
@@ -70,221 +82,181 @@ export default function MyAssets() {
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
 
-  const loadMyAssetsData = useCallback(async () => {
-    if (authLoading) {
-      console.log("[MyAssets] 데이터 로드 대기: AuthContext 로딩 중...");
-      setAssetsLoading(true);
-      return;
+  // 🔥 [수정 1] 안전한 timestamp 변환 함수
+  const safeTimestampToDate = (timestamp) => {
+    try {
+      // null이나 undefined인 경우
+      if (!timestamp) {
+        return new Date();
+      }
+
+      // 이미 Date 객체인 경우
+      if (timestamp instanceof Date) {
+        return isNaN(timestamp.getTime()) ? new Date() : timestamp;
+      }
+
+      // Firestore Timestamp 객체인 경우
+      if (timestamp && typeof timestamp.toDate === 'function') {
+        const date = timestamp.toDate();
+        return isNaN(date.getTime()) ? new Date() : date;
+      }
+
+      // seconds 필드가 있는 Firestore Timestamp 형태인 경우
+      if (timestamp && timestamp.seconds) {
+        const date = new Date(timestamp.seconds * 1000);
+        return isNaN(date.getTime()) ? new Date() : date;
+      }
+
+      // ISO 문자열인 경우
+      if (typeof timestamp === 'string') {
+        const date = new Date(timestamp);
+        return isNaN(date.getTime()) ? new Date() : date;
+      }
+
+      // 숫자 타임스탬프인 경우
+      if (typeof timestamp === 'number') {
+        const date = new Date(timestamp);
+        return isNaN(date.getTime()) ? new Date() : date;
+      }
+
+      // 기타 경우 현재 날짜 반환
+      return new Date();
+    } catch (error) {
+      return new Date();
     }
+  };
 
-    if (!userId || !userDoc || !db) {
-      console.log("[MyAssets] loadMyAssetsData: 필수 정보 부족.", {
-        userIdExists: !!userId,
-        userDocExists: !!userDoc,
-        dbExists: !!db,
-      });
-      setAssetsLoading(false);
-      setParkingBalance(0);
-      setLoans([]);
-      setRealEstateAssets([]);
-      setTotalNetAssets(0);
-      setMyContribution(0);
-      return;
+  // 🔥 [최적화 5] 캐시 유효성 확인 함수
+  const isCacheValid = (cacheKey) => {
+    const cachedTime = dataFetchRef.current[cacheKey];
+    return cachedTime && (Date.now() - cachedTime) < CACHE_DURATION;
+  };
+
+  // 🔥 [최적화 6] localStorage 기반 캐시 함수들
+  const getCachedFirestoreData = (key) => {
+    try {
+      const cached = localStorage.getItem(`firestore_cache_${key}_${userId}`);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_DURATION) {
+          return data;
+        }
+      }
+    } catch (error) {
     }
+    return null;
+  };
 
-    if (!currentUserClassCode) {
-      console.warn(
-        "[MyAssets] 학급 코드가 없어 일부 데이터 로드를 건너뜁니다."
-      );
+  const setCachedFirestoreData = (key, data) => {
+    try {
+      const cacheItem = {
+        data,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(`firestore_cache_${key}_${userId}`, JSON.stringify(cacheItem));
+    } catch (error) {
     }
+  };
 
-    console.log(
-      "[MyAssets] 데이터 로드 시작 (userDoc, classCode 사용 가능):",
-      userId,
-      "classCode:",
-      currentUserClassCode,
-      "goalId:",
-      currentGoalId
-    );
+  // 🔥 [수정 2] 안전한 트랜잭션 기록 함수 - 로컬에서만 처리하고 나중에 배치로 동기화
+  const addTransaction = async (userId, amount, description) => {
+    try {
+      // 먼저 로컬 저장소에 저장
+      const localKey = `pending_transactions_${userId}`;
+      const existing = localStorage.getItem(localKey);
+      const pendingTransactions = existing ? JSON.parse(existing) : [];
+      
+      // 🔥 일관된 timestamp 형식 사용 - Date 객체 생성
+      const now = new Date();
+      const newTransaction = {
+        id: `local_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        amount: Number(amount) || 0, // 숫자로 안전하게 변환
+        description: String(description) || "거래 내역", // 문자열로 안전하게 변환
+        timestamp: now, // Date 객체로 직접 저장
+        timestampISO: now.toISOString(), // ISO 문자열도 보관
+        synced: false,
+      };
 
-    setAssetsLoading(true);
+      pendingTransactions.push(newTransaction);
+      localStorage.setItem(localKey, JSON.stringify(pendingTransactions, (key, value) => {
+        // Date 객체를 JSON으로 직렬화할 때 ISO 문자열로 변환
+        if (key === 'timestamp' && value instanceof Date) {
+          return value.toISOString();
+        }
+        return value;
+      }));
+
+      // 로컬 상태 즉시 업데이트
+      setTransactionHistory(prev => [newTransaction, ...prev.slice(0, 4)]);
+
+      
+      // 🔥 [수정 3] 백그라운드에서 비동기 동기화 (실패해도 메인 기능에 영향 없음)
+      setTimeout(async () => {
+        try {
+          await syncPendingTransactions(userId);
+        } catch (error) {
+        }
+      }, 1000);
+
+    } catch (error) {
+    }
+  };
+
+  // 🔥 [수정 4] 보류 중인 트랜잭션 동기화 함수
+  const syncPendingTransactions = async (userId) => {
+    const localKey = `pending_transactions_${userId}`;
+    const pendingStr = localStorage.getItem(localKey);
+    
+    if (!pendingStr) return;
 
     try {
-      // 로컬스토리지 기반 데이터 로드 (권한 문제 없음)
-      const savedParkingAccount = localStorage.getItem(
-        `parkingAccount_${userId}`
-      );
-      setParkingBalance(
-        savedParkingAccount ? JSON.parse(savedParkingAccount).balance || 0 : 0
-      );
-
-      const savedUserProducts = localStorage.getItem(`userProducts_${userId}`);
-      setLoans(
-        savedUserProducts ? JSON.parse(savedUserProducts).loans || [] : []
-      );
-
-      const savedProperties = localStorage.getItem("realEstateProperties");
-      setRealEstateAssets(
-        savedProperties
-          ? JSON.parse(savedProperties).filter((p) => p.ownerId === userId)
-          : []
-      );
-
-      // 쿠폰 가치 로드 (권한 오류 처리 추가)
-      try {
-        const settingsDocRef = doc(db, "settings", "mainSettings");
-        const settingsDocSnap = await getDoc(settingsDocRef);
-
-        if (settingsDocSnap.exists()) {
-          setCouponValue(settingsDocSnap.data().couponValue || 1000);
-          console.log(
-            "[MyAssets] 쿠폰 가치 로드 성공:",
-            settingsDocSnap.data().couponValue
-          );
-        } else {
-          console.log("[MyAssets] 설정 문서가 존재하지 않음, 기본값 사용");
-          setCouponValue(1000);
-
-          // 문서 생성 시도 (권한이 있는 경우에만)
-          try {
-            await setDoc(settingsDocRef, {
-              couponValue: 1000,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            console.log("[MyAssets] 기본 설정 문서 생성 완료");
-          } catch (createError) {
-            console.warn(
-              "[MyAssets] 설정 문서 생성 권한 없음:",
-              createError.message
-            );
-          }
+      const pendingTransactions = JSON.parse(pendingStr, (key, value) => {
+        // JSON에서 Date 객체로 복원
+        if (key === 'timestamp' && typeof value === 'string') {
+          return new Date(value);
         }
-      } catch (settingsError) {
-        console.error(
-          "[MyAssets] 설정 로드 오류 (권한 문제일 수 있음):",
-          settingsError.message
-        );
-        setCouponValue(1000); // 기본값 사용
+        return value;
+      });
+      
+      const unsyncedTransactions = pendingTransactions.filter(tx => !tx.synced);
 
-        if (settingsError.code === "permission-denied") {
-          console.warn(
-            "[MyAssets] 설정 정보 접근 권한이 없습니다. 기본값을 사용합니다."
-          );
+      if (unsyncedTransactions.length === 0) return;
+
+      const batch = writeBatch(db);
+      const userTransactionsRef = collection(db, "users", userId, "transactions");
+
+      unsyncedTransactions.forEach(tx => {
+        const docRef = doc(userTransactionsRef);
+        batch.set(docRef, {
+          amount: tx.amount,
+          description: tx.description,
+          timestamp: serverTimestamp(), // Firestore에는 serverTimestamp 사용
+          localTimestamp: tx.timestampISO || tx.timestamp, // 로컬 타임스탬프도 보존
+          syncedAt: serverTimestamp(),
+        });
+      });
+
+      await batch.commit();
+
+      // 동기화 완료 표시
+      const updatedTransactions = pendingTransactions.map(tx => 
+        unsyncedTransactions.find(utx => utx.id === tx.id) 
+          ? { ...tx, synced: true }
+          : tx
+      );
+
+      localStorage.setItem(localKey, JSON.stringify(updatedTransactions, (key, value) => {
+        if (key === 'timestamp' && value instanceof Date) {
+          return value.toISOString();
         }
-      }
-
-      // 학급별 목표 로드 (권한 오류 처리 추가)
-      if (currentUserClassCode && currentGoalId) {
-        try {
-          const goalDocRef = doc(db, "goals", currentGoalId);
-          const goalDocSnap = await getDoc(goalDocRef);
-
-          if (goalDocSnap.exists()) {
-            const goalData = goalDocSnap.data();
-
-            if (goalData.classCode === currentUserClassCode) {
-              setClassCouponGoal(goalData.targetAmount || 1000);
-              setGoalProgress(goalData.progress || 0);
-              console.log(
-                `[MyAssets] 학급(${currentUserClassCode}) 목표 로드 완료:`,
-                {
-                  targetAmount: goalData.targetAmount,
-                  progress: goalData.progress,
-                }
-              );
-            } else {
-              console.warn(
-                `[MyAssets] 목표의 학급 코드가 일치하지 않음: ${goalData.classCode} vs ${currentUserClassCode}`
-              );
-
-              // 기본 목표 생성 시도
-              try {
-                await createDefaultGoalForClass(
-                  currentUserClassCode,
-                  currentGoalId
-                );
-                setClassCouponGoal(1000);
-                setGoalProgress(0);
-              } catch (createError) {
-                console.error(
-                  "[MyAssets] 기본 목표 생성 실패:",
-                  createError.message
-                );
-                setClassCouponGoal(1000);
-                setGoalProgress(0);
-              }
-            }
-          } else {
-            console.log(
-              `[MyAssets] 학급(${currentUserClassCode})의 목표 문서 없음. 기본 목표 생성 시도.`
-            );
-
-            try {
-              await createDefaultGoalForClass(
-                currentUserClassCode,
-                currentGoalId
-              );
-              setClassCouponGoal(1000);
-              setGoalProgress(0);
-              console.log("[MyAssets] 기본 목표 생성 완료");
-            } catch (createError) {
-              console.error(
-                "[MyAssets] 기본 목표 생성 실패:",
-                createError.message
-              );
-              setClassCouponGoal(1000);
-              setGoalProgress(0);
-
-              if (createError.code === "permission-denied") {
-                console.warn(
-                  "[MyAssets] 목표 생성 권한이 없습니다. 기본값을 사용합니다."
-                );
-              }
-            }
-          }
-        } catch (goalError) {
-          console.error(
-            "[MyAssets] 목표 로드 오류 (권한 문제일 수 있음):",
-            goalError.message
-          );
-          setClassCouponGoal(1000);
-          setGoalProgress(0);
-
-          if (goalError.code === "permission-denied") {
-            console.warn(
-              "[MyAssets] 목표 정보 접근 권한이 없습니다. 기본값을 사용합니다."
-            );
-          }
-        }
-      } else {
-        // 학급 코드가 없으면 목표 관련 정보는 기본값으로
-        setClassCouponGoal(1000);
-        setGoalProgress(0);
-      }
-
-      setMyContribution(userDoc.myContribution || 0);
+        return value;
+      }));
+      
     } catch (error) {
-      console.error("[MyAssets] 전체 데이터 로드 오류:", error);
-
-      // 권한 오류인 경우 사용자에게 알림
-      if (error.code === "permission-denied") {
-        console.warn(
-          "[MyAssets] 데이터 접근 권한이 없습니다. 일부 기능이 제한될 수 있습니다."
-        );
-      }
-    } finally {
-      setAssetsLoading(false);
-      console.log(
-        "[MyAssets] 데이터 로드 완료. 현금:",
-        userDoc.cash,
-        "파킹:",
-        parkingBalance
-      );
     }
-  }, [userId, userDoc, db, currentGoalId, currentUserClassCode, authLoading]);
+  };
 
-  // 🔥 학급별 기본 목표 생성 함수
+  // 🔥 [핵심 수정] 데이터 덮어쓰기 방지를 위해 트랜잭션을 사용한 안전한 목표 생성 함수
   const createDefaultGoalForClass = async (classCode, goalId) => {
     try {
       const goalDocRef = doc(db, "goals", goalId);
@@ -301,30 +273,112 @@ export default function MyAssets() {
         createdBy: userId,
       };
 
-      await setDoc(goalDocRef, defaultGoalData);
-      console.log(`[MyAssets] 학급(${classCode}) 기본 목표 생성 완료:`, goalId);
+      // 트랜잭션을 사용하여 문서가 없을 때만 안전하게 생성 (덮어쓰기 방지)
+      await runTransaction(db, async (transaction) => {
+        const goalDoc = await transaction.get(goalDocRef);
+        if (!goalDoc.exists()) {
+          transaction.set(goalDocRef, defaultGoalData);
+          setCachedFirestoreData(`goal_${goalId}`, defaultGoalData);
+        } else {
+          const existingData = goalDoc.data();
+          setCachedFirestoreData(`goal_${goalId}`, existingData);
+        }
+      });
+      
     } catch (error) {
-      console.error(
-        `[MyAssets] 학급(${classCode}) 기본 목표 생성 오류:`,
-        error
-      );
-      throw error; // 오류를 다시 던져서 호출자가 처리할 수 있도록
+      throw error;
     }
   };
 
+  const loadMyAssetsData = useCallback(async () => {
+    if (!userId || !db) {
+      setAssetsLoading(false);
+      return;
+    }
+
+    // 이미 로딩 중이면 중복 실행 방지
+    if (loadingRef.current) {
+      console.log('[MyAssets] ⏸️ 이미 로딩 중이므로 중복 실행 방지');
+      return;
+    }
+
+    loadingRef.current = true;
+    setAssetsLoading(true);
+
+    try {
+      console.warn('[MyAssets] ⚠️ 클라우드 함수를 우회하고 클라이언트에서 직접 자산을 계산합니다. (진단 모드 v2)');
+
+      // 모든 잠재적 경로를 쿼리합니다.
+      const realEstateRef1 = query(collection(db, "classes", currentUserClassCode, "realEstateProperties"), where("owner", "==", userId));
+      const realEstateRef2 = query(collection(db, "ClassStock", currentUserClassCode, "students", userId, "realestates"));
+      const realEstateRef3 = query(collection(db, "realEstate"), where("ownerId", "==", userId));
+
+      const [snap1, snap2, snap3] = await Promise.all([
+        getDocs(realEstateRef1),
+        getDocs(realEstateRef2),
+        getDocs(realEstateRef3),
+      ]);
+
+      console.log(`[MyAssets-Debug] 경로 1 (classes/.../realEstateProperties) 결과: ${snap1.size}개`);
+      console.log(`[MyAssets-Debug] 경로 2 (ClassStock/.../realestates) 결과: ${snap2.size}개`);
+      console.log(`[MyAssets-Debug] 경로 3 (realEstate) 결과: ${snap3.size}개`);
+
+      const allRealEstateAssets = [];
+      snap1.forEach(doc => allRealEstateAssets.push({ id: doc.id, ...doc.data() }));
+      snap2.forEach(doc => allRealEstateAssets.push({ id: doc.id, ...doc.data() }));
+      snap3.forEach(doc => allRealEstateAssets.push({ id: doc.id, ...doc.data() }));
+
+      // 파킹통장 데이터 조회 (모든 잠재적 경로)
+      const parkingRef1 = doc(db, "users", userId, "financials", "parkingAccount");
+      const parkingRef2 = collection(db, "ClassStock", currentUserClassCode, "students", userId, "parkingAccounts");
+
+      const [parkingSnap1, parkingSnap2] = await Promise.all([
+        getDoc(parkingRef1),
+        getDocs(parkingRef2),
+      ]);
+
+      let totalParkingBalance = 0;
+      if (parkingSnap1.exists()) {
+        totalParkingBalance += parkingSnap1.data().balance || 0;
+        console.log(`[MyAssets-Debug] 파킹통장 경로 1 (/users/.../parkingAccount) 잔액: ${parkingSnap1.data().balance || 0}`);
+      } else {
+        console.log(`[MyAssets-Debug] 파킹통장 경로 1 결과 없음`);
+      }
+
+      let parking2Balance = 0;
+      parkingSnap2.forEach(doc => {
+        parking2Balance += doc.data().balance || 0;
+      });
+      totalParkingBalance += parking2Balance;
+      console.log(`[MyAssets-Debug] 파킹통장 경로 2 (/ClassStock/.../parkingAccounts) 총 잔액: ${parking2Balance}`);
+      
+      setParkingBalance(totalParkingBalance);
+      console.log(`[MyAssets-Debug] 파킹통장 총 잔액: ${totalParkingBalance}`);
+
+      // 다른 자산들도 계속 조회합니다.
+      const loansRef = collection(db, "users", userId, "loans");
+      const loansSnap = await getDocs(loansRef);
+
+      const loansData = loansSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setLoans(loansData);
+
+      setRealEstateAssets(allRealEstateAssets);
+
+      console.log('[MyAssets] ✅ 클라이언트 측 자산 데이터 로드 완료');
+      console.log(`[MyAssets-Debug] 발견된 총 부동산 자산: ${allRealEstateAssets.length}개`);
+
+    } catch (fallbackError) {
+      console.error('[MyAssets] 🚨 클라이언트 측 직접 조회 실패:', fallbackError);
+    } finally {
+      setAssetsLoading(false);
+      loadingRef.current = false;
+    }
+  }, [userId]);
+
   useEffect(() => {
-    console.log("[MyAssets] Auth 상태 또는 userDoc 변경 감지:", {
-      authLoading,
-      user: !!user,
-      userDocExists: !!userDoc,
-      classCode: userDoc?.classCode,
-      currentGoalId,
-    });
     if (!authLoading && user) {
-      // user가 있으면 userDoc 로드를 기다리거나 이미 로드됨
       loadMyAssetsData();
     } else if (!authLoading && !user) {
-      // 로그아웃 상태
       setAssetsLoading(false);
       setParkingBalance(0);
       setLoans([]);
@@ -333,30 +387,41 @@ export default function MyAssets() {
       setMyContribution(0);
       setClassCouponGoal(1000);
       setGoalProgress(0);
-      setCouponValue(1000); // 목표 관련 상태도 초기화
+      setCouponValue(1000);
+      setGoalDonations([]);
+      setTransactionHistory([]);
     } else if (authLoading) {
-      // AuthContext가 아직 로딩 중
       setAssetsLoading(true);
     }
-  }, [authLoading, user, userDoc, loadMyAssetsData]);
+  }, [authLoading, user, loadMyAssetsData]);
 
   useEffect(() => {
-    const cashValue = userDoc?.cash || 0;
-    const couponMonetaryValue = (userDoc?.coupons || 0) * couponValue; // 변수명 명확화
+    const cashValue = Number(userDoc?.cash) || 0;
+    const couponMonetaryValue = (Number(userDoc?.coupons) || 0) * Number(couponValue);
     const realEstateValue = realEstateAssets.reduce(
-      (sum, asset) => sum + (asset.price || 0),
+      (sum, asset) => sum + (Number(asset.price) || 0),
       0
     );
     const loanTotal = loans.reduce(
-      (sum, loan) => sum + (loan.remainingPrincipal || 0),
+      (sum, loan) => sum + (Number(loan.remainingPrincipal) || 0),
       0
     );
     const calculatedTotalAssets =
       cashValue +
       couponMonetaryValue +
-      parkingBalance +
+      Number(parkingBalance) +
       realEstateValue -
       loanTotal;
+
+    console.log('[MyAssets] 총 순자산 계산:', {
+      현금: cashValue,
+      쿠폰가치: couponMonetaryValue,
+      파킹통장: Number(parkingBalance),
+      부동산: realEstateValue,
+      대출: loanTotal,
+      총합: calculatedTotalAssets
+    });
+
     setTotalNetAssets(calculatedTotalAssets);
   }, [
     userDoc?.cash,
@@ -371,16 +436,10 @@ export default function MyAssets() {
     setGoalAchieved(goalProgress >= classCouponGoal && classCouponGoal > 0);
   }, [goalProgress, classCouponGoal]);
 
+  // 🔥 [수정 9] 기부 처리 함수 - 완전 수정된 안전한 상태 업데이트
   const handleDonateCoupon = async (amount, memo) => {
-    if (
-      !userDoc ||
-      !userId ||
-      !db ||
-      typeof updateUserInAuth !== "function" ||
-      !currentUserClassCode ||
-      !currentGoalId
-    ) {
-      alert("필수 정보(사용자, 학급코드, DB) 또는 기능이 준비되지 않았습니다.");
+    if (!userId || !currentUserClassCode) {
+      alert("사용자 또는 학급 정보가 없어 기부할 수 없습니다.");
       return false;
     }
 
@@ -389,83 +448,16 @@ export default function MyAssets() {
       alert("유효한 쿠폰 수량을 입력해주세요.");
       return false;
     }
-    if (donationAmount > (userDoc.coupons || 0)) {
-      alert("보유 쿠폰이 부족합니다.");
-      return false;
-    }
 
     setAssetsLoading(true);
     try {
-      const batch = writeBatch(db);
-      // 🔥 학급별 목표 문서 참조
-      const goalRef = doc(db, "goals", currentGoalId);
-      const goalSnap = await getDoc(goalRef);
+      await donateCouponFunction({ amount: donationAmount, message: memo });
 
-      if (!goalSnap.exists()) {
-        // 목표 문서가 없으면 생성
-        await createDefaultGoalForClass(currentUserClassCode, currentGoalId);
-      } else {
-        const goalData = goalSnap.data();
-        if (goalData.classCode !== currentUserClassCode) {
-          alert("학급 목표 정보가 일치하지 않습니다.");
-          setAssetsLoading(false);
-          return false;
-        }
-      }
-
-      const newDonationRecord = {
-        userId,
-        userName,
-        amount: donationAmount,
-        message: memo || "",
-        timestamp: new Date().toISOString(),
-        classCode: currentUserClassCode,
-      };
-
-      batch.update(goalRef, {
-        progress: increment(donationAmount),
-        donationCount: increment(1),
-        donations: arrayUnion(newDonationRecord),
-        updatedAt: serverTimestamp(),
-      });
-
-      // 🔥 localStorage 기부 내역 키를 학급별로 관리
-      const goalHistoryKey = `goalDonationHistory_${currentUserClassCode}_goal`;
-      try {
-        const historyString = localStorage.getItem(goalHistoryKey);
-        let currentHistory = historyString
-          ? JSON.parse(historyString) || []
-          : [];
-        currentHistory.push({
-          userId,
-          amount: donationAmount,
-          memo: memo || "",
-          timestamp: new Date().toISOString(),
-        });
-        localStorage.setItem(goalHistoryKey, JSON.stringify(currentHistory));
-      } catch (localStorageErr) {
-        console.error("localStorage 기부 내역 동기화 오류:", localStorageErr);
-      }
-
-      await batch.commit();
-
-      const userUpdateSuccess = await updateUserInAuth({
-        coupons: increment(-donationAmount),
-        myContribution: increment(donationAmount),
-      });
-
-      if (userUpdateSuccess) {
-        alert(`${donationAmount} 쿠폰 기부 완료!`);
-        setShowDonateModal(false);
-        setGoalProgress((prev) => prev + donationAmount);
-        setMyContribution((prev) => prev + donationAmount);
-        return true;
-      } else {
-        alert("기부 실패 (사용자 정보 업데이트 실패).");
-        return false;
-      }
+      alert(`${donationAmount} 쿠폰 기부 완료!`);
+      setShowDonateModal(false);
+      loadMyAssetsData(); // 데이터 새로고침
+      return true;
     } catch (error) {
-      console.error("쿠폰 기부 오류:", error);
       alert(`기부 오류: ${error.message}`);
       return false;
     } finally {
@@ -473,6 +465,95 @@ export default function MyAssets() {
     }
   };
 
+  // 🔥 [추가] 기부 내역 복구를 위한 강제 새로고침 함수
+  const forceRefreshGoalData = async () => {
+    if (!currentGoalId || !currentUserClassCode) {
+      alert("학급 정보가 없습니다.");
+      return;
+    }
+    
+    setAssetsLoading(true);
+    
+    try {
+      // 모든 관련 캐시 삭제
+      localStorage.removeItem(`firestore_cache_goal_${currentGoalId}_${userId}`);
+      localStorage.removeItem(`firestore_cache_settings_${userId}`);
+      
+      // Firebase에서 직접 최신 데이터 가져오기
+      const goalDocRef = doc(db, "goals", currentGoalId);
+      const goalDocSnap = await getDoc(goalDocRef);
+      
+      if (goalDocSnap.exists()) {
+        const latestGoalData = goalDocSnap.data();
+        
+        // 즉시 상태 업데이트
+        setClassCouponGoal(Number(latestGoalData.targetAmount) || 1000);
+        setGoalProgress(Number(latestGoalData.progress) || 0);
+        
+        // 기부 내역 처리
+        const freshDonations = Array.isArray(latestGoalData.donations) 
+          ? latestGoalData.donations.map((donation, index) => {
+              
+              let processedTimestamp;
+              if (donation.timestamp && donation.timestamp.toDate) {
+                processedTimestamp = donation.timestamp.toDate().toISOString();
+              } else if (donation.timestamp && donation.timestamp.seconds) {
+                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+              } else if (donation.timestampISO) {
+                processedTimestamp = donation.timestampISO;
+              } else if (typeof donation.timestamp === 'string') {
+                processedTimestamp = donation.timestamp;
+              } else {
+                processedTimestamp = new Date().toISOString();
+              }
+
+              return {
+                ...donation,
+                amount: Number(donation.amount) || 0,
+                timestamp: processedTimestamp,
+                userId: donation.userId || '',
+                userName: donation.userName || '알 수 없는 사용자',
+                message: donation.message || '',
+                classCode: donation.classCode || currentUserClassCode,
+              };
+            })
+          : [];
+        
+        setGoalDonations(freshDonations);
+        
+        // 새 데이터를 캐시에 저장
+        setCachedFirestoreData(`goal_${currentGoalId}`, latestGoalData);
+        
+        alert(`목표 데이터 새로고침 완료!\n목표 진행률: ${latestGoalData.progress || 0}/${latestGoalData.targetAmount || 1000}\n기부 내역: ${freshDonations.length}개`);
+      } else {
+        alert("목표 문서를 찾을 수 없습니다. 관리자에게 문의해주세요.");
+      }
+    } catch (error) {
+      alert(`데이터 새로고침 중 오류가 발생했습니다: ${error.message}`);
+    } finally {
+      setAssetsLoading(false);
+    }
+  };
+
+  // 🔥 [추가] 개발자용 디버그 정보 표시 함수
+  const showDebugInfo = () => {
+    const debugInfo = {
+      userId,
+      currentUserClassCode,
+      currentGoalId,
+      goalProgress,
+      classCouponGoal,
+      myContribution,
+      donationsCount: goalDonations.length,
+      donations: goalDonations,
+      userCoupons: userDoc?.coupons,
+      userCash: userDoc?.cash,
+    };
+    
+    alert(`디버그 정보가 콘솔에 출력되었습니다.\n기부 내역: ${goalDonations.length}개\n목표 진행률: ${goalProgress}/${classCouponGoal}`);
+  };
+
+  // 🔥 [핵심 수정] 'resetCouponGoal' 함수에 async 키워드 추가
   const resetCouponGoal = async () => {
     if (!userDoc?.isAdmin && !userDoc?.isSuperAdmin) {
       alert("관리자만 초기화 가능합니다.");
@@ -492,10 +573,8 @@ export default function MyAssets() {
     setIsResettingGoal(true);
     try {
       const batch = writeBatch(db);
-      // 🔥 학급별 목표 문서 참조
       const goalRef = doc(db, "goals", currentGoalId);
 
-      // 해당 학급의 사용자들만 기여도 초기화
       const usersQuery = query(
         collection(db, "users"),
         where("classCode", "==", currentUserClassCode)
@@ -519,22 +598,18 @@ export default function MyAssets() {
         resetBy: userId,
       });
 
-      // 🔥 localStorage 키도 학급별로 관리
-      localStorage.removeItem(
-        `goalDonationHistory_${currentUserClassCode}_goal`
-      );
-
       await batch.commit();
 
-      // 현재 로그인한 사용자의 myContribution 상태 즉시 업데이트
+      // 🔥 [최적화 23] 초기화 후 관련 캐시 모두 삭제
+      localStorage.removeItem(`goalDonationHistory_${currentUserClassCode}_goal`);
+      localStorage.removeItem(`firestore_cache_goal_${currentGoalId}_${userId}`);
+      
       setMyContribution(0);
       setGoalProgress(0);
+      setGoalDonations([]);
 
-      alert(
-        `학급(${currentUserClassCode})의 쿠폰 목표와 기여 기록이 초기화되었습니다.`
-      );
+      alert(`학급(${currentUserClassCode})의 쿠폰 목표와 기여 기록이 초기화되었습니다.`);
     } catch (error) {
-      console.error("쿠폰 목표 초기화 오류:", error);
       alert(`목표 초기화 오류: ${error.message}`);
     } finally {
       setIsResettingGoal(false);
@@ -542,100 +617,52 @@ export default function MyAssets() {
   };
 
   const handleSellCoupon = async () => {
-    if (!userDoc || !userId || !db || typeof updateUserInAuth !== "function") {
-      alert("정보가 부족합니다.");
-      return;
-    }
     const amount = parseInt(sellAmount, 10);
     if (isNaN(amount) || amount <= 0) {
       alert("유효한 수량을 입력해주세요.");
       return;
     }
-    if (amount > (userDoc.coupons || 0)) {
-      alert("쿠폰이 부족합니다.");
-      return;
-    }
+
     setAssetsLoading(true);
     try {
-      const totalValue = amount * couponValue;
-      const success = await updateUserInAuth({
-        coupons: increment(-amount),
-        cash: increment(totalValue),
-      });
-      if (success) {
-        alert(
-          `${amount}쿠폰을 ${totalValue.toLocaleString()}원에 판매했습니다.`
-        );
-        setShowSellCouponModal(false);
-        setSellAmount("");
-      } else {
-        alert("쿠폰 판매에 실패했습니다.");
-      }
+      await sellCouponFunction({ amount });
+
+      alert(`${amount}개 쿠폰을 판매했습니다.`);
+      setShowSellCouponModal(false);
+      setSellAmount("");
+      loadMyAssetsData(); // 데이터 새로고침
     } catch (error) {
-      console.error("쿠폰 판매 오류:", error);
-      alert("판매 오류: " + error.message);
+      alert(`판매 오류: ${error.message}`);
     } finally {
       setAssetsLoading(false);
     }
   };
 
   const handleGiftCoupon = async () => {
-    if (
-      !userDoc ||
-      !userId ||
-      !db ||
-      !users ||
-      typeof updateUserInAuth !== "function"
-    ) {
-      alert("정보가 부족합니다.");
-      return;
-    }
     const recipientUser = users.find((u) => u.id === giftRecipient);
     const amount = parseInt(giftAmount, 10);
+
     if (!recipientUser) {
       alert("받는 사람을 선택해주세요.");
-      return;
-    }
-    if (recipientUser.id === userId) {
-      alert("자신에게는 선물할 수 없습니다.");
       return;
     }
     if (isNaN(amount) || amount <= 0) {
       alert("올바른 수량을 입력해주세요.");
       return;
     }
-    if (amount > (userDoc.coupons || 0)) {
-      alert("쿠폰이 부족합니다.");
-      return;
-    }
 
-    if (
-      window.confirm(
-        `${
-          recipientUser.name || recipientUser.nickname || recipientUser.id
-        }님에게 쿠폰 ${amount}개를 선물하시겠습니까?`
-      )
-    ) {
+    if (window.confirm(`${recipientUser.name}님에게 쿠폰 ${amount}개를 선물하시겠습니까?`)) {
       setAssetsLoading(true);
       try {
-        const batch = writeBatch(db);
-        batch.update(doc(db, "users", userId), {
-          coupons: increment(-amount),
-          updatedAt: serverTimestamp(),
-        });
-        batch.update(doc(db, "users", recipientUser.id), {
-          coupons: increment(amount),
-          updatedAt: serverTimestamp(),
-        });
-        await batch.commit();
+        await giftCouponFunction({ recipientId: recipientUser.id, amount, message: "" });
 
         alert("쿠폰 선물이 완료되었습니다.");
         setShowGiftCouponModal(false);
         setGiftRecipient("");
         setGiftAmount("");
+        loadMyAssetsData(); // 데이터 새로고침
       } catch (error) {
-        console.error("쿠폰 선물 오류:", error);
-        alert("선물 오류: " + error.message);
+        alert(`선물 오류: ${error.message}`);
       } finally {
         setAssetsLoading(false);
       }
@@ -668,7 +695,7 @@ export default function MyAssets() {
       alert("올바른 금액을 입력해주세요.");
       return;
     }
-    if ((userDoc.cash || 0) < amount) {
+    if ((Number(userDoc.cash) || 0) < amount) {
       alert("현금이 부족합니다.");
       return;
     }
@@ -676,29 +703,34 @@ export default function MyAssets() {
     if (
       window.confirm(
         `${
-          recipientUser.name || recipientUser.nickname || recipientUser.id
+          recipientUser.name || recipientUser.nickname || "사용자"
         }님에게 ${amount.toLocaleString()}원을 송금하시겠습니까?`
       )
     ) {
       setAssetsLoading(true);
       try {
-        const deductSuccess = await deductCurrentUserCash(amount);
+        const recipientName = recipientUser.name || recipientUser.nickname || "사용자";
+        
+        const deductSuccess = await deductCurrentUserCash(amount, `${recipientName}님에게 송금`);
         if (deductSuccess) {
-          const addSuccess = await addCashToUserById(recipientUser.id, amount);
+          const addSuccess = await addCashToUserById(recipientUser.id, amount, `${userName}님으로부터 입금`);
           if (addSuccess) {
             alert("송금이 완료되었습니다.");
             setShowTransferModal(false);
             setTransferRecipient("");
             setTransferAmount("");
+
+            setTimeout(() => {
+              loadMyAssetsData();
+            }, 500);
           } else {
             alert("받는 사람 현금 추가 오류. 송금 취소를 시도합니다.");
-            await addCashToUserById(userId, amount); // 보낸 사람에게 다시 돈 추가 (롤백)
+            await addCashToUserById(userId, amount, "송금 실패로 인한 복원");
           }
         } else {
           alert("현금 차감 오류입니다.");
         }
       } catch (error) {
-        console.error("송금 오류:", error);
         alert("송금 오류: " + error.message);
       } finally {
         setAssetsLoading(false);
@@ -706,8 +738,19 @@ export default function MyAssets() {
     }
   };
 
+  const handleForceRefresh = () => {
+    // 캐시 삭제
+    const cacheKey = `myAssets_${userId}`;
+    localStorage.removeItem(`firestore_cache_${cacheKey}_${userId}`);
+
+    console.log('[MyAssets] 🔄 캐시 삭제 및 강제 새로고침');
+
+    // 데이터 다시 로드
+    loadMyAssetsData();
+  };
+
   const renderTitle = () => (
-    <div>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
       <h2
         style={{
           fontSize: "24px",
@@ -715,119 +758,148 @@ export default function MyAssets() {
           color: "#4f46e5",
           borderBottom: "2px solid #e0e7ff",
           paddingBottom: "10px",
-          marginBottom: "20px",
+          margin: 0,
         }}
       >
         나의 자산 현황 💳
       </h2>
+      <button
+        onClick={handleForceRefresh}
+        disabled={assetsLoading}
+        style={{
+          padding: "8px 16px",
+          backgroundColor: "#4f46e5",
+          color: "white",
+          border: "none",
+          borderRadius: "8px",
+          fontSize: "14px",
+          fontWeight: "600",
+          cursor: assetsLoading ? "not-allowed" : "pointer",
+          opacity: assetsLoading ? 0.6 : 1,
+        }}
+      >
+        🔄 새로고침
+      </button>
     </div>
   );
 
   const renderAssetSummary = () => {
-    const displayCash = userDoc?.cash ?? 0;
-    const displayCoupons = userDoc?.coupons ?? 0;
+    const displayCash = Number(userDoc?.cash) || 0;
+    const displayCoupons = Number(userDoc?.coupons) || 0;
     return (
       <div
         style={{
-          padding: "20px",
-          background: "#ffffff",
-          borderRadius: "12px",
+          padding: "0",
+          background: "transparent",
           marginBottom: "25px",
-          border: "1px solid #e2e8f0",
-          boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
         }}
       >
-        <h3
-          style={{
-            fontWeight: "700",
-            fontSize: "18px",
-            color: "#1f2937",
-            marginBottom: "20px",
-          }}
-        >
-          자산 요약
-        </h3>
+        {/* 보유 현금 - 메인 강조 카드 */}
         <div
           style={{
-            marginBottom: "12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            borderRadius: "20px",
+            padding: "30px",
+            marginBottom: "20px",
+            boxShadow: "0 10px 30px rgba(102, 126, 234, 0.3)",
+            border: "none",
           }}
         >
-          <span style={{ color: "#4b5563", fontWeight: "500" }}>
-            💰 보유 현금
-          </span>
-          <span style={{ fontWeight: "600", color: "#1f2937" }}>
-            {displayCash.toLocaleString()} 원
-          </span>
-        </div>
-        <div style={{ textAlign: "right", marginBottom: "20px" }}>
+          <div style={{ marginBottom: "10px" }}>
+            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: "16px", fontWeight: "500" }}>
+              💰 보유 현금
+            </span>
+          </div>
+          <div style={{
+            fontSize: "42px",
+            fontWeight: "800",
+            color: "#ffffff",
+            letterSpacing: "-1px",
+            marginBottom: "15px"
+          }}>
+            {displayCash.toLocaleString()} <span style={{ fontSize: "28px", fontWeight: "600" }}>원</span>
+          </div>
           <button
             onClick={() => setShowTransferModal(true)}
             style={{
-              padding: "8px 12px",
-              backgroundColor: "#4f46e5",
-              color: "white",
+              padding: "14px 28px",
+              backgroundColor: "rgba(255, 255, 255, 0.95)",
+              color: "#667eea",
               border: "none",
-              borderRadius: "6px",
-              fontSize: "13px",
-              fontWeight: "500",
+              borderRadius: "12px",
+              fontSize: "16px",
+              fontWeight: "700",
               cursor: "pointer",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.1)",
+              transition: "all 0.3s ease",
             }}
             disabled={assetsLoading || authLoading}
+            onMouseOver={(e) => {
+              e.target.style.transform = "translateY(-2px)";
+              e.target.style.boxShadow = "0 6px 20px rgba(0,0,0,0.15)";
+            }}
+            onMouseOut={(e) => {
+              e.target.style.transform = "translateY(0)";
+              e.target.style.boxShadow = "0 4px 15px rgba(0,0,0,0.1)";
+            }}
           >
             💸 송금하기
           </button>
         </div>
+
+        {/* 총 순자산 - 두 번째 강조 카드 */}
         <div
           style={{
-            marginBottom: "12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <span style={{ color: "#4b5563", fontWeight: "500" }}>
-            🎟️ 보유 쿠폰
-          </span>
-          <span style={{ fontWeight: "600", color: "#1f2937" }}>
-            {displayCoupons.toLocaleString()} 개
-          </span>
-        </div>
-        <p
-          style={{
-            fontSize: "12px",
-            color: "#6b7280",
-            textAlign: "right",
+            background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
+            borderRadius: "20px",
+            padding: "25px 30px",
             marginBottom: "20px",
+            boxShadow: "0 10px 30px rgba(240, 147, 251, 0.3)",
+            border: "none",
           }}
         >
-          (1쿠폰 = {couponValue.toLocaleString()}원 가치)
-        </p>
-        <div
-          style={{
-            borderTop: "1px solid #e5e7eb",
-            paddingTop: "20px",
-            marginTop: "20px",
-          }}
-        >
+          <div style={{ marginBottom: "8px" }}>
+            <span style={{ color: "rgba(255,255,255,0.9)", fontSize: "16px", fontWeight: "500" }}>
+              📊 총 순자산
+            </span>
+          </div>
+          <div style={{
+            fontSize: "38px",
+            fontWeight: "800",
+            color: "#ffffff",
+            letterSpacing: "-1px"
+          }}>
+            {Number(totalNetAssets).toLocaleString()} <span style={{ fontSize: "24px", fontWeight: "600" }}>원</span>
+          </div>
+          <p style={{
+            marginTop: "8px",
+            fontSize: "12px",
+            color: "rgba(255,255,255,0.8)",
+            margin: "8px 0 0 0"
+          }}>
+            현금 + 쿠폰가치 + 파킹통장 + 부동산 - 대출
+          </p>
+        </div>
+
+        {/* 파킹통장 */}
+        <div style={{ marginBottom: "20px" }}>
           <h4
             style={{
-              fontWeight: "600",
-              fontSize: "16px",
+              fontSize: "15px",
               color: "#374151",
-              marginBottom: "10px",
+              fontWeight: "700",
+              marginBottom: "12px",
             }}
           >
             🅿️ 파킹통장
           </h4>
           <div
             style={{
-              backgroundColor: "#e0f2fe",
-              borderRadius: "8px",
-              padding: "15px",
-              border: "1px solid #bae6fd",
+              background: "linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)",
+              borderRadius: "14px",
+              padding: "20px",
+              border: "none",
+              boxShadow: "0 4px 15px rgba(6, 182, 212, 0.2)",
             }}
           >
             <div
@@ -835,65 +907,180 @@ export default function MyAssets() {
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "8px",
               }}
             >
-              <span style={{ color: "#0c4a6e", fontWeight: "500" }}>
-                현재 잔액
+              <span style={{ color: "rgba(255,255,255,0.9)", fontWeight: "500", fontSize: "14px" }}>
+                잔액
               </span>
               <span
                 style={{
-                  fontWeight: "700",
-                  fontSize: "18px",
-                  color: "#0369a1",
+                  fontWeight: "800",
+                  fontSize: "26px",
+                  color: "#ffffff",
+                  letterSpacing: "-0.5px"
                 }}
               >
-                {parkingBalance.toLocaleString()} 원
+                {Number(parkingBalance).toLocaleString()}<span style={{ fontSize: "18px", fontWeight: "600" }}>원</span>
               </span>
             </div>
           </div>
-          <p style={{ marginTop: "8px", fontSize: "12px", color: "#6b7280" }}>
-            * 파킹통장 메뉴에서 입출금 및 상품 가입이 가능합니다.
+          <p style={{ marginTop: "10px", fontSize: "12px", color: "#9ca3af", textAlign: "center" }}>
+            파킹통장 메뉴에서 입출금 및 상품 가입 가능
           </p>
         </div>
+
+        {/* 기타 자산 정보 - 깔끔한 카드 */}
         <div
           style={{
-            borderTop: "1px solid #4f46e5",
-            paddingTop: "20px",
-            marginTop: "30px",
+            padding: "25px",
+            background: "#ffffff",
+            borderRadius: "16px",
+            border: "2px solid #f0f0f0",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+          }}
+        >
+
+        {/* 보유 쿠폰 */}
+        <div
+          style={{
+            marginBottom: "20px",
           }}
         >
           <h4
             style={{
+              fontSize: "15px",
+              color: "#374151",
               fontWeight: "700",
-              fontSize: "18px",
-              color: "#4f46e5",
-              marginBottom: "10px",
-              textAlign: "right",
+              marginBottom: "12px",
             }}
           >
-            📊 총 순자산
+            🎟️ 보유 쿠폰
           </h4>
           <div
             style={{
-              textAlign: "right",
-              fontWeight: "bold",
-              fontSize: "22px",
-              color: "#3730a3",
+              background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+              borderRadius: "14px",
+              padding: "20px",
+              border: "none",
+              boxShadow: "0 4px 15px rgba(251, 191, 36, 0.2)",
             }}
           >
-            {totalNetAssets.toLocaleString()} 원
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <div>
+                <div style={{
+                  fontSize: "26px",
+                  fontWeight: "800",
+                  color: "#ffffff",
+                  letterSpacing: "-0.5px"
+                }}>
+                  {displayCoupons.toLocaleString()} <span style={{ fontSize: "18px", fontWeight: "600" }}>개</span>
+                </div>
+                <div style={{
+                  fontSize: "12px",
+                  color: "rgba(255,255,255,0.85)",
+                  fontWeight: "500",
+                  marginTop: "4px"
+                }}>
+                  1쿠폰 = {Number(couponValue).toLocaleString()}원
+                </div>
+              </div>
+            </div>
           </div>
-          <p
+        </div>
+
+        {/* 최근 입출금 내역 */}
+        <div>
+          <h4
             style={{
-              marginTop: "8px",
-              fontSize: "12px",
-              color: "#6b7280",
-              textAlign: "right",
+              fontSize: "15px",
+              color: "#374151",
+              fontWeight: "700",
+              marginBottom: "12px",
             }}
           >
-            (현금 + 쿠폰가치 + 파킹통장 + 부동산가치 - 대출잔액)
-          </p>
+            💳 최근 입출금 내역
+          </h4>
+          {transactionHistory.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {transactionHistory.map((tx) => {
+                let displayDate = "날짜 없음";
+                try {
+                  const validDate = safeTimestampToDate(tx.timestamp);
+                  displayDate = validDate.toLocaleDateString("ko-KR", {
+                    month: "2-digit",
+                    day: "2-digit",
+                  });
+                } catch (dateError) {
+                  displayDate = "오늘";
+                }
+
+                const txAmount = Number(tx.amount) || 0;
+                const txDescription = String(tx.description) || "내역 없음";
+
+                return (
+                  <div
+                    key={tx.id || Math.random()}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: "14px",
+                      color: "#4b5563",
+                      padding: "14px 16px",
+                      backgroundColor: txAmount > 0 ? "#f0fdf4" : "#fef2f2",
+                      border: txAmount > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                      borderRadius: "10px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        flex: "1",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        marginRight: "10px",
+                        fontWeight: "500",
+                        color: "#374151"
+                      }}
+                    >
+                      {displayDate} • {txDescription}
+                    </span>
+                    <span
+                      style={{
+                        fontWeight: "700",
+                        fontSize: "15px",
+                        color: txAmount > 0 ? "#059669" : "#dc2626",
+                        minWidth: "90px",
+                        textAlign: "right",
+                      }}
+                    >
+                      {txAmount > 0 ? "+" : ""}
+                      {txAmount.toLocaleString()}원
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#9ca3af",
+                textAlign: "center",
+                padding: "20px",
+                backgroundColor: "#f9fafb",
+                borderRadius: "10px",
+                border: "1px dashed #e5e7eb"
+              }}
+            >
+              최근 거래 내역이 없습니다.
+            </div>
+          )}
+        </div>
         </div>
       </div>
     );
@@ -919,7 +1106,6 @@ export default function MyAssets() {
     return <LoginWarning />;
   }
   if (!userDoc && !authLoading) {
-    // auth 로딩은 끝났는데 userDoc이 없는 경우
     return (
       <div
         style={{
@@ -931,30 +1117,11 @@ export default function MyAssets() {
           color: "#ef4444",
         }}
       >
-        사용자 데이터를 불러오지 못했습니다. (userDoc null). 앱을 새로고침하거나
-        재로그인해보세요.
-      </div>
-    );
-  }
-  if (!userDoc) {
-    // 이 경우는 거의 없어야 하지만, userDoc이 아직도 null인 최종 방어
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-          fontSize: "1.2em",
-          color: "#f97316",
-        }}
-      >
-        사용자 정보 확인 중... 🧐
+        사용자 데이터를 불러오는 중입니다. 잠시 후에도 이 메시지가 보이면 앱을 새로고침하거나 재로그인해주세요.
       </div>
     );
   }
   if (!currentUserClassCode && !authLoading) {
-    // auth 로딩 후에도 classCode가 없다면
     return (
       <div
         style={{
@@ -983,118 +1150,18 @@ export default function MyAssets() {
     >
       {renderTitle()}
       {renderAssetSummary()}
-      {currentUserClassCode &&
-        currentGoalId && ( // 🔥 학급 코드와 목표 ID 모두 확인
-          <div
-            className="coupon-goal-section-container"
-            style={{ marginTop: "40px" }}
-          >
-            <h2
-              style={{
-                fontSize: "24px",
-                fontWeight: "bold",
-                color: "#10b981",
-                borderBottom: "2px solid #a7f3d0",
-                paddingBottom: "10px",
-                marginBottom: "20px",
-              }}
-            >
-              쿠폰 목표 🎯 (학급: {currentUserClassCode})
-            </h2>
-            <CouponGoal
-              classCouponGoal={classCouponGoal}
-              goalProgress={goalProgress}
-              myContribution={myContribution}
-              currentCoupons={userDoc.coupons || 0}
-              couponValue={couponValue}
-              setShowDonateModal={setShowDonateModal}
-              setShowSellCouponModal={setShowSellCouponModal}
-              setShowDonationHistoryModal={setShowDonationHistoryModal}
-              setShowGiftCouponModal={setShowGiftCouponModal}
-              goalAchieved={goalAchieved}
-              resetGoalButton={
-                userDoc.isAdmin || userDoc.isSuperAdmin ? resetCouponGoal : null
-              }
-              isResettingGoal={isResettingGoal}
-              currentGoalId={currentGoalId}
-              classCode={currentUserClassCode} // 🔥 학급 코드 전달
-            />
-          </div>
-        )}
-
-      {showDonateModal && currentUserClassCode && currentGoalId && (
-        <DonateCouponModal
-          showDonateModal={showDonateModal}
-          setShowDonateModal={setShowDonateModal}
-          currentCoupons={userDoc.coupons || 0}
-          onDonate={handleDonateCoupon}
-          userId={userId}
-          currentGoalId={currentGoalId}
-          classCode={currentUserClassCode} // 🔥 학급 코드 전달
-        />
-      )}
-      {showSellCouponModal && (
-        <SellCouponModal
-          showSellCouponModal={showSellCouponModal}
-          setShowSellCouponModal={setShowSellCouponModal}
-          currentCoupons={userDoc.coupons || 0}
-          couponValue={couponValue}
-          sellAmount={sellAmount}
-          setSellAmount={setSellAmount}
-          SellCoupon={handleSellCoupon}
-        />
-      )}
-      {showGiftCouponModal && (
-        <GiftCouponModal
-          showGiftCouponModal={showGiftCouponModal}
-          setShowGiftCouponModal={setShowGiftCouponModal}
-          recipients={
-            users
-              ? users.filter(
-                  (u) => u.id !== userId && u.classCode === currentUserClassCode
-                )
-              : []
-          }
-          giftRecipient={giftRecipient}
-          setGiftRecipient={setGiftRecipient}
-          giftAmount={giftAmount}
-          setGiftAmount={setGiftAmount}
-          handleGiftCoupon={handleGiftCoupon}
-          currentCoupons={userDoc.coupons || 0}
-          userId={userId}
-        />
-      )}
-      {showDonationHistoryModal && currentUserClassCode && currentGoalId && (
-        <DonationHistoryModal
-          showDonationHistoryModal={showDonationHistoryModal}
-          setShowDonationHistoryModal={setShowDonationHistoryModal}
-          students={
-            users
-              ? users.filter((u) => u.classCode === currentUserClassCode)
-              : []
-          }
-          currentGoalId={currentGoalId}
-          classCode={currentUserClassCode} // 🔥 학급 코드 전달
-        />
-      )}
       {showTransferModal && (
         <TransferModal
           showTransferModal={showTransferModal}
           setShowTransferModal={setShowTransferModal}
-          recipients={
-            users
-              ? users.filter(
-                  (u) => u.id !== userId && u.classCode === currentUserClassCode
-                )
-              : []
-          }
+          recipients={classmates} // '나'를 제외한 학급 친구 목록
           transferRecipient={transferRecipient}
           setTransferRecipient={setTransferRecipient}
           transferAmount={transferAmount}
           setTransferAmount={setTransferAmount}
           handleTransfer={handleTransfer}
           userId={userId}
-          userCash={userDoc.cash || 0}
+          userCash={Number(userDoc?.cash) || 0}
         />
       )}
     </div>

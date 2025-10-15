@@ -6,19 +6,17 @@ export default function DonationHistoryModal({
   showDonationHistoryModal,
   setShowDonationHistoryModal,
   students = [],
-  currentGoalId,
-  classCode, // 🔥 학급 코드 추가
+  classCode,
+  donations = [],
 }) {
-  const auth = useAuth();
-  const userDoc = auth?.userDoc || {};
-  const userId = userDoc?.uid || userDoc?.id;
-  const userClassCode = userDoc?.classCode || classCode; // props로 받은 classCode 사용
+  const { user, userDoc } = useAuth();
+  const userId = user?.uid;
+  const userClassCode = userDoc?.classCode || classCode;
 
   const [studentDonationSummary, setStudentDonationSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [totalDonationForThisClassGoal, setTotalDonationForThisClassGoal] =
-    useState(0);
+  const [totalDonationForThisClassGoal, setTotalDonationForThisClassGoal] = useState(0);
 
   // 스타일 정의
   const modalOverlayStyle = {
@@ -121,120 +119,87 @@ export default function DonationHistoryModal({
 
   useEffect(() => {
     if (showDonationHistoryModal) {
-      setLoading(true);
-      setError(null);
-      setStudentDonationSummary([]);
-      setTotalDonationForThisClassGoal(0);
+      const processDonationData = () => {
+        setLoading(true);
+        setError(null);
+        setStudentDonationSummary([]);
+        setTotalDonationForThisClassGoal(0);
 
-      if (auth?.loading) {
-        return;
-      }
-
-      if (!userClassCode) {
-        console.warn(
-          "[DonationHistoryModal] 현재 사용자의 학급 코드가 없습니다."
-        );
-        setError("학급 정보를 확인할 수 없어 기부 내역을 불러올 수 없습니다.");
-        setLoading(false);
-        return;
-      }
-
-      const validStudents = Array.isArray(students) ? students : [];
-
-      try {
-        console.log(
-          `[DonationHistoryModal] 학급(${userClassCode}) 목표 기부 내역 불러오기 시작`
-        );
-
-        // 🔥 학급별 localStorage 키 사용
-        const goalHistoryKey = `goalDonationHistory_${userClassCode}_goal`;
-        let classSpecificGoalDonations = [];
-
-        const historyString = localStorage.getItem(goalHistoryKey);
-        if (historyString) {
-          try {
-            const parsed = JSON.parse(historyString);
-            classSpecificGoalDonations = Array.isArray(parsed) ? parsed : [];
-          } catch (parseErr) {
-            console.error(
-              `[DonationHistoryModal] 학급(${userClassCode}) 기부 내역 파싱 오류:`,
-              parseErr
-            );
-          }
-        } else {
-          console.log(
-            `[DonationHistoryModal] 학급(${userClassCode})에 대한 기부 내역이 없습니다.`
-          );
-        }
-
-        console.log(
-          `[DonationHistoryModal] 불러온 기부 내역 ${classSpecificGoalDonations.length}개`
-        );
-
-        // 현재 사용자와 같은 학급 코드를 가진 학생들만 필터링
-        const sameClassStudents = validStudents.filter(
-          (student) => student.classCode && student.classCode === userClassCode
-        );
-        console.log(
-          `[DonationHistoryModal] 필터링된 현재 학급 학생 수: ${sameClassStudents.length}명 (전체 ${validStudents.length}명)`
-        );
-
-        const donationsByStudent = {};
-        let currentClassGoalTotal = 0;
-
-        classSpecificGoalDonations.forEach((donation) => {
-          const amount = Number(donation.amount) || 0;
-          if (donation.userId) {
-            donationsByStudent[donation.userId] =
-              (donationsByStudent[donation.userId] || 0) + amount;
-          }
-          currentClassGoalTotal += amount;
+        console.log("[DonationHistoryModal] 데이터 처리 시작:", {
+          userClassCode,
+          studentsCount: students.length,
+          donationsCount: donations.length,
+          students: students.map(s => ({ 
+            id: s.id || s.uid, 
+            name: s.name || s.nickname,
+            classCode: s.classCode 
+          })),
+          donations: donations
         });
 
-        console.log(
-          `[DonationHistoryModal] 학급(${userClassCode}) 학생별 집계:`,
-          donationsByStudent
-        );
-        console.log(`[DonationHistoryModal] 현재 userId: ${userId}`);
+        if (!userClassCode) {
+          setError("학급 정보를 확인할 수 없어 기부 내역을 처리할 수 없습니다.");
+          setLoading(false);
+          return;
+        }
 
-        setTotalDonationForThisClassGoal(currentClassGoalTotal);
+        try {
+          const classDonations = donations || [];
+          const validStudents = Array.isArray(students) ? students : [];
 
-        const summary = sameClassStudents
-          .map((student) => {
-            const studentId = student.uid || student.id;
-            const studentName =
-              student.name || student.nickname || "알 수 없음";
-            const isCurrentUser = userId && studentId === userId;
-            return {
-              id: studentId,
-              name: studentName,
-              cumulativeAmount: donationsByStudent[studentId] || 0,
-              isCurrentUser: isCurrentUser,
-              classCode: student.classCode,
-            };
-          })
-          .sort((a, b) => {
-            if (a.isCurrentUser && !b.isCurrentUser) return -1;
-            if (!a.isCurrentUser && b.isCurrentUser) return 1;
-            return a.name.localeCompare(b.name, "ko");
+          const donationsByStudent = {};
+          let currentClassGoalTotal = 0;
+
+          // 모든 기부 기록을 처리하여 학생별 기부액과 총 기부액을 계산
+          classDonations.forEach((donation) => {
+            const amount = Number(donation.amount) || 0;
+            if (donation.userId) {
+              donationsByStudent[donation.userId] =
+                (donationsByStudent[donation.userId] || 0) + amount;
+            }
+            currentClassGoalTotal += amount;
           });
 
-        setStudentDonationSummary(summary);
-      } catch (err) {
-        console.error("[DonationHistoryModal] 기부 내역 처리 중 오류:", err);
-        setError("기부 내역을 처리하는 중 오류가 발생했습니다.");
-      } finally {
-        setLoading(false);
-      }
+          setTotalDonationForThisClassGoal(currentClassGoalTotal);
+
+          console.log("[DonationHistoryModal] 기부 집계:", {
+            donationsByStudent,
+            totalAmount: currentClassGoalTotal
+          });
+
+          // 학급의 '모든' 학생 목록을 기반으로 최종 목록 생성
+          const summary = validStudents
+            .map((student) => {
+              // student.id 또는 student.uid 중 유효한 값 사용
+              const studentId = student.id || student.uid || student.userId;
+              const studentName =
+                student.name || student.nickname || "알 수 없는 학생";
+              const isCurrentUser = userId && studentId === userId;
+
+              return {
+                id: studentId,
+                name: studentName,
+                cumulativeAmount: donationsByStudent[studentId] || 0,
+                isCurrentUser: isCurrentUser,
+              };
+            })
+            // 이름 기준으로 가나다순 정렬
+            .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+
+          console.log("[DonationHistoryModal] 최종 학생 목록:", summary);
+
+          setStudentDonationSummary(summary);
+        } catch (err) {
+          console.error("[DonationHistoryModal] 기부 내역 처리 중 오류:", err);
+          setError("기부 내역을 처리하는 중 오류가 발생했습니다.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      processDonationData();
     }
-  }, [
-    showDonationHistoryModal,
-    students,
-    currentGoalId,
-    userId,
-    userClassCode,
-    auth?.loading,
-  ]);
+  }, [showDonationHistoryModal, students, userId, userClassCode, donations]);
 
   const handleClose = () => {
     setShowDonationHistoryModal(false);
@@ -252,42 +217,33 @@ export default function DonationHistoryModal({
     <div style={modalOverlayStyle} onClick={handleClose}>
       <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={modalHeaderStyle}>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "18px",
-              fontWeight: "600",
-              color: "#1f2937",
-            }}
-          >
+          <h3 style={{ margin: 0, fontSize: "18px", fontWeight: "600", color: "#1f2937" }}>
             우리 학급 기부 현황
             {userClassCode && (
-              <span
-                style={{
-                  marginLeft: "8px",
-                  fontSize: "14px",
-                  backgroundColor: "#dbeafe",
-                  color: "#1e40af",
-                  padding: "4px 8px",
-                  borderRadius: "12px",
-                  fontWeight: "500",
-                }}
-              >
+              <span style={{ 
+                marginLeft: "8px", 
+                fontSize: "14px", 
+                backgroundColor: "#dbeafe", 
+                color: "#1e40af", 
+                padding: "4px 8px", 
+                borderRadius: "12px", 
+                fontWeight: "500" 
+              }}>
                 {userClassCode}
               </span>
             )}
           </h3>
-          <button
-            onClick={handleClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "20px",
-              color: "#9ca3af",
-              padding: "0",
-              lineHeight: "1",
-            }}
+          <button 
+            onClick={handleClose} 
+            style={{ 
+              background: "none", 
+              border: "none", 
+              cursor: "pointer", 
+              fontSize: "20px", 
+              color: "#9ca3af", 
+              padding: "0", 
+              lineHeight: "1" 
+            }} 
             aria-label="닫기"
           >
             &times;
@@ -295,202 +251,140 @@ export default function DonationHistoryModal({
         </div>
 
         <div style={modalBodyStyle}>
-          <div
-            style={{
-              backgroundColor: "#eef2ff",
-              padding: "12px 15px",
-              borderRadius: "8px",
-              marginBottom: "20px",
-              border: "1px solid #c7d2fe",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "8px",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  color: "#4338ca",
-                }}
-              >
+          <div style={{ 
+            backgroundColor: "#eef2ff", 
+            padding: "12px 15px", 
+            borderRadius: "8px", 
+            marginBottom: "20px", 
+            border: "1px solid #c7d2fe" 
+          }}>
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center", 
+              marginBottom: "8px" 
+            }}>
+              <span style={{ fontSize: "14px", fontWeight: "500", color: "#4338ca" }}>
                 내 누적 기부액
               </span>
-              <span
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#4f46e5",
-                }}
-              >
+              <span style={{ fontSize: "16px", fontWeight: "600", color: "#4f46e5" }}>
                 {formatAmount(myTotalDonation)} 쿠폰
               </span>
             </div>
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  color: "#4338ca",
-                }}
-              >
+            <div style={{ 
+              display: "flex", 
+              justifyContent: "space-between", 
+              alignItems: "center" 
+            }}>
+              <span style={{ fontSize: "14px", fontWeight: "500", color: "#4338ca" }}>
                 우리 학급 총 기부액
               </span>
-              <span
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#4f46e5",
-                }}
-              >
+              <span style={{ fontSize: "16px", fontWeight: "600", color: "#4f46e5" }}>
                 {formatAmount(totalDonationForThisClassGoal)} 쿠폰
               </span>
             </div>
           </div>
 
           {loading ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "40px 0",
-                color: "#6b7280",
-              }}
-            >
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#6b7280" }}>
               기부 현황을 불러오는 중...
             </div>
           ) : error ? (
-            <div
-              style={{
-                color: "#ef4444",
-                textAlign: "center",
-                padding: "40px 0",
-              }}
-            >
+            <div style={{ color: "#ef4444", textAlign: "center", padding: "40px 0" }}>
               {error}
             </div>
           ) : (
-            <table style={tableStyles.table}>
-              <thead style={tableStyles.thead}>
-                <tr>
-                  <th style={tableStyles.th}>학생 이름</th>
-                  <th
-                    style={{
-                      ...tableStyles.th,
-                      width: "150px",
-                      textAlign: "right",
-                    }}
-                  >
-                    누적 기부 쿠폰
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {studentDonationSummary.length > 0 ? (
-                  studentDonationSummary.map((student, index) => (
-                    <tr
-                      key={student.id || index}
-                      style={{
-                        ...tableStyles.tr,
-                        backgroundColor: student.isCurrentUser
-                          ? "#e0e7ff"
-                          : index % 2 === 0
-                          ? "#f9fafb"
-                          : "#ffffff",
-                      }}
-                      onMouseOver={(e) => {
-                        if (!student.isCurrentUser)
-                          e.currentTarget.style.backgroundColor = "#eef2ff";
-                      }}
-                      onMouseOut={(e) => {
-                        if (!student.isCurrentUser)
-                          e.currentTarget.style.backgroundColor =
-                            index % 2 === 0 ? "#f9fafb" : "#ffffff";
-                      }}
-                    >
-                      <td style={tableStyles.td}>
-                        {student.name}
-                        {student.isCurrentUser && (
-                          <span
-                            style={{
-                              marginLeft: "8px",
-                              fontSize: "12px",
-                              backgroundColor: "#dbeafe",
-                              color: "#1e40af",
-                              padding: "2px 6px",
-                              borderRadius: "10px",
-                              fontWeight: "600",
-                              verticalAlign: "middle",
-                            }}
-                          >
-                            나
-                          </span>
-                        )}
-                      </td>
-                      <td
+            <>
+              {studentDonationSummary.length > 0 ? (
+                <table style={tableStyles.table}>
+                  <thead style={tableStyles.thead}>
+                    <tr>
+                      <th style={tableStyles.th}>학생 이름</th>
+                      <th style={{ ...tableStyles.th, width: "150px", textAlign: "right" }}>
+                        누적 기부 쿠폰
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {studentDonationSummary.map((student, index) => (
+                      <tr
+                        key={student.id || index}
                         style={{
-                          ...tableStyles.td,
-                          textAlign: "right",
-                          color:
-                            student.cumulativeAmount > 0
-                              ? "#4f46e5"
-                              : "#6b7280",
-                          fontWeight:
-                            student.cumulativeAmount > 0 ? "600" : "normal",
+                          ...tableStyles.tr,
+                          backgroundColor: student.isCurrentUser
+                            ? "#e0e7ff"
+                            : index % 2 === 0
+                            ? "#f9fafb"
+                            : "#ffffff",
+                        }}
+                        onMouseOver={(e) => {
+                          if (!student.isCurrentUser) {
+                            e.currentTarget.style.backgroundColor = "#eef2ff";
+                          }
+                        }}
+                        onMouseOut={(e) => {
+                          if (!student.isCurrentUser) {
+                            e.currentTarget.style.backgroundColor = 
+                              index % 2 === 0 ? "#f9fafb" : "#ffffff";
+                          }
                         }}
                       >
-                        {formatAmount(student.cumulativeAmount)} 쿠폰
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="2" style={{ padding: 0, border: 0 }}>
-                      <div style={tableStyles.emptyContainer}>
-                        <div style={tableStyles.emptyIcon}>👥</div>
-                        <p
-                          style={{
-                            margin: "0 0 8px 0",
-                            fontSize: "16px",
-                            fontWeight: "500",
-                          }}
-                        >
-                          아직 우리 학급에서 기부한 학생이 없습니다
-                        </p>
-                        <p style={{ margin: 0, fontSize: "14px" }}>
-                          첫 기부를 통해 목표 달성에 기여해보세요!
-                        </p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                        <td style={tableStyles.td}>
+                          {student.name}
+                          {student.isCurrentUser && (
+                            <span style={{ 
+                              marginLeft: "8px", 
+                              fontSize: "12px", 
+                              backgroundColor: "#dbeafe", 
+                              color: "#1e40af", 
+                              padding: "2px 6px", 
+                              borderRadius: "10px", 
+                              fontWeight: "600", 
+                              verticalAlign: "middle" 
+                            }}>
+                              나
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ 
+                          ...tableStyles.td, 
+                          textAlign: "right", 
+                          color: student.cumulativeAmount > 0 ? "#4f46e5" : "#6b7280", 
+                          fontWeight: student.cumulativeAmount > 0 ? "600" : "normal" 
+                        }}>
+                          {formatAmount(student.cumulativeAmount)} 쿠폰
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={tableStyles.emptyContainer}>
+                  <div style={tableStyles.emptyIcon}>👥</div>
+                  <p style={{ margin: "0 0 8px 0", fontSize: "16px", fontWeight: "500" }}>
+                    학급 학생 정보를 불러올 수 없거나 등록된 학생이 없습니다
+                  </p>
+                  <p style={{ margin: 0, fontSize: "14px" }}>
+                    관리자에게 문의하여 학급 설정을 확인해주세요.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </div>
 
         <div style={modalFooterStyle}>
-          <button
-            onClick={handleClose}
-            style={{
-              padding: "8px 16px",
-              backgroundColor: "#e5e7eb",
-              color: "#374151",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-              fontWeight: "500",
-              transition: "background-color 0.2s, color 0.2s",
+          <button 
+            onClick={handleClose} 
+            style={{ 
+              padding: "8px 16px", 
+              backgroundColor: "#e5e7eb", 
+              color: "#374151", 
+              border: "none", 
+              borderRadius: "6px", 
+              cursor: "pointer", 
+              fontWeight: "500", 
+              transition: "background-color 0.2s, color 0.2s" 
             }}
             onMouseOver={(e) => {
               e.target.style.backgroundColor = "#d1d5db";

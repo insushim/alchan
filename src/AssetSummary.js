@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useAuth } from "./App"; // App.js에서 useAuth 훅 가져오기
+// import { useAuth } from "./App"; // App.js에서 useAuth 훅 가져오기 (주석 처리, Dashboard에서 user를 직접 받음)
 import { formatKoreanCurrency } from "./numberFormatter"; // 숫자 포맷팅 헬퍼
 
 // Dashboard에서 전달하는 props: { user, couponValue, setShowTransferModal }
@@ -321,6 +321,15 @@ export default function AssetSummary({
   // 파킹 통장 잔액 비율 계산 (기존과 동일)
   const parkingRatio =
     grossAssets > 0 ? Math.min(100, (parkingBalance / grossAssets) * 100) : 0;
+    
+  // [수정] user 객체가 아직 없을 경우 로딩 상태 표시
+  if (!user) {
+    return (
+        <div style={{...styles.sectionContainer, padding: '20px', textAlign: 'center'}}>
+            자산 정보를 불러오는 중입니다...
+        </div>
+    );
+  }
 
   // --- JSX 렌더링 부분 수정 (보유 주식 섹션) ---
   return (

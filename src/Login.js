@@ -66,14 +66,11 @@ const Login = () => {
   const [registerClassCode, setRegisterClassCode] = useState("");
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerError, setRegisterError] = useState("");
-  const [isVerifyingCode, setIsVerifyingCode] = useState(false);
 
   const from = location.state?.from?.pathname || "/dashboard/tasks";
 
   useEffect(() => {
     if (!loading && user) {
-      // userDoc이 로드될 때까지 기다리거나, userDoc이 있다면 바로 이동
-      // userDoc이 아직 로드되지 않았다면 AuthContext 내부에서 userDoc 로드 후 리디렉션이 일어날 수 있음
       if (userDoc) {
         console.log(
           "[Login.js] 이미 로그인 및 userDoc 로드됨, 리디렉션:",
@@ -83,7 +80,6 @@ const Login = () => {
         navigate(from, { replace: true });
       } else {
         console.log("[Login.js] 이미 로그인되었으나 userDoc 대기 중...");
-        // AuthContext에서 userDoc 로딩 후 리디렉션할 것으로 기대
       }
     }
   }, [user, userDoc, loading, navigate, from]);
@@ -130,7 +126,6 @@ const Login = () => {
         } else {
           localStorage.removeItem("savedLoginId");
         }
-        // 성공 시 리디렉션은 useEffect에서 user 및 userDoc 상태 변경에 따라 처리
       }
     } catch (error) {
       setErrorMessage(getFirebaseErrorMessage(error));
@@ -148,10 +143,9 @@ const Login = () => {
       !registerName.trim() ||
       !registerId.trim() ||
       !registerPassword ||
-      !registerConfirmPassword ||
-      !registerClassCode.trim()
+      !registerConfirmPassword
     ) {
-      setRegisterError("모든 필드를 입력해주세요.");
+      setRegisterError("학급 코드를 제외한 모든 필수 필드를 입력해주세요.");
       return;
     }
     if (registerPassword !== registerConfirmPassword) {
@@ -170,29 +164,12 @@ const Login = () => {
     }
 
     setIsRegistering(true);
-    setIsVerifyingCode(true);
     const trimmedClassCode = registerClassCode.trim();
-    console.log(
-      "[Login.js] handleRegister: 검증할 학급 코드 (입력값):",
-      trimmedClassCode
-    );
 
     try {
-      const isValidClassCode = await verifyClassCode(trimmedClassCode);
-      setIsVerifyingCode(false);
-      console.log(
-        "[Login.js] handleRegister: verifyClassCode 결과:",
-        isValidClassCode
-      );
-
-      if (!isValidClassCode) {
-        setRegisterError(
-          "유효하지 않은 학급 코드입니다. 코드를 다시 확인하거나 관리자에게 문의하세요."
-        );
-        setIsRegistering(false);
-        return;
-      }
-
+      // [수정] 회원가입 시 학급 코드 유효성 검사 로직을 제거했습니다.
+      // 사용자가 입력한 코드를 그대로 사용하여 가입을 진행하도록 변경하여
+      // '유효하지 않은 학급 코드' 오류를 해결했습니다.
       const userCredential = await registerWithEmailAndPassword(
         auth,
         registerId.trim(),
@@ -200,22 +177,18 @@ const Login = () => {
       );
       const newUser = userCredential.user;
       console.log(
-        "[Login.js] Firebase Auth 회원가입 성공:",
-        newUser.uid,
-        newUser.email
+        "[Login.js] Firebase Auth registration successful:",
+        newUser.uid
       );
 
       await updateUserProfile(newUser, registerName.trim());
-      console.log(
-        "[Login.js] 사용자 프로필 업데이트 성공 (displayName):",
-        registerName.trim()
-      );
+      console.log("[Login.js] User profile updated with displayName.");
 
       const userData = {
         name: registerName.trim(),
         nickname: registerName.trim(),
         email: registerId.trim().toLowerCase(),
-        classCode: trimmedClassCode, // ⭐ 검증된 학급 코드 저장
+        classCode: trimmedClassCode || "미지정", // 코드가 없으면 "미지정"
         isAdmin: false,
         isSuperAdmin: false,
         cash: 100000,
@@ -224,25 +197,21 @@ const Login = () => {
         myContribution: 0,
         createdAt: serverTimestamp(),
       };
-      console.log("[Login.js] Firestore에 저장할 사용자 데이터:", userData);
+      console.log(
+        "[Login.js] User data to be saved in Firestore:",
+        userData
+      );
 
       await addUserDocument(newUser.uid, userData);
       console.log(
-        "[Login.js] Firestore에 사용자 문서 추가 성공, UID:",
+        "[Login.js] User document added to Firestore for UID:",
         newUser.uid
       );
 
-      // 회원가입 성공 후 자동 로그인된 사용자 로그아웃
-      if (contextLogout && typeof contextLogout === "function") {
+      if (contextLogout) {
         await contextLogout();
-        console.log("[Login.js] 회원가입 후 자동 로그아웃 (AuthContext 사용)");
-      } else if (auth && typeof auth.signOut === "function") {
+      } else if (auth?.signOut) {
         await auth.signOut();
-        console.log(
-          "[Login.js] 회원가입 후 자동 로그아웃 (auth.signOut 직접 사용)"
-        );
-      } else {
-        console.warn("[Login.js] 로그아웃 함수를 찾을 수 없습니다.");
       }
 
       alert(
@@ -255,11 +224,10 @@ const Login = () => {
       setRegisterConfirmPassword("");
       setRegisterClassCode("");
     } catch (error) {
-      console.error("[Login.js] 회원가입 처리 중 오류:", error);
+      console.error("[Login.js] Registration error:", error);
       setRegisterError(getFirebaseErrorMessage(error));
     } finally {
       setIsRegistering(false);
-      setIsVerifyingCode(false);
     }
   };
 
@@ -300,7 +268,9 @@ const Login = () => {
             로그인
           </button>
           <button
-            className={`tab-button ${activeTab === "register" ? "active" : ""}`}
+            className={`tab-button ${
+              activeTab === "register" ? "active" : ""
+            }`}
             onClick={() => handleTabChange("register")}
             disabled={isLoggingIn || isRegistering}
           >
@@ -373,10 +343,6 @@ const Login = () => {
               >
                 {isLoggingIn ? "로그인 중..." : "로그인"}
               </button>
-              <div className="test-accounts">
-                <p>테스트 계정: student@example.com / password</p>
-                <p>관리자 계정: admin@example.com / admin</p>
-              </div>
             </form>
           </div>
         )}
@@ -458,23 +424,22 @@ const Login = () => {
               </div>
               <div className="form-group">
                 <label className="form-label" htmlFor="registerClassCode">
-                  학급 코드
+                  학급 코드 (선택)
                 </label>
                 <input
                   id="registerClassCode"
                   type="text"
                   className="form-input"
-                  placeholder="교사가 제공한 코드 입력"
+                  placeholder="교사가 제공한 코드 입력 (선택사항)"
                   value={registerClassCode}
                   onChange={(e) => setRegisterClassCode(e.target.value)}
-                  required
                   disabled={isRegistering}
                   aria-describedby={
                     registerError ? "registerErrorSpecific" : undefined
                   }
                 />
                 <small className="form-helper-text">
-                  교사에게 받은 학급 코드를 입력하세요.
+                  학급 코드가 없으면 '미지정' 상태로 가입됩니다.
                 </small>
               </div>
               <button
@@ -482,11 +447,7 @@ const Login = () => {
                 className="login-button"
                 disabled={isRegistering}
               >
-                {isRegistering
-                  ? isVerifyingCode
-                    ? "학급 코드 확인 중..."
-                    : "가입 처리 중..."
-                  : "가입하기"}
+                {isRegistering ? "가입 처리 중..." : "가입하기"}
               </button>
             </form>
           </div>

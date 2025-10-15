@@ -508,7 +508,7 @@ body {
 }
 
 /* ===============================================
-    모든 모달(팝업) 스타일
+    모든 모달(팝업) 스타일 (수정됨)
  =============================================== */
 
 /* 모든 팝업 창을 감싸는 배경 */
@@ -516,20 +516,21 @@ body {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
+  width: 100vw; /* 수정: 너비를 뷰포트 너비로 강제 */
+  height: 100vh; /* 수정: 높이를 뷰포트 높이로 강제 */
+  background: rgba(0, 0, 0, 0.7); /* 배경 어둡게 */
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* [핵심] 항상 상단에 정렬 */
+  align-items: center; /* 세로 중앙 정렬 */
   z-index: 9999;
-  padding: 10vh 1rem; /* 상단 여백 */
+  padding: 1rem;
   overflow-y: auto;
+  box-sizing: border-box; /* 추가: 패딩이 너비/높이에 포함되도록 */
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(50px);
+    transform: translateY(30px);
     opacity: 0;
   }
   to {
@@ -543,24 +544,27 @@ body {
 .property-modal,
 .quick-action-modal {
   background: white;
-  border-radius: 20px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-radius: 16px; /* 둥근 모서리 조정 */
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
   animation: slideUp 0.3s ease-out;
-  margin: 0;
-  width: 90%;
-  max-width: 500px;
+  margin: auto; /* 상하좌우 자동 마진으로 중앙 정렬 */
+  width: 100%; /* 너비 조정 */
+  max-width: 550px; /* 최대 너비 조정 */
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh; /* 화면 높이를 넘지 않도록 */
 }
 
-/* 모달 헤더, 콘텐츠, 닫기 버튼 등 (공통) */
 .panel-header,
 .modal-header,
 .quick-modal-header {
-  padding: 1.5rem;
+  padding: 1rem 1.5rem;
   border-bottom: 1px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   background: #f8fafc;
+  flex-shrink: 0;
 }
 .panel-header h3,
 .modal-header h3,
@@ -589,11 +593,11 @@ body {
   color: #1e293b;
 }
 
-/* 모달 내용 영역 (내부 스크롤 없음) */
 .panel-content,
 .modal-content,
 .quick-modal-content {
   padding: 1.5rem;
+  overflow-y: auto; /* 내용이 길어지면 스크롤 */
 }
 
 /* 퀵 액션 모달 */
@@ -653,7 +657,7 @@ body {
 
 /* 폼 그룹 */
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 .form-group label {
   display: block;
@@ -666,25 +670,29 @@ body {
 .form-group select {
   width: 100%;
   padding: 0.75rem 1rem;
-  border: 2px solid #e2e8f0;
-  border-radius: 12px;
+  border: 1px solid #d1d5db; /* 테두리 두께 줄임 */
+  border-radius: 8px; /* 둥근 모서리 줄임 */
   font-size: 0.875rem;
   transition: all 0.2s ease;
 }
+
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
+
 .panel-actions {
   display: flex;
   gap: 1rem;
   flex-wrap: wrap;
-  padding-top: 1rem;
+  padding: 1.5rem;
   border-top: 1px solid #e2e8f0;
-  margin-top: 1rem;
+  background-color: #f8fafc;
+  flex-shrink: 0;
 }
+
 .btn-primary {
   flex: 1;
   padding: 0.75rem 1.5rem;
@@ -771,6 +779,35 @@ body {
   color: #64748b;
   font-size: 1rem;
 }
+
+.non-tenant-list {
+  margin-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 1rem;
+}
+.non-tenant-list h4 {
+  font-size: 1rem;
+  color: #ef4444;
+  margin-bottom: 0.5rem;
+}
+.non-tenant-list ul {
+  list-style-type: none;
+  padding: 0;
+  max-height: 150px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem;
+}
+.non-tenant-list li {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+.non-tenant-list p {
+    font-size: 0.875rem;
+    color: #64748b;
+}
+
 
 /* 반응형 디자인 */
 @media (max-width: 768px) {

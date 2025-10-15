@@ -1,4 +1,4 @@
-/* src/AdminSettingsModal.css - Enhanced Version */
+/* src/AdminSettingsModal.css - 재구성된 버전 */
 @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap");
 
 :root {
@@ -18,13 +18,32 @@
   --white: #ffffff;
   --modal-bg: rgba(0, 0, 0, 0.6); /* 모달 배경 어둡게 */
   --border-radius: 8px; /* 통일된 둥근 모서리 */
-  --box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1),
-    0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --transition-speed: 0.3s;
+}
+
+/* 학급 정보 헤더 스타일 */
+.class-info-header {
+  background: linear-gradient(135deg, #e0e7ff 0%, #f0f4ff 100%);
+  border: 1px solid #c7d2fe;
+  border-radius: var(--border-radius);
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.current-class-info {
+  margin: 0;
+  font-size: 14px;
+  color: var(--dark-text);
+  font-weight: 500;
+}
+
+.current-class-info strong {
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
 body {
-  font-family: "Poppins", sans-serif; /* 세련된 폰트 적용 (앱 전체에 적용 필요) */
+  font-family: "Poppins", sans-serif; /* 세련된 폰트 적용 */
 }
 
 .admin-settings-modal {
@@ -50,7 +69,7 @@ body {
 }
 
 .admin-settings-modal.show .admin-settings-content {
-  transform: translateY(0); /* 모달 나타날 때 위로 살짝 올라오는 효과 */
+  transform: translateY(0);
   opacity: 1;
 }
 
@@ -58,12 +77,12 @@ body {
   background-color: var(--white);
   border-radius: var(--border-radius);
   width: 90%;
-  max-width: 850px; /* 약간 넓게 */
+  max-width: 950px; /* 더 넓게 */
   max-height: 90vh;
   overflow-y: auto;
-  padding: 30px; /* 패딩 늘리기 */
+  padding: 30px;
   box-shadow: var(--box-shadow);
-  transform: translateY(20px); /* 초기 위치 */
+  transform: translateY(20px);
   opacity: 0;
   transition: transform var(--transition-speed) ease,
     opacity var(--transition-speed) ease;
@@ -78,7 +97,7 @@ body {
   border-radius: 10px;
 }
 .admin-settings-content::-webkit-scrollbar-thumb {
-  background: #c7d2fe; /* 인디고 계열 연한 색 */
+  background: #c7d2fe;
   border-radius: 10px;
 }
 .admin-settings-content::-webkit-scrollbar-thumb:hover {
@@ -106,7 +125,7 @@ body {
 }
 
 .admin-class-info {
-  background-color: #eef2ff; /* 인디고 연한 배경 */
+  background-color: #eef2ff;
   color: var(--primary-color);
   padding: 8px 12px;
   border-radius: 6px;
@@ -116,38 +135,91 @@ body {
   border-left: 4px solid var(--primary-color);
 }
 
+/* 탭 메뉴 스타일 개선 */
 .admin-menu-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 15px;
   margin-bottom: 25px;
   padding-bottom: 15px;
   border-bottom: 2px solid var(--border-color);
+  background-color: var(--light-bg);
+  padding: 15px;
+  border-radius: var(--border-radius);
 }
 
 .admin-menu-tabs button {
-  padding: 10px 20px;
-  background-color: transparent;
-  border: none;
-  border-bottom: 3px solid transparent; /* 밑줄 효과 준비 */
-  border-radius: 0; /* 탭 느낌 */
+  padding: 12px 24px;
+  background-color: var(--white);
+  border: 2px solid var(--border-color);
+  border-radius: var(--border-radius);
   cursor: pointer;
   font-weight: 600;
   color: var(--medium-text);
   transition: all var(--transition-speed) ease;
-  position: relative; /* 호버 효과를 위한 */
+  position: relative;
   overflow: hidden;
+  font-size: 15px;
 }
 
 .admin-menu-tabs button:hover:not(.active) {
-  color: var(--dark-text);
-  border-bottom-color: #d1d5db; /* 호버 시 연한 밑줄 */
+  color: var(--primary-color);
+  border-color: var(--primary-color);
+  background-color: #f0f4ff;
 }
 
 .admin-menu-tabs button.active {
-  color: var(--primary-color);
+  color: var(--white);
+  background-color: var(--primary-color);
+  border-color: var(--primary-color);
   font-weight: 700;
-  border-bottom-color: var(--primary-color); /* 활성 탭 밑줄 */
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* 섹션 카드 스타일 */
+.section-card {
+  background-color: var(--white);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 25px;
+  margin-bottom: 25px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.section-card h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--primary-color);
+  font-size: 20px;
+  font-weight: 600;
+  border-bottom: 2px solid var(--primary-color);
+  padding-bottom: 10px;
+}
+
+.section-card h4 {
+  margin-top: 20px;
+  margin-bottom: 15px;
+  color: var(--dark-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* 탭 컨테이너 스타일 */
+.app-settings-tab,
+.job-settings-tab,
+.app-management-tab {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .admin-section-desc {
@@ -170,10 +242,17 @@ body {
   color: var(--dark-text);
 }
 
+.form-help {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--light-text);
+}
+
 .admin-input,
 .job-select {
   width: 100%;
-  padding: 12px 15px; /* 패딩 늘리기 */
+  padding: 12px 15px;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   font-size: 14px;
@@ -394,7 +473,7 @@ body {
 
 /* 테이블 스타일 */
 .members-table-container {
-  overflow-x: auto; /* 테이블 넘칠 경우 스크롤 */
+  overflow-x: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   margin-top: 15px;
@@ -406,17 +485,17 @@ body {
 
 .members-table th,
 .members-table td {
-  padding: 12px 15px; /* 패딩 조정 */
+  padding: 12px 15px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
-  white-space: nowrap; /* 줄바꿈 방지 */
+  white-space: nowrap;
 }
 
 .members-table th {
   background-color: var(--light-bg);
   font-weight: 700;
   color: var(--dark-text);
-  text-transform: uppercase; /* 대문자 */
+  text-transform: uppercase;
   font-size: 12px;
 }
 
@@ -429,7 +508,7 @@ body {
 }
 
 .members-table tbody tr:hover {
-  background-color: #eef2ff; /* 인디고 연한 배경 */
+  background-color: #eef2ff;
 }
 
 .members-table td .no-jobs {
@@ -446,7 +525,7 @@ body {
   color: var(--secondary-color);
 }
 .selected-student-row {
-  background-color: #fffbeb !important; /* 노란색 계열 강조 */
+  background-color: #fffbeb !important;
   border-left: 4px solid #facc15;
 }
 
@@ -519,7 +598,9 @@ body {
   padding-bottom: 10px;
 }
 
-.add-task-form {
+.add-task-form,
+.add-job-form,
+.add-class-code-form {
   background-color: var(--light-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
@@ -527,15 +608,92 @@ body {
   margin-bottom: 20px;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
 }
-.add-task-form h4 {
+
+.add-task-form h4,
+.add-job-form h4 {
   margin-top: 0;
   margin-bottom: 15px;
   color: var(--dark-text);
 }
+
 .task-form-buttons {
   display: flex;
   justify-content: flex-end;
   margin-top: 20px;
+}
+
+.add-job-form,
+.add-class-code-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* 급여 설정 스타일 */
+.salary-settings-form {
+  background-color: var(--light-bg);
+  padding: 20px;
+  border-radius: var(--border-radius);
+  margin-bottom: 20px;
+}
+
+.current-salary-settings {
+  background-color: #f9fafb;
+  padding: 20px;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+}
+
+.settings-display {
+  background-color: var(--white);
+  padding: 15px;
+  border-radius: 6px;
+  margin: 15px 0;
+}
+
+.settings-display p {
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.salary-calculation-example {
+  background-color: #eef2ff;
+  padding: 15px;
+  border-radius: 6px;
+  margin: 15px 0;
+  border-left: 3px solid var(--primary-color);
+}
+
+.salary-calculation-example h5 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: var(--primary-color);
+}
+
+.salary-calculation-example p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: var(--medium-text);
+}
+
+.auto-payment-info {
+  background-color: #fef3c7;
+  padding: 15px;
+  border-radius: 6px;
+  margin: 15px 0;
+  border-left: 3px solid var(--warning-color);
+}
+
+.auto-payment-info h5 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: var(--warning-color);
+}
+
+.auto-payment-info p {
+  margin: 5px 0;
+  font-size: 13px;
+  color: var(--medium-text);
 }
 
 /* 학생 직업 설정 모달 */
@@ -555,7 +713,6 @@ body {
   transition: opacity var(--transition-speed) ease;
 }
 
-/* 학생 직업 설정 모달 - show 클래스 추가 */
 .modal-overlay.show {
   opacity: 1;
   visibility: visible;
@@ -569,13 +726,12 @@ body {
   max-height: 90vh;
   overflow-y: auto;
   box-shadow: var(--box-shadow);
-  transform: scale(0.95); /* 초기 크기 */
+  transform: scale(0.95);
   opacity: 0;
   transition: transform var(--transition-speed) ease,
     opacity var(--transition-speed) ease;
 }
 
-/* 학생 직업 설정 모달 - show 클래스 추가 */
 .modal-overlay.show .edit-student-jobs-modal {
   transform: scale(1);
   opacity: 1;
@@ -632,7 +788,7 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 15px;
-} /* 2열 그리드 */
+}
 .job-selection-item {
   display: flex;
   align-items: center;
@@ -653,7 +809,7 @@ body {
   height: 16px;
   cursor: pointer;
   accent-color: var(--primary-color);
-} /* 체크박스 스타일 */
+}
 .job-selection-item label {
   flex-grow: 1;
   cursor: pointer;
@@ -686,14 +842,16 @@ body {
   .admin-settings-content {
     width: 95%;
     padding: 15px;
+    max-width: 100%;
   }
   .admin-menu-tabs {
     flex-direction: column;
-    gap: 5px;
+    gap: 10px;
+    padding: 10px;
   }
   .admin-menu-tabs button {
     width: 100%;
-    text-align: left;
+    text-align: center;
   }
   .task-info {
     flex-direction: column;
@@ -708,7 +866,7 @@ body {
   }
   .job-selection-list {
     grid-template-columns: 1fr;
-  } /* 모바일에서는 1열 */
+  }
   .members-table {
     display: block;
     overflow-x: auto;
@@ -716,5 +874,8 @@ body {
   .members-table th,
   .members-table td {
     padding: 8px 10px;
+  }
+  .section-card {
+    padding: 15px;
   }
 }

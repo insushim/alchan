@@ -1,0 +1,187 @@
+.music-room-container-grid {
+    display: grid;
+    grid-template-columns: 1fr 350px; /* Main content takes remaining space, sidebar is 350px */
+    gap: 20px;
+    padding: 20px;
+    height: calc(100vh - 180px); /* Adjust based on your header/footer height */
+    box-sizing: border-box;
+}
+
+.main-content {
+    display: flex;
+    flex-direction: column;
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.video-player-wrapper {
+    flex-grow: 1; /* Takes up all available vertical space */
+    background-color: #000;
+    min-height: 0; /* Important for flex-grow in a flex column */
+}
+
+.youtube-player {
+    width: 100%;
+    height: 100%;
+}
+
+.no-video-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
+    background-color: #f0f0f0;
+    color: #888;
+    font-size: 1.2rem;
+}
+
+.room-header {
+    padding: 1rem 1.5rem;
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.room-header h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.room-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.control-btn, .delete-room-btn {
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: all 0.2s ease;
+}
+
+.control-btn {
+    background: linear-gradient(90deg, #5e72e4, #825ee4);
+    color: white;
+}
+.control-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(94, 114, 228, 0.3);
+}
+.control-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.delete-room-btn {
+    background-color: #f5365c;
+    color: white;
+}
+.delete-room-btn:hover {
+    background-color: #e02146;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(245, 54, 92, 0.3);
+}
+
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 0; /* Fix for flexbox overflow */
+}
+
+.share-info-panel, .playlist-panel {
+    background-color: #fff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    padding: 1.5rem;
+}
+
+.share-info-panel h4, .playlist-panel h3 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    text-align: center;
+    color: #333;
+    font-size: 1.2rem;
+}
+
+.qr-code-container-room {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.room-link-title {
+    margin: 0 0 0.5rem 0;
+    font-weight: bold;
+    font-size: 0.9rem;
+    color: #555;
+    text-align: center;
+}
+
+.room-link-box {
+    background-color: #f0f2f5;
+    padding: 0.5rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    text-align: center;
+    word-break: break-all;
+    font-family: monospace;
+    color: #333;
+}
+
+.playlist-panel {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.playlist {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex-grow: 1; /* Takes remaining space */
+}
+
+.playlist li {
+    padding: 0.8rem;
+    border-bottom: 1px solid #f0f0f0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    transition: background-color 0.2s;
+}
+.playlist li:last-child {
+    border-bottom: none;
+}
+
+.song-title {
+    font-weight: 500;
+    color: #333;
+}
+
+.playlist li.playing {
+    background-color: #e9f5ff;
+}
+.playlist li.playing .song-title {
+    color: #0056b3;
+    font-weight: bold;
+}
+
+.requester {
+    font-size: 0.8rem;
+    color: #777;
+    align-self: flex-end;
+}

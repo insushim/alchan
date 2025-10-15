@@ -1,24 +1,80 @@
-// LearningGamesPage.js - 수정됨
-import React from "react";
-// 수정: ResourceFlow (7).js에서 ResourceFlow 컴포넌트를 임포트합니다.
-// 파일 경로가 현재 파일 기준으로 올바른지 확인하세요. (예: './ResourceFlow (7).js')
-import ResourceFlow from "./ResourceFlow (7).js"; // 경로 수정
+// src/LearningGamesPage.js
+import React, { useState } from "react";
+import TypingPracticeGame from "./TypingPracticeGame";
+import GeographyGame from "./GeographyGame";
+import ScienceGame from "./ScienceGame";
+import "./LearningGames.css";
+
+// 게임 목록 데이터
+const games = [
+  {
+    id: "typing",
+    title: "타자 연습 게임",
+    description: "영어 단어의 올바른 한글 뜻을 입력하여 쿠폰을 획득하세요!",
+    component: TypingPracticeGame,
+    icon: "⌨️",
+  },
+  {
+    id: "geography",
+    title: "지리 게임",
+    description: "지리 퀴즈를 풀며 지식도 쌓고 보상도 받으세요!",
+    component: GeographyGame,
+    icon: "🌍",
+  },
+  {
+    id: "science",
+    title: "과학 게임",
+    description: "재미있는 과학 퀴즈에 도전해보세요!",
+    component: ScienceGame,
+    icon: "🔬",
+  },
+  // 다른 게임들도 여기에 추가할 수 있습니다.
+];
 
 const LearningGamesPage = () => {
-  const handleLevelClear = (points) => {
-    // 포인트를 학급 경제 시스템에 통합하는 로직
-    console.log(`획득한 포인트: ${points}`);
-    // 예: API 호출 또는 상태 관리를 통한 포인트 저장
+  const [activeGame, setActiveGame] = useState(null);
+
+  const handleGameStart = (gameId) => {
+    setActiveGame(gameId);
   };
+
+  const handleGameClose = () => {
+    setActiveGame(null);
+  };
+
+  const ActiveGameComponent = games.find((g) => g.id === activeGame)?.component;
+
+  if (activeGame && ActiveGameComponent) {
+    return <ActiveGameComponent onClose={handleGameClose} />;
+  }
 
   return (
     <div className="learning-games-container">
-      <h1 className="text-2xl font-bold">학습 게임</h1>
-      <p className="text-gray-600 mb-4">
-        게임을 통해 즐겁게 공부하고 포인트도 획득해보세요!
-      </p>
+      <div className="page-header">
+        <h1 className="page-title">🎓 학습 게임 센터</h1>
+        <p className="page-subtitle">
+          다양한 게임을 통해 즐겁게 학습하고 보상을 획득하세요!
+        </p>
+      </div>
 
-      <ResourceFlow onLevelClear={handleLevelClear} />
+      <div className="game-list">
+        {games.map((game) => (
+          <div
+            key={game.id}
+            className="game-card"
+            onClick={() => handleGameStart(game.id)}
+          >
+            <div className="game-icon">{game.icon}</div>
+            <div className="game-card-content">
+              <h3 className="game-title">{game.title}</h3>
+              <p className="game-description">{game.description}</p>
+            </div>
+            <div className="game-card-hover">
+              <span>플레이하기 →</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

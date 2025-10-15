@@ -1,7 +1,9 @@
+// src/NationalAssembly.js
 import React, { useState, useEffect, useCallback } from "react";
 import "./NationalAssembly.css";
 import { useAuth } from "./AuthContext";
 import { db } from "./firebase";
+import { usePolling } from "./hooks/usePolling";
 
 // Firestore v9 모듈식 API에서 필요한 함수들을 직접 한 번에 가져옵니다.
 import {
@@ -17,7 +19,6 @@ import {
   orderBy,
   increment,
   writeBatch,
-  onSnapshot,
   setDoc,
   serverTimestamp,
   runTransaction, // ❗ runTransaction 함수 추가
@@ -29,8 +30,6 @@ const NationalAssembly = () => {
   const classCode = currentUser?.classCode;
 
   const [activeTab, setActiveTab] = useState("propose");
-  const [laws, setLaws] = useState([]);
-  const [lawsLoading, setLawsLoading] = useState(true);
   const [showProposeLawModal, setShowProposeLawModal] = useState(false);
   const [showEditLawModal, setShowEditLawModal] = useState(false);
   const [newLaw, setNewLaw] = useState({
@@ -40,202 +39,178 @@ const NationalAssembly = () => {
     fine: "",
   });
   const [editingLaw, setEditingLaw] = useState(null);
-  const [adminSettings, setAdminSettings] = useState({
-    totalStudents: 25,
-  });
-  const [adminSettingsLoading, setAdminSettingsLoading] = useState(true);
-  const [governmentSettings, setGovernmentSettings] = useState({
-    vetoOverrideRequired: 17,
-  });
-  const [govSettingsLoading, setGovSettingsLoading] = useState(true);
-  const [userVotes, setUserVotes] = useState({});
-  const [userVotesLoading, setUserVotesLoading] = useState(true);
+  const [localAdminSettings, setLocalAdminSettings] = useState(null);
+  const [localGovSettings, setLocalGovSettings] = useState(null);
 
   // 관리자 설정 로드 및 초기화
-  useEffect(() => {
-    if (!classCode) {
-      setAdminSettingsLoading(false);
-      setAdminSettings({ totalStudents: 25 });
-      return;
-    }
-    const adminSettingsDocRefNode = doc(
-      db,
-      "classes",
-      classCode,
-      "nationalAssemblySettings",
-      "admin"
-    );
-    setAdminSettingsLoading(true);
-    const unsubscribe = onSnapshot(
-      adminSettingsDocRefNode,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setAdminSettings(docSnap.data());
-        } else {
-          const defaultAdminSettings = { totalStudents: 25 };
-          setDoc(adminSettingsDocRefNode, defaultAdminSettings)
-            .then(() => setAdminSettings(defaultAdminSettings))
-            .catch((err) =>
-              console.error("Error creating default admin settings:", err)
-            );
-        }
-        setAdminSettingsLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching admin settings:", error);
-        setAdminSettings({ totalStudents: 25 });
-        setAdminSettingsLoading(false);
+  const { data: adminSettings, loading: adminSettingsLoading } = usePolling(
+    async () => {
+      if (!classCode) return { totalStudents: 25 };
+
+      const adminSettingsDocRefNode = doc(
+        db,
+        "classes",
+        classCode,
+        "nationalAssemblySettings",
+        "admin"
+      );
+
+      const docSnap = await getDoc(adminSettingsDocRefNode);
+
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        const defaultAdminSettings = { totalStudents: 25 };
+        await setDoc(adminSettingsDocRefNode, defaultAdminSettings);
+        return defaultAdminSettings;
       }
-    );
-    return () => unsubscribe();
-  }, [classCode]);
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+      defaultValue: { totalStudents: 25 },
+      onError: (error) => {
+        console.error("Error fetching admin settings:", error);
+      }
+    }
+  );
 
   // 정부 설정 로드 및 초기화
-  useEffect(() => {
-    if (!classCode || adminSettingsLoading) {
-      setGovSettingsLoading(false);
-      setGovernmentSettings({
-        vetoOverrideRequired: Math.ceil(
-          (adminSettings.totalStudents || 25) * (2 / 3)
-        ),
-      });
-      return;
-    }
-    const govSettingsDocRefNode = doc(
-      db,
-      "classes",
-      classCode,
-      "nationalAssemblySettings",
-      "government"
-    );
-    setGovSettingsLoading(true);
-    const unsubscribe = onSnapshot(
-      govSettingsDocRefNode,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setGovernmentSettings(docSnap.data());
-        } else {
-          const defaultGovSettings = {
-            vetoOverrideRequired: Math.ceil(
-              adminSettings.totalStudents * (2 / 3)
-            ),
-          };
-          setDoc(govSettingsDocRefNode, defaultGovSettings)
-            .then(() => setGovernmentSettings(defaultGovSettings))
-            .catch((err) =>
-              console.error("Error creating default government settings:", err)
-            );
-        }
-        setGovSettingsLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching government settings:", error);
-        setGovernmentSettings({
+  const { data: governmentSettings, loading: govSettingsLoading } = usePolling(
+    async () => {
+      if (!classCode || adminSettingsLoading) {
+        return {
+          vetoOverrideRequired: Math.ceil(
+            (adminSettings.totalStudents || 25) * (2 / 3)
+          ),
+        };
+      }
+
+      const govSettingsDocRefNode = doc(
+        db,
+        "classes",
+        classCode,
+        "nationalAssemblySettings",
+        "government"
+      );
+
+      const docSnap = await getDoc(govSettingsDocRefNode);
+
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        const defaultGovSettings = {
           vetoOverrideRequired: Math.ceil(
             adminSettings.totalStudents * (2 / 3)
           ),
-        });
-        setGovSettingsLoading(false);
+        };
+        await setDoc(govSettingsDocRefNode, defaultGovSettings);
+        return defaultGovSettings;
       }
-    );
-    return () => unsubscribe();
-  }, [classCode, adminSettings.totalStudents, adminSettingsLoading]);
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode && !adminSettingsLoading,
+      deps: [classCode, adminSettings.totalStudents, adminSettingsLoading],
+      defaultValue: {
+        vetoOverrideRequired: Math.ceil(
+          (adminSettings.totalStudents || 25) * (2 / 3)
+        ),
+      },
+      onError: (error) => {
+        console.error("Error fetching government settings:", error);
+      }
+    }
+  );
 
   // 법안 데이터 로드
-  useEffect(() => {
-    if (!classCode) {
-      setLawsLoading(false);
-      setLaws([]);
-      return;
-    }
-    const lawsCollectionRefNode = collection(
-      db,
-      "classes",
-      classCode,
-      "nationalAssemblyLaws"
-    );
-    setLawsLoading(true);
-    const q = query(lawsCollectionRefNode, orderBy("timestamp", "desc"));
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const loadedLaws = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          timestamp: doc.data().timestamp?.toDate
-            ? doc.data().timestamp.toDate().toISOString()
-            : new Date().toISOString(),
-          vetoDate: doc.data().vetoDate?.toDate
-            ? doc.data().vetoDate.toDate().toISOString()
-            : null,
-          vetoDeadline: doc.data().vetoDeadline?.toDate
-            ? doc.data().vetoDeadline.toDate().toISOString()
-            : null,
-          finalApprovalDate: doc.data().finalApprovalDate?.toDate
-            ? doc.data().finalApprovalDate.toDate().toISOString()
-            : null,
-        }));
-        setLaws(loadedLaws);
-        setLawsLoading(false);
-      },
-      (error) => {
+  const { data: laws, loading: lawsLoading } = usePolling(
+    async () => {
+      if (!classCode) return [];
+
+      const lawsCollectionRefNode = collection(
+        db,
+        "classes",
+        classCode,
+        "nationalAssemblyLaws"
+      );
+      const q = query(lawsCollectionRefNode, orderBy("timestamp", "desc"));
+      const querySnapshot = await getDocs(q);
+
+      return querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        timestamp: doc.data().timestamp?.toDate
+          ? doc.data().timestamp.toDate().toISOString()
+          : new Date().toISOString(),
+        vetoDate: doc.data().vetoDate?.toDate
+          ? doc.data().vetoDate.toDate().toISOString()
+          : null,
+        vetoDeadline: doc.data().vetoDeadline?.toDate
+          ? doc.data().vetoDeadline.toDate().toISOString()
+          : null,
+        finalApprovalDate: doc.data().finalApprovalDate?.toDate
+          ? doc.data().finalApprovalDate.toDate().toISOString()
+          : null,
+      }));
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+      defaultValue: [],
+      onError: (error) => {
         console.error("Error fetching laws:", error);
-        setLaws([]);
-        setLawsLoading(false);
       }
-    );
-    return () => unsubscribe();
-  }, [classCode]);
+    }
+  );
 
   // 사용자 투표 이력 로드
-  useEffect(() => {
-    if (!classCode || !currentUser?.id) {
-      setUserVotesLoading(false);
-      setUserVotes({});
-      return;
-    }
-    const userVotesDocRefNode = doc(
-      db,
-      "classes",
-      classCode,
-      "userVotes",
-      currentUser.id
-    );
-    setUserVotesLoading(true);
-    const unsubscribe = onSnapshot(
-      userVotesDocRefNode,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setUserVotes(docSnap.data());
-        } else {
-          setUserVotes({});
-        }
-        setUserVotesLoading(false);
-      },
-      (error) => {
-        console.error("Error fetching user votes:", error);
-        setUserVotes({});
-        setUserVotesLoading(false);
-      }
-    );
-    return () => unsubscribe();
-  }, [classCode, currentUser?.id]);
+  const { data: userVotes, loading: userVotesLoading } = usePolling(
+    async () => {
+      if (!classCode || !currentUser?.id) return {};
 
+      const userVotesDocRefNode = doc(
+        db,
+        "classes",
+        classCode,
+        "userVotes",
+        currentUser.id
+      );
+
+      const docSnap = await getDoc(userVotesDocRefNode);
+
+      if (docSnap.exists()) {
+        return docSnap.data();
+      } else {
+        return {};
+      }
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode && !!currentUser?.id,
+      deps: [classCode, currentUser?.id],
+      defaultValue: {},
+      onError: (error) => {
+        console.error("Error fetching user votes:", error);
+      }
+    }
+  );
+
+  // --- 🔥 [수정] 새 법안 제안 함수 ---
   const handleProposeLaw = async () => {
     if (!classCode || !currentUser) {
       alert("학급 정보가 없거나 로그인되지 않았습니다.");
       return;
     }
-    const lawsCollectionRefNode = collection(
-      db,
-      "classes",
-      classCode,
-      "nationalAssemblyLaws"
-    );
     if (!newLaw.title || !newLaw.description || !newLaw.fine) {
       alert("모든 필드를 입력해주세요.");
       return;
     }
+
+    // 🔥 collection 함수의 올바른 사용법: db 인스턴스와 전체 경로를 인자로 전달합니다.
+    const lawsCollectionRef = collection(db, "classes", classCode, "nationalAssemblyLaws");
 
     const newLawData = {
       ...newLaw,
@@ -250,7 +225,9 @@ const NationalAssembly = () => {
     };
 
     try {
-      await addDoc(lawsCollectionRefNode, newLawData);
+      // 🔥 수정된 collection 참조를 사용하여 문서를 추가합니다.
+      await addDoc(lawsCollectionRef, newLawData);
+      console.log("새 법안이 성공적으로 제안되었습니다:", newLawData.title);
       setShowProposeLawModal(false);
       setNewLaw({ title: "", purpose: "", description: "", fine: "" });
     } catch (error) {
@@ -323,84 +300,82 @@ const NationalAssembly = () => {
     const currentLaw = laws.find((l) => l.id === lawId);
 
     if (
-      (currentLaw?.voters &&
+      !isAdmin() &&
+      ((currentLaw?.voters &&
         currentLaw.voters[currentUser.id] &&
         currentLaw.status !== "vetoed") ||
-      (userVotes[lawId] && currentLaw.status !== "vetoed")
+        (userVotes[lawId] && currentLaw.status !== "vetoed"))
     ) {
       alert("이미 이 법안에 투표하셨습니다.");
       return;
     }
 
     try {
-      // ❗ 수정된 runTransaction 호출
       await runTransaction(db, async (transaction) => {
         const lawDoc = await transaction.get(lawRef);
         if (!lawDoc.exists()) {
-          throw "법안이 존재하지 않습니다.";
+          throw new Error("법안이 존재하지 않습니다.");
         }
+        
         const lawData = lawDoc.data();
-        let newApprovals = lawData.approvals || 0;
-        let newDisapprovals = lawData.disapprovals || 0;
+        const totalStudents = adminSettings.totalStudents;
+        const halfStudents = Math.ceil(totalStudents / 2); // 부결 처리를 위해 과반수는 유지
+        const vetoOverrideRequiredCount = governmentSettings.vetoOverrideRequired;
+        
+        // 현재 투표 수에 1을 더해 새로운 투표 수를 미리 계산합니다.
+        const newApprovals = (lawData.approvals || 0) + (voteType === 'approvals' ? 1 : 0);
+        const newDisapprovals = (lawData.disapprovals || 0) + (voteType === 'disapprovals' ? 1 : 0);
 
-        const voterUpdatePath = `voters.${currentUser.id}`;
-        let voteCountUpdate = {};
-
-        if (voteType === "approvals") {
-          newApprovals += 1;
-          voteCountUpdate = { approvals: increment(1) };
+        // 업데이트할 데이터를 준비합니다.
+        const updates = { updatedAt: serverTimestamp() };
+        
+        if(voteType === 'approvals') {
+            updates.approvals = increment(1);
         } else {
-          newDisapprovals += 1;
-          voteCountUpdate = { disapprovals: increment(1) };
+            updates.disapprovals = increment(1);
+        }
+        
+        if (!isAdmin()) {
+          updates[`voters.${currentUser.id}`] = voteType;
         }
 
-        const totalStudents = adminSettings.totalStudents;
-        const halfStudents = Math.ceil(totalStudents / 2);
-        const vetoOverrideRequiredCount =
-          governmentSettings.vetoOverrideRequired;
-
-        let updates = {
-          ...voteCountUpdate,
-          [voterUpdatePath]: voteType,
-          updatedAt: serverTimestamp(),
-        };
-
+        // 법안 상태에 따라 상태 변경 로직을 적용합니다.
         if (lawData.status === "vetoed") {
-          if (
-            voteType === "approvals" &&
-            newApprovals >= vetoOverrideRequiredCount
-          ) {
+          if (voteType === "approvals" && newApprovals >= vetoOverrideRequiredCount) {
             updates.status = "veto_overridden";
             updates.finalStatus = "final_approved";
             updates.finalApprovalDate = serverTimestamp();
           }
-        } else if (
-          lawData.status === "pending" ||
-          lawData.status === "rejected" ||
-          lawData.status === "auto_rejected"
-        ) {
-          if (voteType === "approvals" && newApprovals >= halfStudents) {
-            updates.status = "approved";
-          } else if (
-            voteType === "disapprovals" &&
-            newDisapprovals >= halfStudents
-          ) {
+        } else if (["pending", "rejected", "auto_rejected"].includes(lawData.status)) {
+          // ✨✨✨ 핵심 수정 부분: 찬성 13표 이상이면 정부로 이송합니다. ✨✨✨
+          if (voteType === "approvals" && newApprovals >= 13) {
+            updates.status = "pending_government_approval";
+            updates.approvalDate = serverTimestamp();
+          } else if (voteType === "disapprovals" && newDisapprovals >= halfStudents) {
+            // 반대가 과반수 이상이면 부결 처리
             updates.status = "rejected";
           }
         } else {
-          console.log("이미 처리된 법안이거나 재의결 투표가 아닙니다.");
+          // 투표가 불가능한 상태이므로 아무 작업도 하지 않고 종료합니다.
+          console.log("이미 처리되었거나 투표가 불가능한 법안입니다.");
           return;
         }
 
+        // 트랜잭션 내에서 법안 문서를 업데이트합니다.
         transaction.update(lawRef, updates);
-        const userVoteData = { [lawId]: voteType };
-        transaction.set(userVotesDocRefNode, userVoteData, { merge: true });
+
+        // 관리자가 아닌 경우에만 사용자 투표 이력을 기록합니다.
+        if (!isAdmin()) {
+          const userVoteData = { [lawId]: voteType };
+          transaction.set(userVotesDocRefNode, userVoteData, { merge: true });
+        }
       });
     } catch (error) {
       console.error("Error voting on law:", error);
       alert(`투표 중 오류 발생: ${error.message || error}`);
     }
   };
+
 
   const handleResetVotes = async (lawId) => {
     if (!isAdmin() || !classCode) {
@@ -480,13 +455,15 @@ const NationalAssembly = () => {
       "admin"
     );
     try {
+      const settingsToSave = localAdminSettings || adminSettings;
       await setDoc(
         adminSettingsDocRefNode,
         {
-          totalStudents: parseInt(adminSettings.totalStudents, 10) || 25,
+          totalStudents: parseInt(settingsToSave.totalStudents, 10) || 25,
         },
         { merge: true }
       );
+      setLocalAdminSettings(null);
       alert("관리자 설정이 저장되었습니다.");
     } catch (error) {
       console.error("Error saving admin settings:", error);
@@ -507,15 +484,17 @@ const NationalAssembly = () => {
       "government"
     );
     try {
+      const settingsToSave = localGovSettings || governmentSettings;
       await setDoc(
         govSettingsDocRefNode,
         {
           vetoOverrideRequired:
-            parseInt(governmentSettings.vetoOverrideRequired, 10) ||
+            parseInt(settingsToSave.vetoOverrideRequired, 10) ||
             Math.ceil(adminSettings.totalStudents * (2 / 3)),
         },
         { merge: true }
       );
+      setLocalGovSettings(null);
       alert("재의결 설정이 저장되었습니다.");
     } catch (error) {
       console.error("Error saving government settings:", error);
@@ -525,15 +504,16 @@ const NationalAssembly = () => {
 
   const approvedLaws = laws.filter(
     (law) =>
-      law.status === "approved" ||
       law.status === "veto_overridden" ||
       law.finalStatus === "final_approved"
   );
+  // ✨ 수정된 부분: pendingLaws 필터에 'pending_government_approval' 추가
   const pendingLaws = laws.filter(
     (law) =>
       law.status === "pending" ||
       law.status === "rejected" ||
-      law.status === "auto_rejected"
+      law.status === "auto_rejected" ||
+      law.status === "pending_government_approval" 
   );
   const vetoedLaws = laws.filter((law) => law.status === "vetoed");
 
@@ -553,6 +533,9 @@ const NationalAssembly = () => {
       return <span className="law-status final-approved">최종 가결</span>;
     }
     switch (law.status) {
+      // ✨ 추가된 부분: '정부 이송' 상태 표시
+      case "pending_government_approval":
+        return <span className="law-status pending-gov">정부 이송</span>;
       case "approved":
         return <span className="law-status approved">가결됨</span>;
       case "veto_overridden":
@@ -764,9 +747,9 @@ const NationalAssembly = () => {
                               <span className="vote-number">
                                 {law.approvals || 0}
                               </span>
+                              {/* ✨ 수정된 부분: 필요 투표 수 안내 문구 변경 */}
                               <span className="vote-required">
-                                /{Math.ceil(adminSettings.totalStudents / 2)}{" "}
-                                필요
+                                /13표 필요 (정부 이송)
                               </span>
                             </div>
                             <div className="vote-type disapproval">
@@ -776,7 +759,7 @@ const NationalAssembly = () => {
                               </span>
                               <span className="vote-required">
                                 /{Math.ceil(adminSettings.totalStudents / 2)}{" "}
-                                필요
+                                필요 (부결)
                               </span>
                             </div>
                           </div>
@@ -790,14 +773,14 @@ const NationalAssembly = () => {
                               <button
                                 onClick={() => handleVote(law.id, "approvals")}
                                 className={`vote-button approve ${
-                                  userVotes[law.id] ||
-                                  (law.voters && law.voters[currentUser?.id])
+                                  !isAdmin() && (userVotes[law.id] ||
+                                  (law.voters && law.voters[currentUser?.id]))
                                     ? "voted"
                                     : ""
                                 }`}
                                 disabled={
-                                  userVotes[law.id] ||
-                                  (law.voters && law.voters[currentUser?.id])
+                                  !isAdmin() && (userVotes[law.id] ||
+                                  (law.voters && law.voters[currentUser?.id]))
                                 }
                               >
                                 찬성
@@ -807,14 +790,14 @@ const NationalAssembly = () => {
                                   handleVote(law.id, "disapprovals")
                                 }
                                 className={`vote-button disapprove ${
-                                  userVotes[law.id] ||
-                                  (law.voters && law.voters[currentUser?.id])
+                                  !isAdmin() && (userVotes[law.id] ||
+                                  (law.voters && law.voters[currentUser?.id]))
                                     ? "voted"
                                     : ""
                                 }`}
                                 disabled={
-                                  userVotes[law.id] ||
-                                  (law.voters && law.voters[currentUser?.id])
+                                  !isAdmin() && (userVotes[law.id] ||
+                                  (law.voters && law.voters[currentUser?.id]))
                                 }
                               >
                                 반대
@@ -968,16 +951,16 @@ const NationalAssembly = () => {
                             <button
                               onClick={() => handleVote(law.id, "approvals")}
                               className={`vote-button approve ${
-                                userVotes[law.id] === "approvals" ||
+                                !isAdmin() && (userVotes[law.id] === "approvals" ||
                                 (law.voters &&
-                                  law.voters[currentUser?.id] === "approvals")
+                                  law.voters[currentUser?.id] === "approvals"))
                                   ? "voted"
                                   : ""
                               }`}
                               disabled={
-                                userVotes[law.id] === "approvals" ||
+                                !isAdmin() && (userVotes[law.id] === "approvals" ||
                                 (law.voters &&
-                                  law.voters[currentUser?.id] === "approvals")
+                                  law.voters[currentUser?.id] === "approvals"))
                               }
                             >
                               재의결 찬성
@@ -1008,11 +991,11 @@ const NationalAssembly = () => {
                       <button
                         className="count-button decrease"
                         onClick={() =>
-                          setAdminSettings((prev) => ({
-                            ...prev,
+                          setLocalAdminSettings((prev) => ({
+                            ...(prev || adminSettings),
                             totalStudents: Math.max(
                               1,
-                              (prev.totalStudents || 25) - 1
+                              ((prev || adminSettings).totalStudents || 25) - 1
                             ),
                           }))
                         }
@@ -1023,10 +1006,10 @@ const NationalAssembly = () => {
                         type="number"
                         min="1"
                         className="setting-input student-count"
-                        value={adminSettings.totalStudents || 25}
+                        value={(localAdminSettings || adminSettings).totalStudents || 25}
                         onChange={(e) =>
-                          setAdminSettings((prev) => ({
-                            ...prev,
+                          setLocalAdminSettings((prev) => ({
+                            ...(prev || adminSettings),
                             totalStudents: Math.max(
                               1,
                               parseInt(e.target.value) || 1
@@ -1037,9 +1020,9 @@ const NationalAssembly = () => {
                       <button
                         className="count-button increase"
                         onClick={() =>
-                          setAdminSettings((prev) => ({
-                            ...prev,
-                            totalStudents: (prev.totalStudents || 25) + 1,
+                          setLocalAdminSettings((prev) => ({
+                            ...(prev || adminSettings),
+                            totalStudents: ((prev || adminSettings).totalStudents || 25) + 1,
                           }))
                         }
                       >
@@ -1051,7 +1034,7 @@ const NationalAssembly = () => {
                     <p>
                       가결/부결 필요 투표 수:{" "}
                       <strong>
-                        {Math.ceil((adminSettings.totalStudents || 25) / 2)}
+                        {Math.ceil(((localAdminSettings || adminSettings).totalStudents || 25) / 2)}
                       </strong>
                       명
                     </p>
@@ -1073,7 +1056,7 @@ const NationalAssembly = () => {
                   <div className="form-group">
                     <label className="form-label">
                       재의결 필요 찬성수 (현재:{" "}
-                      {governmentSettings.vetoOverrideRequired ||
+                      {(localGovSettings || governmentSettings).vetoOverrideRequired ||
                         Math.ceil(
                           (adminSettings.totalStudents || 25) * (2 / 3)
                         )}
@@ -1083,11 +1066,11 @@ const NationalAssembly = () => {
                       <button
                         className="count-button decrease"
                         onClick={() =>
-                          setGovernmentSettings((prev) => ({
-                            ...prev,
+                          setLocalGovSettings((prev) => ({
+                            ...(prev || governmentSettings),
                             vetoOverrideRequired: Math.max(
                               1,
-                              (prev.vetoOverrideRequired || 1) - 1
+                              ((prev || governmentSettings).vetoOverrideRequired || 1) - 1
                             ),
                           }))
                         }
@@ -1099,12 +1082,12 @@ const NationalAssembly = () => {
                         min="1"
                         max={adminSettings.totalStudents || 25}
                         className="setting-input student-count"
-                        value={governmentSettings.vetoOverrideRequired || ""}
+                        value={(localGovSettings || governmentSettings).vetoOverrideRequired || ""}
                         onChange={(e) => {
                           const val = parseInt(e.target.value);
                           const maxVal = adminSettings.totalStudents || 25;
-                          setGovernmentSettings((prev) => ({
-                            ...prev,
+                          setLocalGovSettings((prev) => ({
+                            ...(prev || governmentSettings),
                             vetoOverrideRequired: Math.max(
                               1,
                               Math.min(val || 1, maxVal)
@@ -1115,11 +1098,11 @@ const NationalAssembly = () => {
                       <button
                         className="count-button increase"
                         onClick={() =>
-                          setGovernmentSettings((prev) => ({
-                            ...prev,
+                          setLocalGovSettings((prev) => ({
+                            ...(prev || governmentSettings),
                             vetoOverrideRequired: Math.min(
                               adminSettings.totalStudents || 25,
-                              (prev.vetoOverrideRequired || 0) + 1
+                              ((prev || governmentSettings).vetoOverrideRequired || 0) + 1
                             ),
                           }))
                         }
@@ -1356,6 +1339,7 @@ const NationalAssembly = () => {
                     }
                   >
                     <option value="pending">심의중</option>
+                    <option value="pending_government_approval">정부 이송</option>
                     <option value="approved">가결됨</option>
                     <option value="rejected">부결됨</option>
                     <option value="vetoed">거부권 행사됨</option>

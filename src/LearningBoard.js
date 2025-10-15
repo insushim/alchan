@@ -17,7 +17,6 @@ import {
   getDocs,
   query,
   orderBy,
-  onSnapshot,
   where,
   serverTimestamp,
   increment,
@@ -27,6 +26,8 @@ import {
   setDoc,
   runTransaction, // runTransaction 임포트 추가
 } from "firebase/firestore";
+
+import { usePolling } from "./hooks/usePolling";
 
 // formatDate 함수 (컴포넌트 외부에 정의하거나 유틸리티 파일로 분리 가능)
 const formatDate = (isoString) => {
@@ -57,24 +58,21 @@ const LearningBoard = () => {
   const currentUserId = currentUser?.id;
   const classCode = currentUser?.classCode;
 
-  const [boards, setBoards] = useState([]);
-  const [boardsLoading, setBoardsLoading] = useState(true);
-
   const [selectedBoard, setSelectedBoard] = useState(null);
-  const [selectedBoardPosts, setSelectedBoardPosts] = useState([]);
-  const [postsLoading, setPostsLoading] = useState(false);
 
   const [isWriting, setIsWriting] = useState(false);
   const [showBoardSelection, setShowBoardSelection] = useState(false);
   const [newPost, setNewPost] = useState({ title: "", content: "" });
   const [customCouponAmount, setCustomCouponAmount] = useState(0);
   const [newBoardName, setNewBoardName] = useState("");
+
+  // 관리자 패널 초기값을 명시적으로 false로 설정
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+
   const [showHiddenBoardsView, setShowHiddenBoardsView] = useState(false);
   const [editingBoardId, setEditingBoardId] = useState(null);
   const [editingBoardName, setEditingBoardName] = useState("");
   const [isFullScreenMode, setIsFullScreenMode] = useState(false);
-  const [activeTab, setActiveTab] = useState("main"); // activeTab 상태 추가, 기본값 'main'
 
   // boardsCollectionRef 정의
   const boardsCollectionRef = useMemo(() => {
@@ -84,171 +82,127 @@ const LearningBoard = () => {
     return null;
   }, [classCode]);
 
-  // 게시판 목록 로드
-  useEffect(() => {
-    console.log(
-      "[LearningBoard Debug] Boards useEffect triggered. classCode:",
-      classCode
-    );
-    if (!classCode) {
-      console.log(
-        "[LearningBoard Debug] No classCode. Setting boardsLoading to false."
-      );
-      setBoardsLoading(false);
-      setBoards([]);
-      return;
-    }
-
-    // boardsCollectionRef가 null일 수 있으므로, 여기서 직접 경로를 사용하거나 boardsCollectionRef가 유효한지 확인
-    const boardsPathRef = collection(
-      db,
-      "classes",
-      classCode,
-      "learningBoards"
-    );
-    console.log(
-      "[LearningBoard Debug] Setting boardsLoading to true. Subscribing to snapshots for path:",
-      boardsPathRef.path
-    );
-    setBoardsLoading(true);
-    const q = query(boardsPathRef, orderBy("name")); // boardsCollectionRef 대신 boardsPathRef 사용
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
+  // 게시판 목록 로드 - usePolling으로 변환
+  const {
+    data: boards = [],
+    loading: boardsLoading,
+    refetch: refetchBoards,
+  } = usePolling(
+    async () => {
+      if (!classCode) {
         console.log(
-          "[LearningBoard Debug] Snapshot received for boards. Docs count:",
-          snapshot.docs.length
+          "[LearningBoard Debug] No classCode. Returning empty boards."
         );
-        const loadedBoards = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          isHidden:
-            typeof doc.data().isHidden === "boolean"
-              ? doc.data().isHidden
-              : false,
-        }));
-        setBoards(loadedBoards);
-        setBoardsLoading(false);
-        console.log(
-          "[LearningBoard Debug] Boards loaded, boardsLoading set to false."
-        );
-      },
-      (error) => {
-        console.error(
-          "[LearningBoard Debug] Error loading learning boards:",
-          error
-        );
-        setBoards([]);
-        setBoardsLoading(false);
-        console.log(
-          "[LearningBoard Debug] Error occurred loading boards, boardsLoading set to false."
-        );
-        alert(
-          `게시판 목록 로드 중 오류가 발생했습니다: ${error.code} - ${error.message}`
-        );
+        return [];
       }
-    );
-    return () => {
-      console.log("[LearningBoard Debug] Unsubscribing from learning boards.");
-      unsubscribe();
-    };
-  }, [classCode]); // boardsCollectionRef를 의존성 배열에서 제거하고 classCode 유지
-
-  // 선택된 게시판의 게시글 로드
-  useEffect(() => {
-    if (!selectedBoard || !classCode) {
-      setSelectedBoardPosts([]);
-      if (selectedBoard) setPostsLoading(false);
-      return;
-    }
-    console.log(
-      `[LearningBoard Debug] Posts useEffect triggered for board: ${selectedBoard.name} (${selectedBoard.id})`
-    );
-    setPostsLoading(true);
-    const postsCollectionRef = collection(
-      db,
-      "classes",
-      classCode,
-      "learningBoards",
-      selectedBoard.id,
-      "posts"
-    );
-    const q = query(postsCollectionRef, orderBy("timestamp", "desc"));
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        console.log(
-          `[LearningBoard Debug] Snapshot received for posts in board ${selectedBoard.id}. Docs count:`,
-          snapshot.docs.length
-        );
-        const loadedPosts = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          adminCouponGiven:
-            typeof doc.data().adminCouponGiven === "boolean"
-              ? doc.data().adminCouponGiven
-              : false,
-          coupons: Number(doc.data().coupons) || 0,
-          likes: Number(doc.data().likes) || 0,
-          dislikes: Number(doc.data().dislikes) || 0,
-          likedBy: Array.isArray(doc.data().likedBy) ? doc.data().likedBy : [],
-          dislikedBy: Array.isArray(doc.data().dislikedBy)
-            ? doc.data().dislikedBy
-            : [],
-          timestamp: doc.data().timestamp?.toDate
-            ? doc.data().timestamp.toDate().toISOString()
-            : new Date().toISOString(),
-        }));
-        setSelectedBoardPosts(loadedPosts);
-        setPostsLoading(false);
-        console.log(
-          `[LearningBoard Debug] Posts for board ${selectedBoard.id} loaded, postsLoading set to false.`
-        );
-      },
-      (error) => {
-        console.error(
-          `[LearningBoard Debug] Error loading posts for board ${selectedBoard.id}:`,
-          error
-        );
-        setSelectedBoardPosts([]);
-        setPostsLoading(false);
-        console.log(
-          `[LearningBoard Debug] Error loading posts for board ${selectedBoard.id}, postsLoading set to false.`
-        );
-        alert(`'${selectedBoard.name}' 게시글 로드 중 오류: ${error.message}`);
-      }
-    );
-    return () => {
       console.log(
-        `[LearningBoard Debug] Unsubscribing from posts for board ${selectedBoard.id}.`
+        "[LearningBoard Debug] Fetching boards for classCode:",
+        classCode
       );
-      unsubscribe();
-    };
-  }, [selectedBoard, classCode]);
+      const boardsPathRef = collection(
+        db,
+        "classes",
+        classCode,
+        "learningBoards"
+      );
+      const q = query(boardsPathRef, orderBy("name"));
+      const snapshot = await getDocs(q);
+      console.log(
+        "[LearningBoard Debug] Boards fetched. Docs count:",
+        snapshot.docs.length
+      );
+      const loadedBoards = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        isHidden:
+          typeof doc.data().isHidden === "boolean"
+            ? doc.data().isHidden
+            : false,
+      }));
+      return loadedBoards;
+    },
+    { interval: 30000, enabled: !!classCode, deps: [classCode] }
+  );
 
+  // 선택된 게시판의 게시글 로드 - usePolling으로 변환
+  const {
+    data: selectedBoardPosts = [],
+    loading: postsLoading,
+    refetch: refetchPosts,
+  } = usePolling(
+    async () => {
+      if (!selectedBoard || !classCode) {
+        return [];
+      }
+      console.log(
+        `[LearningBoard Debug] Fetching posts for board: ${selectedBoard.name} (${selectedBoard.id})`
+      );
+      const postsCollectionRef = collection(
+        db,
+        "classes",
+        classCode,
+        "learningBoards",
+        selectedBoard.id,
+        "posts"
+      );
+      const q = query(postsCollectionRef, orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(q);
+      console.log(
+        `[LearningBoard Debug] Posts fetched for board ${selectedBoard.id}. Docs count:`,
+        snapshot.docs.length
+      );
+      const loadedPosts = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        adminCouponGiven:
+          typeof doc.data().adminCouponGiven === "boolean"
+            ? doc.data().adminCouponGiven
+            : false,
+        coupons: Number(doc.data().coupons) || 0,
+        likes: Number(doc.data().likes) || 0,
+        dislikes: Number(doc.data().dislikes) || 0,
+        likedBy: Array.isArray(doc.data().likedBy) ? doc.data().likedBy : [],
+        dislikedBy: Array.isArray(doc.data().dislikedBy)
+          ? doc.data().dislikedBy
+          : [],
+        timestamp: doc.data().timestamp?.toDate
+          ? doc.data().timestamp.toDate().toISOString()
+          : new Date().toISOString(),
+      }));
+      return loadedPosts;
+    },
+    {
+      interval: 30000,
+      enabled: !!selectedBoard && !!classCode,
+      deps: [selectedBoard?.id, classCode],
+    }
+  );
+
+  // 전체 화면 모드 관리 useEffect 수정 - 관리자 패널 자동 열림 방지
   useEffect(() => {
     const currentUserIsAdmin =
       isAdmin && typeof isAdmin === "function"
         ? isAdmin()
         : currentUser?.isAdmin || false;
+
     const writingActive =
       isWriting &&
       selectedBoard &&
       (!selectedBoard.isHidden || (currentUserIsAdmin && showHiddenBoardsView));
+
     const viewingBoardActive =
       !isWriting &&
       selectedBoard &&
       (!selectedBoard.isHidden || (currentUserIsAdmin && showHiddenBoardsView));
+
     const hiddenBoardManagementActive =
       showHiddenBoardsView && currentUserIsAdmin;
 
+    // 관리자 패널 상태는 수동으로만 변경되도록 수정
     if (
       writingActive ||
       viewingBoardActive ||
-      hiddenBoardManagementActive ||
-      showAdminPanel
+      hiddenBoardManagementActive
     ) {
       setIsFullScreenMode(true);
     } else if (
@@ -314,15 +268,11 @@ const LearningBoard = () => {
     );
   }
 
-  // activeTab 관련 로직 수정 (setActiveTab은 예시이며, 실제 탭 전환 로직에 맞게 구현 필요)
-  if (currentUserIsAdmin && !classCode && activeTab !== "admin") {
+  if (currentUserIsAdmin && !classCode) {
     return (
       <div className="info-message">
-        관리자님, 현재 학급 코드가 설정되지 않아 이 탭의 내용을 볼 수 없습니다.
-        관리자 설정을 확인하거나 프로필에서 학급 코드를 설정해주세요.
-        <button onClick={() => setActiveTab("admin")}>
-          관리자 설정으로 이동
-        </button>
+        관리자님, 현재 학급 코드가 설정되지 않아 게시판 내용을 볼 수 없습니다.
+        프로필에서 학급 코드를 설정해주세요.
       </div>
     );
   }
@@ -369,9 +319,13 @@ const LearningBoard = () => {
     setShowHiddenBoardsView(false);
   };
 
+  // 관리자 패널 토글 함수 수정 - 명시적 제어
   const toggleAdminPanel = () => {
     if (!currentUserIsAdmin) return;
-    setShowAdminPanel((prev) => !prev);
+    setShowAdminPanel((prev) => {
+      console.log("[Debug] Admin panel toggle:", !prev);
+      return !prev;
+    });
   };
 
   const toggleHiddenBoardView = () => {
@@ -391,10 +345,7 @@ const LearningBoard = () => {
       alert("글을 작성할 게시판을 선택하거나 로그인 정보를 확인해주세요.");
       return;
     }
-    if (
-      selectedBoard.isHidden &&
-      !(currentUserIsAdmin && showHiddenBoardsView)
-    ) {
+    if (selectedBoard.isHidden && !currentUserIsAdmin) {
       alert("숨겨진 게시판에는 글을 작성할 수 없습니다.");
       return;
     }
@@ -428,14 +379,13 @@ const LearningBoard = () => {
         "posts"
       );
       await addDoc(postsCollectionRef, postData);
+      refetchPosts();
       setNewPost({ title: "", content: "" });
-      if (!showHiddenBoardsView) {
-        setIsWriting(false);
-        setShowBoardSelection(false);
-      }
+      alert("게시글이 성공적으로 등록되었습니다!");
+      // 게시글 작성 후에도 현재 상태 유지 (글쓰기 모드와 선택된 게시판 유지)
     } catch (error) {
       console.error("Error submitting post:", error);
-      alert("게시글 제출 중 오류가 발생했습니다.");
+      alert(`게시글 제출 중 오류가 발생했습니다: ${error.message}`);
     }
   };
 
@@ -548,6 +498,7 @@ const LearningBoard = () => {
           addCouponsToUser(postData.authorId, couponChangeForAuthor);
         }
       });
+      refetchPosts();
       if (updateType === "adminCoupon" && currentUserIsAdmin) {
         alert(
           `게시글(ID: ${postId.slice(
@@ -590,6 +541,7 @@ const LearningBoard = () => {
         createdAt: serverTimestamp(),
         classCode: classCode,
       });
+      refetchBoards();
       setNewBoardName("");
     } catch (error) {
       console.error("Error adding board:", error);
@@ -632,6 +584,7 @@ const LearningBoard = () => {
         name: trimmedName,
         updatedAt: serverTimestamp(),
       });
+      refetchBoards();
       handleCancelEditBoard();
     } catch (error) {
       console.error("Error updating board name:", error);
@@ -647,6 +600,7 @@ const LearningBoard = () => {
         isHidden: true,
         updatedAt: serverTimestamp(),
       });
+      refetchBoards();
       if (selectedBoard && selectedBoard.id === boardId) setSelectedBoard(null);
     } catch (error) {
       console.error("Error hiding board:", error);
@@ -661,6 +615,7 @@ const LearningBoard = () => {
         isHidden: false,
         updatedAt: serverTimestamp(),
       });
+      refetchBoards();
     } catch (error) {
       console.error("Error restoring board:", error);
     }
@@ -688,6 +643,7 @@ const LearningBoard = () => {
         postsSnapshot.docs.forEach((postDoc) => batch.delete(postDoc.ref));
         batch.delete(boardRef);
         await batch.commit();
+        refetchBoards();
         if (selectedBoard && selectedBoard.id === boardId)
           setSelectedBoard(null);
       } catch (error) {
@@ -701,6 +657,8 @@ const LearningBoard = () => {
     (board) => !board.isHidden || currentUserIsAdmin
   );
   const allBoardsForHiddenViewSelection = boards;
+
+  // 컨테이너 클래스 설정 수정
   const containerClasses = `learning-board-container ${
     isFullScreenMode ? "full-width-mode" : ""
   } ${showAdminPanel && currentUserIsAdmin ? "admin-panel-active" : ""}`;
@@ -713,7 +671,9 @@ const LearningBoard = () => {
             {showAdminPanel ? "관리자 닫기" : "관리자 열기"}
           </button>
         )}
+
         <h1>학습 게시판 {classCode && `(학급: ${classCode})`}</h1>
+
         <div className="board-actions">
           <button
             className={`write-btn ${
@@ -742,6 +702,7 @@ const LearningBoard = () => {
             </button>
           )}
         </div>
+
         <div className="board-content-area">
           {showBoardSelection && !showHiddenBoardsView && (
             <div className="board-selection">
@@ -755,23 +716,19 @@ const LearningBoard = () => {
                       <button
                         className={`board-btn ${
                           selectedBoard?.id === board.id ? "selected" : ""
-                        } ${board.isHidden ? "hidden-indicator" : ""}`}
+                        }`}
                         onClick={() => handleBoardSelect(board.id, false)}
                         title={
                           board.isHidden ? `${board.name} (숨김)` : board.name
                         }
                       >
-                        {board.name} {board.isHidden ? "👻" : ""}
+                        <span className="board-name">{board.name}</span>
+                        {currentUserIsAdmin && board.isHidden && (
+                          <span className="hidden-icon" title="숨겨진 게시판">
+                            👁️
+                          </span>
+                        )}
                       </button>
-                      {currentUserIsAdmin && !board.isHidden && (
-                        <button
-                          className="hide-board-btn action-btn"
-                          title={`${board.name} 숨기기`}
-                          onClick={() => handleHideBoard(board.id)}
-                        >
-                          👁️‍🗨️
-                        </button>
-                      )}
                     </div>
                   ))
                 ) : (
@@ -811,7 +768,7 @@ const LearningBoard = () => {
                           : board.name
                       }
                     >
-                      {board.name} {board.isHidden ? "👻 (숨김)" : "🌐 (공개)"}
+                      {board.isHidden ? "🔒" : "📂"} {board.name}
                     </button>
                   </div>
                 ))}
@@ -1109,8 +1066,19 @@ const LearningBoard = () => {
             )}
         </div>
       </div>
+
       {currentUserIsAdmin && (
-        <div className={`admin-panel ${showAdminPanel ? "visible" : ""}`}>
+        <div
+          className={`admin-panel ${showAdminPanel ? "visible" : ""}`}
+          style={{
+            // 더 강력한 숨김 처리
+            right: showAdminPanel ? "0px" : "-100vw",
+            transition: "right 0.4s ease-in-out",
+            display: showAdminPanel ? "block" : "none",
+            visibility: showAdminPanel ? "visible" : "hidden",
+            opacity: showAdminPanel ? 1 : 0,
+          }}
+        >
           <button className="admin-panel-close-btn" onClick={toggleAdminPanel}>
             ×
           </button>

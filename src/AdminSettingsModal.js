@@ -15,6 +15,16 @@ import {
   where as firebaseWhere,
 } from "./firebase";
 
+// 최적화된 데이터 훅들
+import {
+  useOptimizedAdminSettings,
+  useOptimizedStudents,
+  useOptimizedSalarySettings,
+  useOptimizedSystemManagement,
+  useBatchPaySalaries,
+  useAdminDataPreloader,
+} from "./hooks/useOptimizedAdminData";
+
 const AdminSettingsModal = ({
   isAdmin,
   isSuperAdmin,
@@ -83,24 +93,137 @@ const AdminSettingsModal = ({
   const [selectAllStudents, setSelectAllStudents] = useState(false);
   const [error, setError] = useState("");
 
-  // 월급 계산 함수
-  const calculateSalary = useCallback((selectedJobIds) => {
-    if (!Array.isArray(selectedJobIds) || selectedJobIds.length === 0) {
-      return 0;
+  // 급여 설정 상태
+  const [salarySettings, setSalarySettings] = useState({
+    taxRate: 0.1, // 10% 세율
+    salaryIncreaseRate: 0.03, // 3% 주급 인상률 
+  });
+  const [tempTaxRate, setTempTaxRate] = useState("10");
+  const [tempSalaryIncreaseRate, setTempSalaryIncreaseRate] = useState("3");
+  const [salarySettingsLoading, setSalarySettingsLoading] = useState(false);
+
+  // 최적화된 데이터 훅들
+  const studentsQuery = useOptimizedStudents();
+  const salarySettingsQuery = useOptimizedSalarySettings();
+  const systemManagementQuery = useOptimizedSystemManagement();
+  const generalSettingsQuery = useOptimizedAdminSettings("generalSettings");
+  const batchPaySalariesMutation = useBatchPaySalaries();
+  const { preloadAdminData } = useAdminDataPreloader();
+
+  // 급여 설정 로드
+  const loadSalarySettings = useCallback(async () => {
+    if (!db) return;
+
+    try {
+      // 학급별 급여 설정을 사용하거나, 없으면 전역 설정 사용
+      const classSettingsRef = userClassCode
+        ? firebaseDoc(db, "settings", `salarySettings_${userClassCode}`)
+        : firebaseDoc(db, "settings", "salarySettings");
+      const settingsSnap = await firebaseGetSingleDoc(classSettingsRef);
+      
+      if (settingsSnap.exists()) {
+        const data = settingsSnap.data();
+        const settings = {
+          taxRate: data.taxRate || 0.1,
+          salaryIncreaseRate: data.salaryIncreaseRate || 0.03,
+        };
+        setSalarySettings(settings);
+        setTempTaxRate(String((settings.taxRate * 100).toFixed(1)));
+        setTempSalaryIncreaseRate(String((settings.salaryIncreaseRate * 100).toFixed(1)));
+        
+        if (data.lastPaidDate) {
+          setLastSalaryPaidDate(data.lastPaidDate.toDate());
+        }
+      } else {
+        // 기본 설정으로 초기화
+        await firebaseSetDoc(classSettingsRef, {
+          taxRate: 0.1,
+          salaryIncreaseRate: 0.03,
+          lastPaidDate: null,
+          classCode: userClassCode || null,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.error("급여 설정 로드 오류:", error);
     }
+  }, [db, userClassCode]);
+
+  // 급여 설정 저장
+  const handleSaveSalarySettings = useCallback(async () => {
+    if (!db) {
+      alert("데이터베이스 연결 오류.");
+      return;
+    }
+
+    const taxRateNum = parseFloat(tempTaxRate);
+    const increaseRateNum = parseFloat(tempSalaryIncreaseRate);
+
+    if (isNaN(taxRateNum) || taxRateNum < 0 || taxRateNum > 100) {
+      alert("세율은 0~100 사이의 숫자여야 합니다.");
+      return;
+    }
+
+    if (isNaN(increaseRateNum) || increaseRateNum < 0 || increaseRateNum > 100) {
+      alert("주급 인상률은 0~100 사이의 숫자여야 합니다.");
+      return;
+    }
+
+    setSalarySettingsLoading(true);
+
+    try {
+      const classSettingsRef = userClassCode
+        ? firebaseDoc(db, "settings", `salarySettings_${userClassCode}`)
+        : firebaseDoc(db, "settings", "salarySettings");
+      const newSettings = {
+        taxRate: taxRateNum / 100,
+        salaryIncreaseRate: increaseRateNum / 100,
+        classCode: userClassCode || null,
+        updatedAt: serverTimestamp(),
+      };
+
+      await firebaseUpdateDoc(classSettingsRef, newSettings);
+      setSalarySettings({
+        taxRate: newSettings.taxRate,
+        salaryIncreaseRate: newSettings.salaryIncreaseRate,
+      });
+
+      alert("급여 설정이 저장되었습니다.");
+    } catch (error) {
+      console.error("급여 설정 저장 오류:", error);
+      alert("급여 설정 저장 중 오류가 발생했습니다: " + error.message);
+    } finally {
+      setSalarySettingsLoading(false);
+    }
+  }, [db, userClassCode]);
+
+  // 월급 계산 함수 (세금 공제 포함)
+  const calculateSalary = useCallback((selectedJobIds, includesTax = false) => {
+    if (!Array.isArray(selectedJobIds) || selectedJobIds.length === 0) {
+      return { gross: 0, tax: 0, net: 0 };
+    }
+    
     const baseSalary = 2000000;
     const additionalSalary = 500000;
-    return (
-      baseSalary + Math.max(0, selectedJobIds.length - 1) * additionalSalary
-    );
-  }, []);
+    const grossSalary = baseSalary + Math.max(0, selectedJobIds.length - 1) * additionalSalary;
+    
+    if (!includesTax) {
+      return grossSalary;
+    }
+    
+    const tax = Math.floor(grossSalary * salarySettings.taxRate);
+    const netSalary = grossSalary - tax;
+    
+    return { gross: grossSalary, tax, net: netSalary };
+  }, [salarySettings.taxRate]);
 
-  // 🔥 수정된 직업 편집 핸들러
+  // 직업 편집 핸들러
   const handleJobEdit = useCallback(
     (job) => {
       console.log("[AdminSettingsModal] 직업 편집 클릭:", job);
       if (handleEditJob && typeof handleEditJob === "function") {
-        handleEditJob(job); // job 객체 전체를 전달
+        handleEditJob(job);
       } else {
         console.error(
           "[AdminSettingsModal] handleEditJob 함수가 정의되지 않았습니다."
@@ -111,7 +234,7 @@ const AdminSettingsModal = ({
     [handleEditJob]
   );
 
-  // 🔥 수정된 직업 삭제 핸들러
+  // 직업 삭제 핸들러
   const handleJobDelete = useCallback(
     (jobId) => {
       console.log("[AdminSettingsModal] 직업 삭제 클릭:", jobId);
@@ -127,7 +250,7 @@ const AdminSettingsModal = ({
     [handleDeleteJob]
   );
 
-  // 🔥 수정된 할일 편집 핸들러
+  // 할일 편집 핸들러
   const handleTaskEdit = useCallback(
     (task, jobId = null) => {
       console.log(
@@ -148,7 +271,7 @@ const AdminSettingsModal = ({
     [handleEditTask]
   );
 
-  // 🔥 수정된 할일 삭제 핸들러
+  // 할일 삭제 핸들러
   const handleTaskDelete = useCallback(
     (taskId, jobId = null) => {
       console.log(
@@ -169,7 +292,7 @@ const AdminSettingsModal = ({
     [handleDeleteTask]
   );
 
-  // 🔥 수정된 할일 추가 핸들러
+  // 할일 추가 핸들러
   const handleTaskAdd = useCallback(
     (jobId = null, isJobTask = false) => {
       console.log(
@@ -190,7 +313,7 @@ const AdminSettingsModal = ({
     [handleAddTaskClick]
   );
 
-  // 학생 목록 로드 함수
+  // 학생 목록 로드 함수 (Class/students 구조와 users 구조 모두 지원)
   const loadStudents = useCallback(async () => {
     if (!db) {
       console.error("loadStudents: Firestore 데이터베이스 연결이 없습니다.");
@@ -204,61 +327,115 @@ const AdminSettingsModal = ({
     setError("");
 
     try {
-      const usersRef = firebaseCollection(db, "users");
-      let queryRef;
+      let studentsList = [];
 
-      if (!isSuperAdmin && userClassCode) {
-        queryRef = firebaseQuery(
-          usersRef,
-          firebaseWhere("classCode", "==", userClassCode)
-        );
-      } else if (isSuperAdmin) {
-        queryRef = usersRef;
-      } else {
-        console.warn("관리자의 학급 코드가 설정되지 않았습니다.");
+      console.log(`[AdminSettingsModal] 학생 데이터 로드 시작 - isSuperAdmin: ${isSuperAdmin}, userClassCode: ${userClassCode}`);
+
+      if (!isSuperAdmin && !userClassCode) {
+        console.warn("일반 관리자의 학급 코드가 설정되지 않았습니다.");
         setError("학급 코드가 설정되지 않아 학생 정보를 가져올 수 없습니다.");
         setStudents([]);
         setStudentsLoading(false);
         return;
       }
 
-      const querySnapshot = await firebaseGetDocs(queryRef);
-      const studentsList = [];
+      // 1. Class/{classCode}/students 구조에서 시도
+      if (!isSuperAdmin && userClassCode) {
+        try {
+          console.log(`[AdminSettingsModal] Class/${userClassCode}/students 에서 데이터 조회 시도`);
+          const classStudentsRef = firebaseCollection(db, "Class", userClassCode, "students");
+          const classStudentsSnapshot = await firebaseGetDocs(classStudentsRef);
 
-      querySnapshot.forEach((doc) => {
-        const userData = doc.data();
-        if (!userData.isAdmin && !userData.isSuperAdmin) {
-          studentsList.push({
-            id: doc.id,
-            nickname: userData.nickname || userData.name || "이름 없음",
-            name: userData.name || "",
-            email: userData.email || "",
-            classCode: userData.classCode || "미지정",
-            selectedJobIds: userData.selectedJobIds || [],
-            cash: userData.cash || 0,
-            lastSalaryDate: userData.lastSalaryDate
-              ? userData.lastSalaryDate.toDate()
-              : null,
+          classStudentsSnapshot.forEach((doc) => {
+            const userData = doc.data();
+            studentsList.push({
+              id: doc.id,
+              nickname: userData.nickname || userData.name || "이름 없음",
+              name: userData.name || "",
+              email: userData.email || "",
+              classCode: userClassCode,
+              selectedJobIds: userData.selectedJobIds || [],
+              cash: userData.money || userData.cash || 0, // money 필드도 확인
+              lastSalaryDate: userData.lastSalaryDate
+                ? userData.lastSalaryDate.toDate()
+                : null,
+              lastGrossSalary: userData.lastGrossSalary || 0,
+              lastTaxAmount: userData.lastTaxAmount || 0,
+              lastNetSalary: userData.lastNetSalary || 0,
+              totalSalaryReceived: userData.totalSalaryReceived || 0,
+            });
           });
+
+          console.log(`[AdminSettingsModal] Class 구조에서 ${studentsList.length}명 로드됨`);
+        } catch (classError) {
+          console.log("[AdminSettingsModal] Class 구조에서 로드 실패, users 구조에서 재시도");
         }
-      });
+      }
+
+      // 2. users 컬렉션에서 시도 (Class 구조에서 못 찾았거나 최고 관리자인 경우)
+      if (studentsList.length === 0) {
+        console.log(`[AdminSettingsModal] users 컬렉션에서 데이터 조회 시도`);
+        const usersRef = firebaseCollection(db, "users");
+        let queryRef;
+
+        if (!isSuperAdmin && userClassCode) {
+          queryRef = firebaseQuery(
+            usersRef,
+            firebaseWhere("classCode", "==", userClassCode)
+          );
+        } else if (isSuperAdmin) {
+          queryRef = usersRef;
+        }
+
+        const querySnapshot = await firebaseGetDocs(queryRef);
+
+        querySnapshot.forEach((doc) => {
+          const userData = doc.data();
+          if (!userData.isAdmin && !userData.isSuperAdmin) {
+            studentsList.push({
+              id: doc.id,
+              nickname: userData.nickname || userData.name || "이름 없음",
+              name: userData.name || "",
+              email: userData.email || "",
+              classCode: userData.classCode || "미지정",
+              selectedJobIds: userData.selectedJobIds || [],
+              cash: userData.cash || 0,
+              lastSalaryDate: userData.lastSalaryDate
+                ? userData.lastSalaryDate.toDate()
+                : null,
+              lastGrossSalary: userData.lastGrossSalary || 0,
+              lastTaxAmount: userData.lastTaxAmount || 0,
+              lastNetSalary: userData.lastNetSalary || 0,
+              totalSalaryReceived: userData.totalSalaryReceived || 0,
+            });
+          }
+        });
+
+        console.log(`[AdminSettingsModal] users 구조에서 ${studentsList.length}명 로드됨`);
+      }
 
       setStudents(studentsList);
       console.log(
-        `[AdminSettingsModal] ${studentsList.length}명의 학생 로드 완료`
+        `[AdminSettingsModal] 총 ${studentsList.length}명의 학생 로드 완료`
       );
 
       try {
-        const settingsRef = firebaseDoc(db, "settings", "salarySettings");
-        const settingsDoc = await firebaseGetSingleDoc(settingsRef);
+        const classSettingsRef = userClassCode
+          ? firebaseDoc(db, "settings", `salarySettings_${userClassCode}`)
+          : firebaseDoc(db, "settings", "salarySettings");
+        const settingsDoc = await firebaseGetSingleDoc(classSettingsRef);
         if (settingsDoc.exists()) {
-          const lastPaidData = settingsDoc.data().lastPaidDate;
-          setLastSalaryPaidDate(lastPaidData ? lastPaidData.toDate() : null);
+          const data = settingsDoc.data();
+          setLastSalaryPaidDate(data.lastPaidDate ? data.lastPaidDate.toDate() : null);
+          setSalarySettings({
+            taxRate: data.taxRate || 0.1,
+            salaryIncreaseRate: data.salaryIncreaseRate || 0.03,
+          });
         } else {
           setLastSalaryPaidDate(null);
         }
       } catch (settingsError) {
-        console.error("월급 설정 로드 오류:", settingsError);
+        console.error("급여 설정 로드 오류:", settingsError);
         setLastSalaryPaidDate(null);
       }
 
@@ -273,16 +450,18 @@ const AdminSettingsModal = ({
     }
   }, [db, isSuperAdmin, userClassCode]);
 
-  // 선택된 학생들에게 월급 지급
+  // 최적화된 선택 학생 급여 지급
   const handlePaySalariesToSelected = async () => {
-    if (!db || selectedStudentIds.length === 0) {
+    if (selectedStudentIds.length === 0) {
       alert("선택된 학생이 없습니다.");
       return;
     }
 
+    const currentSalarySettings = salarySettingsQuery.data?.settings || salarySettings;
+
     if (
       !window.confirm(
-        `선택된 ${selectedStudentIds.length}명의 학생에게 월급을 지급하시겠습니까?`
+        `선택된 ${selectedStudentIds.length}명의 학생에게 주급을 지급하시겠습니까?\n(세금 ${(currentSalarySettings.taxRate * 100).toFixed(1)}% 공제 후 지급)`
       )
     ) {
       return;
@@ -291,77 +470,50 @@ const AdminSettingsModal = ({
     setIsPayingSalary(true);
 
     try {
-      const batch = writeBatch(db);
-      let successCount = 0;
-      let totalPaid = 0;
+      const result = await batchPaySalariesMutation.mutateAsync({
+        studentIds: selectedStudentIds,
+        payAll: false,
+      });
 
-      for (const studentId of selectedStudentIds) {
-        const student = students.find((s) => s.id === studentId);
-        if (
-          student &&
-          Array.isArray(student.selectedJobIds) &&
-          student.selectedJobIds.length > 0
-        ) {
-          const salary = calculateSalary(student.selectedJobIds);
-          if (salary > 0) {
-            const userRef = firebaseDoc(db, "users", student.id);
-            batch.update(userRef, {
-              cash: increment(salary),
-              lastSalaryDate: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            successCount++;
-            totalPaid += salary;
-          }
-        }
-      }
-
-      if (successCount > 0) {
-        const settingsRef = firebaseDoc(db, "settings", "salarySettings");
-        batch.set(
-          settingsRef,
-          {
-            lastPaidDate: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        await batch.commit();
-
-        const now = new Date();
-        setLastSalaryPaidDate(now);
-
+      if (result.success) {
+        const { summary } = result;
         alert(
-          `월급 지급 완료!\n${successCount}명의 학생에게 총 ${(
-            totalPaid / 10000
-          ).toFixed(0)}만원이 지급되었습니다.`
+          `주급 지급 완료!\n${summary.totalStudentsPaid}명의 학생에게 지급\n총 급여: ${(
+            summary.totalGrossPaid / 10000
+          ).toFixed(0)}만원\n세금 공제: ${(
+            summary.totalTaxDeducted / 10000
+          ).toFixed(0)}만원\n실제 지급: ${(
+            summary.totalNetPaid / 10000
+          ).toFixed(0)}만원`
         );
 
-        await loadStudents();
+        // 선택 상태 초기화
+        setSelectedStudentIds([]);
+        setSelectAllStudents(false);
       } else {
-        alert(
-          "월급을 지급할 대상 학생이 없습니다.\n(직업이 없거나 월급이 0원)"
-        );
+        alert(result.message || "주급 지급에 실패했습니다.");
       }
     } catch (error) {
-      console.error("[AdminSettingsModal] 선택된 학생 월급 지급 오류:", error);
-      alert("월급 지급 중 오류가 발생했습니다: " + error.message);
+      console.error("[AdminSettingsModal] 선택된 학생 주급 지급 오류:", error);
+      alert("주급 지급 중 오류가 발생했습니다: " + error.message);
     } finally {
       setIsPayingSalary(false);
     }
   };
 
-  // 모든 학생에게 월급 지급
+  // 최적화된 전체 학생 급여 지급
   const handlePaySalariesToAll = async () => {
-    if (!db || !students || students.length === 0) {
+    const currentStudents = studentsQuery.data?.students || students;
+    const currentSalarySettings = salarySettingsQuery.data?.settings || salarySettings;
+
+    if (!currentStudents || currentStudents.length === 0) {
       alert("학생 정보가 없습니다.");
       return;
     }
 
     if (
       !window.confirm(
-        "모든 학생들에게 직업별 월급을 지급하시겠습니까?\n(직업이 있는 학생만 해당)"
+        `모든 학생들에게 직업별 주급을 지급하시겠습니까?\n(직업이 있는 학생만 해당, 세금 ${(currentSalarySettings.taxRate * 100).toFixed(1)}% 공제)`
       )
     ) {
       return;
@@ -370,58 +522,28 @@ const AdminSettingsModal = ({
     setIsPayingSalary(true);
 
     try {
-      const batch = writeBatch(db);
-      let successCount = 0;
-      let totalPaid = 0;
+      const result = await batchPaySalariesMutation.mutateAsync({
+        studentIds: [], // 빈 배열은 전체 지급을 의미
+        payAll: true,
+      });
 
-      for (const student of students) {
-        if (
-          Array.isArray(student.selectedJobIds) &&
-          student.selectedJobIds.length > 0
-        ) {
-          const salary = calculateSalary(student.selectedJobIds);
-          if (salary > 0) {
-            const userRef = firebaseDoc(db, "users", student.id);
-            batch.update(userRef, {
-              cash: increment(salary),
-              lastSalaryDate: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-            });
-            successCount++;
-            totalPaid += salary;
-          }
-        }
-      }
-
-      if (successCount > 0) {
-        const settingsRef = firebaseDoc(db, "settings", "salarySettings");
-        batch.set(
-          settingsRef,
-          {
-            lastPaidDate: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-
-        await batch.commit();
-
-        const now = new Date();
-        setLastSalaryPaidDate(now);
-
+      if (result.success) {
+        const { summary } = result;
         alert(
-          `월급 지급 완료!\n${successCount}명의 학생에게 총 ${(
-            totalPaid / 10000
-          ).toFixed(0)}만원이 지급되었습니다.`
+          `주급 지급 완료!\n${summary.totalStudentsPaid}명의 학생에게 지급\n총 급여: ${(
+            summary.totalGrossPaid / 10000
+          ).toFixed(0)}만원\n세금 공제: ${(
+            summary.totalTaxDeducted / 10000
+          ).toFixed(0)}만원\n실제 지급: ${(
+            summary.totalNetPaid / 10000
+          ).toFixed(0)}만원`
         );
-
-        await loadStudents();
       } else {
-        alert("월급을 지급할 학생이 없습니다.\n(직업이 없거나 월급이 0원)");
+        alert(result.message || "주급 지급에 실패했습니다.");
       }
     } catch (error) {
-      console.error("[AdminSettingsModal] 전체 학생 월급 지급 오류:", error);
-      alert("월급 지급 중 오류가 발생했습니다: " + error.message);
+      console.error("[AdminSettingsModal] 전체 학생 주급 지급 오류:", error);
+      alert("주급 지급 중 오류가 발생했습니다: " + error.message);
     } finally {
       setIsPayingSalary(false);
     }
@@ -664,14 +786,11 @@ const AdminSettingsModal = ({
     [onRemoveClassCode]
   );
 
-  // 모달이 열릴 때 데이터 로드
+  // 최적화된 데이터 동기화
   useEffect(() => {
     if (showAdminSettingsModal) {
-      if (adminSelectedMenu === "members") {
-        loadClassMembers();
-      } else if (adminSelectedMenu === "studentJobs") {
-        loadStudents();
-      }
+      // 데이터 프리로딩 (필요한 탭들 미리 로드)
+      preloadAdminData();
       setError("");
     }
 
@@ -696,6 +815,7 @@ const AdminSettingsModal = ({
     adminSelectedMenu,
     loadClassMembers,
     loadStudents,
+    loadSalarySettings,
   ]);
 
   // 마지막 월급 지급일 포맷
@@ -752,665 +872,869 @@ const AdminSettingsModal = ({
 
         <div className="admin-menu-tabs">
           <button
-            className={adminSelectedMenu === "goal" ? "active" : ""}
-            onClick={() => setAdminSelectedMenu("goal")}
+            className={adminSelectedMenu === "generalSettings" ? "active" : ""}
+            onClick={() => setAdminSelectedMenu("generalSettings")}
           >
-            목표 설정
+            일반 설정
           </button>
           <button
-            className={adminSelectedMenu === "jobs" ? "active" : ""}
-            onClick={() => setAdminSelectedMenu("jobs")}
-          >
-            직업 관리
-          </button>
-          <button
-            className={adminSelectedMenu === "tasks" ? "active" : ""}
-            onClick={() => setAdminSelectedMenu("tasks")}
+            className={adminSelectedMenu === "taskManagement" ? "active" : ""}
+            onClick={() => setAdminSelectedMenu("taskManagement")}
           >
             할일 관리
           </button>
           <button
-            className={adminSelectedMenu === "studentJobs" ? "active" : ""}
-            onClick={() => setAdminSelectedMenu("studentJobs")}
+            className={adminSelectedMenu === "jobSettings" ? "active" : ""}
+            onClick={() => setAdminSelectedMenu("jobSettings")}
           >
-            학생직업 관리
+            직업 관리
+          </button>
+          <button
+            className={adminSelectedMenu === "studentManagement" ? "active" : ""}
+            onClick={() => {
+              setAdminSelectedMenu("studentManagement");
+              loadStudents();
+            }}
+          >
+            학생 관리
+          </button>
+          <button
+            className={adminSelectedMenu === "salarySettings" ? "active" : ""}
+            onClick={() => setAdminSelectedMenu("salarySettings")}
+          >
+            급여 설정
+          </button>
+          <button
+            className={adminSelectedMenu === "memberManagement" ? "active" : ""}
+            onClick={() => {
+              setAdminSelectedMenu("memberManagement");
+              loadClassMembers();
+            }}
+          >
+            학급 구성원 관리
           </button>
           {isSuperAdmin && (
             <button
-              className={adminSelectedMenu === "classCodes" ? "active" : ""}
-              onClick={() => setAdminSelectedMenu("classCodes")}
+              className={adminSelectedMenu === "systemManagement" ? "active" : ""}
+              onClick={() => setAdminSelectedMenu("systemManagement")}
             >
-              학급 코드 관리
+              시스템 관리
             </button>
           )}
-          <button
-            className={adminSelectedMenu === "members" ? "active" : ""}
-            onClick={() => setAdminSelectedMenu("members")}
-          >
-            학급 구성원
-          </button>
         </div>
 
-        {/* 목표 설정 */}
-        {adminSelectedMenu === "goal" && (
-          <div className="admin-goal-settings">
-            <h3>목표 및 쿠폰 가치 설정</h3>
-            <div className="form-group">
-              <label>클래스 목표 쿠폰 수:</label>
-              <input
-                type="number"
-                min="1"
-                value={newGoalAmount || ""}
-                onChange={(e) =>
-                  setNewGoalAmount && setNewGoalAmount(e.target.value)
-                }
-                className="admin-input"
-              />
-            </div>
-            <div className="form-group">
-              <label>쿠폰 가치 (원):</label>
-              <input
-                type="number"
-                min="1"
-                value={adminCouponValue || ""}
-                onChange={(e) =>
-                  setAdminCouponValue && setAdminCouponValue(e.target.value)
-                }
-                className="admin-input"
-              />
-            </div>
-            <button
-              onClick={handleSaveAdminSettings}
-              className="admin-save-button"
-            >
-              저장
-            </button>
-          </div>
-        )}
-
-        {/* 🔥 수정된 직업 관리 섹션 */}
-        {adminSelectedMenu === "jobs" && (
-          <div className="admin-jobs-settings">
-            <h3>직업 관리</h3>
-            <div className="add-job-form">
-              <input
-                type="text"
-                value={adminNewJobTitle}
-                onChange={(e) => setAdminNewJobTitle(e.target.value)}
-                placeholder={adminEditingJob ? "직업명 수정" : "새 직업명 입력"}
-                className="admin-input"
-              />
-              <button
-                onClick={() => {
-                  console.log("[AdminSettingsModal] 직업 저장 버튼 클릭");
-                  if (handleSaveJob && typeof handleSaveJob === "function") {
-                    handleSaveJob();
-                  } else {
-                    console.error(
-                      "[AdminSettingsModal] handleSaveJob 함수가 정의되지 않았습니다."
-                    );
-                    alert("직업 저장 기능을 사용할 수 없습니다.");
+        {/* 일반 설정 탭 */}
+        {adminSelectedMenu === "generalSettings" && (
+          <div className="general-settings-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
+            )}
+            {/* 목표 설정 섹션 */}
+            <div className="admin-goal-settings section-card">
+              <h3>목표 및 쿠폰 가치 설정</h3>
+              <div className="form-group">
+                <label>클래스 목표 쿠폰 수:</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={newGoalAmount || ""}
+                  onChange={(e) =>
+                    setNewGoalAmount && setNewGoalAmount(e.target.value)
                   }
-                }}
+                  className="admin-input"
+                />
+              </div>
+              <div className="form-group">
+                <label>쿠폰 가치 (원):</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={adminCouponValue || ""}
+                  onChange={(e) =>
+                    setAdminCouponValue && setAdminCouponValue(e.target.value)
+                  }
+                  className="admin-input"
+                />
+              </div>
+              <button
+                onClick={handleSaveAdminSettings}
                 className="admin-save-button"
               >
-                {adminEditingJob ? "수정" : "추가"}
+                저장
               </button>
-              {adminEditingJob && (
-                <button
-                  onClick={() => {
-                    setAdminEditingJob(null);
-                    setAdminNewJobTitle("");
-                  }}
-                  className="admin-cancel-button"
-                >
-                  취소
-                </button>
-              )}
             </div>
-            <div className="jobs-list">
-              <h4>등록된 직업 목록</h4>
-              {jobs && jobs.length > 0 ? (
-                <ul className="admin-jobs">
-                  {jobs.map((job) => (
-                    <li key={job.id} className="admin-job-item">
-                      <span className="job-title">{job.title}</span>
-                      <div className="job-actions">
-                        <button
-                          onClick={() => {
-                            console.log(
-                              "[AdminSettingsModal] 직업 수정 버튼 클릭:",
-                              job
-                            );
-                            handleJobEdit(job);
-                          }}
-                          className="edit-button"
-                        >
-                          수정
-                        </button>
-                        <button
-                          onClick={() => {
-                            console.log(
-                              "[AdminSettingsModal] 직업 삭제 버튼 클릭:",
-                              job.id
-                            );
-                            handleJobDelete(job.id);
-                          }}
-                          className="delete-button"
-                        >
-                          삭제
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+          </div>
+        )}
+
+        {/* 할일 관리 탭 */}
+        {adminSelectedMenu === "taskManagement" && (
+          <div className="task-management-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
+            )}
+            {/* 할일 관리 섹션 */}
+            <div className="admin-tasks-settings section-card">
+              <h3>할일 관리</h3>
+              <p className="admin-section-desc">
+                직업별 할일과 공통 할일을 관리합니다.
+              </p>
+
+              {showAddTaskForm ? (
+                <div className="add-task-form">
+                  <h4>{adminEditingTask ? "할일 수정" : "새 할일 추가"}</h4>
+                  <p>
+                    {taskFormIsJobTask && jobs && taskFormJobId
+                      ? `직업: ${
+                          jobs.find((j) => j.id === taskFormJobId)?.title ||
+                          "알 수 없는 직업"
+                        }`
+                      : "공통 할일"}
+                  </p>
+
+                  <div className="form-group">
+                    <label>할일 이름:</label>
+                    <input
+                      type="text"
+                      value={adminNewTaskName}
+                      onChange={(e) => setAdminNewTaskName(e.target.value)}
+                      placeholder="할일 이름 입력"
+                      className="admin-input"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>보상 (쿠폰):</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={adminNewTaskReward}
+                      onChange={(e) => setAdminNewTaskReward(e.target.value)}
+                      placeholder="쿠폰 보상"
+                      className="admin-input"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>최대 클릭 수:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={adminNewTaskMaxClicks}
+                      onChange={(e) => setAdminNewTaskMaxClicks(e.target.value)}
+                      placeholder="최대 클릭 수"
+                      className="admin-input"
+                    />
+                  </div>
+
+                  <div className="task-form-buttons">
+                    <button
+                      onClick={() => {
+                        console.log("[AdminSettingsModal] 할일 저장 버튼 클릭");
+                        if (
+                          handleSaveTask &&
+                          typeof handleSaveTask === "function"
+                        ) {
+                          handleSaveTask();
+                        } else {
+                          console.error(
+                            "[AdminSettingsModal] handleSaveTask 함수가 정의되지 않았습니다."
+                          );
+                          alert("할일 저장 기능을 사용할 수 없습니다.");
+                        }
+                      }}
+                      className="admin-save-button"
+                    >
+                      {adminEditingTask ? "수정" : "추가"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddTaskForm(false);
+                        setAdminEditingTask(null);
+                      }}
+                      className="admin-cancel-button"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <p className="no-items-message">등록된 직업이 없습니다.</p>
+                <div className="task-management">
+                  <div className="task-management-buttons">
+                    <button
+                      onClick={() => {
+                        console.log(
+                          "[AdminSettingsModal] 공통 할일 추가 버튼 클릭"
+                        );
+                        handleTaskAdd(null, false);
+                      }}
+                      className="admin-button"
+                    >
+                      공통 할일 추가
+                    </button>
+                    <select
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          console.log(
+                            "[AdminSettingsModal] 직업별 할일 추가 선택:",
+                            e.target.value
+                          );
+                          handleTaskAdd(e.target.value, true);
+                        }
+                      }}
+                      className="job-select"
+                      value=""
+                    >
+                      <option value="">직업별 할일 추가...</option>
+                      {Array.isArray(jobs) &&
+                        jobs.map((job) => (
+                          <option key={job.id} value={job.id}>
+                            {job.title}에 할일 추가
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* 직업별 할일 목록 */}
+                  <div className="tasks-by-job">
+                    <h4>직업별 할일</h4>
+                    {Array.isArray(jobs) && jobs.length > 0 ? (
+                      jobs.map((job) => (
+                        <div key={job.id} className="job-tasks">
+                          <h5>{job.title}</h5>
+                          {Array.isArray(job.tasks) && job.tasks.length > 0 ? (
+                            <ul className="admin-tasks">
+                              {job.tasks.map((task) => (
+                                <li key={task.id} className="admin-task-item">
+                                  <div className="task-info">
+                                    <span className="task-name">{task.name}</span>
+                                    <span className="task-reward">
+                                      보상: {task.reward || 0} 쿠폰
+                                    </span>
+                                    <span className="task-clicks">
+                                      클릭: {task.clicks || 0}/
+                                      {task.maxClicks || 5}
+                                    </span>
+                                  </div>
+                                  <div className="task-actions">
+                                    <button
+                                      onClick={() => {
+                                        console.log(
+                                          "[AdminSettingsModal] 직업 할일 수정 버튼 클릭:",
+                                          task,
+                                          job.id
+                                        );
+                                        handleTaskEdit(task, job.id);
+                                      }}
+                                      className="edit-button"
+                                    >
+                                      수정
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        console.log(
+                                          "[AdminSettingsModal] 직업 할일 삭제 버튼 클릭:",
+                                          task.id,
+                                          job.id
+                                        );
+                                        handleTaskDelete(task.id, job.id);
+                                      }}
+                                      className="delete-button"
+                                    >
+                                      삭제
+                                    </button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="no-items-message">
+                              이 직업에 등록된 할일이 없습니다.
+                            </p>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="no-items-message">등록된 직업이 없습니다.</p>
+                    )}
+                  </div>
+
+                  {/* 공통 할일 목록 */}
+                  <div className="common-tasks">
+                    <h4>공통 할일</h4>
+                    {Array.isArray(commonTasks) && commonTasks.length > 0 ? (
+                      <ul className="admin-tasks">
+                        {commonTasks.map((task) => (
+                          <li key={task.id} className="admin-task-item">
+                            <div className="task-info">
+                              <span className="task-name">{task.name}</span>
+                              <span className="task-reward">
+                                보상: {task.reward || 0} 쿠폰
+                              </span>
+                              <span className="task-clicks">
+                                클릭: {task.clicks || 0}/{task.maxClicks || 5}
+                              </span>
+                            </div>
+                            <div className="task-actions">
+                              <button
+                                onClick={() => {
+                                  console.log(
+                                    "[AdminSettingsModal] 공통 할일 수정 버튼 클릭:",
+                                    task
+                                  );
+                                  handleTaskEdit(task);
+                                }}
+                                className="edit-button"
+                              >
+                                수정
+                              </button>
+                              <button
+                                onClick={() => {
+                                  console.log(
+                                    "[AdminSettingsModal] 공통 할일 삭제 버튼 클릭:",
+                                    task.id
+                                  );
+                                  handleTaskDelete(task.id);
+                                }}
+                                className="delete-button"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="no-items-message">
+                        등록된 공통 할일이 없습니다.
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
         )}
 
-        {/* 🔥 수정된 할일 관리 섹션 */}
-        {adminSelectedMenu === "tasks" && (
-          <div className="admin-tasks-settings">
-            <h3>할일 관리</h3>
-            <p className="admin-section-desc">
-              직업별 할일과 공통 할일을 관리합니다.
-            </p>
-
-            {showAddTaskForm ? (
-              <div className="add-task-form">
-                <h4>{adminEditingTask ? "할일 수정" : "새 할일 추가"}</h4>
-                <p>
-                  {taskFormIsJobTask && jobs && taskFormJobId
-                    ? `직업: ${
-                        jobs.find((j) => j.id === taskFormJobId)?.title ||
-                        "알 수 없는 직업"
-                      }`
-                    : "공통 할일"}
-                </p>
-
-                <div className="form-group">
-                  <label>할일 이름:</label>
-                  <input
-                    type="text"
-                    value={adminNewTaskName}
-                    onChange={(e) => setAdminNewTaskName(e.target.value)}
-                    placeholder="할일 이름 입력"
-                    className="admin-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>보상 (쿠폰):</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={adminNewTaskReward}
-                    onChange={(e) => setAdminNewTaskReward(e.target.value)}
-                    placeholder="쿠폰 보상"
-                    className="admin-input"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>최대 클릭 수:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={adminNewTaskMaxClicks}
-                    onChange={(e) => setAdminNewTaskMaxClicks(e.target.value)}
-                    placeholder="최대 클릭 수"
-                    className="admin-input"
-                  />
-                </div>
-
-                <div className="task-form-buttons">
+        {/* 직업 관리 탭 */}
+        {adminSelectedMenu === "jobSettings" && (
+          <div className="job-settings-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
+            )}
+            {/* 직업 관리 섹션 */}
+            <div className="admin-jobs-settings section-card">
+              <h3>직업 관리</h3>
+              <div className="add-job-form">
+                <input
+                  type="text"
+                  value={adminNewJobTitle}
+                  onChange={(e) => setAdminNewJobTitle(e.target.value)}
+                  placeholder={adminEditingJob ? "직업명 수정" : "새 직업명 입력"}
+                  className="admin-input"
+                />
+                <button
+                  onClick={() => {
+                    console.log("[AdminSettingsModal] 직업 저장 버튼 클릭");
+                    if (handleSaveJob && typeof handleSaveJob === "function") {
+                      handleSaveJob();
+                    } else {
+                      console.error(
+                        "[AdminSettingsModal] handleSaveJob 함수가 정의되지 않았습니다."
+                      );
+                      alert("직업 저장 기능을 사용할 수 없습니다.");
+                    }
+                  }}
+                  className="admin-save-button"
+                >
+                  {adminEditingJob ? "수정" : "추가"}
+                </button>
+                {adminEditingJob && (
                   <button
                     onClick={() => {
-                      console.log("[AdminSettingsModal] 할일 저장 버튼 클릭");
-                      if (
-                        handleSaveTask &&
-                        typeof handleSaveTask === "function"
-                      ) {
-                        handleSaveTask();
-                      } else {
-                        console.error(
-                          "[AdminSettingsModal] handleSaveTask 함수가 정의되지 않았습니다."
-                        );
-                        alert("할일 저장 기능을 사용할 수 없습니다.");
-                      }
-                    }}
-                    className="admin-save-button"
-                  >
-                    {adminEditingTask ? "수정" : "추가"}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowAddTaskForm(false);
-                      setAdminEditingTask(null);
+                      setAdminEditingJob(null);
+                      setAdminNewJobTitle("");
                     }}
                     className="admin-cancel-button"
                   >
                     취소
                   </button>
-                </div>
+                )}
               </div>
-            ) : (
-              <div className="task-management">
-                <div className="task-management-buttons">
-                  <button
-                    onClick={() => {
-                      console.log(
-                        "[AdminSettingsModal] 공통 할일 추가 버튼 클릭"
-                      );
-                      handleTaskAdd(null, false);
-                    }}
-                    className="admin-button"
-                  >
-                    공통 할일 추가
-                  </button>
-                  <select
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        console.log(
-                          "[AdminSettingsModal] 직업별 할일 추가 선택:",
-                          e.target.value
-                        );
-                        handleTaskAdd(e.target.value, true);
-                      }
-                    }}
-                    className="job-select"
-                    value=""
-                  >
-                    <option value="">직업별 할일 추가...</option>
-                    {Array.isArray(jobs) &&
-                      jobs.map((job) => (
-                        <option key={job.id} value={job.id}>
-                          {job.title}에 할일 추가
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* 직업별 할일 목록 */}
-                <div className="tasks-by-job">
-                  <h4>직업별 할일</h4>
-                  {Array.isArray(jobs) && jobs.length > 0 ? (
-                    jobs.map((job) => (
-                      <div key={job.id} className="job-tasks">
-                        <h5>{job.title}</h5>
-                        {Array.isArray(job.tasks) && job.tasks.length > 0 ? (
-                          <ul className="admin-tasks">
-                            {job.tasks.map((task) => (
-                              <li key={task.id} className="admin-task-item">
-                                <div className="task-info">
-                                  <span className="task-name">{task.name}</span>
-                                  <span className="task-reward">
-                                    보상: {task.reward || 0} 쿠폰
-                                  </span>
-                                  <span className="task-clicks">
-                                    클릭: {task.clicks || 0}/
-                                    {task.maxClicks || 5}
-                                  </span>
-                                </div>
-                                <div className="task-actions">
-                                  <button
-                                    onClick={() => {
-                                      console.log(
-                                        "[AdminSettingsModal] 직업 할일 수정 버튼 클릭:",
-                                        task,
-                                        job.id
-                                      );
-                                      handleTaskEdit(task, job.id);
-                                    }}
-                                    className="edit-button"
-                                  >
-                                    수정
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      console.log(
-                                        "[AdminSettingsModal] 직업 할일 삭제 버튼 클릭:",
-                                        task.id,
-                                        job.id
-                                      );
-                                      handleTaskDelete(task.id, job.id);
-                                    }}
-                                    className="delete-button"
-                                  >
-                                    삭제
-                                  </button>
-                                </div>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="no-items-message">
-                            이 직업에 등록된 할일이 없습니다.
-                          </p>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <p className="no-items-message">등록된 직업이 없습니다.</p>
-                  )}
-                </div>
-
-                {/* 공통 할일 목록 */}
-                <div className="common-tasks">
-                  <h4>공통 할일</h4>
-                  {Array.isArray(commonTasks) && commonTasks.length > 0 ? (
-                    <ul className="admin-tasks">
-                      {commonTasks.map((task) => (
-                        <li key={task.id} className="admin-task-item">
-                          <div className="task-info">
-                            <span className="task-name">{task.name}</span>
-                            <span className="task-reward">
-                              보상: {task.reward || 0} 쿠폰
-                            </span>
-                            <span className="task-clicks">
-                              클릭: {task.clicks || 0}/{task.maxClicks || 5}
-                            </span>
-                          </div>
-                          <div className="task-actions">
-                            <button
-                              onClick={() => {
-                                console.log(
-                                  "[AdminSettingsModal] 공통 할일 수정 버튼 클릭:",
-                                  task
-                                );
-                                handleTaskEdit(task);
-                              }}
-                              className="edit-button"
-                            >
-                              수정
-                            </button>
-                            <button
-                              onClick={() => {
-                                console.log(
-                                  "[AdminSettingsModal] 공통 할일 삭제 버튼 클릭:",
-                                  task.id
-                                );
-                                handleTaskDelete(task.id);
-                              }}
-                              className="delete-button"
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="no-items-message">
-                      등록된 공통 할일이 없습니다.
-                    </p>
-                  )}
-                </div>
+              <div className="jobs-list">
+                <h4>등록된 직업 목록</h4>
+                {jobs && jobs.length > 0 ? (
+                  <ul className="admin-jobs">
+                    {jobs.map((job) => (
+                      <li key={job.id} className="admin-job-item">
+                        <span className="job-title">{job.title}</span>
+                        <div className="job-actions">
+                          <button
+                            onClick={() => {
+                              console.log(
+                                "[AdminSettingsModal] 직업 수정 버튼 클릭:",
+                                job
+                              );
+                              handleJobEdit(job);
+                            }}
+                            className="edit-button"
+                          >
+                            수정
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log(
+                                "[AdminSettingsModal] 직업 삭제 버튼 클릭:",
+                                job.id
+                              );
+                              handleJobDelete(job.id);
+                            }}
+                            className="delete-button"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="no-items-message">등록된 직업이 없습니다.</p>
+                )}
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* 학생직업 관리 */}
-        {adminSelectedMenu === "studentJobs" && (
-          <div className="student-jobs-settings">
-            <h3>학생직업 관리</h3>
-            {error && <p className="error-message">{error}</p>}
-            <p className="admin-section-desc">
-              학생들에게 직업을 배정하거나 관리합니다. 월급은 직업 수에 따라
-              차등 지급됩니다.
-            </p>
-
-            <div className="salary-management">
-              <div className="salary-info">
-                <h4>월급 지급 관리</h4>
-                <p>기본 월급: 200만원, 추가 직업당: 50만원</p>
-                <p>마지막 월급 지급일: {formatLastSalaryDate()}</p>
+        {/* 학생 관리 탭 */}
+        {adminSelectedMenu === "studentManagement" && (
+          <div className="student-management-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
               </div>
-              <div className="salary-buttons">
-                <button
-                  className="admin-button pay-salary-button"
-                  onClick={handlePaySalariesToAll}
-                  disabled={isPayingSalary || studentsLoading}
-                >
-                  {isPayingSalary ? "월급 지급 중..." : "전체 학생 월급 지급"}
-                </button>
-                <button
-                  className="admin-button pay-selected-salary-button"
-                  onClick={handlePaySalariesToSelected}
-                  disabled={
-                    isPayingSalary ||
-                    studentsLoading ||
-                    selectedStudentIds.length === 0
-                  }
-                >
-                  {isPayingSalary
-                    ? "월급 지급 중..."
-                    : `선택 학생(${selectedStudentIds.length}) 월급 지급`}
-                </button>
+            )}
+            {/* 학생직업 관리 섹션 */}
+            <div className="student-jobs-settings section-card">
+              <h3>학생직업 관리</h3>
+              {error && <p className="error-message">{error}</p>}
+              <p className="admin-section-desc">
+                학생들에게 직업을 배정하거나 관리합니다. 주급은 직업 수에 따라
+                차등 지급됩니다.
+              </p>
+
+              <div className="salary-management">
+                <div className="salary-info">
+                  <h4>주급 지급 관리</h4>
+                  <p>기본 주급: 200만원, 추가 직업당: 50만원</p>
+                  <p>세율: {(salarySettings.taxRate * 100).toFixed(1)}%</p>
+                  <p>주급 인상률: {(salarySettings.salaryIncreaseRate * 100).toFixed(1)}% (매주)</p>
+                  <p>마지막 주급 지급일: {formatLastSalaryDate()}</p>
+                  <p className="auto-payment-info">
+                    ⏰ 자동 주급 지급: 매주 금요일 오전 8시 (서버 자동 실행)
+                  </p>
+                </div>
+                <div className="salary-buttons">
+                  <button
+                    className="admin-button pay-salary-button"
+                    onClick={handlePaySalariesToAll}
+                    disabled={isPayingSalary || studentsLoading}
+                  >
+                    {isPayingSalary ? "주급 지급 중..." : "전체 학생 주급 지급"}
+                  </button>
+                  <button
+                    className="admin-button pay-selected-salary-button"
+                    onClick={handlePaySalariesToSelected}
+                    disabled={
+                      isPayingSalary ||
+                      studentsLoading ||
+                      selectedStudentIds.length === 0
+                    }
+                  >
+                    {isPayingSalary
+                      ? "주급 지급 중..."
+                      : `선택 학생(${selectedStudentIds.length}) 주급 지급`}
+                  </button>
+                </div>
+              </div>
+
+              <div className="student-jobs-container">
+                <div className="student-list-header">
+                  <h4>
+                    학생 목록{" "}
+                    {!isSuperAdmin && userClassCode && `(${userClassCode} 학급)`}
+                  </h4>
+                  <button
+                    onClick={loadStudents}
+                    className="admin-button"
+                    disabled={studentsLoading}
+                  >
+                    {studentsLoading ? "로딩 중..." : "학생 목록 새로고침"}
+                  </button>
+                </div>
+                {studentsLoading ? (
+                  <p>학생 정보 로딩 중...</p>
+                ) : students.length > 0 ? (
+                  <div className="members-table-container">
+                    <table className="members-table">
+                      <thead>
+                        <tr>
+                          <th>
+                            <input
+                              type="checkbox"
+                              checked={selectAllStudents}
+                              onChange={handleToggleSelectAll}
+                              disabled={students.length === 0}
+                            />
+                          </th>
+                          <th>학생 이름</th>
+                          <th>이메일</th>
+                          <th>학급</th>
+                          <th>현재 직업</th>
+                          <th>예상 총급여</th>
+                          <th>세금 공제</th>
+                          <th>실급여</th>
+                          <th>보유 현금</th>
+                          <th>최근 주급일</th>
+                          <th>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map((student) => {
+                          const salaryCalc = calculateSalary(student.selectedJobIds, true);
+                          return (
+                            <tr
+                              key={student.id}
+                              className={
+                                selectedStudentIds.includes(student.id)
+                                  ? "selected-student-row"
+                                  : ""
+                              }
+                            >
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStudentIds.includes(student.id)}
+                                  onChange={() =>
+                                    handleToggleStudentSelection(student.id)
+                                  }
+                                />
+                              </td>
+                              <td>
+                                {student.nickname || student.name || "이름 없음"}
+                              </td>
+                              <td>{student.email || "-"}</td>
+                              <td>{student.classCode || "미지정"}</td>
+                              <td>
+                                {Array.isArray(student.selectedJobIds) &&
+                                student.selectedJobIds.length > 0 ? (
+                                  student.selectedJobIds
+                                    .map((jobId) => {
+                                      const job = Array.isArray(jobs)
+                                        ? jobs.find((j) => j.id === jobId)
+                                        : null;
+                                      return job ? job.title : null;
+                                    })
+                                    .filter(Boolean)
+                                    .join(", ")
+                                ) : (
+                                  <span className="no-jobs">직업 없음</span>
+                                )}
+                              </td>
+                              <td className="salary-column">
+                                {`${(salaryCalc.gross / 10000).toFixed(0)}만원`}
+                              </td>
+                              <td className="tax-column">
+                                {`${(salaryCalc.tax / 10000).toFixed(0)}만원`}
+                              </td>
+                              <td className="net-salary-column">
+                                {`${(salaryCalc.net / 10000).toFixed(0)}만원`}
+                              </td>
+                              <td className="cash-column">
+                                {(student.cash || 0).toLocaleString()}원
+                              </td>
+                              <td>
+                                {student.lastSalaryDate
+                                  ? student.lastSalaryDate.toLocaleDateString()
+                                  : "없음"}
+                              </td>
+                              <td>
+                                <button
+                                  className="edit-button"
+                                  onClick={() => handleEditStudentJobs(student)}
+                                >
+                                  직업 설정
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="no-items-message">
+                    {!isSuperAdmin && !userClassCode
+                      ? "학급 코드가 설정되지 않았습니다."
+                      : "학생 정보가 없습니다."}
+                  </p>
+                )}
               </div>
             </div>
+          </div>
+        )}
 
-            <div className="student-jobs-container">
-              <h4>
-                학생 목록{" "}
-                {!isSuperAdmin && userClassCode && `(${userClassCode} 학급)`}
-              </h4>
-              {studentsLoading ? (
-                <p>학생 정보 로딩 중...</p>
-              ) : students.length > 0 ? (
+        {/* 학급 구성원 관리 탭 */}
+        {adminSelectedMenu === "memberManagement" && (
+          <div className="member-management-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
+            )}
+            <div className="admin-class-members-container section-card">
+              <h3>학급 구성원 관리</h3>
+              {error && <p className="error-message">{error}</p>}
+              <p className="admin-section-desc">
+                학급 구성원의 정보를 확인하고 관리합니다.
+                {isSuperAdmin && " 최고 관리자는 모든 학급의 구성원을 확인할 수 있습니다."}
+              </p>
+
+              {membersLoading ? (
+                <p>구성원 정보 로딩 중...</p>
+              ) : classMembers.length > 0 ? (
                 <div className="members-table-container">
                   <table className="members-table">
                     <thead>
                       <tr>
-                        <th>
-                          <input
-                            type="checkbox"
-                            checked={selectAllStudents}
-                            onChange={handleToggleSelectAll}
-                            disabled={students.length === 0}
-                          />
-                        </th>
-                        <th>학생 이름</th>
+                        <th>이름</th>
                         <th>이메일</th>
-                        <th>학급</th>
-                        <th>현재 직업</th>
-                        <th>예상 월급</th>
-                        <th>보유 현금</th>
-                        <th>최근 월급일</th>
-                        <th>관리</th>
+                        <th>학급 코드</th>
+                        <th>권한</th>
+                        {isSuperAdmin && <th>관리</th>}
                       </tr>
                     </thead>
                     <tbody>
-                      {students.map((student) => (
-                        <tr
-                          key={student.id}
-                          className={
-                            selectedStudentIds.includes(student.id)
-                              ? "selected-student-row"
-                              : ""
-                          }
-                        >
+                      {classMembers.map((member) => (
+                        <tr key={member.id}>
+                          <td>{member.name}</td>
+                          <td>{member.email}</td>
+                          <td>{member.classCode}</td>
                           <td>
-                            <input
-                              type="checkbox"
-                              checked={selectedStudentIds.includes(student.id)}
-                              onChange={() =>
-                                handleToggleStudentSelection(student.id)
-                              }
-                            />
+                            {member.isSuperAdmin
+                              ? "최고 관리자"
+                              : member.isAdmin
+                              ? "관리자"
+                              : "학생"}
                           </td>
-                          <td>
-                            {student.nickname || student.name || "이름 없음"}
-                          </td>
-                          <td>{student.email || "-"}</td>
-                          <td>{student.classCode || "미지정"}</td>
-                          <td>
-                            {Array.isArray(student.selectedJobIds) &&
-                            student.selectedJobIds.length > 0 ? (
-                              student.selectedJobIds
-                                .map((jobId) => {
-                                  const job = Array.isArray(jobs)
-                                    ? jobs.find((j) => j.id === jobId)
-                                    : null;
-                                  return job ? job.title : null;
-                                })
-                                .filter(Boolean)
-                                .join(", ")
-                            ) : (
-                              <span className="no-jobs">직업 없음</span>
-                            )}
-                          </td>
-                          <td className="salary-column">
-                            {`${(
-                              calculateSalary(student.selectedJobIds) / 10000
-                            ).toFixed(0)}만원`}
-                          </td>
-                          <td className="cash-column">
-                            {(student.cash || 0).toLocaleString()}원
-                          </td>
-                          <td>
-                            {student.lastSalaryDate
-                              ? student.lastSalaryDate.toLocaleDateString()
-                              : "없음"}
-                          </td>
-                          <td>
-                            <button
-                              className="edit-button"
-                              onClick={() => handleEditStudentJobs(student)}
-                            >
-                              직업 설정
-                            </button>
-                          </td>
+                          {isSuperAdmin && (
+                            <td>
+                              {!member.isSuperAdmin && (
+                                <button
+                                  onClick={() =>
+                                    toggleAdminStatus(member.id, member.isAdmin)
+                                  }
+                                  className={
+                                    member.isAdmin
+                                      ? "remove-admin-button"
+                                      : "add-admin-button"
+                                  }
+                                  disabled={membersLoading}
+                                >
+                                  {member.isAdmin ? "관리자 해제" : "관리자 지정"}
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <p className="no-items-message">
+                <p className="no-members-message">
                   {!isSuperAdmin && !userClassCode
                     ? "학급 코드가 설정되지 않았습니다."
-                    : "학생 정보가 없습니다."}
+                    : "등록된 학급 구성원이 없습니다."}
                 </p>
               )}
+
+              <div className="refresh-members-section">
+                <button
+                  onClick={loadClassMembers}
+                  className="admin-button"
+                  disabled={membersLoading}
+                >
+                  {membersLoading ? "로딩 중..." : "구성원 목록 새로고침"}
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* 학급 코드 관리 */}
-        {adminSelectedMenu === "classCodes" && isSuperAdmin && (
-          <div className="admin-class-codes-container">
-            <h3>학급 코드 관리</h3>
-            {error && <p className="error-message">{error}</p>}
-            <div className="add-class-code-form">
-              <input
-                type="text"
-                value={newClassCode}
-                onChange={(e) => setNewClassCode(e.target.value)}
-                placeholder="새 학급 코드 입력"
-                disabled={classCodeOperationLoading}
-                className="admin-input"
-              />
-              <button
-                onClick={handleAddClassCode}
-                disabled={classCodeOperationLoading || !newClassCode.trim()}
-                className="admin-button"
-              >
-                {classCodeOperationLoading ? "추가 중..." : "코드 추가"}
-              </button>
-            </div>
-            <div className="class-codes-list">
-              <h4>
-                등록된 학급 코드 목록 (
-                {Array.isArray(classCodes) ? classCodes.length : 0}개)
-              </h4>
-              {Array.isArray(classCodes) && classCodes.length > 0 ? (
-                <ul className="codes-list">
-                  {classCodes.map((code) => (
-                    <li key={code} className="code-item">
-                      <span className="code-text">{code}</span>
-                      <button
-                        onClick={() => handleRemoveClassCode(code)}
-                        className="remove-code-button"
-                        disabled={classCodeOperationLoading}
-                      >
-                        삭제
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="no-codes-message">등록된 학급 코드가 없습니다.</p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 학급 구성원 관리 */}
-        {adminSelectedMenu === "members" && (
-          <div className="admin-class-members-container">
-            <h3>학급 구성원 관리</h3>
-            {error && <p className="error-message">{error}</p>}
-            {membersLoading ? (
-              <p>구성원 정보 로딩 중...</p>
-            ) : classMembers.length > 0 ? (
-              <table className="members-table">
-                <thead>
-                  <tr>
-                    <th>이름</th>
-                    <th>이메일</th>
-                    <th>학급 코드</th>
-                    <th>권한</th>
-                    {isSuperAdmin && <th>관리</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {classMembers.map((member) => (
-                    <tr key={member.id}>
-                      <td>{member.name}</td>
-                      <td>{member.email}</td>
-                      <td>{member.classCode}</td>
-                      <td>
-                        {member.isSuperAdmin
-                          ? "최고 관리자"
-                          : member.isAdmin
-                          ? "관리자"
-                          : "학생"}
-                      </td>
-                      {isSuperAdmin && (
-                        <td>
-                          {!member.isSuperAdmin && (
-                            <button
-                              onClick={() =>
-                                toggleAdminStatus(member.id, member.isAdmin)
-                              }
-                              className={
-                                member.isAdmin
-                                  ? "remove-admin-button"
-                                  : "add-admin-button"
-                              }
-                              disabled={membersLoading}
-                            >
-                              {member.isAdmin ? "관리자 해제" : "관리자 지정"}
-                            </button>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="no-members-message">
-                {!isSuperAdmin && !userClassCode
-                  ? "학급 코드가 설정되지 않았습니다."
-                  : "등록된 학급 구성원이 없습니다."}
-              </p>
+        {/* 급여 설정 탭 */}
+        {adminSelectedMenu === "salarySettings" && (
+          <div className="salary-settings-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
             )}
+            {/* 급여 설정 섹션 */}
+            <div className="salary-settings section-card">
+              <h3>급여 설정</h3>
+              <p className="admin-section-desc">
+                세율과 주급 인상률을 설정합니다. 자동 주급 지급은 매주 금요일 오전 8시에 실행됩니다.
+              </p>
+
+              <div className="salary-settings-form">
+                <div className="form-group">
+                  <label>세율 (%):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={tempTaxRate}
+                    onChange={(e) => setTempTaxRate(e.target.value)}
+                    className="admin-input"
+                    placeholder="예: 10 (10%)"
+                  />
+                  <small className="form-help">
+                    학생들의 주급에서 공제될 세율을 설정합니다.
+                  </small>
+                </div>
+
+                <div className="form-group">
+                  <label>주급 인상률 (%):</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.1"
+                    value={tempSalaryIncreaseRate}
+                    onChange={(e) => setTempSalaryIncreaseRate(e.target.value)}
+                    className="admin-input"
+                    placeholder="예: 3 (3%)"
+                  />
+                  <small className="form-help">
+                    매주 자동으로 적용될 주급 인상률을 설정합니다.
+                  </small>
+                </div>
+
+                <button
+                  onClick={handleSaveSalarySettings}
+                  className="admin-save-button"
+                  disabled={salarySettingsLoading}
+                >
+                  {salarySettingsLoading ? "저장 중..." : "급여 설정 저장"}
+                </button>
+              </div>
+
+              <div className="current-salary-settings">
+                <h4>현재 급여 설정</h4>
+                <div className="settings-display">
+                  <p>현재 세율: <strong>{(salarySettings.taxRate * 100).toFixed(1)}%</strong></p>
+                  <p>현재 주급 인상률: <strong>{(salarySettings.salaryIncreaseRate * 100).toFixed(1)}%</strong></p>
+                  <p>마지막 자동 지급일: <strong>{formatLastSalaryDate()}</strong></p>
+                </div>
+                
+                <div className="salary-calculation-example">
+                  <h5>주급 계산 예시</h5>
+                  <p>• 직업 1개: 총 200만원 → 세금 {(2000000 * salarySettings.taxRate / 10000).toFixed(0)}만원 공제 → 실급여 {((2000000 * (1 - salarySettings.taxRate)) / 10000).toFixed(0)}만원</p>
+                  <p>• 직업 2개: 총 250만원 → 세금 {(2500000 * salarySettings.taxRate / 10000).toFixed(0)}만원 공제 → 실급여 {((2500000 * (1 - salarySettings.taxRate)) / 10000).toFixed(0)}만원</p>
+                  <p>• 직업 3개: 총 300만원 → 세금 {(3000000 * salarySettings.taxRate / 10000).toFixed(0)}만원 공제 → 실급여 {((3000000 * (1 - salarySettings.taxRate)) / 10000).toFixed(0)}만원</p>
+                </div>
+                
+                <div className="auto-payment-info">
+                  <h5>자동 주급 지급 시스템</h5>
+                  <p>🤖 매주 금요일 오전 8시에 서버에서 자동으로 주급이 지급됩니다.</p>
+                  <p>📈 매주 주급 인상률만큼 급여가 자동으로 인상됩니다.</p>
+                  <p>💰 세금이 자동으로 공제되어 실급여가 지급됩니다.</p>
+                  <p>⚙️ 관리자가 로그인하지 않아도 자동으로 실행됩니다.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 시스템 관리 탭 */}
+        {adminSelectedMenu === "systemManagement" && (
+          <div className="system-management-tab">
+            {isSuperAdmin && (
+              <div className="class-info-header">
+                <p className="current-class-info">🌐 시스템 전체 관리 (최고 관리자)</p>
+              </div>
+            )}
+            {/* 학급 코드 관리 섹션 */}
+            {isSuperAdmin && (
+              <div className="admin-class-codes-container section-card">
+                <h3>학급 코드 관리</h3>
+                {error && <p className="error-message">{error}</p>}
+                <div className="add-class-code-form">
+                  <input
+                    type="text"
+                    value={newClassCode}
+                    onChange={(e) => setNewClassCode(e.target.value)}
+                    placeholder="새 학급 코드 입력"
+                    disabled={classCodeOperationLoading}
+                    className="admin-input"
+                  />
+                  <button
+                    onClick={handleAddClassCode}
+                    disabled={classCodeOperationLoading || !newClassCode.trim()}
+                    className="admin-button"
+                  >
+                    {classCodeOperationLoading ? "추가 중..." : "코드 추가"}
+                  </button>
+                </div>
+                <div className="class-codes-list">
+                  <h4>
+                    등록된 학급 코드 목록 (
+                    {Array.isArray(classCodes) ? classCodes.length : 0}개)
+                  </h4>
+                  {Array.isArray(classCodes) && classCodes.length > 0 ? (
+                    <ul className="codes-list">
+                      {classCodes.map((code) => (
+                        <li key={code} className="code-item">
+                          <span className="code-text">{code}</span>
+                          <button
+                            onClick={() => handleRemoveClassCode(code)}
+                            className="remove-code-button"
+                            disabled={classCodeOperationLoading}
+                          >
+                            삭제
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="no-codes-message">등록된 학급 코드가 없습니다.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* 전역 설정 관리 섹션 */}
+            <div className="admin-global-settings-container section-card">
+              <h3>전역 시스템 설정</h3>
+              <p className="admin-section-desc">
+                전체 시스템의 고급 설정을 관리합니다. (최고 관리자 전용)
+              </p>
+              <div className="global-settings-info">
+                <p>• 데이터베이스 백업 및 복원</p>
+                <p>• 시스템 메모리 관리</p>
+                <p>• 로그 파일 관리</p>
+                <p>• 서버 상태 모니터링</p>
+              </div>
+              <div className="coming-soon">
+                <p className="feature-note">🔧 추가 시스템 관리 기능은 향후 업데이트에서 제공됩니다.</p>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1426,7 +1750,7 @@ const AdminSettingsModal = ({
 
       {/* 학생 직업 수정 모달 */}
       {showEditStudentJobsModal && selectedStudent && (
-        <div className="modal-overlay">
+        <div className="modal-overlay show">
           <div className="edit-student-jobs-modal">
             <div className="modal-header">
               <h3>
@@ -1452,14 +1776,18 @@ const AdminSettingsModal = ({
                   현재 보유 현금: {(selectedStudent.cash || 0).toLocaleString()}
                   원
                 </p>
-                <p>
-                  예상 월급:{" "}
-                  {`${(calculateSalary(tempSelectedJobIds) / 10000).toFixed(
-                    0
-                  )}만원`}
-                </p>
+                {(() => {
+                  const salaryCalc = calculateSalary(tempSelectedJobIds, true);
+                  return (
+                    <>
+                      <p>예상 총급여: {`${(salaryCalc.gross / 10000).toFixed(0)}만원`}</p>
+                      <p>세금 공제: {`${(salaryCalc.tax / 10000).toFixed(0)}만원`} ({(salarySettings.taxRate * 100).toFixed(1)}%)</p>
+                      <p>실급여: {`${(salaryCalc.net / 10000).toFixed(0)}만원`}</p>
+                    </>
+                  );
+                })()}
                 <p className="salary-explanation">
-                  (기본 200만원 + 추가 직업당 50만원)
+                  (기본 200만원 + 추가 직업당 50만원, 세금 {(salarySettings.taxRate * 100).toFixed(1)}% 공제)
                 </p>
               </div>
               <div className="job-selection-list">

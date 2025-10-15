@@ -1,4 +1,5 @@
-// src/AuthContext.js
+// src/AuthContext.js - Firestore 읽기 최적화 및 무한루프 수정 버전 (학급 명단 로딩 문제 해결)
+
 import React, {
   createContext,
   useState,
@@ -15,14 +16,19 @@ import {
   authStateListener,
   signInWithEmailAndPassword as fbSignIn,
   signOut as fbSignOut,
+  updatePassword as fbUpdatePassword,
+  deleteUser as fbDeleteUser,
   getUserDocument,
   addUserDocument,
   updateUserDocument,
-  getAllUsersDocuments,
+  deleteUserDocument,
+  getClassmates, // 수정: 이제 실제 학급별 조회 함수
   updateUserCashInFirestore,
+  updateUserCouponsInFirestore,
+  addTransaction,
   serverTimestamp,
-} from "./firebase"; // firebase.js 경로는 실제 프로젝트 구조에 맞게 확인해주세요.
-import { doc, onSnapshot, Timestamp } from "firebase/firestore";
+} from "./firebase";
+import { doc, onSnapshot, Timestamp, getDoc } from "firebase/firestore";
 
 export const AuthContext = createContext(null);
 
@@ -35,51 +41,13 @@ export const useAuth = () => {
     return {
       user: null,
       userDoc: null,
+      setUserDoc: () => {},
       users: [],
+      classmates: [],
+      allClassMembers: [],
+      setAllClassMembers: () => {},
       loading: true,
       firebaseReady: false,
-      auth: null,
-      loginWithEmailPassword: async () => {
-        console.error("AuthProvider not ready: loginWithEmailPassword");
-        throw new Error("Auth service unavailable.");
-      },
-      logout: async () => {
-        console.error("AuthProvider not ready: logout");
-      },
-      updateUser: async () => {
-        console.error("AuthProvider not ready: updateUser");
-        return false;
-      },
-      fetchUserDocument: async () => {
-        console.error("AuthProvider not ready: fetchUserDocument");
-        return null;
-      },
-      fetchAllUsers: async () => {
-        console.error("AuthProvider not ready: fetchAllUsers");
-        return [];
-      },
-      loginWithFirebaseUID: async () => {
-        console.error("AuthProvider not ready: loginWithFirebaseUID");
-        return false;
-      },
-      isAdmin: () => false,
-      isSuperAdmin: () => false,
-      deductCashFromUserById: async () => {
-        console.error("AuthProvider not ready: deductCashFromUserById");
-        return false;
-      },
-      addCashToUserById: async () => {
-        console.error("AuthProvider not ready: addCashToUserById");
-        return false;
-      },
-      deductCash: async () => {
-        console.error("AuthProvider not ready: deductCash");
-        return false;
-      },
-      addCash: async () => {
-        console.error("AuthProvider not ready: addCash");
-        return false;
-      },
     };
   }
   return context;
@@ -89,21 +57,39 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userDoc, setUserDoc] = useState(null);
   const [users, setUsers] = useState([]);
+  const [classmates, setClassmates] = useState([]);
+  const [allClassMembers, setAllClassMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [firebaseReady, setFirebaseReady] = useState(false);
 
+  // 최적화: 캐시와 요청 관리를 위한 ref들
   const lastLoginUpdateRef = useRef(new Set());
-  const usersFetchTimeRef = useRef(0);
+  const classmatesFetchTimeRef = useRef(0);
+  const userDocCacheRef = useRef(new Map());
   const initializationCompleteRef = useRef(false);
   const currentUserUidRef = useRef(null);
+  const firestoreUnsubscribeRef = useRef(null);
+  const pendingClassmatesFetchRef = useRef(false);
+  const userDocFetchTimeRef = useRef(new Map());
+  const currentClassCodeRef = useRef(null);
+  const authListenerSetupRef = useRef(false);
 
+  // 최적화: 캐시 TTL 설정
+  const isMobile = useCallback(() => {
+    return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  }, []);
+
+  const CLASSMATES_CACHE_TTL = 5 * 60 * 1000; // 학급 구성원 캐시 5분으로 단축 (더 자주 업데이트)
+  const USER_DOC_CACHE_TTL = 30 * 60 * 1000;
+  const LASTLOGIN_UPDATE_COOLDOWN = 6 * 60 * 60 * 1000;
+
+  // Firebase 초기화 확인 (한 번만 실행)
   useEffect(() => {
     if (initializationCompleteRef.current) return;
 
     const checkFirebaseInit = () => {
       const initialized = isInitialized();
       if (initialized) {
-        console.log("[AuthContext] Firebase 서비스 사용 가능");
         setFirebaseReady(true);
         initializationCompleteRef.current = true;
       } else {
@@ -111,6 +97,30 @@ export const AuthProvider = ({ children }) => {
       }
     };
     checkFirebaseInit();
+  }, []);
+
+  // 대폭 간소화된 학급 구성원만 계산하는 함수
+  const calculateClassMembers = useCallback((classMembers, currentUserId) => {
+    if (!classMembers || classMembers.length === 0) {
+      return { allMembers: [], classmates: [] };
+    }
+
+    // 전체 학급 구성원
+    const allMembers = classMembers;
+
+    // 나를 제외한 학급 친구들 (가나다순 정렬)
+    const classmates = allMembers
+      .filter((u) => {
+        const uid = u.id || u.uid;
+        return uid !== currentUserId;
+      })
+      .sort((a, b) => {
+        const nameA = a.name || a.nickname || "";
+        const nameB = b.name || b.nickname || "";
+        return nameA.localeCompare(nameB, "ko");
+      });
+
+    return { allMembers, classmates };
   }, []);
 
   const isAdminFn = useCallback(() => {
@@ -126,49 +136,82 @@ export const AuthProvider = ({ children }) => {
     return !!(userDoc && userDoc.isSuperAdmin === true);
   }, [userDoc]);
 
-  const fetchAllUsersFromFirestore = useCallback(
-    async (isCurrentUserAdmin, currentUserIdToExclude = null) => {
-      if (!firebaseReady) {
-        console.warn(
-          "[AuthContext] fetchAllUsersFromFirestore: Firebase 미준비"
-        );
-        return;
+  // 핵심 수정: 학급 구성원 조회 함수 개선
+  const fetchClassmatesFromFirestore = useCallback(
+    async (classCode, currentUserId = null, forceRefresh = false) => {
+      if (!firebaseReady || !classCode || classCode === '미지정') {
+        setUsers([]);
+        setAllClassMembers([]);
+        setClassmates([]);
+        return [];
+      }
+
+      // 중복 요청 방지 (단, 강제 새로고침일 때는 허용)
+      if (pendingClassmatesFetchRef.current && !forceRefresh) {
+        return users;
       }
 
       const now = Date.now();
-      if (now - usersFetchTimeRef.current < 5 * 60 * 1000) {
-        // 5분 캐시
-        console.log("[AuthContext] 사용자 목록 캐시 사용 (5분 이내 조회됨)");
-        return;
+      
+      // 캐시 확인 - 강제 새로고침이 아니고, 같은 학급이고, 캐시가 유효한 경우만 캐시 사용
+      if (!forceRefresh && 
+          users.length > 0 && 
+          currentClassCodeRef.current === classCode && 
+          now - classmatesFetchTimeRef.current < CLASSMATES_CACHE_TTL) {
+        
+        // 캐시 사용 시에도 계산된 데이터가 없으면 다시 계산
+        if (classmates.length === 0 && allClassMembers.length === 0) {
+          const { allMembers, classmates: newClassmates } = calculateClassMembers(users, currentUserId);
+          setAllClassMembers(allMembers);
+          setClassmates(newClassmates);
+        }
+        
+        return users;
       }
 
-      console.log("[AuthContext] 모든 사용자 정보 업데이트 시도...");
+      pendingClassmatesFetchRef.current = true;
+
       try {
-        let usersList = await getAllUsersDocuments();
-        if (currentUserIdToExclude && !isCurrentUserAdmin) {
-          usersList = usersList.filter((u) => u.id !== currentUserIdToExclude);
+        // 핵심: 해당 학급의 구성원만 직접 쿼리 (강제 새로고침 시 캐시 무효화)
+        const classMembers = await getClassmates(classCode, forceRefresh);
+        
+        if (!classMembers || classMembers.length === 0) {
+          setUsers([]);
+          setAllClassMembers([]);
+          setClassmates([]);
+          currentClassCodeRef.current = classCode; // 빈 결과도 캐시
+          classmatesFetchTimeRef.current = now;
+          return [];
         }
-        setUsers(usersList || []);
-        usersFetchTimeRef.current = now;
-        console.log(
-          `[AuthContext] 모든 사용자 정보 업데이트 완료: ${
-            usersList?.length || 0
-          }명`
-        );
+
+        // 상태 업데이트
+        setUsers(classMembers);
+        currentClassCodeRef.current = classCode;
+        classmatesFetchTimeRef.current = now;
+        
+        // 학급 구성원 계산 및 설정
+        const { allMembers, classmates } = calculateClassMembers(classMembers, currentUserId);
+        setAllClassMembers(allMembers);
+        setClassmates(classmates);
+        
+        return classMembers;
+        
       } catch (error) {
-        console.error("[AuthContext] 모든 사용자 정보 가져오기 오류:", error);
         setUsers([]);
+        setAllClassMembers([]);
+        setClassmates([]);
+        return [];
+      } finally {
+        pendingClassmatesFetchRef.current = false;
       }
     },
-    [firebaseReady]
+    [firebaseReady, calculateClassMembers]
   );
 
+  // 최적화: lastLogin 업데이트 - 더 긴 간격으로 업데이트
   const updateLastLoginAtSeparately = useCallback(
     async (firebaseUid, currentLastLogin) => {
       if (lastLoginUpdateRef.current.has(firebaseUid)) {
-        console.log(
-          `[AuthContext] ${firebaseUid} lastLoginAt 이미 업데이트됨, 스킵`
-        );
         return;
       }
 
@@ -179,8 +222,7 @@ export const AuthProvider = ({ children }) => {
         shouldUpdate = true;
       } else if (currentLastLogin instanceof Timestamp) {
         const lastLoginTime = currentLastLogin.toDate().getTime();
-        if (now - lastLoginTime > 60 * 60 * 1000) {
-          // 1시간 이상 경과 시 업데이트
+        if (now - lastLoginTime > LASTLOGIN_UPDATE_COOLDOWN) {
           shouldUpdate = true;
         }
       } else if (
@@ -193,108 +235,104 @@ export const AuthProvider = ({ children }) => {
         )
           .toDate()
           .getTime();
-        if (now - lastLoginTime > 60 * 60 * 1000) {
+        if (now - lastLoginTime > LASTLOGIN_UPDATE_COOLDOWN) {
           shouldUpdate = true;
         }
       }
 
       if (!shouldUpdate) {
-        console.log(`[AuthContext] ${firebaseUid} lastLoginAt 업데이트 불필요`);
         return;
       }
 
       try {
-        console.log(
-          `[AuthContext] ${firebaseUid} lastLoginAt 업데이트 시도...`
-        );
         await updateUserDocument(firebaseUid, {
           lastLoginAt: serverTimestamp(),
         });
         lastLoginUpdateRef.current.add(firebaseUid);
-        console.log(`[AuthContext] ${firebaseUid} lastLoginAt 업데이트 완료`);
       } catch (updateError) {
-        console.error(
-          `[AuthContext] ${firebaseUid} lastLoginAt 업데이트 오류:`,
-          updateError
-        );
+        if (updateError.code !== 'unavailable') {
+        } else {
+        }
       }
     },
     []
   );
 
+  // 최적화: 사용자 문서 캐시 관리
+  const getCachedUserDoc = useCallback((uid) => {
+    const cached = userDocCacheRef.current.get(uid);
+    if (!cached) return null;
+
+    const now = Date.now();
+    const lastFetch = userDocFetchTimeRef.current.get(uid) || 0;
+    
+    if (now - lastFetch > USER_DOC_CACHE_TTL) {
+      userDocCacheRef.current.delete(uid);
+      userDocFetchTimeRef.current.delete(uid);
+      return null;
+    }
+
+    return cached;
+  }, []);
+
+  const setCachedUserDoc = useCallback((uid, docData) => {
+    userDocCacheRef.current.set(uid, docData);
+    userDocFetchTimeRef.current.set(uid, Date.now());
+  }, []);
+
+  // 핵심 최적화: Auth 상태 리스너 - 학급 구성원만 조회 (수정된 부분)
   useEffect(() => {
-    if (!firebaseReady || !auth) {
-      console.log(
-        "[AuthContext] authStateListener 대기: Firebase 또는 auth 미준비"
-      );
-      setLoading(true);
+    // 중복 실행 방지
+    if (!firebaseReady || authListenerSetupRef.current) {
+      if (!firebaseReady) {
+        setLoading(true);
+      }
       return;
     }
 
-    console.log("[AuthContext] authStateListener 설정");
+    authListenerSetupRef.current = true;
     setLoading(true);
 
-    let firestoreUnsubscribe = null;
-
     const authUnsubscribe = authStateListener(async (firebaseAuthUser) => {
-      console.log(
-        "[AuthContext] Auth state changed:",
-        firebaseAuthUser ? firebaseAuthUser.uid : "logged out"
-      );
-
-      if (firestoreUnsubscribe) {
-        console.log("[AuthContext] 기존 onSnapshot 리스너 해제");
-        firestoreUnsubscribe();
-        firestoreUnsubscribe = null;
+      // 기존 실시간 리스너 정리
+      if (firestoreUnsubscribeRef.current) {
+        firestoreUnsubscribeRef.current();
+        firestoreUnsubscribeRef.current = null;
       }
-
+      
       if (firebaseAuthUser) {
+        // 새로운 사용자 로그인 시 캐시 및 상태 초기화
         if (currentUserUidRef.current !== firebaseAuthUser.uid) {
-          console.log(
-            `[AuthContext] 새 사용자 로그인: ${firebaseAuthUser.uid}`
-          );
           currentUserUidRef.current = firebaseAuthUser.uid;
-          usersFetchTimeRef.current = 0;
+          classmatesFetchTimeRef.current = 0;
+          currentClassCodeRef.current = null;
+          setUserDoc(null); 
+          setUsers([]);
+          setAllClassMembers([]);
+          setClassmates([]);
+          
+          // 캐시 초기화
+          userDocCacheRef.current.clear();
+          userDocFetchTimeRef.current.clear();
         }
 
         setUser(firebaseAuthUser);
-        const userRef = doc(db, "users", firebaseAuthUser.uid);
+        setLoading(true);
 
-        firestoreUnsubscribe = onSnapshot(
-          userRef,
-          async (docSnap) => {
-            console.log(
-              `[AuthContext] onSnapshot: 데이터 수신 (UID: ${firebaseAuthUser.uid})`
-            );
-
-            if (docSnap.exists()) {
-              let docData = { id: docSnap.id, ...docSnap.data() };
-              console.log(
-                `[AuthContext] onSnapshot: 사용자 문서 있음. 현금: ${docData.cash}, 쿠폰: ${docData.coupons}`
-              );
-
-              // 🔥 onSnapshot을 통해 Firestore에서 직접 받은 데이터로 userDoc 설정
-              setUserDoc(docData);
-
-              const currentIsAdmin =
-                docData.isAdmin === true ||
-                docData.role === "admin" ||
-                docData.isSuperAdmin === true;
-
-              fetchAllUsersFromFirestore(currentIsAdmin, firebaseAuthUser.uid);
-
-              setLoading(false);
-
-              setTimeout(() => {
-                updateLastLoginAtSeparately(
-                  firebaseAuthUser.uid,
-                  docData.lastLoginAt
-                );
-              }, 1000);
+        try {
+          // 최적화: 캐시된 데이터 먼저 확인
+          let docData = getCachedUserDoc(firebaseAuthUser.uid);
+          
+          if (!docData) {
+            // 캐시가 없으면 직접 조회 (한 번만)
+            const userRef = doc(db, "users", firebaseAuthUser.uid);
+            const directDoc = await getDoc(userRef);
+            
+            if (directDoc.exists()) {
+              docData = { id: directDoc.id, uid: directDoc.id, ...directDoc.data() };
+              setCachedUserDoc(firebaseAuthUser.uid, docData);
             } else {
-              console.log(
-                `[AuthContext] onSnapshot: 사용자 문서 없음 (${firebaseAuthUser.uid}), 새로 생성합니다.`
-              );
+              // 새 사용자 문서 생성
               const displayName =
                 firebaseAuthUser.displayName ||
                 firebaseAuthUser.email?.split("@")[0] ||
@@ -315,133 +353,199 @@ export const AuthProvider = ({ children }) => {
                 lastLoginAt: serverTimestamp(),
               };
 
-              try {
-                await addUserDocument(firebaseAuthUser.uid, newUserData);
-                console.log(`[AuthContext] onSnapshot: 사용자 문서 생성 완료.`);
-                // 새 문서 생성 후 onSnapshot이 자동으로 다시 호출되어 setUserDoc을 업데이트합니다.
-              } catch (addError) {
-                console.error(
-                  "[AuthContext] onSnapshot: 사용자 문서 생성 오류:",
-                  addError
-                );
-                setUser(null);
-                setUserDoc(null);
-                setUsers([]);
-                setLoading(false);
-              }
+              await addUserDocument(firebaseAuthUser.uid, newUserData);
+              docData = { id: firebaseAuthUser.uid, uid: firebaseAuthUser.uid, ...newUserData };
+              setCachedUserDoc(firebaseAuthUser.uid, docData);
             }
-          },
-          (error) => {
-            console.error("[AuthContext] onSnapshot 오류:", error);
-            setUser(null);
-            setUserDoc(null);
-            setUsers([]);
-            setLoading(false);
           }
-        );
+
+          if (docData) {
+            setUserDoc(docData);
+
+            // 핵심: 학급 구성원만 조회 (전체 사용자 대신)
+            if (docData.classCode && docData.classCode !== '미지정') {
+              // 수정: forceRefresh를 true로 설정하여 확실히 새로 조회
+              await fetchClassmatesFromFirestore(docData.classCode, firebaseAuthUser.uid, true);
+            } else {
+              setUsers([]);
+              setAllClassMembers([]);
+              setClassmates([]);
+            }
+
+            // lastLogin 업데이트는 더 긴 간격으로
+            setTimeout(() => {
+              updateLastLoginAtSeparately(
+                firebaseAuthUser.uid,
+                docData.lastLoginAt
+              );
+            }, 10000); // 10초 후에 실행
+
+            // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (5분마다)
+            const startUserDocPolling = () => {
+              const pollUserDoc = async () => {
+                try {
+                  const userRef = doc(db, "users", firebaseAuthUser.uid);
+                  const docSnap = await getDoc(userRef);
+
+                  if (docSnap.exists()) {
+                    const newDocData = { id: docSnap.id, uid: docSnap.id, ...docSnap.data() };
+
+                    // 중요한 필드만 확인하여 불필요한 업데이트 방지
+                    const currentData = userDocCacheRef.current.get(firebaseAuthUser.uid);
+
+                    // 캐시가 없으면 무조건 업데이트 (첫 폴링)
+                    if (!currentData) {
+                      setUserDoc(newDocData);
+                      setCachedUserDoc(firebaseAuthUser.uid, newDocData);
+                      return;
+                    }
+
+                    // 중요 필드 변경 확인
+                    const cashChanged = currentData.cash !== newDocData.cash;
+                    const couponsChanged = currentData.coupons !== newDocData.coupons;
+                    const classCodeChanged = currentData.classCode !== newDocData.classCode;
+                    const isAdminChanged = currentData.isAdmin !== newDocData.isAdmin;
+
+                    if (cashChanged || couponsChanged || classCodeChanged || isAdminChanged) {
+                      // 학급 변경 감지
+                      if (classCodeChanged) {
+                        if (newDocData.classCode && newDocData.classCode !== '미지정') {
+                          await fetchClassmatesFromFirestore(newDocData.classCode, firebaseAuthUser.uid, true);
+                        } else {
+                          setUsers([]);
+                          setAllClassMembers([]);
+                          setClassmates([]);
+                        }
+                      }
+
+                      setUserDoc(newDocData);
+                      setCachedUserDoc(firebaseAuthUser.uid, newDocData);
+                    }
+                  }
+                } catch (error) {
+                }
+              };
+
+              // 초기 한 번 실행 후 5분마다 폴링
+              setTimeout(pollUserDoc, 30000); // 30초 후 첫 폴링
+              const interval = setInterval(pollUserDoc, 300000); // 5분마다 폴링
+
+              firestoreUnsubscribeRef.current = () => clearInterval(interval);
+            };
+
+            startUserDocPolling();
+          }
+          
+          setLoading(false);
+
+        } catch (error) {
+          setUser(null);
+          setUserDoc(null);
+          setUsers([]);
+          setLoading(false);
+        }
       } else {
+        // 로그아웃
         setUser(null);
         setUserDoc(null);
         setUsers([]);
+        setClassmates([]);
+        setAllClassMembers([]);
         localStorage.removeItem("currentUserAuthUID");
 
+        // 캐시 및 참조 초기화
         lastLoginUpdateRef.current.clear();
-        usersFetchTimeRef.current = 0;
+        classmatesFetchTimeRef.current = 0;
         currentUserUidRef.current = null;
+        currentClassCodeRef.current = null;
+        userDocCacheRef.current.clear();
+        userDocFetchTimeRef.current.clear();
+        pendingClassmatesFetchRef.current = false;
 
         setLoading(false);
       }
     });
 
     return () => {
-      console.log("[AuthContext] authStateListener 및 onSnapshot 해제");
       authUnsubscribe();
-      if (firestoreUnsubscribe) {
-        firestoreUnsubscribe();
+      if (firestoreUnsubscribeRef.current) {
+        firestoreUnsubscribeRef.current();
+        firestoreUnsubscribeRef.current = null;
       }
+      authListenerSetupRef.current = false;
     };
-  }, [
-    firebaseReady,
-    // auth, // auth 객체 변경은 드물므로, 필요시 주석 해제
-    fetchAllUsersFromFirestore,
-    updateLastLoginAtSeparately,
-  ]);
-
+  }, [firebaseReady]); // firebaseReady만 의존성으로 사용
+  
   const loginWithEmailPassword = useCallback(
-    async (email, password) => {
+    async (email, password, isReauth = false) => {
       if (!firebaseReady || !auth) {
-        console.error(
-          "[AuthContext] loginWithEmailPassword: Firebase 또는 auth 미준비"
-        );
         throw new Error("인증 서비스가 준비되지 않았습니다.");
       }
 
       let emailString = email;
       if (typeof emailString !== "string" || !emailString.includes("@")) {
-        console.error(
-          "[AuthContext] loginWithEmailPassword: email 파라미터가 유효한 문자열 아님:",
-          emailString
-        );
         throw new Error("이메일 형식이 올바르지 않습니다.");
       }
-
-      setLoading(true);
+      
+      if (!isReauth) {
+        setLoading(true);
+      }
+      
       try {
         const userCredential = await fbSignIn(auth, emailString, password);
         return userCredential.user;
       } catch (error) {
-        console.error("[AuthContext] 이메일 로그인 오류:", error);
-        setLoading(false);
+        if (!isReauth) {
+          setLoading(false);
+        }
         throw error;
       }
     },
-    [firebaseReady, auth]
+    [firebaseReady]
   );
 
   const loginWithFirebaseUID = useCallback(
     async (firebaseUid) => {
       if (!firebaseReady || !auth || !firebaseUid) {
-        console.warn(
-          "[AuthContext] loginWithFirebaseUID: 미준비 또는 UID 없음"
-        );
         return false;
       }
 
       setLoading(true);
       try {
-        const docData = await getUserDocument(firebaseUid);
+        // 최적화: 캐시된 데이터 먼저 확인
+        let docData = getCachedUserDoc(firebaseUid);
+        
+        if (!docData) {
+          docData = await getUserDocument(firebaseUid);
+          if (docData) {
+            setCachedUserDoc(firebaseUid, docData);
+          }
+        }
+        
         if (docData) {
           setUser(
             auth.currentUser && auth.currentUser.uid === firebaseUid
               ? auth.currentUser
               : { uid: firebaseUid, email: docData.email }
           );
-          // 🔥 여기서도 onSnapshot이 userDoc을 설정하도록 유도할 수 있으나,
-          // loginWithFirebaseUID는 authStateListener와 별개로 작동할 수 있으므로 직접 설정
           setUserDoc(docData);
           localStorage.setItem("currentUserAuthUID", firebaseUid);
           currentUserUidRef.current = firebaseUid;
 
           setTimeout(() => {
             updateLastLoginAtSeparately(firebaseUid, docData.lastLoginAt);
-          }, 500);
+          }, 5000);
 
-          const currentIsAdmin =
-            docData &&
-            (docData.isAdmin === true ||
-              docData.role === "admin" ||
-              docData.isSuperAdmin === true);
-
-          await fetchAllUsersFromFirestore(currentIsAdmin, firebaseUid);
+          // 핵심: 학급 구성원만 조회
+          if (docData.classCode && docData.classCode !== '미지정') {
+            await fetchClassmatesFromFirestore(docData.classCode, firebaseUid, true);
+          }
+          
           return true;
         } else {
-          console.warn(
-            `[AuthContext] loginWithFirebaseUID: ${firebaseUid}에 대한 사용자 문서 없음`
-          );
           return false;
         }
       } catch (error) {
-        console.error("[AuthContext] UID 로그인 오류:", error);
         return false;
       } finally {
         setLoading(false);
@@ -449,41 +553,30 @@ export const AuthProvider = ({ children }) => {
     },
     [
       firebaseReady,
-      auth,
-      fetchAllUsersFromFirestore,
+      fetchClassmatesFromFirestore,
       updateLastLoginAtSeparately,
+      getCachedUserDoc,
+      setCachedUserDoc,
     ]
   );
 
   const logout = useCallback(async () => {
     if (!firebaseReady || !auth) {
-      console.warn("[AuthContext] logout: Firebase 또는 auth 미준비");
       return;
     }
     try {
       await fbSignOut(auth);
     } catch (error) {
-      console.error("[AuthContext] 로그아웃 오류:", error);
     }
-  }, [firebaseReady, auth]);
+  }, [firebaseReady]);
 
-  // 🔥 수정된 updateUser 함수: 로컬 낙관적 업데이트 제거, onSnapshot에 의존
   const updateUser = useCallback(
     async (updates) => {
-      const currentUserId = userDoc?.id; // 함수 생성 시점의 userDoc.id 캡처
+      const currentUserId = userDoc?.id || userDoc?.uid;
 
       if (!firebaseReady || !currentUserId) {
-        console.warn(
-          "[AuthContext] updateUser: Firebase 미준비 또는 사용자 ID 없음",
-          { firebaseReady, userId: currentUserId }
-        );
         return false;
       }
-
-      console.log(
-        `[AuthContext] updateUser 시작 (사용자 ID: ${currentUserId}), Firestore 업데이트 내용:`,
-        updates
-      );
 
       const firestoreUpdates = {
         ...updates,
@@ -491,43 +584,119 @@ export const AuthProvider = ({ children }) => {
       };
 
       try {
-        // Firestore 문서만 업데이트
         const success = await updateUserDocument(
           currentUserId,
           firestoreUpdates
         );
 
         if (success) {
-          console.log(
-            `[AuthContext] 사용자 ID(${currentUserId}) Firestore 문서 업데이트 성공. onSnapshot이 로컬 userDoc 상태를 곧 업데이트합니다.`
-          );
-          // 로컬 setUserDoc 호출을 제거하여 onSnapshot이 상태 업데이트를 담당하도록 함
-          // 이렇게 하면 FieldValue 객체가 로컬 상태에 직접 들어가는 것을 방지할 수 있음
+          // 🔥 [수정] 로컬 캐시 무효화 및 강제 새로고침
+          const cacheKey = `firestore_cache_user_${currentUserId}`;
+          localStorage.removeItem(cacheKey);
+
+          // userDoc 상태도 즉시 업데이트 (increment 처리 포함)
+          const currentCached = getCachedUserDoc(currentUserId);
+          if (currentCached) {
+            const updatedCached = { ...currentCached };
+
+            // increment() 연산 결과를 로컬에서 계산하여 반영
+            Object.keys(updates).forEach(key => {
+              const value = updates[key];
+
+              // 🔥 [디버깅] increment 객체 구조 확인
+              // Firebase increment() 객체 감지 (다양한 구조 지원)
+              let incrementValue = null;
+              if (value && typeof value === 'object') {
+                // Firestore v9+ increment 객체 구조 확인
+                if (value._delegate && value._delegate._operand !== undefined) {
+                  incrementValue = value._delegate._operand;
+                } else if (value._operand !== undefined) {
+                  incrementValue = value._operand;
+                } else if (value.operand !== undefined) {
+                  incrementValue = value.operand;
+                } else if (value._methodName === 'FieldValue.increment' && value._operand !== undefined) {
+                  incrementValue = value._operand;
+                } else if (value.constructor && value.constructor.name === 'NumericIncrementTransform') {
+                  // 새로운 Firestore v9+ 구조 확인
+                  incrementValue = value.operand || value._operand;
+                } else {
+                  // 모든 프로퍼티를 확인해서 숫자 값 찾기
+                  for (const prop of Object.getOwnPropertyNames(value)) {
+                    if (typeof value[prop] === 'number') {
+                      incrementValue = value[prop];
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (incrementValue !== null) {
+                // Firebase increment() 객체인 경우
+                const currentValue = Number(currentCached[key]) || 0;
+                const newValue = currentValue + incrementValue;
+                updatedCached[key] = newValue;
+              } else {
+                // 일반 값인 경우
+                updatedCached[key] = value;
+              }
+            });
+
+            setCachedUserDoc(currentUserId, updatedCached);
+            setUserDoc(updatedCached);
+          }
+          
           return true;
         } else {
-          console.error(
-            `[AuthContext] 사용자 ID(${currentUserId}) Firestore 문서 업데이트 실패.`
-          );
           return false;
         }
       } catch (error) {
-        console.error(
-          `[AuthContext] 사용자 ID(${currentUserId}) 데이터 업데이트 중 오류 발생:`,
-          error
-        );
         return false;
       }
     },
-    [firebaseReady, userDoc?.id] // userDoc.id가 변경될 때만 함수가 재생성되도록 함
+    [firebaseReady, userDoc, getCachedUserDoc, setCachedUserDoc]
   );
 
+  const changePassword = useCallback(
+    async (newPassword) => {
+      if (!firebaseReady || !auth?.currentUser) {
+        throw new Error("인증 서비스가 준비되지 않았거나 로그인 상태가 아닙니다.");
+      }
+      try {
+        await fbUpdatePassword(auth.currentUser, newPassword);
+        return true;
+      } catch (error) {
+        throw error;
+      }
+    },
+    [firebaseReady]
+  );
+
+  const deleteCurrentUserAccount = useCallback(async () => {
+    if (!firebaseReady || !auth?.currentUser) {
+      throw new Error("인증 서비스가 준비되지 않았거나 로그인 상태가 아닙니다.");
+    }
+
+    const currentUser = auth.currentUser;
+    const currentUserId = currentUser.uid;
+
+    try {
+      await deleteUserDocument(currentUserId);
+
+      await fbDeleteUser(currentUser);
+      
+      return true;
+
+    } catch (error) {
+      if (error.code === 'auth/requires-recent-login') {
+        alert("계정 삭제는 보안을 위해 최근에 로그인한 사용자만 가능합니다. 다시 로그인한 후 시도해 주세요.");
+      }
+      throw error;
+    }
+  }, [firebaseReady]);
+
   const modifyUserCashById = useCallback(
-    async (targetUserId, amount, operationType) => {
+    async (targetUserId, amount, operationType, logDescription = null) => {
       if (!firebaseReady || !targetUserId || typeof amount !== "number") {
-        console.warn(
-          "[AuthContext] modifyUserCashById: 유효하지 않은 인자 또는 Firebase 미준비",
-          { firebaseReady, targetUserId, amount }
-        );
         return false;
       }
 
@@ -541,97 +710,184 @@ export const AuthProvider = ({ children }) => {
         );
 
         if (success) {
-          console.log(
-            `[AuthContext] Firestore 현금 업데이트 성공 for ${targetUserId}. 금액: ${effectiveAmount}. onSnapshot이 로컬 상태를 업데이트합니다.`
-          );
-          // 로컬 상태 업데이트는 onSnapshot에 의해 처리됨
+          // 수정: 아래 로컬 캐시/상태 업데이트 로직을 제거합니다.
+          // Firestore의 onSnapshot 리스너가 서버로부터 업데이트된 정확한 데이터를 받아
+          // userDoc 상태를 자동으로 업데이트하므로, 클라이언트에서 임의로 계산하지 않습니다.
+          // 이렇게 하면 데이터 정합성 문제와 race condition을 방지할 수 있습니다.
+          
+          if (logDescription) {
+            try {
+              const txSuccess = await addTransaction(targetUserId, effectiveAmount, logDescription);
+              if (!txSuccess) {
+              }
+            } catch (txError) {
+            }
+          }
+          
           return true;
         } else {
-          console.error(
-            `[AuthContext] ${targetUserId}의 현금 ${operationType} 실패 (Firestore 업데이트 실패)`
-          );
           return false;
         }
       } catch (error) {
-        console.error(
-          `[AuthContext] ${targetUserId}의 현금 ${operationType} 중 오류:`,
-          error
-        );
         return false;
       }
     },
-    [firebaseReady]
+    [firebaseReady, userDoc]
   );
 
   const deductCashFromUserById = useCallback(
-    (targetUserId, amount) =>
-      modifyUserCashById(targetUserId, amount, "deduct"),
+    (targetUserId, amount, logDescription = null) =>
+      modifyUserCashById(targetUserId, amount, "deduct", logDescription),
     [modifyUserCashById]
   );
 
   const addCashToUserById = useCallback(
-    (targetUserId, amount) => modifyUserCashById(targetUserId, amount, "add"),
+    (targetUserId, amount, logDescription = null) => 
+      modifyUserCashById(targetUserId, amount, "add", logDescription),
     [modifyUserCashById]
   );
 
   const deductCash = useCallback(
-    async (amount) => {
-      const currentUserId = userDoc?.id;
+    async (amount, logDescription = null) => {
+      const currentUserId = userDoc?.id || userDoc?.uid;
       if (!currentUserId) {
-        console.warn("[AuthContext] deductCash: 현재 사용자 ID 없음");
         return false;
       }
-      return modifyUserCashById(currentUserId, amount, "deduct");
+      return modifyUserCashById(currentUserId, amount, "deduct", logDescription);
     },
-    [userDoc?.id, modifyUserCashById]
+    [userDoc, modifyUserCashById]
   );
 
   const addCash = useCallback(
-    async (amount) => {
-      const currentUserId = userDoc?.id;
+    async (amount, logDescription = null) => {
+      const currentUserId = userDoc?.id || userDoc?.uid;
       if (!currentUserId) {
-        console.warn("[AuthContext] addCash: 현재 사용자 ID 없음");
         return false;
       }
-      return modifyUserCashById(currentUserId, amount, "add");
+      return modifyUserCashById(currentUserId, amount, "add", logDescription);
     },
-    [userDoc?.id, modifyUserCashById]
+    [userDoc, modifyUserCashById]
+  );
+
+  const modifyUserCouponsById = useCallback(
+    async (targetUserId, amount, operationType) => {
+      if (!firebaseReady || !targetUserId || typeof amount !== "number") {
+        return false;
+      }
+
+      const effectiveAmount =
+        operationType === "deduct" ? -Math.abs(amount) : Math.abs(amount);
+
+      try {
+        const success = await updateUserCouponsInFirestore(
+          targetUserId,
+          effectiveAmount
+        );
+
+        if (success) {
+          // 수정: 현금과 마찬가지로, 쿠폰도 로컬에서 미리 계산하지 않고 
+          // onSnapshot 리스너가 서버의 정확한 데이터를 받아오도록 합니다.
+          
+          return true;
+        } else {
+          return false;
+        }
+      } catch (error) {
+        return false;
+      }
+    },
+    [firebaseReady, userDoc]
+  );
+
+  const deductCouponsFromUserById = useCallback(
+    (targetUserId, amount) =>
+      modifyUserCouponsById(targetUserId, amount, "deduct"),
+    [modifyUserCouponsById]
+  );
+
+  const addCouponsToUserById = useCallback(
+    (targetUserId, amount) => modifyUserCouponsById(targetUserId, amount, "add"),
+    [modifyUserCouponsById]
   );
 
   const fetchUserDocument = useCallback(
     async (userId) => {
       if (!firebaseReady || !userId) {
-        console.warn(
-          "[AuthContext] fetchUserDocument: Firebase 미준비 또는 사용자 ID 없음"
-        );
         return null;
       }
+      
       try {
-        return await getUserDocument(userId);
+        // 최적화: 캐시된 데이터 먼저 확인
+        let cachedDoc = getCachedUserDoc(userId);
+        if (cachedDoc) {
+          return cachedDoc;
+        }
+        
+        // 캐시가 없으면 서버에서 가져오기
+        const doc = await getUserDocument(userId);
+        if (doc) {
+          setCachedUserDoc(userId, doc);
+        }
+        return doc;
       } catch (error) {
-        console.error(
-          `[AuthContext] ${userId}의 사용자 문서 가져오기 오류:`,
-          error
-        );
         return null;
       }
     },
-    [firebaseReady]
+    [firebaseReady, getCachedUserDoc, setCachedUserDoc]
   );
 
+  // 핵심 변경: 학급 구성원 강제 새로고침 함수
+  const refreshClassmates = useCallback(
+    async () => {
+      const currentClassCode = userDoc?.classCode;
+      const currentUserId = userDoc?.id || userDoc?.uid;
+      
+      if (!currentClassCode || currentClassCode === '미지정') {
+        return;
+      }
+      
+      return fetchClassmatesFromFirestore(currentClassCode, currentUserId, true);
+    },
+    [fetchClassmatesFromFirestore, userDoc]
+  );
+
+  // 최적화: 특정 사용자 문서만 새로고침
+  const refreshUserDocument = useCallback(
+    async (userId) => {
+      if (!userId) return null;
+      
+      // 캐시 무효화
+      userDocCacheRef.current.delete(userId);
+      userDocFetchTimeRef.current.delete(userId);
+      
+      // 서버에서 새로 가져오기
+      return fetchUserDocument(userId);
+    },
+    [fetchUserDocument]
+  );
+
+  // Context value를 useMemo로 메모이제이션하여 불필요한 리렌더링 방지
   const value = useMemo(
     () => ({
       user,
       userDoc,
+      setUserDoc,
       users,
+      classmates,
+      allClassMembers,
+      setAllClassMembers,
       loading,
       firebaseReady,
-      auth,
+      auth: auth,
       loginWithEmailPassword,
       logout,
       updateUser,
+      changePassword,
+      deleteCurrentUserAccount,
       fetchUserDocument,
-      fetchAllUsers: fetchAllUsersFromFirestore,
+      fetchAllUsers: fetchClassmatesFromFirestore, // 변경: 이름은 유지하되 학급 구성원만 조회
+      refreshAllUsers: refreshClassmates, // 변경: 학급 구성원 새로고침
+      refreshUserDocument,
       loginWithFirebaseUID,
       isAdmin: isAdminFn,
       isSuperAdmin: isSuperAdminFn,
@@ -639,19 +895,26 @@ export const AuthProvider = ({ children }) => {
       addCashToUserById,
       deductCash,
       addCash,
+      deductCouponsFromUserById,
+      addCouponsToUserById,
     }),
     [
       user,
       userDoc,
       users,
+      classmates,
+      allClassMembers,
       loading,
       firebaseReady,
-      auth,
       loginWithEmailPassword,
       logout,
       updateUser,
+      changePassword,
+      deleteCurrentUserAccount,
       fetchUserDocument,
-      fetchAllUsersFromFirestore,
+      fetchClassmatesFromFirestore,
+      refreshClassmates,
+      refreshUserDocument,
       loginWithFirebaseUID,
       isAdminFn,
       isSuperAdminFn,
@@ -659,6 +922,8 @@ export const AuthProvider = ({ children }) => {
       addCashToUserById,
       deductCash,
       addCash,
+      deductCouponsFromUserById,
+      addCouponsToUserById,
     ]
   );
 

@@ -1,37 +1,26 @@
-// src/Sidebar.js 수정본 (오류 해결 및 onNavigate 호출 수정 완료)
+// src/Sidebar.js 수정본 (역할 표시 오류 해결)
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-
-// 올바른 import 방식: useAuth 직접 import
 import { useAuth } from "./AuthContext";
-
-import "./sidebar.css"; // 사이드바 스타일
+import "./sidebar.css";
 
 export default function Sidebar({
-  isOpen, // App.js로부터 전달받는 사이드바 열림 상태 값
+  isOpen,
   menuItems,
-  onNavigate, // onNavigate prop (페이지 이동 함수)
-  currentPage, // 현재 사용되지 않지만 props로 유지
+  onNavigate,
   isFullscreen = false,
-  onClose = () => {}, // App.js로부터 전달받는 사이드바 닫기 함수
+  onClose = () => {},
 }) {
   const location = useLocation();
-  // useAuth 훅 사용
-  const auth = useAuth();
-  // auth 객체 및 user 속성 존재 여부 안전하게 확인
-  const user = auth?.user;
-  // isAdmin 상태 계산 (user?.isAdmin 우선 확인)
-  const isAdmin = user?.isAdmin || user?.role === "admin" || false;
+  const { userDoc } = useAuth(); // Firestore 사용자 정보를 userDoc으로 받습니다.
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [expandedCategories, setExpandedCategories] = useState({});
 
-  // 메뉴 아이템 기반 초기 카테고리 확장 상태 설정
   useEffect(() => {
     const initialExpanded = {};
     (menuItems || []).forEach((item) => {
       if (item?.isCategory) {
-        // item 유효성 체크
         initialExpanded[item.id] =
           item.id === "myAssetsCategory" ? true : !isMobile;
       }
@@ -39,7 +28,6 @@ export default function Sidebar({
     setExpandedCategories(initialExpanded);
   }, [menuItems, isMobile]);
 
-  // 카테고리 토글
   const toggleCategory = (categoryId) => {
     setExpandedCategories((prev) => ({
       ...prev,
@@ -47,69 +35,36 @@ export default function Sidebar({
     }));
   };
 
-  // 메뉴 활성화 상태 확인
   const isActive = (item) => {
-    if (!item?.path) return false; // item 및 path 유효성 체크
-    // 현재 경로가 메뉴 아이템 경로와 정확히 일치하거나 하위 경로일 때 활성
+    if (!item?.path) return false;
     return (
       location.pathname === item.path ||
       location.pathname.startsWith(`${item.path}/`)
     );
   };
 
-  // 메뉴 클릭 핸들러
   const handleItemClick = (item) => {
-    console.log(
-      "사이드바 메뉴 클릭됨 (Sidebar.js):",
-      item?.id,
-      "경로:",
-      item?.path
-    ); // Sidebar 측 로그 추가 및 item?. 사용
-    // onNavigate 호출 시 item 객체 전체를 전달하도록 수정
     if (item?.path && onNavigate) {
-      onNavigate(item); // <-- 여기서 item 객체 전체를 전달합니다.
+      onNavigate(item);
     }
   };
 
-  // 아이콘 렌더링 (기존 코드 유지)
   const renderIcon = (icon, isCategory = false, itemName = "") => {
     const className = isCategory
       ? "sidebar-category-icon larger-icon"
       : "sidebar-menu-item-icon";
-    const iconMap = {
-      /* ... 아이콘 매핑 ... */
-    };
     const nameToUse = itemName || (typeof icon === "string" ? icon : "");
-    const customIcon = iconMap[nameToUse] || icon || "📁";
-    return <span className={className}>{customIcon}</span>;
+    return <span className={className}>{icon || "📁"}</span>;
   };
 
-  // 닫기 버튼 렌더링 (기존 코드 유지)
-  const renderCloseButton = () => {
-    if (isFullscreen) {
-      return (
-        <div className="sidebar-header">
-          <div className="sidebar-title-container">
-            <span className="menu-text">닫기</span>
-          </div>
-          <button onClick={onClose} className="close-sidebar-button">
-            ✕
-          </button>
-        </div>
-      );
-    }
-    return null;
-  };
-
-  // '나의 자산' 헤더 렌더링 (기존 코드 유지)
   const renderMyAssetsHeader = () => {
-    const myAssetsItem = menuItems?.find((item) => item?.id === "dashboard"); // item 유효성 체크
+    const myAssetsItem = menuItems?.find((item) => item?.id === "dashboard");
     if (myAssetsItem) {
       const isItemActive = isActive(myAssetsItem);
       return (
         <div
           className={`sidebar-my-assets ${isItemActive ? "active" : ""}`}
-          onClick={() => handleItemClick(myAssetsItem)} // handleItemClick에 myAssetsItem 객체 전달
+          onClick={() => handleItemClick(myAssetsItem)}
         >
           {renderIcon(myAssetsItem.icon, false, myAssetsItem.name)}
           <span>{myAssetsItem.name}</span>
@@ -119,15 +74,14 @@ export default function Sidebar({
     return null;
   };
 
-  // 메뉴 항목 렌더링 (기존 코드 유지, 관리자 체크 강화)
   const renderMenuItems = () => {
-    if (!menuItems?.length) return null; // menuItems 유효성 체크
+    if (!menuItems?.length) return null;
 
     const renderedItems = [];
     menuItems.forEach((item) => {
-      if (!item) return; // item 유효성 체크
-      if (item.adminOnly && !isAdmin) return; // 관리자 체크
-      if (item.id === "dashboard") return; // 나의 자산 헤더에서 처리
+      if (!item) return;
+      if (item.adminOnly && !userDoc?.isAdmin && !userDoc?.isSuperAdmin) return;
+      if (item.id === "dashboard") return;
 
       if (item.isCategory) {
         const isCategoryActive = menuItems.some(
@@ -168,7 +122,12 @@ export default function Sidebar({
                     subItem.categoryId === item.id
                 )
                 .map((subItem) => {
-                  if (subItem.adminOnly && !isAdmin) return null; // 하위 항목 관리자 체크
+                  if (
+                    subItem.adminOnly &&
+                    !userDoc?.isAdmin &&
+                    !userDoc?.isSuperAdmin
+                  )
+                    return null;
                   const isItemActive = isActive(subItem);
                   return (
                     <div
@@ -176,7 +135,7 @@ export default function Sidebar({
                       className={`sidebar-menu-item ${
                         isItemActive ? "active" : ""
                       }`}
-                      onClick={() => handleItemClick(subItem)} // handleItemClick에 subItem 객체 전달
+                      onClick={() => handleItemClick(subItem)}
                     >
                       {renderIcon(subItem.icon, false, subItem.name)}
                       <span>{subItem.name}</span>
@@ -187,7 +146,6 @@ export default function Sidebar({
           </div>
         );
       } else if (!item.categoryId) {
-        // 최상위 메뉴 항목
         const isItemActive = isActive(item);
         renderedItems.push(
           <div
@@ -195,7 +153,7 @@ export default function Sidebar({
             className={`sidebar-menu-item top-level ${
               isItemActive ? "active" : ""
             }`}
-            onClick={() => handleItemClick(item)} // handleItemClick에 item 객체 전달
+            onClick={() => handleItemClick(item)}
           >
             {renderIcon(item.icon, false, item.name)}
             <span>{item.name}</span>
@@ -206,50 +164,53 @@ export default function Sidebar({
     return renderedItems;
   };
 
-  // Sidebar 최종 렌더링
+  // --- 💡 수정된 부분 시작 ---
+  // 역할(role)을 결정하는 로직
+  let userRole = "학생";
+  if (userDoc?.isSuperAdmin) {
+    userRole = "앱 관리자";
+  } else if (userDoc?.isAdmin) {
+    userRole = "교사";
+  }
+
+  const userName = userDoc?.name || userDoc?.nickname || "사용자";
+  // --- 수정된 부분 끝 ---
+
   return (
     <div
       className={`sidebar ${isOpen ? "open" : "closed"} ${
         isFullscreen ? "fullscreen" : ""
       }`}
     >
-      {/* 사이드바 헤더 (닫기 버튼 포함) - 이 부분은 Fullscreen 모드에서만 렌더링됩니다. */}
-      {isFullscreen && ( // Fullscreen일 때만 닫기 버튼 포함 헤더 렌더링
+      {isFullscreen && (
         <div className="fullscreen-menu-header">
-          {" "}
-          {/* CSS 클래스 이름 확인 */}
           <div className="sidebar-title-container">
-            {/* 제목 추가 또는 아이콘/텍스트 유지 */}
-            <span className="fullscreen-menu-title">메뉴</span>{" "}
-            {/* 예시 제목 */}
+            <span className="fullscreen-menu-title">메뉴</span>
           </div>
-          {/* 닫기 버튼 */}
           <button onClick={onClose} className="close-menu-button">
-            {" "}
-            {/* CSS 클래스 이름 확인 */}✕
+            ✕
           </button>
         </div>
       )}
-      {/* 나의 자산 헤더 - Fullscreen 모드가 아닐 때 또는 항상 필요시 유지 */}
-      {!isFullscreen && renderMyAssetsHeader()}{" "}
-      {/* Fullscreen이 아닐 때만 렌더링 */}
-      {/* 메뉴 항목 목록 */}
+
+      {!isFullscreen && renderMyAssetsHeader()}
       <div className="sidebar-menu-list">{renderMenuItems()}</div>
-      {/* 하단 사용자 정보 (user 유효성 체크) */}
-      {user && (
+
+      {/* --- 💡 수정된 부분 시작: userDoc을 사용하여 사용자 정보 표시 --- */}
+      {userDoc && (
         <div className="sidebar-footer">
           <div className="sidebar-user-info">
             <div className="sidebar-avatar">
-              {user.name ? user.name.charAt(0).toUpperCase() : "U"}
+              {userName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <p className="sidebar-user-name">{user.name || "사용자"}</p>{" "}
-              {/* user.username 대신 user.name 사용 가정 */}
-              <p className="sidebar-user-role">{isAdmin ? "관리자" : "학생"}</p>
+              <p className="sidebar-user-name">{userName}</p>
+              <p className="sidebar-user-role">{userRole}</p>
             </div>
           </div>
         </div>
       )}
+      {/* --- 수정된 부분 끝 --- */}
     </div>
   );
 }

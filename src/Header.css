@@ -310,3 +310,140 @@
   border-radius: 4px;
   margin: 8px 0;
 }
+/* Header.css 파일 하단에 추가 */
+
+/* --- 정보 변경 모달 공통 스타일 --- */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1050;
+  padding: 20px;
+}
+
+.modal-container {
+  background-color: white;
+  padding: 25px 30px;
+  border-radius: 12px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  position: relative;
+  animation: modalFadeIn 0.3s forwards;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.close-modal-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #aaa;
+}
+
+.close-modal-btn:hover {
+    color: #333;
+}
+
+.modal-body {
+  margin-top: 10px;
+}
+
+.change-form-title {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 6px;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.form-group .form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 1rem;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 25px;
+  padding-top: 15px;
+  border-top: 1px solid #eee;
+}
+
+.modal-footer .save-button, .modal-footer .cancel-button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    font-size: 0.9rem;
+}
+
+.modal-footer .save-button {
+  background-color: #4f46e5;
+  color: white;
+}
+.modal-footer .save-button:hover {
+  background-color: #4338ca;
+}
+.modal-footer .save-button:disabled {
+  background-color: #a5b4fc;
+  cursor: not-allowed;
+}
+
+.modal-footer .cancel-button {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+.modal-footer .cancel-button:hover {
+  background-color: #d1d5db;
+}
+
+.error-message {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  padding: 10px 15px;
+  border-radius: 6px;
+  border-left: 4px solid #ef4444;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}
+
+.success-message {
+  background-color: #dcfce7;
+  color: #166534;
+  padding: 10px 15px;
+  border-radius: 6px;
+  border-left: 4px solid #22c55e;
+  margin-bottom: 15px;
+  font-size: 0.9rem;
+}

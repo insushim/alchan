@@ -1,151 +1,166 @@
 // src/FirestoreExample.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   db,
   addData,
   updateData,
   deleteData,
-  subscribeToCollection,
+  fetchCollection, // 데이터를 한번만 가져오는 함수로 변경
+  // subscribeToCollection, // 실시간 구독이 필요할 경우 이 함수를 사용
 } from "./firebase";
 
 function FirestoreExample() {
   const [users, setUsers] = useState([]);
-  const [name, setName] = useState("");
-  const [age, setAge] = useState("");
-  const [email, setEmail] = useState("");
+  const [newUser, setNewUser] = useState({ name: "", age: "", email: "" });
+  const [editingUser, setEditingUser] = useState(null); // 수정 중인 사용자 정보
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [editing, setEditing] = useState(null);
 
-  // 컬렉션 이름
   const COLLECTION_NAME = "users";
 
-  // 실시간 데이터 구독
+  // Firestore에서 데이터를 한 번만 가져옵니다.
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const userData = await fetchCollection(COLLECTION_NAME);
+      // createdAt 필드가 있는지 확인하고, 없으면 현재 시간으로 임시 설정 (정렬을 위해)
+      const sortedUsers = userData.sort((a, b) => {
+        const dateA = a.createdAt ? a.createdAt.toDate() : new Date(0);
+        const dateB = b.createdAt ? b.createdAt.toDate() : new Date(0);
+        return dateB - dateA; // 최신 순으로 정렬
+      });
+      setUsers(sortedUsers);
+    } catch (err) {
+      setError("사용자 데이터를 불러오는 중 오류가 발생했습니다: " + err.message);
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    // db가 초기화되지 않았을 경우 처리
     if (!db) {
       setLoading(false);
       setError(
-        "Firestore가 초기화되지 않았습니다. Firebase 콘솔에서 Firestore를 활성화했는지 확인해주세요."
+        "Firestore가 초기화되지 않았습니다. Firebase 설정을 확인해주세요."
       );
       return;
     }
+    loadUsers();
 
+    /*
+    // [참고] 실시간 데이터 구독이 꼭 필요한 경우 아래 코드를 사용하세요.
+    // 이 경우, firebase.js에서 subscribeToCollection을 import 해야 합니다.
     const unsubscribe = subscribeToCollection(COLLECTION_NAME, (data) => {
-      setUsers(data);
+      const sortedData = data.sort((a, b) => {
+          const dateA = a.createdAt ? a.createdAt.toDate() : new Date(0);
+          const dateB = b.createdAt ? b.createdAt.toDate() : new Date(0);
+          return dateB - dateA;
+      });
+      setUsers(sortedData);
       setLoading(false);
     });
 
     // 컴포넌트 언마운트 시 구독 취소
     return () => unsubscribe();
-  }, []);
+    */
+  }, [loadUsers]);
+
+  // 입력 필드 변경 핸들러
+  const handleNewUserChange = (e) => {
+    const { name, value } = e.target;
+    setNewUser(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleEditingUserChange = (e) => {
+    const { name, value } = e.target;
+    setEditingUser(prev => ({ ...prev, [name]: value }));
+  };
 
   // 새 사용자 추가
-  const handleAddUser = async (e) => {
+  const handleAddUser = useCallback(async (e) => {
     e.preventDefault();
-
-    if (!db) {
-      setError("Firestore가 초기화되지 않았습니다.");
-      return;
-    }
-
-    if (!name || !email) {
+    if (!newUser.name || !newUser.email) {
       setError("이름과 이메일을 모두 입력해주세요.");
       return;
     }
 
     setLoading(true);
     setError(null);
-
+    
     const userData = {
-      name,
-      age: age ? parseInt(age) : null,
-      email,
+      name: newUser.name,
+      age: newUser.age ? parseInt(newUser.age, 10) : null,
+      email: newUser.email,
     };
 
     try {
       await addData(COLLECTION_NAME, userData);
-      setName("");
-      setAge("");
-      setEmail("");
+      setNewUser({ name: "", age: "", email: "" }); // 폼 초기화
+      await loadUsers(); // 데이터 새로고침
     } catch (err) {
       setError("사용자 추가 중 오류가 발생했습니다: " + err.message);
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [newUser, loadUsers]);
 
   // 사용자 정보 업데이트
-  const handleUpdateUser = async (e) => {
+  const handleUpdateUser = useCallback(async (e) => {
     e.preventDefault();
-
-    if (!db) {
-      setError("Firestore가 초기화되지 않았습니다.");
-      return;
-    }
-
-    if (!editing || !editing.name || !editing.email) {
-      setError("이름과 이메일을 모두 입력해주세요.");
+    if (!editingUser || !editingUser.name || !editingUser.email) {
+      setError("수정할 이름과 이메일을 모두 입력해주세요.");
       return;
     }
 
     setLoading(true);
     setError(null);
 
+    const { id, ...dataToUpdate } = editingUser;
+
     try {
-      await updateData(COLLECTION_NAME, editing.id, {
-        name: editing.name,
-        email: editing.email,
-        age: editing.age ? parseInt(editing.age) : null,
+      await updateData(COLLECTION_NAME, id, {
+        name: dataToUpdate.name,
+        email: dataToUpdate.email,
+        age: dataToUpdate.age ? parseInt(dataToUpdate.age, 10) : null,
       });
-      setEditing(null);
+      setEditingUser(null); // 수정 모드 종료
+      await loadUsers(); // 데이터 새로고침
     } catch (err) {
       setError("사용자 업데이트 중 오류가 발생했습니다: " + err.message);
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [editingUser, loadUsers]);
 
   // 사용자 삭제
-  const handleDeleteUser = async (userId) => {
-    if (!db) {
-      setError("Firestore가 초기화되지 않았습니다.");
-      return;
-    }
-
-    if (!window.confirm("정말 이 사용자를 삭제하시겠습니까?")) {
-      return;
-    }
-
+  const handleDeleteUser = useCallback(async (userId) => {
+    if (!window.confirm("정말 이 사용자를 삭제하시겠습니까?")) return;
+    
     setLoading(true);
     setError(null);
 
     try {
       await deleteData(COLLECTION_NAME, userId);
+      await loadUsers(); // 데이터 새로고침
     } catch (err) {
       setError("사용자 삭제 중 오류가 발생했습니다: " + err.message);
-      console.error(err);
     } finally {
       setLoading(false);
     }
-  };
-
+  }, [loadUsers]);
+  
   return (
-    <div className="firestore-example">
-      <h1>Firebase Firestore CRUD 예제</h1>
+    <div className="firestore-example" style={{ fontFamily: 'sans-serif', padding: '20px' }}>
+      <h1>Firebase Firestore CRUD 예제 (최적화 버전)</h1>
 
-      {/* 오류 메시지 */}
       {error && (
         <div
           className="error-message"
           style={{
-            color: "white",
-            backgroundColor: "#e53e3e",
-            padding: "12px",
-            borderRadius: "4px",
-            margin: "16px 0",
+            color: "white", backgroundColor: "#e53e3e", padding: "12px",
+            borderRadius: "4px", margin: "16px 0",
           }}
         >
           {error}
@@ -155,341 +170,123 @@ function FirestoreExample() {
       <div
         className="firestore-container"
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-          gap: "20px",
-          marginTop: "20px",
+          display: "grid", gridTemplateColumns: "1fr 2fr",
+          gap: "20px", marginTop: "20px",
         }}
       >
-        {/* 새 사용자 추가 폼 */}
+        {/* 새 사용자 추가 또는 수정 폼 */}
         <div
           className="form-container"
           style={{
-            backgroundColor: "#f0f9ff",
-            padding: "16px",
-            borderRadius: "8px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+            backgroundColor: editingUser ? "#fffbeb" : "#f0f9ff",
+            padding: "16px", borderRadius: "8px", boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
           }}
         >
-          <h2 style={{ marginBottom: "16px" }}>새 사용자 추가</h2>
+          <h2 style={{ marginBottom: "16px" }}>
+            {editingUser ? "사용자 정보 수정" : "새 사용자 추가"}
+          </h2>
           <form
-            onSubmit={handleAddUser}
+            onSubmit={editingUser ? handleUpdateUser : handleAddUser}
             style={{ display: "flex", flexDirection: "column", gap: "12px" }}
           >
-            <div className="form-group">
-              <label style={{ display: "block", marginBottom: "4px" }}>
-                이름:
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="이름 입력"
-                required
+            {/* 공통 입력 필드 */}
+            <input
+              type="text"
+              name="name"
+              value={editingUser ? editingUser.name : newUser.name}
+              onChange={editingUser ? handleEditingUserChange : handleNewUserChange}
+              placeholder="이름 입력" required
+              style={{ width: "calc(100% - 16px)", padding: "8px", border: "1px solid #cbd5e0", borderRadius: "4px" }}
+            />
+            <input
+              type="number"
+              name="age"
+              value={editingUser ? (editingUser.age || "") : newUser.age}
+              onChange={editingUser ? handleEditingUserChange : handleNewUserChange}
+              placeholder="나이 입력 (선택사항)"
+              style={{ width: "calc(100% - 16px)", padding: "8px", border: "1px solid #cbd5e0", borderRadius: "4px" }}
+            />
+            <input
+              type="email"
+              name="email"
+              value={editingUser ? editingUser.email : newUser.email}
+              onChange={editingUser ? handleEditingUserChange : handleNewUserChange}
+              placeholder="이메일 입력" required
+              style={{ width: "calc(100% - 16px)", padding: "8px", border: "1px solid #cbd5e0", borderRadius: "4px" }}
+            />
+            
+            {/* 버튼 영역 */}
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              <button
+                type="submit"
+                disabled={loading}
                 style={{
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #cbd5e0",
-                  borderRadius: "4px",
+                  backgroundColor: editingUser ? "#38a169" : "#4299e1",
+                  color: "white", padding: "8px 16px", borderRadius: "4px",
+                  border: "none", cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1, flex: 1,
                 }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label style={{ display: "block", marginBottom: "4px" }}>
-                나이:
-              </label>
-              <input
-                type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
-                placeholder="나이 입력 (선택사항)"
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #cbd5e0",
-                  borderRadius: "4px",
-                }}
-              />
-            </div>
-
-            <div className="form-group">
-              <label style={{ display: "block", marginBottom: "4px" }}>
-                이메일:
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="이메일 입력"
-                required
-                style={{
-                  width: "100%",
-                  padding: "8px",
-                  border: "1px solid #cbd5e0",
-                  borderRadius: "4px",
-                }}
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                backgroundColor: "#4299e1",
-                color: "white",
-                padding: "8px 16px",
-                borderRadius: "4px",
-                border: "none",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-                marginTop: "8px",
-              }}
-            >
-              {loading ? "처리 중..." : "사용자 추가"}
-            </button>
-          </form>
-        </div>
-
-        {/* 사용자 수정 폼 */}
-        {editing && (
-          <div
-            className="form-container editing-form"
-            style={{
-              backgroundColor: "#fffbeb",
-              padding: "16px",
-              borderRadius: "8px",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            }}
-          >
-            <h2 style={{ marginBottom: "16px" }}>사용자 정보 수정</h2>
-            <form
-              onSubmit={handleUpdateUser}
-              style={{ display: "flex", flexDirection: "column", gap: "12px" }}
-            >
-              <div className="form-group">
-                <label style={{ display: "block", marginBottom: "4px" }}>
-                  이름:
-                </label>
-                <input
-                  type="text"
-                  value={editing.name}
-                  onChange={(e) =>
-                    setEditing({ ...editing, name: e.target.value })
-                  }
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    border: "1px solid #cbd5e0",
-                    borderRadius: "4px",
-                  }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label style={{ display: "block", marginBottom: "4px" }}>
-                  나이:
-                </label>
-                <input
-                  type="number"
-                  value={editing.age || ""}
-                  onChange={(e) =>
-                    setEditing({ ...editing, age: e.target.value })
-                  }
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    border: "1px solid #cbd5e0",
-                    borderRadius: "4px",
-                  }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label style={{ display: "block", marginBottom: "4px" }}>
-                  이메일:
-                </label>
-                <input
-                  type="email"
-                  value={editing.email}
-                  onChange={(e) =>
-                    setEditing({ ...editing, email: e.target.value })
-                  }
-                  required
-                  style={{
-                    width: "100%",
-                    padding: "8px",
-                    border: "1px solid #cbd5e0",
-                    borderRadius: "4px",
-                  }}
-                />
-              </div>
-
-              <div
-                className="form-buttons"
-                style={{ display: "flex", gap: "8px" }}
               >
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    backgroundColor: "#38a169",
-                    color: "white",
-                    padding: "8px 16px",
-                    borderRadius: "4px",
-                    border: "none",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.7 : 1,
-                    flex: 1,
-                  }}
-                >
-                  {loading ? "처리 중..." : "저장"}
-                </button>
+                {loading ? "처리 중..." : (editingUser ? "수정 완료" : "사용자 추가")}
+              </button>
+              {editingUser && (
                 <button
                   type="button"
-                  onClick={() => setEditing(null)}
-                  className="cancel-button"
+                  onClick={() => setEditingUser(null)}
                   style={{
-                    backgroundColor: "#e2e8f0",
-                    color: "#4a5568",
-                    padding: "8px 16px",
-                    borderRadius: "4px",
-                    border: "none",
-                    cursor: "pointer",
-                    flex: 1,
+                    backgroundColor: "#e2e8f0", color: "#4a5568",
+                    padding: "8px 16px", borderRadius: "4px", border: "none", cursor: "pointer",
                   }}
                 >
                   취소
                 </button>
-              </div>
-            </form>
-          </div>
-        )}
+              )}
+            </div>
+          </form>
+        </div>
 
         {/* 사용자 목록 */}
         <div
           className="users-list"
           style={{
-            backgroundColor: "#f7fafc",
-            padding: "16px",
-            borderRadius: "8px",
+            backgroundColor: "#f7fafc", padding: "16px", borderRadius: "8px",
             boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-            gridColumn: editing ? "span 2" : "span 1",
           }}
         >
           <h2 style={{ marginBottom: "16px" }}>사용자 목록</h2>
-
-          {loading && !users.length ? (
-            <p
-              className="loading-message"
-              style={{ textAlign: "center", padding: "16px" }}
-            >
-              데이터를 불러오는 중...
-            </p>
+          {loading ? (
+            <p>데이터를 불러오는 중...</p>
           ) : users.length === 0 ? (
-            <p
-              className="empty-message"
-              style={{ textAlign: "center", padding: "16px", color: "#718096" }}
-            >
-              등록된 사용자가 없습니다.
-            </p>
+            <p>등록된 사용자가 없습니다.</p>
           ) : (
-            <ul
-              style={{
-                listStyle: "none",
-                padding: 0,
-                margin: 0,
-                display: "grid",
-                gap: "12px",
-              }}
-            >
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "grid", gap: "12px" }}>
               {users.map((user) => (
-                <li
-                  key={user.id}
-                  className="user-card"
-                  style={{
-                    backgroundColor: "white",
-                    padding: "16px",
-                    borderRadius: "6px",
-                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <div className="user-info">
-                    <h3 style={{ margin: "0 0 8px 0", fontSize: "18px" }}>
-                      {user.name}
-                    </h3>
-                    {user.age && (
-                      <p style={{ margin: "4px 0", color: "#4a5568" }}>
-                        나이: {user.age}세
-                      </p>
-                    )}
-                    <p style={{ margin: "4px 0", color: "#4a5568" }}>
-                      이메일: {user.email}
-                    </p>
-                    <p
-                      className="user-id"
-                      style={{
-                        margin: "4px 0",
-                        fontSize: "12px",
-                        color: "#718096",
-                      }}
-                    >
-                      ID: {user.id}
-                    </p>
+                <li key={user.id} style={{
+                    backgroundColor: "white", padding: "16px", borderRadius: "6px",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.1)", display: "flex",
+                    justifyContent: "space-between", alignItems: "center",
+                }}>
+                  <div>
+                    <h3 style={{ margin: "0 0 8px 0" }}>{user.name}</h3>
+                    {user.age && <p style={{ margin: "4px 0", color: "#4a5568" }}>나이: {user.age}세</p>}
+                    <p style={{ margin: "4px 0", color: "#4a5568" }}>이메일: {user.email}</p>
+                    <p style={{ margin: "4px 0", fontSize: "12px", color: "#718096" }}>ID: {user.id}</p>
                     {user.createdAt && (
-                      <p
-                        className="timestamp"
-                        style={{
-                          margin: "4px 0",
-                          fontSize: "12px",
-                          color: "#718096",
-                        }}
-                      >
-                        가입일:{" "}
-                        {new Date(user.createdAt.toDate()).toLocaleString()}
+                      <p style={{ margin: "4px 0", fontSize: "12px", color: "#718096" }}>
+                        가입일: {new Date(user.createdAt.toDate()).toLocaleString()}
                       </p>
                     )}
                   </div>
-                  <div
-                    className="user-actions"
-                    style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "8px",
-                    }}
-                  >
-                    <button
-                      onClick={() => setEditing(user)}
-                      className="edit-button"
-                      style={{
-                        backgroundColor: "#4299e1",
-                        color: "white",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      수정
-                    </button>
-                    <button
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                    <button 
+                      onClick={() => setEditingUser(user)}
+                      style={{ backgroundColor: "#4299e1", color: "white", border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                    >수정</button>
+                    <button 
                       onClick={() => handleDeleteUser(user.id)}
-                      className="delete-button"
-                      style={{
-                        backgroundColor: "#f56565",
-                        color: "white",
-                        padding: "6px 12px",
-                        borderRadius: "4px",
-                        border: "none",
-                        cursor: "pointer",
-                      }}
-                    >
-                      삭제
-                    </button>
+                      style={{ backgroundColor: "#f56565", color: "white", border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+                      disabled={loading}
+                    >삭제</button>
                   </div>
                 </li>
               ))}

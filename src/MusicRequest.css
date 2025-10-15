@@ -1,0 +1,138 @@
+.student-request-container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+h2 {
+    color: #333;
+    margin-bottom: 1.5rem;
+}
+
+.search-form {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+}
+
+.search-input {
+    width: 70%;
+    padding: 0.8rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px 0 0 4px;
+}
+
+.search-btn {
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+    border: none;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    border-radius: 0 4px 4px 0;
+    transition: background-color 0.2s;
+}
+
+.search-btn:hover {
+    background-color: #0056b3;
+}
+
+.search-results {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
+
+.video-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    transition: background-color 0.2s;
+}
+
+.video-item:last-child {
+    border-bottom: none;
+}
+
+.video-item:hover {
+    background-color: #f0f0f0;
+}
+
+.video-item.selected {
+    background-color: #d4edda;
+}
+
+.video-item img {
+    width: 120px;
+    height: 90px;
+    margin-right: 1rem;
+    border-radius: 4px;
+}
+
+.video-item p {
+    text-align: left;
+    font-size: 0.9rem;
+    color: #333;
+}
+
+.request-section {
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #eee;
+}
+
+.requester-name-input {
+    padding: 0.8rem;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    width: 50%;
+}
+
+.request-btn {
+    padding: 0.8rem 2rem;
+    font-size: 1rem;
+    border: none;
+    background-color: #28a745;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.request-btn:hover {
+    background-color: #218838;
+}
+
+.error-message {
+    color: #dc3545;
+    margin-top: 1rem;
+}
+
+.success-message {
+    color: #28a745;
+    margin-top: 1rem;
+    font-weight: bold;
+}
+.back-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    background-color: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+}
+.back-button:hover {
+    background-color: #5a6268;
+}

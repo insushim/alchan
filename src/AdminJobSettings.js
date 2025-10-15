@@ -3,6 +3,7 @@ import React, { useState } from "react";
 // import { useAuth } from "./App"; // App.js에서 useAuth를 import -> AuthContext에서 직접 import
 import { useAuth } from "./AuthContext"; // AuthContext에서 useAuth를 import
 import "./Header.css";
+import { formatKoreanCurrency } from './numberFormatter';
 import { useNavigate } from "react-router-dom"; // navigate 사용을 위해 임포트
 
 // AuthContext의 userDoc (Firestore 사용자 정보)를 prop으로 받도록 수정

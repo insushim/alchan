@@ -1,7 +1,9 @@
 // src/Banking.js
 import React, { useState, useEffect } from "react";
-import { useAuth } from "./AuthContext"; // AuthContext 경로 확인
+import { useAuth } from "./AuthContext";
 import ParkingAccount from "./ParkingAccount";
+import { getBankingProducts, updateBankingProducts } from "./firebase";
+import { formatKoreanCurrency } from './numberFormatter';
 
 const convertAdminProductsToAccountFormat = (adminProducts) => {
   if (!Array.isArray(adminProducts)) {
@@ -15,13 +17,13 @@ const convertAdminProductsToAccountFormat = (adminProducts) => {
     id: product.id,
     name: product.name,
     dailyRate:
-      product.annualRate !== undefined ? parseFloat(product.annualRate) : 0,
+      product.annualRate !== undefined && !isNaN(product.annualRate) ? parseFloat(product.annualRate) : 0,
     termInDays:
-      product.termInDays !== undefined ? parseInt(product.termInDays) : 1,
+      product.termInDays !== undefined && !isNaN(product.termInDays) ? parseInt(product.termInDays) : 1,
     minAmount:
-      product.minAmount !== undefined ? parseInt(product.minAmount) : 0, // parseInt 추가 및 기본값
+      product.minAmount !== undefined && !isNaN(product.minAmount) ? parseInt(product.minAmount) : 0,
     maxAmount:
-      product.maxAmount !== undefined ? parseInt(product.maxAmount) : 0, // parseInt 추가 및 기본값
+      product.maxAmount !== undefined && !isNaN(product.maxAmount) ? parseInt(product.maxAmount) : 0,
   }));
 };
 
@@ -30,6 +32,7 @@ const Banking = () => {
   const [message, setMessage] = useState(null);
   const [messageType, setMessageType] = useState("");
   const [activeTab, setActiveTab] = useState("parking");
+  const [isLoading, setIsLoading] = useState(false);
 
   const [parkingSavingsProducts, setParkingSavingsProducts] = useState([]);
   const [parkingInstallmentProducts, setParkingInstallmentProducts] = useState(
@@ -42,167 +45,57 @@ const Banking = () => {
     useState([]);
   const [formattedLoanProducts, setFormattedLoanProducts] = useState([]);
 
-  const PARKING_SAVINGS_KEY = "parkingSavingsProducts_v6_daily";
-  const PARKING_INSTALLMENTS_KEY = "parkingInstallmentProducts_v6_daily";
-  const PARKING_LOANS_KEY = "parkingLoanProducts_v6_daily";
+  // Firestore에서 데이터 로드
+  const loadAllData = async () => {
+    if (!auth?.userDoc?.classCode) {
+      console.warn("학급 코드가 없어 뱅킹 상품을 로드할 수 없습니다.");
+      return;
+    }
 
-  const loadAllData = () => {
+    setIsLoading(true);
     try {
-      const loadProducts = (key, defaultProducts, setProductsState) => {
-        const savedData = localStorage.getItem(key);
-        let productsToSet = defaultProducts.map((p) => ({
-          ...p,
-          annualRate: parseFloat(p.dailyRate !== undefined ? p.dailyRate : 0),
-          termInDays: parseInt(p.termInDays !== undefined ? p.termInDays : 1),
-          minAmount: parseInt(p.minAmount !== undefined ? p.minAmount : 0),
-          maxAmount: parseInt(p.maxAmount !== undefined ? p.maxAmount : 0),
-        }));
+      const bankingData = await getBankingProducts(auth.userDoc.classCode);
 
-        if (savedData) {
-          try {
-            const loadedProducts = JSON.parse(savedData);
-            productsToSet = loadedProducts.map((product) => {
-              const dailyRateNum = parseFloat(product.annualRate);
-              const termDaysNum = parseInt(product.termInDays);
-              return {
-                ...product,
-                name: product.name || "이름 없음",
-                annualRate:
-                  !isNaN(dailyRateNum) && dailyRateNum >= 0 ? dailyRateNum : 0,
-                termInDays:
-                  !isNaN(termDaysNum) && termDaysNum > 0 ? termDaysNum : 1,
-                minAmount:
-                  parseInt(product.minAmount) >= 0
-                    ? parseInt(product.minAmount)
-                    : 0,
-                maxAmount:
-                  parseInt(product.maxAmount) >= 0
-                    ? parseInt(product.maxAmount)
-                    : 0,
-              };
-            });
-          } catch (e) {
-            console.error(`로컬 스토리지 (${key}) 파싱 오류:`, e);
-            productsToSet = defaultProducts.map((p) => ({
-              ...p,
-              annualRate: parseFloat(
-                p.dailyRate !== undefined ? p.dailyRate : 0
-              ),
-              termInDays: parseInt(
-                p.termInDays !== undefined ? p.termInDays : 1
-              ),
-              minAmount: parseInt(p.minAmount !== undefined ? p.minAmount : 0),
-              maxAmount: parseInt(p.maxAmount !== undefined ? p.maxAmount : 0),
-            }));
-            localStorage.setItem(key, JSON.stringify(productsToSet));
-          }
-        } else {
-          localStorage.setItem(key, JSON.stringify(productsToSet));
-        }
-        setProductsState(productsToSet);
-      };
+      // deposits를 savings로 매핑 (예금 상품)
+      if (bankingData.deposits) {
+        setParkingSavingsProducts(bankingData.deposits);
+      } else {
+        setParkingSavingsProducts([]);
+      }
 
-      const defaultParkingSavings = [
-        {
-          id: 1,
-          name: "일복리예금 90일",
-          dailyRate: 0.01,
-          termInDays: 90,
-          minAmount: 500000,
-        },
-        {
-          id: 2,
-          name: "일복리예금 180일",
-          dailyRate: 0.012,
-          termInDays: 180,
-          minAmount: 1000000,
-        },
-        {
-          id: 3,
-          name: "일복리예금 365일",
-          dailyRate: 0.015,
-          termInDays: 365,
-          minAmount: 2000000,
-        },
-      ];
-      const defaultParkingInstallments = [
-        {
-          id: 1,
-          name: "일복리적금 180일",
-          dailyRate: 0.011,
-          termInDays: 180,
-          minAmount: 100000,
-        },
-        {
-          id: 2,
-          name: "일복리적금 365일",
-          dailyRate: 0.014,
-          termInDays: 365,
-          minAmount: 100000,
-        },
-        {
-          id: 3,
-          name: "일복리적금 730일",
-          dailyRate: 0.018,
-          termInDays: 730,
-          minAmount: 50000,
-        },
-      ];
-      const defaultParkingLoans = [
-        {
-          id: 1,
-          name: "일복리대출 90일",
-          dailyRate: 0.05,
-          termInDays: 90,
-          maxAmount: 3000000,
-        },
-        {
-          id: 2,
-          name: "일복리대출 365일",
-          dailyRate: 0.08,
-          termInDays: 365,
-          maxAmount: 10000000,
-        },
-        {
-          id: 3,
-          name: "일복리대출 730일",
-          dailyRate: 0.1,
-          termInDays: 730,
-          maxAmount: 50000000,
-        },
-      ];
+      // savings를 installments로 매핑 (적금 상품)
+      if (bankingData.savings) {
+        setParkingInstallmentProducts(bankingData.savings);
+      } else {
+        setParkingInstallmentProducts([]);
+      }
 
-      loadProducts(
-        PARKING_SAVINGS_KEY,
-        defaultParkingSavings,
-        setParkingSavingsProducts
-      );
-      loadProducts(
-        PARKING_INSTALLMENTS_KEY,
-        defaultParkingInstallments,
-        setParkingInstallmentProducts
-      );
-      loadProducts(
-        PARKING_LOANS_KEY,
-        defaultParkingLoans,
-        setParkingLoanProducts
-      );
+      // loans는 그대로 매핑 (대출 상품)
+      if (bankingData.loans) {
+        setParkingLoanProducts(bankingData.loans);
+      } else {
+        setParkingLoanProducts([]);
+      }
+
+      console.log("뱅킹 상품 로드 성공:", bankingData);
     } catch (error) {
-      console.error("데이터 로딩 중 오류:", error);
+      console.error("뱅킹 상품 로드 중 오류:", error);
       setMessage("데이터 로딩 중 오류가 발생했습니다.");
       setMessageType("error");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    if (auth && !auth.loading && auth.user) {
+    if (auth && !auth.loading && auth.user && auth.userDoc?.classCode) {
       loadAllData();
     } else if (auth && !auth.loading && !auth.user) {
       setParkingSavingsProducts([]);
       setParkingInstallmentProducts([]);
       setParkingLoanProducts([]);
     }
-  }, [auth]);
+  }, [auth?.user, auth?.loading, auth?.userDoc?.classCode]);
 
   useEffect(() => {
     setFormattedSavingsProducts(
@@ -234,6 +127,7 @@ const Banking = () => {
       default:
         return;
     }
+
     const updatedProducts = productsState.map((product, i) => {
       if (i === index) {
         const updatedProduct = { ...product };
@@ -263,16 +157,155 @@ const Banking = () => {
     setProductsState(updatedProducts);
   };
 
-  const saveParkingProducts = (type) => {
-    // ... (이전 로직과 동일)
+  const saveParkingProducts = async (type) => {
+    if (!auth?.userDoc?.classCode) {
+      setMessage("학급 코드가 없어 저장할 수 없습니다.");
+      setMessageType("error");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      let products, firestoreType;
+
+      switch (type) {
+        case "savings":
+          products = parkingSavingsProducts;
+          firestoreType = "deposits"; // Firebase에서는 deposits로 저장
+          break;
+        case "installments":
+          products = parkingInstallmentProducts;
+          firestoreType = "savings"; // Firebase에서는 savings로 저장
+          break;
+        case "loans":
+          products = parkingLoanProducts;
+          firestoreType = "loans";
+          break;
+        default:
+          return;
+      }
+
+      await updateBankingProducts(
+        auth.userDoc.classCode,
+        firestoreType,
+        products
+      );
+
+      setMessage(
+        `${
+          type === "savings"
+            ? "예금"
+            : type === "installments"
+            ? "적금"
+            : "대출"
+        } 상품이 성공적으로 저장되었습니다.`
+      );
+      setMessageType("success");
+
+      setTimeout(() => {
+        setMessage(null);
+        setMessageType("");
+      }, 3000);
+    } catch (error) {
+      console.error(`${type} 상품 저장 중 오류:`, error);
+      setMessage("저장 중 오류가 발생했습니다.");
+      setMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const addParkingProduct = (type) => {
-    // ... (이전 로직과 동일)
+    const newProduct = {
+      id: Date.now(),
+      name: `새 ${
+        type === "savings"
+          ? "예금"
+          : type === "installments"
+          ? "적금"
+          : "대출"
+      } 상품`,
+      annualRate: 0.01,
+      termInDays: 365,
+      minAmount: type === "loans" ? 0 : 100000,
+      maxAmount: type === "loans" ? 1000000 : 0,
+    };
+
+    switch (type) {
+      case "savings":
+        setParkingSavingsProducts([...parkingSavingsProducts, newProduct]);
+        break;
+      case "installments":
+        setParkingInstallmentProducts([
+          ...parkingInstallmentProducts,
+          newProduct,
+        ]);
+        break;
+      case "loans":
+        setParkingLoanProducts([...parkingLoanProducts, newProduct]);
+        break;
+      default:
+        break;
+    }
   };
 
-  const deleteParkingProduct = (type, indexToDelete) => {
-    // ... (이전 로직과 동일)
+  const deleteParkingProduct = async (type, indexToDelete) => {
+    if (isLoading) return; // 중복 클릭 방지
+
+    let productsState, setProductsState;
+    switch (type) {
+      case "savings":
+        productsState = parkingSavingsProducts;
+        setProductsState = setParkingSavingsProducts;
+        break;
+      case "installments":
+        productsState = parkingInstallmentProducts;
+        setProductsState = setParkingInstallmentProducts;
+        break;
+      case "loans":
+        productsState = parkingLoanProducts;
+        setProductsState = setParkingLoanProducts;
+        break;
+      default:
+        return;
+    }
+
+    const updatedProducts = productsState.filter(
+      (_, index) => index !== indexToDelete
+    );
+    setProductsState(updatedProducts);
+
+    // 삭제 후 자동 저장
+    if (auth?.userDoc?.classCode) {
+      setIsLoading(true);
+      try {
+        const firestoreType =
+          type === "savings"
+            ? "deposits"
+            : type === "installments"
+            ? "savings"
+            : "loans";
+        await updateBankingProducts(
+          auth.userDoc.classCode,
+          firestoreType,
+          updatedProducts
+        );
+        setMessage("상품이 삭제되었습니다.");
+        setMessageType("info");
+        setTimeout(() => {
+          setMessage(null);
+          setMessageType("");
+        }, 2000);
+      } catch (error) {
+        console.error("상품 삭제 중 오류:", error);
+        setMessage("삭제 중 오류가 발생했습니다.");
+        setMessageType("error");
+        // 삭제 실패 시 원래 상태로 되돌릴 수 있습니다 (선택적)
+        setProductsState(productsState);
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const styles = {
@@ -380,7 +413,6 @@ const Banking = () => {
       marginRight: "10px",
       marginBottom: "-1px",
     },
-    // *** 수정된 부분: parkingTab을 함수가 아닌 객체로 정의 ***
     parkingTabActive: {
       color: "#3a5080",
       borderBottomColor: "#3a5080",
@@ -391,7 +423,6 @@ const Banking = () => {
       borderBottomColor: "transparent",
       fontWeight: "500",
     },
-    // *** 수정 끝 ***
     contentBox: {
       padding: "20px",
       borderRadius: "8px",
@@ -436,8 +467,7 @@ const Banking = () => {
       border: "1px solid #ced4da",
       borderRadius: "4px",
       fontSize: "14px",
-      transition:
-        "border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out",
+      transition: "border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out",
     },
     adminButtonSmall: {
       padding: "6px 12px",
@@ -462,16 +492,59 @@ const Banking = () => {
       fontStyle: "italic",
     },
     adminActionButtons: { marginTop: "10px", textAlign: "right" },
+    loadingOverlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0,0,0,0.3)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 9999,
+    },
+    loadingSpinner: {
+      backgroundColor: "white",
+      padding: "20px 40px",
+      borderRadius: "8px",
+      fontSize: "16px",
+      fontWeight: "500",
+    },
+    disabledButton: {
+      backgroundColor: "#cccccc",
+      color: "#666666",
+      cursor: "not-allowed",
+    },
   };
 
   const getMessageStyle = () => {
-    /* ... */
+    switch (messageType) {
+      case "success":
+        return { ...styles.message, ...styles.successMessage };
+      case "warning":
+        return { ...styles.message, ...styles.warningMessage };
+      case "error":
+        return { ...styles.message, ...styles.errorMessage };
+      case "info":
+        return { ...styles.message, ...styles.infoMessage };
+      default:
+        return styles.message;
+    }
   };
+
   const getContentStyle = () => {
-    /* ... */
+    if (activeTab === "admin") {
+      return styles.contentBox;
+    }
+    return {};
   };
+
   const getAdminButtonStyle = () => {
-    /* ... */
+    return {
+      ...styles.adminButton,
+      ...(activeTab === "admin" ? styles.adminActive : styles.adminInactive),
+    };
   };
 
   if (auth.loading) {
@@ -486,6 +559,12 @@ const Banking = () => {
 
   return (
     <div style={styles.bankingContainer}>
+      {isLoading && (
+        <div style={styles.loadingOverlay}>
+          <div style={styles.loadingSpinner}>처리 중...</div>
+        </div>
+      )}
+
       <div style={styles.header}>
         <div style={styles.headerContent}>
           <div style={styles.logoCircle}>B</div>
@@ -509,7 +588,6 @@ const Banking = () => {
 
         <div style={styles.tabContainer}>
           <div style={styles.tabMenu}>
-            {/* *** 수정된 부분: 조건부 스타일 적용 방식 변경 *** */}
             <button
               style={{
                 ...styles.tabButton,
@@ -538,7 +616,6 @@ const Banking = () => {
                   상품 관리 (관리자)
                 </button>
               )}
-            {/* *** 수정 끝 *** */}
           </div>
         </div>
 
@@ -558,7 +635,7 @@ const Banking = () => {
                 <h2 style={styles.adminHeader}>
                   관리자 - 금융 상품 관리 (일 복리 기준)
                 </h2>
-                {/* Savings */}
+                {/* Savings Products */}
                 <div style={styles.adminSection}>
                   <h3>파킹 예금 상품</h3>
                   <p style={styles.adminInfoText}>
@@ -601,6 +678,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -617,6 +695,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -635,6 +714,7 @@ const Banking = () => {
                               }
                               style={styles.adminInput}
                               placeholder="예: 0.01"
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -651,6 +731,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -661,7 +742,9 @@ const Banking = () => {
                               style={{
                                 ...styles.adminButtonSmall,
                                 ...styles.deleteButton,
+                                ...(isLoading && styles.disabledButton),
                               }}
+                              disabled={isLoading}
                             >
                               삭제
                             </button>
@@ -676,7 +759,9 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.addButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       추가
                     </button>
@@ -685,13 +770,16 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.saveButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       예금 상품 저장
                     </button>
                   </div>
                 </div>
-                {/* Installments */}
+
+                {/* Installment Products */}
                 <div style={styles.adminSection}>
                   <h3>파킹 적금 상품</h3>
                   <p style={styles.adminInfoText}>
@@ -734,6 +822,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -750,6 +839,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -768,6 +858,7 @@ const Banking = () => {
                               }
                               style={styles.adminInput}
                               placeholder="예: 0.011"
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -784,6 +875,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -794,7 +886,9 @@ const Banking = () => {
                               style={{
                                 ...styles.adminButtonSmall,
                                 ...styles.deleteButton,
+                                ...(isLoading && styles.disabledButton),
                               }}
+                              disabled={isLoading}
                             >
                               삭제
                             </button>
@@ -809,7 +903,9 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.addButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       추가
                     </button>
@@ -818,13 +914,16 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.saveButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       적금 상품 저장
                     </button>
                   </div>
                 </div>
-                {/* Loans */}
+
+                {/* Loan Products */}
                 <div style={{ ...styles.adminSection, borderBottom: "none" }}>
                   <h3>파킹 대출 상품</h3>
                   <p style={styles.adminInfoText}>
@@ -867,6 +966,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -883,6 +983,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -901,6 +1002,7 @@ const Banking = () => {
                               }
                               style={styles.adminInput}
                               placeholder="예: 0.05"
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -917,6 +1019,7 @@ const Banking = () => {
                                 )
                               }
                               style={styles.adminInput}
+                              disabled={isLoading}
                             />
                           </td>
                           <td style={styles.adminTd}>
@@ -927,7 +1030,9 @@ const Banking = () => {
                               style={{
                                 ...styles.adminButtonSmall,
                                 ...styles.deleteButton,
+                                ...(isLoading && styles.disabledButton),
                               }}
+                              disabled={isLoading}
                             >
                               삭제
                             </button>
@@ -942,7 +1047,9 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.addButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       추가
                     </button>
@@ -951,7 +1058,9 @@ const Banking = () => {
                       style={{
                         ...styles.adminButtonSmall,
                         ...styles.saveButton,
+                        ...(isLoading && styles.disabledButton),
                       }}
+                      disabled={isLoading}
                     >
                       대출 상품 저장
                     </button>

@@ -1,5 +1,5 @@
 // src/App.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,34 +18,40 @@ import {
   updateDoc,
   deleteDoc,
   onSnapshot,
-  query, // query 추가
-  where, // where 추가
-  serverTimestamp, // serverTimestamp 사용 예시를 위해 주석 해제
+  query,
+  where,
+  serverTimestamp,
+  getDocs,
+  limit,
+  orderBy,
 } from "firebase/firestore";
 
 import { AuthProvider, useAuth } from "./AuthContext";
-import { ItemProvider } from "./ItemContext"; // ItemContext 임포트
+import { ItemProvider } from "./ItemContext";
 
-// 자동 초기화 서비스 임포트
+// 숫자 포맷터 import 추가
+import { formatKoreanCurrency, formatCouponCount } from "./numberFormatter";
+
+// 서비스 및 컴포넌트 imports
 import {
   setupTaskResetTimer,
   checkAndResetOnAppStart,
 } from "./TaskResetService";
 import AdminCommonTaskSettings from "./AdminCommonTaskSettings";
-
-// 페이지 컴포넌트
 import Dashboard from "./Dashboard";
 import ItemStore from "./ItemStore";
-import LearningGames from "./ResourceFlow";
-import "./LearningGames.css";
 import MyItems from "./MyItems";
 import MyAssets from "./MyAssets";
 import ItemMarket from "./ItemMarket";
 import Login from "./Login";
 import AdminItemPage from "./AdminItemPage";
+import AdminPage from "./AdminPage";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import LearningBoard from "./LearningBoard";
+import MusicRequest from './MusicRequest';
+import MusicRoom from './MusicRoom';
+import StudentRequest from './StudentRequest';
 import AdminPanel from "./AdminPanel";
 import Banking from "./Banking";
 import StockExchange from "./StockExchange";
@@ -55,6 +61,17 @@ import Government from "./Government";
 import Court from "./Court";
 import PoliceStation from "./PoliceStation";
 import Auction from "./Auction";
+import MoneyTransfer from "./MoneyTransfer";
+import ActivityLog from "./ActivityLog";
+import AdminDatabase from "./AdminDatabase";
+import AdminJobSettings from "./AdminJobSettings";
+import CouponTransfer from "./CouponTransfer";
+import CouponGoalPage from "./CouponGoalPage";
+
+// 게임 컴포넌트 import
+import GonuGame from "./GonuGame";
+import OmokGame from "./OmokGame";
+import ChessGame from "./ChessGame";
 
 // 스타일 파일 임포트
 import "./styles.css";
@@ -67,13 +84,92 @@ import "./Government.css";
 import "./Court.css";
 import "./Police.css";
 import "./ItemStore.css";
-import "./LearningGames.css";
 import "./MyItems.css";
 import "./ItemMarket.css";
 import "./LearningBoard.css";
 import "./AdminPanel.css";
 import "./App.css";
-import "./LearningGames.css";
+import "./MoneyTransfer.css";
+import "./ActivityLog.css";
+import "./CouponTransfer.css";
+import "./AdminSettingsModal.css";
+
+// 아이콘 imports
+import {
+  FaBars,
+  FaCog,
+  FaBriefcase,
+  FaShieldAlt,
+  FaHome,
+  FaTasks,
+  FaBullseye,
+  FaStore,
+  FaTrophy,
+  FaUser,
+  FaMoneyBillTransfer,
+  FaChess,
+  FaSignOutAlt,
+  FaClipboardList,
+  FaUsers
+} from "react-icons/fa";
+
+// 캐시 관리를 위한 전역 객체
+const userDataCache = new Map();
+const cacheTimeouts = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
+const DEBOUNCE_DELAY = 500; // 500ms 디바운스
+
+// 디바운스 유틸리티 함수
+const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func.apply(null, args), delay);
+  };
+};
+
+// 배치 업데이트를 위한 큐
+const batchUpdateQueue = new Map();
+const BATCH_UPDATE_DELAY = 1000; // 1초 배치 딜레이
+
+const processBatchUpdates = debounce(async () => {
+  if (batchUpdateQueue.size === 0) return;
+  
+  const updates = Array.from(batchUpdateQueue.entries());
+  batchUpdateQueue.clear();
+  
+  try {
+    const promises = updates.map(([docPath, updateData]) => {
+      const docRef = doc(db, ...docPath.split('/'));
+      return updateDoc(docRef, {
+        ...updateData,
+        updatedAt: serverTimestamp(),
+      });
+    });
+    
+    await Promise.all(promises);
+  } catch (error) {
+    // 실패한 업데이트는 개별적으로 재시도
+    updates.forEach(([docPath, updateData]) => {
+      setTimeout(async () => {
+        try {
+          const docRef = doc(db, ...docPath.split('/'));
+          await updateDoc(docRef, {
+            ...updateData,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (retryError) {
+        }
+      }, 2000);
+    });
+  }
+}, BATCH_UPDATE_DELAY);
+
+// 캐시된 업데이트 함수
+const queueBatchUpdate = (docPath, updateData) => {
+  batchUpdateQueue.set(docPath, updateData);
+  processBatchUpdates();
+};
 
 const cashCouponStyle = (textColor, bgColor, borderColor) => ({
   fontWeight: "bold",
@@ -87,7 +183,6 @@ const cashCouponStyle = (textColor, bgColor, borderColor) => ({
   gap: "8px",
 });
 
-// *** 수정된 부분 시작: UserManagementComponent에 classCode 필터링 추가 ***
 function UserManagementComponent() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -98,10 +193,48 @@ function UserManagementComponent() {
     initialized: false,
     checked: false,
   });
+  const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
+  const hasLoadedFromCacheRef = useRef(false);
 
-  const { userDoc } = useAuth(); // useAuth 훅 사용
-  const adminClassCode = userDoc?.classCode; // 관리자의 classCode 가져오기
-  const isSuperAdmin = userDoc?.isSuperAdmin; // 슈퍼 관리자 여부 확인 (AuthContext에 추가 필요)
+  const { userDoc } = useAuth();
+  const adminClassCode = userDoc?.classCode;
+  const isSuperAdmin = userDoc?.isSuperAdmin;
+
+  // 캐시 키 생성
+  const cacheKey = useMemo(() => 
+    `users_${isSuperAdmin ? 'all' : adminClassCode || 'none'}`, 
+    [isSuperAdmin, adminClassCode]
+  );
+
+  // 캐시된 데이터 로드
+  const loadCachedUsers = useCallback(() => {
+    const cached = userDataCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      setUsers(cached.data);
+      setLoading(false);
+      return true;
+    }
+    return false;
+  }, [cacheKey]);
+
+  // 사용자 데이터 캐시 업데이트
+  const updateUserCache = useCallback((userData) => {
+    userDataCache.set(cacheKey, {
+      data: userData,
+      timestamp: Date.now()
+    });
+    
+    // 캐시 만료 타이머 설정
+    const existingTimeout = cacheTimeouts.get(cacheKey);
+    if (existingTimeout) clearTimeout(existingTimeout);
+    
+    const newTimeout = setTimeout(() => {
+      userDataCache.delete(cacheKey);
+      cacheTimeouts.delete(cacheKey);
+    }, CACHE_DURATION);
+    
+    cacheTimeouts.set(cacheKey, newTimeout);
+  }, [cacheKey]);
 
   useEffect(() => {
     const checkFirebase = () => {
@@ -120,8 +253,13 @@ function UserManagementComponent() {
     return () => clearTimeout(timer);
   }, []);
 
+  // cacheKey가 변경되면 캐시 로드 플래그 초기화
   useEffect(() => {
-    // Firestore가 초기화되지 않았거나, 관리자가 아닌데 classCode가 없으면 실행 중단
+    hasLoadedFromCacheRef.current = false;
+  }, [cacheKey]);
+
+  // 실시간 리스너 최적화
+  useEffect(() => {
     if (!firebaseStatus.initialized || (!isSuperAdmin && !adminClassCode)) {
       if (firebaseStatus.checked) setLoading(false);
       if (firebaseStatus.checked && !isSuperAdmin && !adminClassCode) {
@@ -132,76 +270,139 @@ function UserManagementComponent() {
       return;
     }
 
-    setLoading(true);
+    // 캐시된 데이터가 있으면 먼저 로드 (한 번만)
+    if (!hasLoadedFromCacheRef.current) {
+      if (loadCachedUsers()) {
+        hasLoadedFromCacheRef.current = true;
+      } else {
+        setLoading(true);
+      }
+    }
+
     let unsubscribe;
     try {
-      console.log("사용자 데이터 구독 시작...", {
-        adminClassCode,
-        isSuperAdmin,
-      });
-
-      // 슈퍼 관리자는 모든 사용자를, 일반 관리자는 자기 학급 사용자만 보도록 쿼리 구성
       const usersCollection = collection(db, "users");
+      
+      // 쿼리 최적화: 필요한 필드만 선택하고 제한된 수만 가져오기
       const usersQuery = isSuperAdmin
-        ? usersCollection // 슈퍼 관리자는 필터 없음
-        : query(usersCollection, where("classCode", "==", adminClassCode)); // 일반 관리자는 classCode 필터
+        ? query(usersCollection, orderBy("createdAt", "desc"), limit(100))
+        : query(
+            usersCollection, 
+            where("classCode", "==", adminClassCode),
+            orderBy("createdAt", "desc"),
+            limit(50)
+          );
 
-      unsubscribe = onSnapshot(
-        usersQuery, // 수정된 쿼리 사용
-        (snapshot) => {
+      // 실시간 리스너 대신 초기 로드 후 주기적 업데이트
+      const loadUsers = async () => {
+        try {
+          const snapshot = await getDocs(usersQuery);
           const usersList = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
           }));
-          console.log("사용자 데이터 수신:", usersList.length, "명");
+          
           setUsers(usersList);
+          updateUserCache(usersList);
           setLoading(false);
           setError(null);
-        },
-        (error) => {
-          console.error("사용자 컬렉션 리스닝 오류:", error);
+          setLastUpdateTime(Date.now());
+        } catch (error) {
+          console.error("사용자 데이터 로드 오류:", error);
           setError("사용자 데이터 로딩 오류: " + error.message);
           setLoading(false);
         }
-      );
+      };
+
+      // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (5분마다)
+      const startUserPolling = () => {
+        const pollUsers = async () => {
+          try {
+            // 캐시가 유효하면 폴링 생략
+            const cached = userDataCache.get(cacheKey);
+            if (cached && Date.now() - cached.timestamp < 240000) { // 4분 이내
+              return;
+            }
+
+            await loadUsers();
+          } catch (error) {
+            console.error("폴링 오류:", error);
+          }
+        };
+
+        // 초기 로드
+        loadUsers();
+
+        // 5분마다 폴링
+        const pollingInterval = setInterval(pollUsers, 300000); // 5분
+
+        return () => {
+          clearInterval(pollingInterval);
+        };
+      };
+
+      return startUserPolling();
+
     } catch (err) {
-      console.error("onSnapshot 설정 오류:", err);
+      console.error("사용자 데이터 설정 오류:", err);
       setError("데이터 구독 설정 오류: " + err.message);
       setLoading(false);
     }
+  }, [
+    firebaseStatus.initialized,
+    adminClassCode,
+    isSuperAdmin,
+    updateUserCache
+  ]);
 
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [firebaseStatus.initialized, adminClassCode, isSuperAdmin]); // adminClassCode와 isSuperAdmin 의존성 추가
+  // 디바운스된 추가 함수
+  const debouncedAddUser = useCallback(
+    debounce(async (userData) => {
+      if (!isFirestoreInitialized()) return setError("Firestore 미초기화.");
+      if (!userData.name || !userData.email)
+        return setError("이름과 이메일 입력 필요.");
+      if (!adminClassCode)
+        return setError("새 사용자를 추가할 학급 코드를 알 수 없습니다.");
+
+      setLoading(true);
+      try {
+        const docRef = await addDoc(collection(db, "users"), {
+          ...userData,
+          classCode: adminClassCode,
+          createdAt: serverTimestamp(),
+        });
+        
+        // 로컬 상태 즉시 업데이트 (낙관적 업데이트)
+        const newUserData = {
+          id: docRef.id,
+          ...userData,
+          classCode: adminClassCode,
+          createdAt: { toDate: () => new Date() }
+        };
+        
+        setUsers(prevUsers => [newUserData, ...prevUsers]);
+        setNewUser({ name: "", email: "" });
+        setError(null);
+        
+        // 캐시 업데이트
+        const updatedUsers = [newUserData, ...users];
+        updateUserCache(updatedUsers);
+        
+      } catch (error) {
+        setError(`사용자 추가 오류: ${error.message}`);
+      } finally {
+        setLoading(false);
+      }
+    }, DEBOUNCE_DELAY),
+    [adminClassCode, users, updateUserCache]
+  );
 
   const handleAddUser = async (e) => {
     e.preventDefault();
-    if (!isFirestoreInitialized()) return setError("Firestore 미초기화.");
-    if (!newUser.name || !newUser.email)
-      return setError("이름과 이메일 입력 필요.");
-    // !! 중요: 새 사용자 추가 시 classCode를 어떻게 할당할지 정책 필요.
-    // 여기서는 관리자의 classCode를 할당하거나, 슈퍼 관리자인 경우 입력을 받도록 해야 함.
-    // 여기서는 일단 관리자의 classCode를 할당하는 것으로 가정.
-    if (!adminClassCode)
-      return setError("새 사용자를 추가할 학급 코드를 알 수 없습니다.");
-
-    setLoading(true);
-    try {
-      await addDoc(collection(db, "users"), {
-        ...newUser,
-        classCode: adminClassCode, // 관리자의 classCode 할당
-        createdAt: serverTimestamp(), // serverTimestamp 사용
-      });
-      setNewUser({ name: "", email: "" });
-      setError(null);
-    } catch (error) {
-      setError(`사용자 추가 오류: ${error.message}`);
-    } finally {
-      setLoading(false);
-    }
+    debouncedAddUser(newUser);
   };
 
+  // 배치 업데이트를 사용한 사용자 수정
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!isFirestoreInitialized() || !editing) return;
@@ -210,15 +411,32 @@ function UserManagementComponent() {
 
     setLoading(true);
     try {
-      const userRef = doc(db, "users", editing.id);
-      await updateDoc(userRef, {
+      // 배치 큐에 추가
+      queueBatchUpdate(`users/${editing.id}`, {
         name: editing.name,
         email: editing.email,
-        // !! 중요: classCode 변경 기능이 필요하다면 여기에 로직 추가
-        updatedAt: serverTimestamp(), // serverTimestamp 사용
       });
+      
+      // 낙관적 업데이트
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          user.id === editing.id 
+            ? { ...user, name: editing.name, email: editing.email }
+            : user
+        )
+      );
+      
       setEditing(null);
       setError(null);
+      
+      // 캐시 업데이트
+      const updatedUsers = users.map(user => 
+        user.id === editing.id 
+          ? { ...user, name: editing.name, email: editing.email }
+          : user
+      );
+      updateUserCache(updatedUsers);
+      
     } catch (error) {
       setError(`사용자 업데이트 오류: ${error.message}`);
     } finally {
@@ -229,10 +447,19 @@ function UserManagementComponent() {
   const handleDeleteUser = async (userId) => {
     if (!isFirestoreInitialized()) return;
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
+    
     setLoading(true);
     try {
       await deleteDoc(doc(db, "users", userId));
+      
+      // 낙관적 업데이트
+      setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
       setError(null);
+      
+      // 캐시 업데이트
+      const updatedUsers = users.filter(user => user.id !== userId);
+      updateUserCache(updatedUsers);
+      
     } catch (error) {
       setError(`사용자 삭제 오류: ${error.message}`);
     } finally {
@@ -240,36 +467,79 @@ function UserManagementComponent() {
     }
   };
 
+  // 수동 새로고침 함수
+  const handleRefresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const usersCollection = collection(db, "users");
+      const usersQuery = isSuperAdmin
+        ? query(usersCollection, orderBy("createdAt", "desc"), limit(100))
+        : query(
+            usersCollection, 
+            where("classCode", "==", adminClassCode),
+            orderBy("createdAt", "desc"),
+            limit(50)
+          );
+      
+      const snapshot = await getDocs(usersQuery);
+      const usersList = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      
+      setUsers(usersList);
+      updateUserCache(usersList);
+      setLastUpdateTime(Date.now());
+      setError(null);
+    } catch (error) {
+      setError(`새로고침 오류: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [isSuperAdmin, adminClassCode, updateUserCache]);
+
   if (!firebaseStatus.initialized && firebaseStatus.checked) {
     return <div>Firebase 초기화 실패...</div>;
   }
-  if (loading || !firebaseStatus.checked) {
+  if (loading && users.length === 0) {
     return <div>데이터 로딩 중...</div>;
   }
 
-  // JSX 렌더링 (폼과 목록)
   return (
     <div className="user-management-container">
-      <h1>
-        사용자 관리{" "}
-        {adminClassCode
-          ? `(학급: ${adminClassCode})`
-          : isSuperAdmin
-          ? "(전체)"
-          : ""}
-      </h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h1>
+          사용자 관리{" "}
+          {adminClassCode
+            ? `(학급: ${adminClassCode})`
+            : isSuperAdmin
+            ? "(전체)"
+            : ""}
+        </h1>
+        <div>
+          <button 
+            onClick={handleRefresh} 
+            disabled={loading}
+            style={{ marginRight: '10px' }}
+          >
+            {loading ? "새로고침 중..." : "🔄 새로고침"}
+          </button>
+          <small style={{ color: '#666' }}>
+            마지막 업데이트: {new Date(lastUpdateTime).toLocaleTimeString()}
+          </small>
+        </div>
+      </div>
+      
       {error && (
         <div className="error-message">
           {error} <button onClick={() => setError(null)}>✕</button>
         </div>
       )}
 
-      {/* 새 사용자 추가 폼 (관리자만) */}
       {adminClassCode && (
         <div className="form-container">
           <h2>새 사용자 추가 ({adminClassCode})</h2>
           <form onSubmit={handleAddUser}>
-            {/* ... (input 필드) ... */}
             <div>
               <label>이름:</label>
               <input
@@ -279,7 +549,7 @@ function UserManagementComponent() {
                   setNewUser({ ...newUser, name: e.target.value })
                 }
                 required
-                disabled={loading && !users.length} // 데이터 로딩 중이면서 사용자가 없을 때 비활성화 (선택적)
+                disabled={loading && !users.length}
               />
             </div>
             <div>
@@ -301,12 +571,10 @@ function UserManagementComponent() {
         </div>
       )}
 
-      {/* 사용자 수정 폼 */}
       {editing && (
         <div className="form-container">
           <h2>사용자 정보 수정</h2>
           <form onSubmit={handleUpdateUser}>
-            {/* ... (input 필드 및 버튼) ... */}
             <div>
               <label>이름:</label>
               <input
@@ -331,7 +599,7 @@ function UserManagementComponent() {
                 disabled={loading}
               />
             </div>
-            {isSuperAdmin && ( // 슈퍼 관리자만 학급 코드 수정 가능 (예시)
+            {isSuperAdmin && (
               <div>
                 <label>학급 코드:</label>
                 <input
@@ -360,9 +628,8 @@ function UserManagementComponent() {
         </div>
       )}
 
-      {/* 사용자 목록 */}
       <div className="users-list">
-        <h2>사용자 목록</h2>
+        <h2>사용자 목록 ({users.length}명)</h2>
         {users.length === 0 ? (
           <p>등록된 사용자가 없습니다.</p>
         ) : (
@@ -372,8 +639,7 @@ function UserManagementComponent() {
                 <div className="user-info">
                   <strong>{user.name || "이름 없음"}</strong>
                   <p>이메일: {user.email || "이메일 없음"}</p>
-                  <p>학급 코드: {user.classCode || "미지정"}</p>{" "}
-                  {/* 학급 코드 표시 */}
+                  <p>학급 코드: {user.classCode || "미지정"}</p>
                   <p>ID: {user.id}</p>
                   {user.createdAt && (
                     <p>
@@ -401,10 +667,8 @@ function UserManagementComponent() {
     </div>
   );
 }
-// *** 수정된 부분 끝 ***
 
 const ProtectedRoute = ({ children }) => {
-  // ... (기존 코드 유지) ...
   const authHook = useAuth();
   const location = useLocation();
 
@@ -418,9 +682,8 @@ const ProtectedRoute = ({ children }) => {
 };
 
 const AdminRoute = ({ children }) => {
-  // ... (기존 코드 유지) ...
-  const authHook = useAuth(); // useAuth() 호출
-  const location = useLocation(); // useLocation() 호출
+  const authHook = useAuth();
+  const location = useLocation();
 
   if (authHook.loading) {
     return <div className="p-4 text-center">관리자 정보 로딩 중...</div>;
@@ -428,64 +691,94 @@ const AdminRoute = ({ children }) => {
   if (!authHook.user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  // authHook.user가 있고, isAdmin 또는 role이 admin인지 확인
   const isAdminUser =
-    authHook.userDoc?.isAdmin || authHook.userDoc?.role === "admin"; // userDoc 사용
+    authHook.userDoc?.isAdmin || authHook.userDoc?.role === "admin";
   if (!isAdminUser) {
-    // *** 기본 페이지를 "오늘의 할일"로 변경 ***
     return <Navigate to="/dashboard/tasks" replace />;
   }
   return children;
 };
 
-// --- 사이드바 메뉴 항목 정의 (변경 없음 -> 변경 있음) ---
+// 사이드바 메뉴 항목 정의
 const sidebarMenuItems = [
   {
-    id: "todayTasks", // ID 변경
+    id: "todayTasks",
     name: "오늘의 할일",
     icon: "✅",
-    path: "/dashboard/tasks", // Dashboard의 할일 섹션 경로
+    path: "/dashboard/tasks",
   },
   {
-    id: "myAssets", // ID 변경 및 "나의 자산"으로 명칭 변경
+    id: "myAssets",
     name: "나의 자산",
-    icon: "💰", // 아이콘 변경 (기존 🏠에서)
-    path: "/my-assets", // MyAssets 컴포넌트 경로
+    icon: "💰",
+    path: "/my-assets",
   },
   {
-    id: "learningGames",
+    id: "couponGoal",
+    name: "쿠폰 목표",
+    icon: "🎯",
+    path: "/coupon-goal",
+  },
+  {
+    id: "learningGamesCategory",
     name: "학습 게임",
     icon: "🎮",
-    path: "/learning-games",
-  },
-  // ***** 문제 해결을 위해 이 부분 추가 *****
-  {
-    id: "itemCategory",
-    name: "아이템", // 카테고리 이름 (예: 아이템, 상점 등 원하시는 대로 수정 가능)
-    icon: "📦", // 카테고리 아이콘 (원하시는 아이콘으로 수정 가능)
     isCategory: true,
   },
-  // ***** 여기까지 추가 *****
+  {
+    id: "omokGame",
+    name: "오목",
+    icon: "⚫",
+    path: "/learning-games/omok",
+    categoryId: "learningGamesCategory",
+  },
+  {
+    id: "typingGame",
+    name: "타자연습",
+    icon: "⌨️",
+    path: "/learning-games/typing",
+    categoryId: "learningGamesCategory",
+  },
+  {
+    id: "gonuGame",
+    name: "고누 게임",
+    icon: "🎲",
+    path: "/gonu-game",
+    categoryId: "learningGamesCategory",
+  },
+  {
+    id: "scienceGame",
+    name: "체스 게임",
+    icon: "♟️",
+    path: "/learning-games/science",
+    categoryId: "learningGamesCategory",
+  },
+  {
+    id: "itemCategory",
+    name: "아이템",
+    icon: "📦",
+    isCategory: true,
+  },
   {
     id: "myItems",
     name: "내 아이템",
     icon: "💼",
     path: "/my-items",
-    categoryId: "itemCategory", // 변경된 카테고리 ID 참조
+    categoryId: "itemCategory",
   },
   {
     id: "itemStore",
     name: "아이템상점",
-    icon: "🏪", // 아이콘 변경 (기존 🛍️에서)
+    icon: "🛒",
     path: "/item-shop",
-    categoryId: "itemCategory", // 변경된 카테고리 ID 참조
+    categoryId: "itemCategory",
   },
   {
     id: "itemMarket",
     name: "아이템시장",
     icon: "♻️",
     path: "/item-market",
-    categoryId: "itemCategory", // 변경된 카테고리 ID 참조
+    categoryId: "itemCategory",
   },
   {
     id: "financeCategory",
@@ -532,7 +825,7 @@ const sidebarMenuItems = [
   {
     id: "government",
     name: "정부",
-    icon: "⚖️", // 아이콘 변경 (기존 🏛️에서)
+    icon: "⚖️",
     path: "/government",
     categoryId: "publicInstitutionsCategory",
   },
@@ -546,7 +839,7 @@ const sidebarMenuItems = [
   {
     id: "court",
     name: "법원",
-    icon: "👨‍⚖️", // 아이콘 변경 (기존 ⚖️에서)
+    icon: "👨‍⚖️",
     path: "/court",
     categoryId: "publicInstitutionsCategory",
   },
@@ -558,38 +851,90 @@ const sidebarMenuItems = [
     categoryId: "publicInstitutionsCategory",
   },
   {
-    id: "boardCategory", // ID 변경 (기존 economyCategory)
+    id: "boardCategory",
     name: "게시판",
     icon: "📊",
     isCategory: true,
-    pathPrefix: "/board", // pathPrefix 변경
+    pathPrefix: "/board",
   },
   {
     id: "learningBoard",
     name: "학습 게시판",
     icon: "📝",
     path: "/learning-board",
-    categoryId: "boardCategory", // 변경된 카테고리 ID 참조
+    categoryId: "boardCategory",
+  },
+  {
+    id: "musicRequest",
+    name: "음악 신청",
+    icon: "🎵",
+    path: "/learning-board/music-request",
+    categoryId: "boardCategory",
+  },
+  {
+    id: "adminFunctionsCategory",
+    name: "관리자 기능",
+    icon: "👑",
+    isCategory: true,
+    adminOnly: true,
+  },
+  {
+    id: "adminAppSettings",
+    name: "앱 설정",
+    icon: "⚙️",
+    path: "/admin/app-settings",
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
+  },
+  {
+    id: "couponTransfer",
+    name: "쿠폰 보내기/가져오기",
+    icon: "🎟️",
+    path: "/admin/coupon-transfer",
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
+  },
+  {
+    id: "moneyTransfer",
+    name: "돈 보내기/가져오기",
+    icon: "💸",
+    path: "/admin/money-transfer",
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
+  },
+  {
+    id: "activityLog",
+    name: "데이터베이스",
+    icon: "🗂️",
+    path: "/admin/activity-log",
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
+  },
+  {
+    id: "adminPage",
+    name: "관리자 제어판",
+    icon: "🎛️",
+    path: "/admin/page",
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
   },
   {
     id: "userManagement",
     name: "사용자 관리",
     icon: "👥",
     path: "/user-management",
-    categoryId: "boardCategory", // 변경된 카테고리 ID 참조
-    adminOnly: true, // 관리자 전용 메뉴로 명시
+    categoryId: "adminFunctionsCategory",
+    adminOnly: true,
   },
 ];
 
 function LoginRedirect() {
-  // ... (기존 코드 유지) ...
   const authHook = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (!authHook.loading) {
       if (authHook.user) {
-        // *** 기본 페이지를 "오늘의 할일"로 변경 ***
         navigate("/dashboard/tasks", { replace: true });
       }
     }
@@ -601,7 +946,6 @@ function LoginRedirect() {
   if (!authHook.user) {
     return <Login />;
   }
-  // *** 기본 페이지를 "오늘의 할일"로 변경 ***
   return <Navigate to="/dashboard/tasks" replace />;
 }
 
@@ -611,80 +955,148 @@ function AppLayoutContent() {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [lastTaskResetCheck, setLastTaskResetCheck] = useState(Date.now());
 
-  // *** 수정된 부분 시작: TaskResetService에 classCode 전달 ***
+  const classCode = authHook.userDoc?.classCode;
+
+  // 태스크 리셋 체크를 최적화 - 10분마다만 체크
   useEffect(() => {
-    const classCode = authHook.userDoc?.classCode; // 현재 사용자의 classCode 가져오기
-
     const checkInitialReset = async () => {
       if (!classCode) {
-        console.log(
-          "학급 코드를 찾을 수 없어 초기화를 건너<0xEB><0x8B><0x88>니다."
-        );
         return;
       }
+      
+      // 마지막 체크로부터 10분이 지났는지 확인
+      const now = Date.now();
+      if (now - lastTaskResetCheck < 10 * 60 * 1000) { // 10분
+        return;
+      }
+      
       try {
-        // classCode를 전달하여 해당 학급의 태스크만 초기화
         const result = await checkAndResetOnAppStart(classCode);
-        console.log("앱 시작 시 초기화 확인 결과:", result);
-        if (result.success && result.message.includes("초기화되었습니다")) {
-          // alert('오늘의 할 일이 초기화되었습니다!');
-        }
+        setLastTaskResetCheck(now);
       } catch (error) {
-        console.error("앱 시작 시 초기화 확인 중 오류:", error);
       }
     };
 
-    // classCode가 있을 때만 초기화 및 타이머 설정
     if (classCode) {
       checkInitialReset();
-
-      const resetTimerId = setupTaskResetTimer(
-        (result) => {
-          console.log("자동 초기화 결과:", result);
-          if (result.success) {
-            // alert('오늘의 할 일이 자동으로 초기화되었습니다!');
-          }
-        },
-        classCode // classCode 전달
-      );
-
+      
+      // 태스크 리셋 타이머를 1시간마다만 체크하도록 최적화
+      const resetTimerId = setupTaskResetTimer(() => {
+        setLastTaskResetCheck(Date.now());
+      }, classCode);
+      
       return () => {
         if (resetTimerId) {
           clearTimeout(resetTimerId);
-          console.log("자동 초기화 타이머가 정리되었습니다.");
         }
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authHook.userDoc?.classCode]); // userDoc.classCode가 변경될 때 재실행
-  // *** 수정된 부분 끝 ***
+  }, [classCode, lastTaskResetCheck]);
 
-  // ... (toggleSidebar, handleSidebarNavigate, useEffect(handleResize)는 그대로 유지) ...
-  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen((prev) => !prev);
+  }, []);
 
-  const handleSidebarNavigate = (item) => {
+  const handleSidebarNavigate = useCallback((item) => {
     if (item?.path) {
       navigate(item.path);
       if (isMobile) setIsSidebarOpen(false);
     }
-  };
+  }, [navigate, isMobile]);
 
   useEffect(() => {
     const handleResize = () => {
       const mobileState = window.innerWidth < 768;
       setIsMobile(mobileState);
-      // 데스크탑에서는 사이드바를 기본적으로 열어두고, 모바일에서는 닫아둠
       if (!mobileState) {
         setIsSidebarOpen(true);
       } else {
         setIsSidebarOpen(false);
       }
     };
+    
     window.addEventListener("resize", handleResize);
-    handleResize(); // 초기 로드 시 실행
+    handleResize();
+    
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+
+  // 메모이제이션된 스타일 객체들
+  const cashBarStyle = useMemo(() => ({
+    position: "fixed",
+    top: "80px",
+    height: "60px",
+    backgroundColor: "#e0f2f7",
+    zIndex: 30,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+    borderBottom: "1px solid #b2ebf2",
+    transition: "left 0.3s ease, width 0.3s ease",
+    boxSizing: "border-box",
+    ...(isMobile
+      ? { left: "0", width: "100%", padding: "0 10px" }
+      : {
+          left: isSidebarOpen ? "260px" : "0",
+          width: isSidebarOpen ? "calc(100% - 260px)" : "100%",
+          padding: "0 20px",
+        }),
+  }), [isMobile, isSidebarOpen]);
+
+  const mainStyle = useMemo(() => {
+    const baseStyle = {
+      padding: "20px",
+      backgroundColor: "#f9fafb",
+      flexGrow: 1,
+      boxSizing: "border-box",
+      transition: "margin-left 0.3s ease, width 0.3s ease",
+      width: "100%",
+      marginLeft: "0",
+    };
+
+    if (!isMobile && isSidebarOpen) {
+      baseStyle.marginLeft = "260px";
+      baseStyle.width = "calc(100% - 260px)";
+    }
+
+    return baseStyle;
+  }, [isMobile, isSidebarOpen]);
+
+  const layoutContainerStyle = useMemo(() => ({
+    display: "flex",
+    paddingTop: "140px",
+    minHeight: "100vh",
+    boxSizing: "border-box",
+  }), []);
+
+  const cashContainerStyle = useMemo(() => ({
+    width: isMobile ? "66%" : "66.6%",
+    paddingRight: isMobile ? "5px" : "10px",
+    boxSizing: "border-box",
+  }), [isMobile]);
+
+  const couponContainerStyle = useMemo(() => ({
+    width: isMobile ? "34%" : "33.3%",
+    paddingLeft: isMobile ? "5px" : "10px",
+    boxSizing: "border-box",
+  }), [isMobile]);
+
+  const cashDisplayStyle = useMemo(() => ({
+    ...cashCouponStyle("#0277bd", "#e0f7fa", "#81d4fa"),
+    width: "100%",
+    justifyContent: "center",
+    fontSize: isMobile ? "0.85rem" : "0.95rem",
+  }), [isMobile]);
+
+  const couponDisplayStyle = useMemo(() => ({
+    ...cashCouponStyle("#ef6c00", "#fff3e0", "#ffcc80"),
+    width: "100%",
+    justifyContent: "center",
+    fontSize: isMobile ? "0.85rem" : "0.95rem",
+  }), [isMobile]);
 
   if (authHook.loading) {
     return <div className="p-4 text-center">앱 로딩 중...</div>;
@@ -708,7 +1120,6 @@ function AppLayoutContent() {
     );
   }
 
-  // *** 수정된 부분 시작: userDoc.classCode 확인 추가 ***
   if (!authHook.userDoc.classCode && location.pathname !== "/login") {
     return (
       <div className="p-4 text-center">
@@ -717,145 +1128,37 @@ function AppLayoutContent() {
       </div>
     );
   }
-  // *** 수정된 부분 끝 ***
 
   const currentUser = authHook.userDoc;
   const isAdminUser = currentUser?.isAdmin || currentUser?.role === "admin";
-  const userClassCode = currentUser?.classCode; // 현재 사용자의 classCode
-
-  // ... (cashBarStyle, cashContainerStyle, couponContainerStyle 등 스타일은 그대로 유지) ...
-  const cashBarStyle = {
-    position: "fixed",
-    top: "80px",
-    height: "60px",
-    backgroundColor: "#e0f2f7",
-    zIndex: 30,
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
-    borderBottom: "1px solid #b2ebf2",
-    transition: "left 0.3s ease, width 0.3s ease",
-    boxSizing: "border-box",
-    ...(isMobile
-      ? {
-          left: "0",
-          width: "100%",
-          padding: "0 10px",
-        }
-      : {
-          left: isSidebarOpen ? "260px" : "0",
-          width: isSidebarOpen ? "calc(100% - 260px)" : "100%",
-          padding: "0 20px",
-        }),
-  };
-
-  const cashContainerStyle = {
-    width: isMobile ? "66%" : "66.6%",
-    paddingRight: isMobile ? "5px" : "10px",
-    boxSizing: "border-box",
-  };
-
-  const couponContainerStyle = {
-    width: isMobile ? "34%" : "33.3%",
-    paddingLeft: isMobile ? "5px" : "10px",
-    boxSizing: "border-box",
-  };
-
-  const mainStyle = {
-    padding: "20px",
-    backgroundColor: "#f9fafb",
-    overflowY: "auto",
-    flexGrow: 1,
-    boxSizing: "border-box",
-    transition: "margin-left 0.3s ease, width 0.3s ease",
-    width: "100%",
-    marginLeft: "0",
-    position: "relative",
-  };
-
-  if (!isMobile && isSidebarOpen) {
-    mainStyle.marginLeft = "260px";
-    mainStyle.width = "calc(100% - 260px)";
-  }
-
-  const layoutContainerStyle = {
-    display: "flex",
-    paddingTop: "140px",
-    minHeight: "100vh",
-    boxSizing: "border-box",
-  };
-
-  const cashDisplayStyle = {
-    ...cashCouponStyle("#0277bd", "#e0f7fa", "#81d4fa"),
-    width: "100%",
-    borderRadius: "15px",
-    justifyContent: "center",
-    fontSize: isMobile ? "0.85rem" : "0.95rem",
-    padding: isMobile ? "8px 10px" : "8px 15px",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    boxSizing: "border-box",
-  };
-
-  const couponDisplayStyle = {
-    ...cashCouponStyle("#ef6c00", "#fff3e0", "#ffcc80"),
-    width: "100%",
-    borderRadius: "15px",
-    justifyContent: "center",
-    fontSize: isMobile ? "0.85rem" : "0.95rem",
-    padding: isMobile ? "8px 10px" : "8px 15px",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    boxSizing: "border-box",
-  };
-
-  const valueTextStyle = {
-    color: "#01579b",
-    marginLeft: "4px",
-    fontWeight: "700",
-    whiteSpace: "nowrap",
-  };
-
-  const couponValueTextStyle = {
-    color: "#e65100",
-    marginLeft: "4px",
-    fontWeight: "700",
-    whiteSpace: "nowrap",
-  };
+  const userClassCode = currentUser?.classCode;
 
   return (
     <div className="app-container">
       <Header
         toggleSidebar={toggleSidebar}
-        user={authHook.user}
-        logout={authHook.logout}
         isAdmin={isAdminUser}
       />
 
       <div style={cashBarStyle}>
-        {/* ... (캐시바 JSX는 그대로 유지) ... */}
         <div style={cashContainerStyle}>
           <div style={cashDisplayStyle}>
-            <span style={{ display: "flex", alignItems: "center" }}>
+            <span>
               <span style={{ marginRight: "4px" }}>💰</span>
               {!isMobile ? "보유 현금:" : "현금:"}
-              <span style={valueTextStyle}>
-                {currentUser?.cash?.toLocaleString() || 0}원
+              <span style={{ color: "#01579b", fontWeight: "700" }}>
+                {formatKoreanCurrency(currentUser?.cash || 0)}
               </span>
             </span>
           </div>
         </div>
         <div style={couponContainerStyle}>
           <div style={couponDisplayStyle}>
-            <span style={{ display: "flex", alignItems: "center" }}>
+            <span>
               <span style={{ marginRight: "4px" }}>🎫</span>
               {!isMobile ? "보유 쿠폰:" : "쿠폰:"}
-              <span style={couponValueTextStyle}>
-                {currentUser?.coupons?.toLocaleString() || 0}개
+              <span style={{ color: "#e65100", fontWeight: "700" }}>
+                {formatCouponCount(currentUser?.coupons || 0)}
               </span>
             </span>
           </div>
@@ -872,7 +1175,6 @@ function AppLayoutContent() {
         />
         <main style={mainStyle}>
           <Routes>
-            {/* 모든 ProtectedRoute와 AdminRoute는 classCode가 있다는 가정 하에 작동 */}
             <Route
               path="/dashboard/tasks"
               element={
@@ -889,156 +1191,153 @@ function AppLayoutContent() {
                 </ProtectedRoute>
               }
             />
-            {/* !! ItemStore 등도 classCode를 사용하도록 수정 필요 */}
             <Route
-              path="/item-shop"
+              path="/coupon-goal"
               element={
                 <ProtectedRoute>
-                  <ItemStore />
+                  <CouponGoalPage />
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/learning-games"
+              path="/gonu-game"
               element={
                 <ProtectedRoute>
-                  <LearningGames />
+                  <GonuGame />
                 </ProtectedRoute>
               }
+            />
+            
+            <Route path="/learning-games/omok" element={<ProtectedRoute><OmokGame /></ProtectedRoute>} />
+            <Route path="/learning-games/science" element={<ProtectedRoute><ChessGame /></ProtectedRoute>} />
+            
+            <Route
+              path="/learning-board/music-request"
+              element={
+                <ProtectedRoute>
+                  <MusicRequest user={authHook.user} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/music-room/:roomId"
+              element={
+                <ProtectedRoute>
+                  <MusicRoom user={authHook.user} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/student-request/:roomId"
+              element={<StudentRequest />}
+            />
+            
+            <Route
+              path="/item-shop"
+              element={<ProtectedRoute><ItemStore /></ProtectedRoute>}
             />
             <Route
               path="/my-items"
-              element={
-                <ProtectedRoute>
-                  <MyItems />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><MyItems /></ProtectedRoute>}
             />
-            {/* !! ItemMarket 등도 classCode를 사용하도록 수정 필요 */}
             <Route
               path="/item-market"
-              element={
-                <ProtectedRoute>
-                  <ItemMarket />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><ItemMarket /></ProtectedRoute>}
             />
-            {/* !! Banking 등 다른 컴포넌트들도 classCode 필터링 필요 */}
             <Route
               path="/banking"
-              element={
-                <ProtectedRoute>
-                  <Banking />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><Banking /></ProtectedRoute>}
             />
             <Route
               path="/stock-trading"
-              element={
-                <ProtectedRoute>
-                  <StockExchange />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><StockExchange /></ProtectedRoute>}
             />
             <Route
               path="/auction"
-              element={
-                <ProtectedRoute>
-                  <Auction />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><Auction /></ProtectedRoute>}
             />
             <Route
               path="/real-estate"
-              element={
-                <ProtectedRoute>
-                  <RealEstateRegistry />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><RealEstateRegistry /></ProtectedRoute>}
             />
             <Route
               path="/government"
-              element={
-                <ProtectedRoute>
-                  <Government />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><Government /></ProtectedRoute>}
             />
             <Route
               path="/national-assembly"
-              element={
-                <ProtectedRoute>
-                  <NationalAssembly />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><NationalAssembly /></ProtectedRoute>}
             />
             <Route
               path="/court"
-              element={
-                <ProtectedRoute>
-                  <Court />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><Court /></ProtectedRoute>}
             />
             <Route
               path="/police"
-              element={
-                <ProtectedRoute>
-                  <PoliceStation />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><PoliceStation /></ProtectedRoute>}
             />
-            {/* !! LearningBoard도 classCode 필터링 필요 */}
             <Route
               path="/learning-board"
-              element={
-                <ProtectedRoute>
-                  <LearningBoard />
-                </ProtectedRoute>
-              }
+              element={<ProtectedRoute><LearningBoard /></ProtectedRoute>}
             />
             <Route
               path="/user-management"
+              element={<AdminRoute><UserManagementComponent /></AdminRoute>}
+            />
+            
+            {/* 관리자 라우트 */}
+            <Route
+              path="/admin/app-settings"
               element={
                 <AdminRoute>
-                  <UserManagementComponent />
+                  <Dashboard adminTabMode="appSettings" />
                 </AdminRoute>
               }
             />
             <Route
-              path="/admin"
+              path="/admin/job-settings"
               element={
                 <AdminRoute>
-                  <div>
-                    <h1>관리자 작업 설정 페이지</h1>
-                    <AdminCommonTaskSettings
-                      commonTasks={[]} // !! classCode로 필터링된 데이터 전달 필요
-                      handleEditTask={(id) => console.log("Edit task", id)}
-                      handleDeleteTask={(id) => console.log("Delete task", id)}
-                      handleAddTaskClick={() => console.log("Add task")}
-                      classCode={userClassCode} // classCode 전달
-                    />
-                  </div>
+                  <Dashboard adminTabMode="jobSettings" />
                 </AdminRoute>
               }
             />
-            {/* !! AdminItemPage도 classCode 전달 필요 */}
+            <Route
+              path="/admin/app-management"
+              element={
+                <AdminRoute>
+                  <Dashboard adminTabMode="appManagement" />
+                </AdminRoute>
+              }
+            />
+            
+            <Route
+              path="/admin/coupon-transfer"
+              element={<AdminRoute><CouponTransfer /></AdminRoute>}
+            />
+            <Route
+              path="/admin/money-transfer"
+              element={<AdminRoute><MoneyTransfer /></AdminRoute>}
+            />
+            <Route
+              path="/admin/activity-log"
+              element={<AdminRoute><AdminDatabase /></AdminRoute>}
+            />
             <Route
               path="/admin/items"
-              element={
-                <AdminRoute>
-                  <AdminItemPage />
-                </AdminRoute>
-              }
+              element={<AdminRoute><AdminItemPage /></AdminRoute>}
             />
-            {/* *** AdminPanel에 classCode 전달 *** */}
+            <Route
+              path="/admin/page"
+              element={<AdminRoute><AdminPage /></AdminRoute>}
+            />
             <Route
               path="/admin-panel"
               element={
                 <AdminRoute>
                   <AdminPanel
                     onClose={() => navigate(-1)}
-                    classCode={userClassCode} // classCode 전달
+                    classCode={userClassCode}
                   />
                 </AdminRoute>
               }
@@ -1059,11 +1358,30 @@ function AppLayoutContent() {
 }
 
 function App() {
+  // 앱 종료 시 캐시 정리
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      // 배치 업데이트 강제 실행
+      if (batchUpdateQueue.size > 0) {
+        processBatchUpdates();
+      }
+      
+      // 캐시 정리
+      userDataCache.clear();
+      cacheTimeouts.forEach(timeout => clearTimeout(timeout));
+      cacheTimeouts.clear();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, []);
+
   return (
     <AuthProvider>
       <ItemProvider>
-        {" "}
-        {/* !! ItemProvider가 classCode를 사용하도록 수정 필요 */}
         <Router>
           <Routes>
             <Route path="/login" element={<LoginRedirect />} />
