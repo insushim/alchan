@@ -2,24 +2,34 @@ name: Scheduled Tasks
 
 on:
   schedule:
-    # 주식 시장 업데이트 - 5분마다 (평일 8시-15시)
-    - cron: '*/5 8-14 * * 1-5'
+    # 주식 시장 업데이트 - 5분마다 (평일 8시-15시 KST = 23시-6시 UTC 전날)
+    - cron: '*/5 23-23 * * 0-4'  # 평일 저녁 (다음날 08시 KST)
+    - cron: '*/5 0-6 * * 1-5'    # 평일 아침 (당일 09-15시 KST)
+
     # 뉴스 생성 - 3분마다 (평일 8시-15시)
-    - cron: '*/3 8-14 * * 1-5'
+    - cron: '*/3 23-23 * * 0-4'
+    - cron: '*/3 0-6 * * 1-5'
+
     # 통계 집계 - 10분마다
     - cron: '*/10 * * * *'
-    # 매일 자정 - 일일 작업 리셋
-    - cron: '0 0 * * *'
-    # 매주 월요일 8:30 - 급여 지급
-    - cron: '30 8 * * 1'
-    # 매주 금요일 8:30 - 임대료 징수
-    - cron: '30 8 * * 5'
-    # 매일 아침 8시 - 사회안전망
-    - cron: '0 8 * * *'
-    # 시장 개장 - 평일 8시
-    - cron: '0 8 * * 1-5'
-    # 시장 폐장 - 평일 15시
-    - cron: '0 15 * * 1-5'
+
+    # 매일 자정 KST (15시 UTC 전날)
+    - cron: '0 15 * * *'
+
+    # 매주 월요일 8:30 KST (23:30 UTC 일요일)
+    - cron: '30 23 * * 0'
+
+    # 매주 금요일 8:30 KST (23:30 UTC 목요일)
+    - cron: '30 23 * * 4'
+
+    # 매일 아침 8시 KST (23시 UTC 전날)
+    - cron: '0 23 * * *'
+
+    # 시장 개장 - 평일 8시 KST (23시 UTC 전날)
+    - cron: '0 23 * * 0-4'
+
+    # 시장 폐장 - 평일 15시 KST (6시 UTC)
+    - cron: '0 6 * * 1-5'
 
   # 수동 실행 옵션
   workflow_dispatch:
@@ -29,28 +39,81 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-
-      - name: Install dependencies
+      - name: Determine tasks to run
+        id: tasks
         run: |
-          cd functions
-          npm ci
+          HOUR=$(date -u +%H)
+          DAY=$(date -u +%u)
+          MINUTE=$(date -u +%M)
 
-      - name: Set up Firebase credentials
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          echo "$FIREBASE_SERVICE_ACCOUNT" > $HOME/service-account.json
-          echo "GOOGLE_APPLICATION_CREDENTIALS=$HOME/service-account.json" >> $GITHUB_ENV
+          # KST 시간 계산 (UTC + 9)
+          KST_HOUR=$(( (HOUR + 9) % 24 ))
 
-      - name: Run scheduled tasks
-        env:
-          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          TASKS='[]'
+
+          # 주식 시장 업데이트 (평일 8-15시 KST, 5분마다)
+          if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 5)) -eq 0 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["updateStocks", "manageStocks", "cleanupStocks"]')
+          fi
+
+          # 뉴스 생성 (평일 8-15시 KST, 3분마다)
+          if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 3)) -eq 0 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["createNews"]')
+          fi
+
+          # 뉴스 정리 (5분마다)
+          if [ $(($MINUTE % 5)) -eq 0 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["cleanupNews", "syncNews"]')
+          fi
+
+          # 클래스 뉴스 정리 (10분마다)
+          if [ $(($MINUTE % 10)) -eq 0 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["cleanupClassNews"]')
+          fi
+
+          # 통계 집계 (10분마다)
+          if [ $(($MINUTE % 10)) -eq 0 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["aggregateStats", "updateClassStats", "updatePortfolio", "aggregateLogs"]')
+          fi
+
+          # 일일 작업 리셋 (자정 KST)
+          if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 10 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["resetDaily"]')
+          fi
+
+          # 주급 지급 (월요일 8:30 KST)
+          if [ $DAY -eq 1 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -ge 30 ] && [ $MINUTE -lt 40 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["paySalaries"]')
+          fi
+
+          # 임대료 징수 (금요일 8:30 KST)
+          if [ $DAY -eq 5 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -ge 30 ] && [ $MINUTE -lt 40 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["collectRent"]')
+          fi
+
+          # 사회안전망 (매일 8시 KST)
+          if [ $KST_HOUR -eq 8 ] && [ $MINUTE -lt 10 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["provideSafety"]')
+          fi
+
+          # 시장 개장 (평일 8시 KST)
+          if [ $DAY -le 5 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -lt 10 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["openMarket"]')
+          fi
+
+          # 시장 폐장 (평일 15시 KST)
+          if [ $DAY -le 5 ] && [ $KST_HOUR -eq 15 ] && [ $MINUTE -lt 10 ]; then
+            TASKS=$(echo $TASKS | jq '. + ["closeMarket"]')
+          fi
+
+          echo "tasks=$TASKS" >> $GITHUB_OUTPUT
+          echo "실행할 작업: $TASKS"
+
+      - name: Call Firebase Function
+        if: steps.tasks.outputs.tasks != '[]'
         run: |
-          node .github/scripts/run-scheduler.js
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_AUTH_TOKEN }}" \
+            -d "{\"tasks\": ${{ steps.tasks.outputs.tasks }}}" \
+            https://asia-northeast3-${{ secrets.FIREBASE_PROJECT_ID }}.cloudfunctions.net/runScheduler

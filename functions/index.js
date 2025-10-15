@@ -4038,3 +4038,8 @@ exports.getUserAssetsData = onCall({
     throw new HttpsError("internal", `자산 데이터 조회 실패: ${error.message}`);
   }
 });
+
+// 스케줄러 HTTP 엔드포인트 (GitHub Actions용)
+const schedulerHttp = require('./scheduler-http');
+exports.runScheduler = schedulerHttp.runScheduler;
+
