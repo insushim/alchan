@@ -625,9 +625,9 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
       await runTransaction(db, async (transaction) => {
         const userRef = doc(db, "users", userId);
         const userSnapshot = await transaction.get(userRef);
-        const currentMoney = userSnapshot.data()?.money ?? 0;
+        const currentCash = userSnapshot.data()?.cash ?? 0;
 
-        if (type !== 'loans' && currentMoney < amount) {
+        if (type !== 'loans' && currentCash < amount) {
           throw new Error("보유 현금이 부족합니다.");
         }
 
@@ -642,7 +642,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         };
 
         transaction.set(doc(collection(db, "users", userId, "products")), newProductData);
-        transaction.update(userRef, { money: increment(type === 'loans' ? amount : -amount) });
+        transaction.update(userRef, { cash: increment(type === 'loans' ? amount : -amount) });
       });
 
       displayMessage("상품 가입이 완료되었습니다.", "success");
@@ -686,7 +686,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
   
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, "users", userId);
-          transaction.update(userRef, { money: increment(isLoan ? -total : total) });
+          transaction.update(userRef, { cash: increment(isLoan ? -total : total) });
           transaction.delete(productRef);
         });
   
@@ -732,14 +732,13 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         await runTransaction(db, async (transaction) => {
           const userRef = doc(db, "users", userId);
           const userSnapshot = await transaction.get(userRef);
-          const currentMoney = userSnapshot.data()?.money ?? 0;
-  
-          if (isLoan && currentMoney < balance) {
-            throw new Error("대출금을 상환하기에 현금이 부족합니다.");
-          }
-  
-          transaction.update(userRef, { money: increment(isLoan ? -balance : balance) });
-          transaction.delete(productRef);
+                  const currentCash = userSnapshot.data()?.cash ?? 0;
+          
+                  if (isLoan && currentCash < balance) {
+                    throw new Error("대출금을 상환하기에 현금이 부족합니다.");
+                  }
+          
+                  transaction.update(userRef, { cash: increment(isLoan ? -balance : balance) });          transaction.delete(productRef);
         });
   
         displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
@@ -763,13 +762,14 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         const userRef = doc(db, "users", userId);
         const parkingRef = doc(db, "users", userId, "financials", "parkingAccount");
         const userSnapshot = await transaction.get(userRef);
-        const currentMoney = userSnapshot.data()?.money ?? 0;
-
-        if (currentMoney < amount) throw new Error("보유 현금이 부족합니다.");
-
-        transaction.update(userRef, { money: increment(-amount) });
-
         const parkingSnapshot = await transaction.get(parkingRef);
+
+        const currentCash = userSnapshot.data()?.cash ?? 0;
+
+        if (currentCash < amount) throw new Error("보유 현금이 부족합니다.");
+
+        transaction.update(userRef, { cash: increment(-amount) });
+
         if (parkingSnapshot.exists()) {
           transaction.update(parkingRef, { balance: increment(amount) });
         } else {
@@ -801,7 +801,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
 
         if (currentParkingBalance < amount) throw new Error("파킹통장 잔액이 부족합니다.");
 
-        transaction.update(userRef, { money: increment(amount) });
+        transaction.update(userRef, { cash: increment(amount) });
         transaction.update(parkingRef, { balance: increment(-amount) });
       });
 
