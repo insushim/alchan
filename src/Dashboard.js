@@ -351,6 +351,7 @@ function Dashboard({ adminTabMode }) {
   const {
     user,
     userDoc,
+    setUserDoc,
     loading: authLoading,
     updateUser,
     isAdmin,
@@ -1026,6 +1027,7 @@ function Dashboard({ adminTabMode }) {
       try {
         const success = await updateUser({ selectedJobIds: idsToSave });
         if (success) {
+          setUserDoc({ ...userDoc, selectedJobIds: idsToSave }); // Optimistic update
           setViewMode("list");
           alert("선택한 직업이 저장되었습니다.");
         } else {

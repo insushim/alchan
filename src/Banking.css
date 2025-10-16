@@ -281,14 +281,7 @@
     font-size: 14px;
   }
 
-  .admin-table,
-  .admin-table thead,
-  .admin-table tbody,
-  .admin-table th,
-  .admin-table td,
-  .admin-table tr {
-    display: block;
-  }
+
 
   .admin-table thead tr {
     position: absolute;

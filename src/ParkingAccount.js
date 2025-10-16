@@ -163,6 +163,7 @@ const calculateCompoundInterest = (principal, dailyRate, days) => {
 
 // 일일 이자 계산
 const calculateDailyInterest = (principal, dailyRate) => {
+  console.log("Calculating daily interest with:", { principal, dailyRate });
   return Math.round(principal * (dailyRate / 100));
 };
 
@@ -176,15 +177,15 @@ const ICON_MAP = {
 const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
   const isMatured = product.maturityDate && isPast(product.maturityDate);
   const daysRemaining = product.maturityDate ? Math.max(0, differenceInDays(product.maturityDate, new Date())) : 0;
-  const dailyRate = product.rate / 365; // 연이율을 일이율로 변환
+  const dailyRate = product.rate; // 연이율을 일이율로 변환
 
   const { interest, total } = calculateCompoundInterest(
     product.balance,
-    product.rate / 365, // 일복리
+    product.rate, // 일복리
     product.termInDays
   );
 
-  const dailyInterestAmount = calculateDailyInterest(product.balance, product.rate / 365);
+  const dailyInterestAmount = calculateDailyInterest(product.balance, product.rate);
 
   return (
     <div style={{
@@ -212,7 +213,7 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
 
       <div style={{fontSize: '15px', color: '#4b5563', marginTop: '16px', display: 'grid', gap: '10px', backgroundColor: 'white', padding: '16px', borderRadius: '8px'}}>
         <div style={{display: 'flex', justifyContent: 'space-between'}}>
-          <span style={{fontWeight: '500'}}>금리 (연):</span>
+          <span style={{fontWeight: '500'}}>금리 (일):</span>
           <span style={{fontWeight: '700', color: '#0369a1'}}>{product.rate}%</span>
         </div>
         <div style={{display: 'flex', justifyContent: 'space-between'}}>
@@ -270,7 +271,7 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
 };
 
 const AvailableProductItem = ({ product, onSubscribe }) => {
-  const dailyRate = product.annualRate / 365;
+  const dailyRate = product.dailyRate;
   const { interest: projectedInterest } = calculateCompoundInterest(100000, dailyRate, product.termInDays);
 
   return (
@@ -294,7 +295,7 @@ const AvailableProductItem = ({ product, onSubscribe }) => {
       <div>
         <div style={{fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '8px'}}>{product.name}</div>
         <div style={{fontSize: '15px', color: '#6b7280', marginBottom: '6px'}}>
-          <strong style={{color: '#0369a1'}}>연 {product.annualRate}%</strong> (기간: {product.termInDays}일)
+          <strong style={{color: '#0369a1'}}>일 {product.dailyRate}%</strong> (기간: {product.termInDays}일)
         </div>
         <div style={{fontSize: '14px', color: '#059669', fontWeight: '600'}}>
           <TrendingUp size={14} style={{display: 'inline', marginRight: '4px'}} />
@@ -368,7 +369,7 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
   if (!isOpen || !product) return null;
 
   const numAmount = parseFloat(amount);
-  const dailyRate = product.annualRate / 365;
+  const dailyRate = product.dailyRate;
   const { interest: projectedInterest, total: projectedTotal } = !isNaN(numAmount) && numAmount > 0
     ? calculateCompoundInterest(numAmount, dailyRate, product.termInDays)
     : { interest: 0, total: 0 };
@@ -381,7 +382,7 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
 
         <div style={{marginBottom: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd'}}>
           <div style={{fontSize: '15px', color: '#0c4a6e', marginBottom: '8px'}}>
-            <strong>금리:</strong> 연 {product.annualRate}% (일복리)
+            <strong>금리:</strong> 일 {product.dailyRate}% (일복리)
           </div>
           <div style={{fontSize: '15px', color: '#0c4a6e'}}>
             <strong>기간:</strong> {product.termInDays}일
@@ -459,7 +460,7 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
           +{formatCurrency(dailyInterest)}원/일
         </div>
         <div style={{fontSize: '14px', marginTop: '6px', opacity: 0.9}}>
-          (연 1% 일복리 기준)
+          (일 1% 복리 기준)
         </div>
       </div>
 
@@ -508,7 +509,7 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
 
 // --- Main Component ---
 const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts = [], loanProducts = [] }) => {
-  const { user, userDoc, loading, refreshUserDocument } = auth;
+  const { user, userDoc, loading, refreshUserDocument, isAdmin } = auth;
   const userId = user?.uid;
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -544,7 +545,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           if (!lastInterestDate || !isToday(lastInterestDate)) {
             const daysToApply = lastInterestDate ? differenceInDays(new Date(), lastInterestDate) : 1;
             if (daysToApply > 0) {
-              const dailyRate = (parkingRateProduct.annualRate || 1) / 365; // 기본 1%
+              const dailyRate = (parkingRateProduct.dailyRate || 0.0027); // 기본 1% 연이율을 일로 환산한 값과 유사하게
               const { interest } = calculateCompoundInterest(data.balance || 0, dailyRate, daysToApply);
 
               if (interest > 0) {
@@ -572,7 +573,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         setParkingBalance(balance);
 
         // 일일 이자 계산 (1% 기준)
-        const dailyRate = 1 / 365;
+        const dailyRate = 1; // 1% 일일 이자율
         const dailyInterest = calculateDailyInterest(balance, dailyRate);
         setParkingDailyInterest(dailyInterest);
       }
@@ -633,7 +634,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         const newProductData = {
           name: product.name,
           termInDays: product.termInDays,
-          rate: product.annualRate, // 연이율 저장
+          rate: product.dailyRate, // 일일이율 저장
           balance: amount,
           startDate: serverTimestamp(),
           maturityDate: new Date(Date.now() + product.termInDays * 24 * 60 * 60 * 1000),
@@ -656,72 +657,101 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
   };
 
   // 만기 수령
-  const handleMaturity = async (product) => {
-    const isLoan = product.type === 'loan';
-    const dailyRate = product.rate / 365;
-    const { total } = calculateCompoundInterest(product.balance, dailyRate, product.termInDays);
-
-    if (!window.confirm(`만기 수령: 원금 ${formatCurrency(product.balance)}원 + 이자 ${formatCurrency(total - product.balance)}원 = ${formatCurrency(total)}원을 수령하시겠습니까?`)) {
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", userId);
-        const productRef = doc(db, "users", userId, "products", product.id);
-
-        transaction.update(userRef, { money: increment(isLoan ? -total : total) });
-        transaction.delete(productRef);
-      });
-
-      displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
-      loadAllData();
-      if (refreshUserDocument) refreshUserDocument();
-    } catch (error) {
-      displayMessage(`처리 오류: ${error.message}`, "error");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+    const handleMaturity = async (product) => {
+      const { id, name, type, balance, termInDays, rate } = product;
+      const isLoan = type === 'loan';
+  
+      if (!userId) {
+        displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
+        return;
+      }
+  
+      const dailyRate = rate;
+      const { total } = calculateCompoundInterest(balance, dailyRate, termInDays);
+  
+      if (!window.confirm(`만기 수령: 원금 ${formatCurrency(balance)}원 + 이자 ${formatCurrency(total - balance)}원 = ${formatCurrency(total)}원을 수령하시겠습니까?`)) {
+        return;
+      }
+  
+      setIsProcessing(true);
+      try {
+        let productRef;
+        try {
+          console.log(`Creating doc ref with: userId=${userId}, productId=${id}`);
+          productRef = doc(db, "users", userId, "products", String(id));
+        } catch (e) {
+          console.error("Error creating doc reference:", e);
+          throw new Error("문서 참조 생성 중 오류가 발생했습니다.");
+        }
+  
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, "users", userId);
+          transaction.update(userRef, { money: increment(isLoan ? -total : total) });
+          transaction.delete(productRef);
+        });
+  
+        displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
+        loadAllData();
+        if (refreshUserDocument) refreshUserDocument();
+      } catch (error) {
+        displayMessage(`처리 오류: ${error.message}`, "error");
+      } finally {
+        setIsProcessing(false);
+      }
+    };
 
   // 중도 해지
-  const handleCancelEarly = async (product) => {
-    const isLoan = product.type === 'loan';
-
-    if (!window.confirm(
-      isLoan
-        ? `대출금 ${formatCurrency(product.balance)}원을 상환하시겠습니까?`
-        : `'${product.name}'을(를) 중도 해지하시겠습니까? (이자 없이 원금만 반환됩니다)`
-    )) {
-      return;
-    }
-
-    setIsProcessing(true);
-    try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", userId);
-        const productRef = doc(db, "users", userId, "products", product.id);
-        const userSnapshot = await transaction.get(userRef);
-        const currentMoney = userSnapshot.data()?.money ?? 0;
-
-        if (isLoan && currentMoney < product.balance) {
-          throw new Error("대출금을 상환하기에 현금이 부족합니다.");
+    const handleCancelEarly = async (product) => {
+      const { id, name, type, balance } = product;
+      const isLoan = type === 'loan';
+  
+      if (!userId) {
+        displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
+        return;
+      }
+  
+      if (!window.confirm(
+        isLoan
+          ? `대출금 ${formatCurrency(balance)}원을 상환하시겠습니까?`
+          : `'${name}'을(를) 중도 해지하시겠습니까? (이자 없이 원금만 반환됩니다)`
+      )) {
+        return;
+      }
+  
+      setIsProcessing(true);
+      try {
+        let productRef;
+        try {
+          console.log(`Creating doc ref with: userId=${userId}, productId=${id}`);
+          productRef = doc(db, "users", userId, "products", String(id));
+        } catch (e) {
+          console.error("Error creating doc reference:", e);
+          throw new Error("문서 참조 생성 중 오류가 발생했습니다.");
         }
-
-        transaction.update(userRef, { money: increment(isLoan ? -product.balance : product.balance) });
-        transaction.delete(productRef);
-      });
-
-      displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
-      loadAllData();
-      if (refreshUserDocument) refreshUserDocument();
-    } catch (error) {
-      displayMessage(`처리 오류: ${error.message}`, "error");
-    } finally {
-      setIsProcessing(false);
-    }
-  };
+  
+        await runTransaction(db, async (transaction) => {
+          const userRef = doc(db, "users", userId);
+          const userSnapshot = await transaction.get(userRef);
+          const currentMoney = userSnapshot.data()?.money ?? 0;
+  
+          if (isLoan && currentMoney < balance) {
+            throw new Error("대출금을 상환하기에 현금이 부족합니다.");
+          }
+  
+          transaction.update(userRef, { money: increment(isLoan ? -balance : balance) });
+          transaction.delete(productRef);
+        });
+  
+        displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
+        loadAllData();
+        if (refreshUserDocument) refreshUserDocument();
+      } catch (error) {
+        console.error("중도 해지 처리 중 오류:", error);
+        displayMessage(`처리 오류: ${error.message}`, "error");
+      } finally {
+        setIsProcessing(false);
+      }
+    };
 
   const handleParkingDeposit = async (amountStr) => {
     const amount = parseFloat(amountStr);
@@ -785,6 +815,30 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
     }
   };
 
+  const handleAdminDeleteSubscribedProduct = async (product) => {
+    if (!isAdmin()) {
+      displayMessage("관리자 권한이 필요합니다.", "error");
+      return;
+    }
+
+    if (!window.confirm(`정말로 이 상품(${product.name})을 강제로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const productRef = doc(db, "users", product.userId, "products", product.id);
+      await deleteDoc(productRef);
+      displayMessage("상품이 강제로 삭제되었습니다.", "success");
+      loadAllData();
+    } catch (error) {
+      console.error("관리자 상품 삭제 중 오류:", error);
+      displayMessage(`삭제 처리 오류: ${error.message}`, "error");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (loading) return <div style={styles.container}>금융 정보를 불러오는 중입니다...</div>;
   if (!user) return <div style={styles.container}>로그인이 필요합니다.</div>;
 
@@ -807,6 +861,8 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           onSubscribe={(p) => handleOpenModal(p, 'deposits')}
           onCancel={handleCancelEarly}
           onMaturity={handleMaturity}
+          isAdmin={isAdmin()}
+          onAdminDelete={handleAdminDeleteSubscribedProduct}
         />
         <ProductSection
           title="적금"
@@ -816,6 +872,8 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           onSubscribe={(p) => handleOpenModal(p, 'savings')}
           onCancel={handleCancelEarly}
           onMaturity={handleMaturity}
+          isAdmin={isAdmin()}
+          onAdminDelete={handleAdminDeleteSubscribedProduct}
         />
         <ProductSection
           title="대출"
@@ -825,6 +883,8 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           onSubscribe={(p) => handleOpenModal(p, 'loans')}
           onCancel={handleCancelEarly}
           onMaturity={handleMaturity}
+          isAdmin={isAdmin()}
+          onAdminDelete={handleAdminDeleteSubscribedProduct}
         />
       </div>
       <SubscriptionModal

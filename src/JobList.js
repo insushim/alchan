@@ -45,7 +45,7 @@ export default function JobList({
           borderBottom: "1px solid #e5e7eb",
         }}
       >
-        <div style={{ fontWeight: "600", fontSize: "14px" }}>{job.title}</div>
+        <div style={{ fontWeight: "600", fontSize: "16px" }}>{job.title}</div>
         {/* 관리자 모드에서 직업 수정/삭제 버튼 */}
         {isAdmin && (
           <div>

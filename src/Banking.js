@@ -17,7 +17,7 @@ const convertAdminProductsToAccountFormat = (adminProducts) => {
     id: product.id,
     name: product.name,
     dailyRate:
-      product.annualRate !== undefined && !isNaN(product.annualRate) ? parseFloat(product.annualRate) : 0,
+      product.dailyRate !== undefined && !isNaN(product.dailyRate) ? parseFloat(product.dailyRate) : 0,
     termInDays:
       product.termInDays !== undefined && !isNaN(product.termInDays) ? parseInt(product.termInDays) : 1,
     minAmount:
@@ -28,6 +28,14 @@ const convertAdminProductsToAccountFormat = (adminProducts) => {
 };
 
 import "./Banking.css";
+
+const styles = {
+  adminSection: {
+    marginBottom: "30px",
+    paddingBottom: "20px",
+    borderBottom: "1px solid #eee",
+  },
+};
 
 const Banking = () => {
   const auth = useAuth();
@@ -145,9 +153,9 @@ const Banking = () => {
                 ? 1
                 : 0
               : numValue;
-        } else if (field === "annualRate") {
+        } else if (field === "dailyRate") {
           const dailyRateValue = parseFloat(value);
-          updatedProduct.annualRate =
+          updatedProduct.dailyRate =
             isNaN(dailyRateValue) || dailyRateValue < 0 ? 0 : dailyRateValue;
         } else if (field === "name") {
           updatedProduct[field] = value;
@@ -227,7 +235,7 @@ const Banking = () => {
           ? "적금"
           : "대출"
       } 상품`,
-      annualRate: 0.01,
+      dailyRate: 0.01,
       termInDays: 365,
       minAmount: type === "loans" ? 0 : 100000,
       maxAmount: type === "loans" ? 1000000 : 0,
@@ -418,7 +426,7 @@ const Banking = () => {
                           <td className="admin-td">
                             <input
                               type="text"
-                              value={p.name}
+                              value={p.name || ''}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "savings",
@@ -435,7 +443,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="1"
-                              value={p.termInDays}
+                              value={p.termInDays || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "savings",
@@ -453,12 +461,12 @@ const Banking = () => {
                               type="number"
                               step="0.001"
                               min="0"
-                              value={p.annualRate}
+                              value={p.dailyRate || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "savings",
                                   index,
-                                  "annualRate",
+                                  "dailyRate",
                                   e.target.value
                                 )
                               }
@@ -471,7 +479,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="0"
-                              value={p.minAmount}
+                              value={p.minAmount || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "savings",
@@ -547,7 +555,7 @@ const Banking = () => {
                           <td className="admin-td">
                             <input
                               type="text"
-                              value={p.name}
+                              value={p.name || ''}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "installments",
@@ -564,7 +572,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="1"
-                              value={p.termInDays}
+                              value={p.termInDays || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "installments",
@@ -582,12 +590,12 @@ const Banking = () => {
                               type="number"
                               step="0.001"
                               min="0"
-                              value={p.annualRate}
+                              value={p.dailyRate || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "installments",
                                   index,
-                                  "annualRate",
+                                  "dailyRate",
                                   e.target.value
                                 )
                               }
@@ -600,7 +608,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="0"
-                              value={p.minAmount}
+                              value={p.minAmount || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "installments",
@@ -676,7 +684,7 @@ const Banking = () => {
                           <td className="admin-td">
                             <input
                               type="text"
-                              value={p.name}
+                              value={p.name || ''}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "loans",
@@ -693,7 +701,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="1"
-                              value={p.termInDays}
+                              value={p.termInDays || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "loans",
@@ -711,12 +719,12 @@ const Banking = () => {
                               type="number"
                               step="0.001"
                               min="0"
-                              value={p.annualRate}
+                              value={p.dailyRate || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "loans",
                                   index,
-                                  "annualRate",
+                                  "dailyRate",
                                   e.target.value
                                 )
                               }
@@ -729,7 +737,7 @@ const Banking = () => {
                             <input
                               type="number"
                               min="0"
-                              value={p.maxAmount}
+                              value={p.maxAmount || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
                                   "loans",

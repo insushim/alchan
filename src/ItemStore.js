@@ -423,11 +423,7 @@ const ItemStore = () => {
                               className={`item-price ${isMobile ? "mb-2" : ""}`}
                             >
                               {item.price?.toLocaleString() || 0} 원
-                              {purchaseQuantities[item.id] > 1 &&
-                                ` × ${purchaseQuantities[item.id]} = ${(
-                                  item.price *
-                                  (purchaseQuantities[item.id] || 1)
-                                ).toLocaleString()} 원`}
+                              
                             </span>
                             <div className="quantity-and-buy-container">
                               <input

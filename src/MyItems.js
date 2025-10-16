@@ -63,17 +63,6 @@ const MyItems = () => {
 
   const navigate = useNavigate();
 
-  // 디버깅: classmates 데이터 확인
-  useEffect(() => {
-    console.log('[MyItems] 컴포넌트 렌더링됨 - classmates 상태:', {
-      user: !!user,
-      userDoc: !!userDoc,
-      classmates: classmates,
-      classmatesCount: classmates?.length,
-      users: users?.length
-    });
-  }, [user, userDoc, classmates, users]);
-
   const [notification, setNotification] = useState(null);
   const showNotification = (type, message) => {
     setNotification({ type, message });
@@ -81,21 +70,16 @@ const MyItems = () => {
   };
 
   const groupedUserItems = useMemo(() => {
-    console.log('[MyItems] groupedUserItems 계산 시작, userItems:', userItems?.length, userItems);
     if (!userItems || userItems.length === 0) {
-      console.log('[MyItems] userItems 비어있음');
       return [];
     }
 
     const itemsMap = new Map();
 
     userItems.forEach(item => {
-      // Validate item structure
       if (!item || !item.itemId || typeof item.quantity !== 'number' || item.quantity <= 0) {
-        console.warn('[MyItems] 잘못된 아이템 데이터 무시:', item);
         return;
       }
-      console.log('[MyItems] 유효한 아이템:', item.itemId, item.name, item.quantity);
 
       const key = item.itemId;
 
@@ -103,7 +87,6 @@ const MyItems = () => {
         const existingGroup = itemsMap.get(key);
         existingGroup.totalQuantity += item.quantity;
         existingGroup.sourceDocs.push(item);
-        // Update display info with more complete data if available
         if (item.name && !existingGroup.displayInfo.name) {
           existingGroup.displayInfo.name = item.name;
         }
@@ -130,7 +113,6 @@ const MyItems = () => {
       }
     });
 
-    // Sort by item name for consistent display
     return Array.from(itemsMap.values()).sort((a, b) =>
       a.displayInfo.name.localeCompare(b.displayInfo.name)
     );
@@ -213,30 +195,19 @@ const MyItems = () => {
   };
 
   const handleOpenGiftModal = (group) => {
-    console.log('[MyItems] handleOpenGiftModal 호출됨', {
-      user: !!user,
-      classmates: classmates?.length,
-      group: group?.displayInfo?.name,
-      totalQuantity: group?.totalQuantity
-    });
-
     if (!user) {
-      console.error('[MyItems] 사용자가 로그인하지 않음');
       showNotification("error", "로그인이 필요합니다.");
       return;
     }
     if (!classmates || classmates.length === 0) {
-      console.error('[MyItems] 친구 목록이 비어있음:', classmates);
       showNotification("error", "선물할 친구 목록을 불러올 수 없습니다.");
       return;
     }
     if (!group || group.totalQuantity <= 0) {
-      console.error('[MyItems] 아이템 그룹이 없거나 수량이 0:', group);
       showNotification("error", "선물할 아이템이 없습니다.");
       return;
     }
 
-    console.log('[MyItems] 선물 모달 열기 성공');
     setGiftRecipientUid("");
     setGiftQuantity(1);
     setGiftModal({ isOpen: true, item: group });
@@ -303,7 +274,6 @@ const MyItems = () => {
       return;
     }
 
-    // Check if we have enough items to use
     if (group.totalQuantity < quantityToUse) {
       showNotification("error", "보유 수량이 부족합니다.");
       return;
@@ -313,21 +283,13 @@ const MyItems = () => {
       let remainingToUse = quantityToUse;
       const results = [];
 
-      // Sort sourceDocs by quantity (use from smallest quantities first to consolidate)
       const sortedDocs = [...group.sourceDocs].sort((a, b) => a.quantity - b.quantity);
 
       for (const doc of sortedDocs) {
         if (remainingToUse <= 0) break;
 
         const amountToUse = Math.min(doc.quantity, remainingToUse);
-        console.log(`[MyItems] 아이템 사용 시도:`, {
-          docId: doc.id,
-          itemName: doc.name || group.displayInfo.name,
-          amountToUse,
-          docQuantity: doc.quantity,
-          remainingToUse
-        });
-
+        
         const result = await useItem(doc.id, amountToUse);
         results.push(result);
 
@@ -345,7 +307,6 @@ const MyItems = () => {
       showNotification("success", `${group.displayInfo.name} ${quantityToUse}개를 사용했습니다.`);
       handleCloseUseItemModal();
 
-      // Track recently used items
       setRecentlyUsedItems(prev => ({
         ...prev,
         [group.displayInfo.itemId]: {
@@ -359,7 +320,6 @@ const MyItems = () => {
       }));
 
     } catch (error) {
-      console.error("아이템 사용 중 예외 발생:", error);
       showNotification("error", `아이템 사용 중 오류가 발생했습니다: ${error.message}`);
     }
   };
@@ -394,10 +354,8 @@ const MyItems = () => {
       const recipientQuerySnapshot = await getDocs(q);
       const recipientItemDocRef = recipientQuerySnapshot.empty ? null : recipientQuerySnapshot.docs[0].ref;
 
-      // 🔥 트랜잭션 전 현재 상태 저장 (롤백용)
       const originalUserItems = [...userItems];
 
-      // 🔥 즉시 로컬 상태 업데이트 (Firestore 읽기 없이)
       const updatedUserItems = [];
       let remainingToDeduct = quantity;
 
@@ -409,7 +367,6 @@ const MyItems = () => {
           if (newQuantity > 0) {
             updatedUserItems.push({ ...item, quantity: newQuantity });
           }
-          // quantity가 0이면 아이템을 목록에서 제거 (push 안함)
 
           remainingToDeduct -= deductAmount;
         } else {
@@ -417,7 +374,6 @@ const MyItems = () => {
         }
       }
 
-      // 즉시 UI 업데이트 (ItemContext의 상태를 직접 업데이트)
       if (updateLocalUserItems) {
         updateLocalUserItems(updatedUserItems);
       }
@@ -458,20 +414,16 @@ const MyItems = () => {
         }
       });
 
-      console.log('[MyItems] ✅ 선물 트랜잭션 성공 - Firestore 동기화 완료');
       showNotification("success", `선물하기가 완료되었습니다.`);
       handleCloseGiftModal();
 
-      // 백그라운드에서 실제 데이터 동기화 (선택적)
       setTimeout(() => {
         if (refreshData) refreshData();
       }, 2000);
 
     } catch (error) {
-      console.error('[MyItems] ❌ 선물 트랜잭션 실패:', error);
       showNotification("error", `선물하기 오류: ${error.message}`);
 
-      // 트랜잭션 실패 시 실제 데이터로 복구
       if (refreshData) await refreshData();
     } finally {
       setIsGifting(false);
@@ -493,16 +445,8 @@ const MyItems = () => {
         if(remainingToSell <= 0) break;
         const amountToSell = Math.min(doc.quantity, remainingToSell);
 
-        console.log(`[MyItems] 아이템 판매 시도:`, {
-          docId: doc.id,
-          itemName: doc.name || group.displayInfo.name,
-          amountToSell,
-          price,
-          sourceCollection: doc.source || 'inventory'
-        });
-
         const result = await listItemForSale({
-          itemId: doc.id,  // Changed from inventoryItemId to itemId
+          itemId: doc.id,
           quantity: amountToSell,
           price,
         });
@@ -523,7 +467,6 @@ const MyItems = () => {
       }, 500);
 
     } catch(error) {
-      console.error('[MyItems] 판매 등록 오류:', error);
       showNotification("error", `시장 판매 등록 중 오류: ${error.message}`);
     }
   };
@@ -580,16 +523,11 @@ const MyItems = () => {
                         </div>
                         <div className="my-item-actions">
                           <button className="use-item-button" onClick={() => {
-                            console.log('[MyItems] 사용하기 버튼 클릭됨');
                             handleOpenUseItemModal(group);
                           }}>사용하기</button>
                           <button
                             className="gift-item-button"
                             onClick={() => {
-                              console.log('[MyItems] 선물하기 버튼 클릭됨', {
-                                disabled: !classmates || classmates.length === 0,
-                                classmatesCount: classmates?.length
-                              });
                               handleOpenGiftModal(group);
                             }}
                             disabled={!classmates || classmates.length === 0}
@@ -597,7 +535,6 @@ const MyItems = () => {
                             선물하기
                           </button>
                           <button className="sell-to-market-button" onClick={() => {
-                            console.log('[MyItems] 시장에 팔기 버튼 클릭됨');
                             handleOpenSellToMarketModal(group);
                           }}>시장에 팔기</button>
                         </div>
@@ -713,4 +650,4 @@ const MyItems = () => {
   );
 };
 
-export default MyItems;
+export default React.memo(MyItems);

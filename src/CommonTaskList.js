@@ -80,7 +80,7 @@ const styles = {
     padding: "10px",
     display: "grid",
     // gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", // 반응형 그리드 (선택 사항)
-    gridTemplateColumns: "repeat(2, 1fr)", // 기존 2열 그리드 유지
+    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", // 반응형 그리드 (선택 사항)
     gap: "12px",
   },
 };

@@ -60,7 +60,7 @@ export default function MyAssets() {
   const CACHE_DURATION = 5 * 60 * 1000; // 5분 (MyAssets 전용)
 
   const currentGoalId = currentUserClassCode
-    ? `${currentUserClassCode}_goal`
+    ? `${currentUserClassCode}_goal` 
     : null;
 
   const [classCouponGoal, setClassCouponGoal] = useState(1000);
@@ -241,7 +241,7 @@ export default function MyAssets() {
       // 동기화 완료 표시
       const updatedTransactions = pendingTransactions.map(tx => 
         unsyncedTransactions.find(utx => utx.id === tx.id) 
-          ? { ...tx, synced: true }
+          ? { ...tx, synced: true } 
           : tx
       );
 
@@ -702,7 +702,7 @@ export default function MyAssets() {
 
     if (
       window.confirm(
-        `${
+        `${ 
           recipientUser.name || recipientUser.nickname || "사용자"
         }님에게 ${amount.toLocaleString()}원을 송금하시겠습니까?`
       )
@@ -1154,7 +1154,7 @@ export default function MyAssets() {
         <TransferModal
           showTransferModal={showTransferModal}
           setShowTransferModal={setShowTransferModal}
-          recipients={classmates} // '나'를 제외한 학급 친구 목록
+          recipients={classmates}
           transferRecipient={transferRecipient}
           setTransferRecipient={setTransferRecipient}
           transferAmount={transferAmount}

@@ -32,6 +32,13 @@ import {
 import "./ItemMarket.css";
 import { formatKoreanCurrency } from './numberFormatter';
 
+const formatDate = (date) => {
+  if (!date) return '알 수 없음';
+  if (date.toDate) return date.toDate().toLocaleDateString(); // Firestore Timestamp
+  if (date.toLocaleDateString) return date.toLocaleDateString(); // JavaScript Date
+  return '알 수 없음';
+};
+
 // 제안하기 모달 컴포넌트
 const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
   const [proposalPrice, setProposalPrice] = useState("");
@@ -484,6 +491,7 @@ const ItemMarket = () => {
     respondToOffer,
     listItemForSale,
     cancelSale,
+    adminDeleteItem,
     userItems
   } = useItems();
 
@@ -495,6 +503,7 @@ const ItemMarket = () => {
   const [activeTab, setActiveTab] = useState("market");
   const [selectedCategory, setSelectedCategory] = useState("전체");
   const [searchTerm, setSearchTerm] = useState("");
+  const [isPurchasing, setIsPurchasing] = useState({});
 
   // ⭐️ [신규] 시세 조회를 위한 상태 추가
   const [marketSummary, setMarketSummary] = useState(null);
@@ -575,62 +584,11 @@ const ItemMarket = () => {
       return;
     }
 
-    const item = items.find(i => i.id === proposalData.itemId);
-    if (!item) {
-      alert("상품을 찾을 수 없습니다.");
-      return;
-    }
-
-    if (item.sellerId === currentUserId) {
-      alert("본인이 등록한 상품에는 제안할 수 없습니다.");
-      return;
-    }
-
-    const existingProposal = proposals.find(p => 
-      p.itemId === proposalData.itemId && 
-      p.buyerId === currentUserId && 
-      p.status === "pending"
-    );
-
-    if (existingProposal) {
-      alert("이미 이 상품에 대한 제안이 진행 중입니다.");
-      return;
-    }
-
     try {
-      const proposalsRef = collection(db, "classes", classCode, "marketProposals");
-      
-      const proposalDocData = {
-        ...proposalData,
-        buyerId: currentUserId,
-        buyerName: currentUser.name || currentUser.displayName || "익명",
-        sellerId: item.sellerId,
-        sellerName: item.sellerName,
-        itemName: item.itemName,
-        originalPrice: item.price || item.totalPrice || 0,
-        status: "pending",
-        createdAt: serverTimestamp(),
-        classCode: classCode,
-      };
-      
-      const docRef = await addDoc(proposalsRef, proposalDocData);
-
-      // 로컬 상태 즉시 업데이트
-      const newProposal = {
-        id: docRef.id,
-        ...proposalDocData,
-        createdAt: new Date()
-      };
-      
-      setProposals(prev => {
-        const updated = [newProposal, ...prev];
-        setLocalDataCache(prevCache => ({
-          ...prevCache,
-          proposals: { data: updated, timestamp: Date.now() }
-        }));
-        return updated;
-      });
-
+      const result = await makeOffer(proposalData);
+      if (!result.success) {
+        throw new Error(result.message || "제안에 실패했습니다.");
+      }
       alert("제안이 성공적으로 전송되었습니다.");
       setShowProposalModal(false);
       setSelectedItem(null);
@@ -641,6 +599,8 @@ const ItemMarket = () => {
 
   // 바로 구매 처리 (최적화: 트랜잭션 후 로컬 상태 즉시 업데이트)
   const handleDirectPurchase = async (item) => {
+    if (isPurchasing[item.id]) return; // Prevent double-clicks
+
     if (!currentUserId) {
       alert("로그인이 필요합니다.");
       return;
@@ -660,6 +620,8 @@ const ItemMarket = () => {
       return;
     }
 
+    setIsPurchasing(prev => ({ ...prev, [item.id]: true })); // Set purchasing state
+
     try {
       const result = await buyMarketItem(item.id);
       if (!result.success) {
@@ -668,8 +630,14 @@ const ItemMarket = () => {
       alert("구매가 완료되었습니다!");
       refreshData(); // 데이터 새로고침
     } catch (error) {
-      alert("구매 중 오류가 발생했습니다: " + error.message);
+      if (error.message.includes("409")) { // Check for 409 conflict
+        alert("이미 판매되었거나 구매할 수 없는 상품입니다.");
+      } else {
+        alert("구매 중 오류가 발생했습니다: " + error.message);
+      }
       refreshData(); // 오류 발생 시에도 데이터 동기화를 위해 새로고침
+    } finally {
+      setIsPurchasing(prev => ({ ...prev, [item.id]: false })); // Reset purchasing state
     }
   };
 
@@ -918,7 +886,30 @@ const ItemMarket = () => {
 
       alert("상품이 삭제되어 인벤토리로 복구되었습니다.");
     } catch (error) {
-      alert("상품 삭제 중 오류가 발생했습니다: " + error.message);
+      alert("상품 삭제 중 오류이 발생했습니다: " + error.message);
+    }
+  };
+
+  const handleAdminDeleteItem = async (listingId) => {
+    if (!auth.isAdmin()) {
+      alert("관리자 권한이 필요합니다.");
+      return;
+    }
+
+    if (!window.confirm("정말로 이 상품을 강제로 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+      return;
+    }
+
+    try {
+      const result = await adminDeleteItem(listingId);
+      if (!result.success) {
+        throw new Error(result.message || "삭제에 실패했습니다.");
+      }
+      alert("상품이 강제로 삭제되었습니다.");
+      refreshData();
+    } catch (error) {
+      alert("삭제 중 오류가 발생했습니다: " + error.message);
+      refreshData();
     }
   };
 
@@ -1056,26 +1047,36 @@ const ItemMarket = () => {
                         <p className="item-seller">판매자: {getSellerName(item)}</p>
                         <p className="item-category">{item.category || item.itemType || "기타"}</p>
                       </div>
-                      {item.sellerId !== currentUserId && (
-                        <div className="item-actions">
+                      <div className="item-actions">
+                        {item.sellerId !== currentUserId && (
+                          <>
+                            <button
+                              onClick={() => handleDirectPurchase(item)}
+                              className="buy-button"
+                              disabled={isPurchasing[item.id] || !currentUser || (currentUser.cash || 0) < (item.price || item.totalPrice || 0)}
+                            >
+                              {isPurchasing[item.id] ? "구매 중..." : "바로 구매"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedItem(item);
+                                setShowProposalModal(true);
+                              }}
+                              className="propose-button"
+                            >
+                              제안하기
+                            </button>
+                          </>
+                        )}
+                        {auth.isAdmin() && (
                           <button
-                            onClick={() => handleDirectPurchase(item)}
-                            className="buy-button"
-                            disabled={!currentUser || (currentUser.cash || 0) < (item.price || item.totalPrice || 0)}
+                            onClick={() => handleAdminDeleteItem(item.id)}
+                            className="delete-button"
                           >
-                            바로 구매
+                            관리자 삭제
                           </button>
-                          <button
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setShowProposalModal(true);
-                            }}
-                            className="propose-button"
-                          >
-                            제안하기
-                          </button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1123,7 +1124,7 @@ const ItemMarket = () => {
                       </span>
                       {item.isLegacy && <span className="legacy-badge">기존 상품</span>}
                       {item.soldAt && (
-                        <p>판매일: {item.soldAt.toDate?.().toLocaleDateString()}</p>
+                        <p>판매일: {formatDate(item.soldAt)}</p>
                       )}
                     </div>
                     <div className="item-actions">
@@ -1163,7 +1164,7 @@ const ItemMarket = () => {
                         <p>제안 가격: <strong>{proposal.proposedPrice.toLocaleString()}원</strong></p>
                         <p>원래 가격: {proposal.originalPrice.toLocaleString()}원</p>
                         {proposal.message && <p>메시지: "{proposal.message}"</p>}
-                        <p>제안일: {proposal.createdAt.toLocaleDateString()}</p>
+                        <p>제안일: {formatDate(proposal.createdAt)}</p>
                         <p>상태: <span className={`status ${proposal.status}`}>
                           {proposal.status === "pending" ? "대기중" : 
                            proposal.status === "accepted" ? "수락됨" : "거절됨"}
@@ -1203,13 +1204,13 @@ const ItemMarket = () => {
                         <p>제안 가격: <strong>{(proposal.proposedPrice || 0).toLocaleString()}원</strong></p>
                         <p>원래 가격: {(proposal.originalPrice || 0).toLocaleString()}원</p>
                         {proposal.message && <p>메시지: "{proposal.message}"</p>}
-                        <p>제안일: {proposal.createdAt?.toDate?.()?.toLocaleDateString() || proposal.createdAt?.toLocaleDateString?.() || '알 수 없음'}</p>
+                        <p>제안일: {formatDate(proposal.createdAt)}</p>
                         <p>상태: <span className={`status ${proposal.status}`}>
                           {proposal.status === "pending" ? "대기중" :
                            proposal.status === "accepted" ? "수락됨" : "거절됨"}
                         </span></p>
                         {proposal.acceptedAt && (
-                          <p>처리일: {proposal.acceptedAt.toDate?.().toLocaleDateString()}</p>
+                          <p>처리일: {formatDate(proposal.acceptedAt)}</p>
                         )}
                       </div>
                     </div>
