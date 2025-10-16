@@ -2,7 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import ParkingAccount from "./ParkingAccount";
-import { getBankingProducts, updateBankingProducts } from "./firebase";
+import { getBankingProducts, updateBankingProducts, db } from "./firebase";
+import { collection, query, where, getDocs, collectionGroup, doc, deleteDoc } from "firebase/firestore";
 import { formatKoreanCurrency } from './numberFormatter';
 
 const convertAdminProductsToAccountFormat = (adminProducts) => {
@@ -49,6 +50,97 @@ const Banking = () => {
     []
   );
   const [parkingLoanProducts, setParkingLoanProducts] = useState([]);
+
+  // 유저별 가입 상품 관리
+  const [allUserProducts, setAllUserProducts] = useState([]);
+
+  // 모든 유저의 가입 상품 로드
+  const loadAllUserProducts = async () => {
+    if (!auth?.userDoc?.classCode || !(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // 먼저 해당 클래스의 모든 유저 조회
+      const usersQuery = query(
+        collection(db, "users"),
+        where("classCode", "==", auth.userDoc.classCode)
+      );
+      const usersSnapshot = await getDocs(usersQuery);
+
+      const userMap = {};
+      usersSnapshot.forEach((doc) => {
+        userMap[doc.id] = {
+          id: doc.id,
+          name: doc.data().name || doc.data().nickname || "알 수 없음",
+          ...doc.data()
+        };
+      });
+
+      // 각 유저의 상품 조회
+      const allProducts = [];
+      for (const userId of Object.keys(userMap)) {
+        const productsQuery = collection(db, "users", userId, "products");
+        const productsSnapshot = await getDocs(productsQuery);
+
+        productsSnapshot.forEach((productDoc) => {
+          const productData = productDoc.data();
+          allProducts.push({
+            id: productDoc.id,
+            userId: userId,
+            userName: userMap[userId].name,
+            ...productData,
+            maturityDate: productData.maturityDate?.toDate ? productData.maturityDate.toDate() : productData.maturityDate
+          });
+        });
+      }
+
+      setAllUserProducts(allProducts);
+      console.log("유저 상품 로드 완료:", allProducts);
+    } catch (error) {
+      console.error("유저 상품 로드 중 오류:", error);
+      setMessage("유저 상품 로드 중 오류가 발생했습니다.");
+      setMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // 관리자가 유저 상품 강제 삭제
+  const handleAdminDeleteUserProduct = async (product) => {
+    if (!(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")) {
+      alert("관리자 권한이 필요합니다.");
+      return;
+    }
+
+    if (!window.confirm(`'${product.userName}'님의 '${product.name}' 상품을 강제로 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) {
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const productRef = doc(db, "users", product.userId, "products", product.id);
+      await deleteDoc(productRef);
+
+      setMessage("상품이 삭제되었습니다.");
+      setMessageType("success");
+
+      // 목록 새로고침
+      await loadAllUserProducts();
+
+      setTimeout(() => {
+        setMessage(null);
+        setMessageType("");
+      }, 3000);
+    } catch (error) {
+      console.error("상품 삭제 중 오류:", error);
+      setMessage(`삭제 중 오류가 발생했습니다: ${error.message}`);
+      setMessageType("error");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const [formattedSavingsProducts, setFormattedSavingsProducts] = useState([]);
   const [formattedInstallmentProducts, setFormattedInstallmentProducts] =
@@ -341,16 +433,6 @@ const Banking = () => {
           <div className="logo-circle">B</div>
           <h1 className="bank-title">통합 금융 관리</h1>
         </div>
-        {auth.user &&
-          (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
-            <button
-              onClick={() =>
-                setActiveTab(activeTab === "admin" ? "parking" : "admin")
-              }
-              className={`admin-button ${activeTab === "admin" ? "admin-active" : "admin-inactive"}`}>
-              {activeTab === "admin" ? "사용자 화면 보기" : "관리자 모드"}
-            </button>
-          )}
       </div>
 
       <div className="content-container">
@@ -365,14 +447,27 @@ const Banking = () => {
             </button>
             {auth.user &&
               (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
-                <button
-                  className={`tab-button ${activeTab === "admin" ? "parking-tab-active" : "parking-tab-inactive"}`}
-                  onClick={() => setActiveTab("admin")}
-                  disabled={
-                    !(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
-                  }>
-                  상품 관리 (관리자)
-                </button>
+                <>
+                  <button
+                    className={`tab-button ${activeTab === "admin" ? "parking-tab-active" : "parking-tab-inactive"}`}
+                    onClick={() => setActiveTab("admin")}
+                    disabled={
+                      !(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
+                    }>
+                    상품 관리
+                  </button>
+                  <button
+                    className={`tab-button ${activeTab === "userProducts" ? "parking-tab-active" : "parking-tab-inactive"}`}
+                    onClick={() => {
+                      setActiveTab("userProducts");
+                      loadAllUserProducts();
+                    }}
+                    disabled={
+                      !(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
+                    }>
+                    유저 상품 조회
+                  </button>
+                </>
               )}
           </div>
         </div>
@@ -786,6 +881,76 @@ const Banking = () => {
               auth.user &&
               (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
             ) && <div>관리자 권한이 필요합니다.</div>}
+
+          {/* 유저 상품 조회 탭 */}
+          {activeTab === "userProducts" &&
+            auth.user &&
+            (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
+              <div className="content-box">
+                <h2 className="admin-header">유저별 가입 상품 조회 및 관리</h2>
+                <p className="admin-info-text">
+                  클래스 내 모든 유저의 가입 상품을 조회하고 필요시 강제 삭제할 수 있습니다.
+                </p>
+
+                {allUserProducts.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+                    가입된 상품이 없습니다.
+                  </p>
+                ) : (
+                  <div className="admin-section">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th style={{width: "15%" }}>사용자</th>
+                          <th style={{width: "20%" }}>상품명</th>
+                          <th style={{width: "10%" }}>종류</th>
+                          <th style={{width: "15%" }}>잔액/금액</th>
+                          <th style={{width: "10%" }}>금리(일)</th>
+                          <th style={{width: "10%" }}>기간(일)</th>
+                          <th style={{width: "12%" }}>만기일</th>
+                          <th style={{width: "8%" }}>관리</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allUserProducts.map((product) => {
+                          const typeLabel = product.type === 'deposit' ? '예금' :
+                                           product.type === 'savings' ? '적금' :
+                                           product.type === 'loan' ? '대출' : '기타';
+                          return (
+                            <tr key={`${product.userId}-${product.id}`}>
+                              <td className="admin-td">{product.userName}</td>
+                              <td className="admin-td">{product.name}</td>
+                              <td className="admin-td">{typeLabel}</td>
+                              <td className="admin-td">{formatKoreanCurrency(product.balance || 0)}원</td>
+                              <td className="admin-td">{product.rate}%</td>
+                              <td className="admin-td">{product.termInDays}일</td>
+                              <td className="admin-td">
+                                {product.maturityDate
+                                  ? new Date(product.maturityDate).toLocaleDateString('ko-KR')
+                                  : '-'}
+                              </td>
+                              <td className="admin-td">
+                                <button
+                                  onClick={() => handleAdminDeleteUserProduct(product)}
+                                  className="admin-button-small delete-button"
+                                  disabled={isLoading}
+                                  style={{ fontSize: '12px', padding: '4px 8px' }}
+                                >
+                                  삭제
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <div style={{ marginTop: '20px', textAlign: 'right', color: '#6b7280' }}>
+                      총 {allUserProducts.length}개의 상품
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
         </div>
       </div>
     </div>

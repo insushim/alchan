@@ -422,7 +422,7 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
   );
 };
 
-const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, isProcessing }) => {
+const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, isProcessing, userCash }) => {
   const [amount, setAmount] = useState("");
 
   return (
@@ -435,6 +435,21 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
       <div style={{...styles.cardHeader, borderBottom: '2px solid rgba(255,255,255,0.2)'}}>
         <Wallet size={32} style={{ color: 'white' }} />
         <h2 style={{...styles.cardTitle, color: 'white'}}>파킹통장</h2>
+      </div>
+
+      {/* 보유현금 표시 추가 */}
+      <div style={{
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        padding: '12px 16px',
+        borderRadius: '10px',
+        marginBottom: '16px',
+        backdropFilter: 'blur(10px)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <span style={{fontSize: '16px', fontWeight: '500', opacity: 0.9}}>보유 현금</span>
+        <span style={{fontSize: '20px', fontWeight: '700'}}>{formatCurrency(userCash || 0)}원</span>
       </div>
 
       <div style={{fontSize: '42px', fontWeight: 'bold', color: 'white', marginBottom: '8px'}}>
@@ -646,8 +661,10 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
       });
 
       displayMessage("상품 가입이 완료되었습니다.", "success");
-      loadAllData();
-      if (refreshUserDocument) refreshUserDocument();
+
+      // 실시간 업데이트를 위해 순서 변경
+      if (refreshUserDocument) await refreshUserDocument();
+      await loadAllData();
       handleCloseModal();
     } catch (error) {
       displayMessage(`가입 처리 오류: ${error.message}`, "error");
@@ -691,8 +708,10 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         });
   
         displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
-        loadAllData();
-        if (refreshUserDocument) refreshUserDocument();
+
+        // 실시간 업데이트를 위해 순서 변경
+        if (refreshUserDocument) await refreshUserDocument();
+        await loadAllData();
       } catch (error) {
         displayMessage(`처리 오류: ${error.message}`, "error");
       } finally {
@@ -742,8 +761,10 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         });
   
         displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
-        loadAllData();
-        if (refreshUserDocument) refreshUserDocument();
+
+        // 실시간 업데이트를 위해 순서 변경
+        if (refreshUserDocument) await refreshUserDocument();
+        await loadAllData();
       } catch (error) {
         console.error("중도 해지 처리 중 오류:", error);
         displayMessage(`처리 오류: ${error.message}`, "error");
@@ -778,8 +799,10 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
       });
 
       displayMessage(`${formatCurrency(amount)}원 입금 완료.`, "success");
-      loadAllData();
-      if (refreshUserDocument) refreshUserDocument();
+
+      // 실시간 업데이트를 위해 순서 변경
+      if (refreshUserDocument) await refreshUserDocument();
+      await loadAllData();
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
     } finally {
@@ -806,8 +829,10 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
       });
 
       displayMessage(`${formatCurrency(amount)}원 출금 완료.`, "success");
-      loadAllData();
-      if (refreshUserDocument) refreshUserDocument();
+
+      // 실시간 업데이트를 위해 순서 변경
+      if (refreshUserDocument) await refreshUserDocument();
+      await loadAllData();
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
     } finally {
@@ -852,6 +877,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           onDeposit={handleParkingDeposit}
           onWithdraw={handleParkingWithdraw}
           isProcessing={isProcessing}
+          userCash={userDoc?.cash || 0}
         />
         <ProductSection
           title="예금"
