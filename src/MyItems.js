@@ -188,6 +188,7 @@ const MyItems = () => {
   });
   const [giftRecipientUid, setGiftRecipientUid] = useState("");
   const [giftQuantity, setGiftQuantity] = useState(1);
+  const [isGifting, setIsGifting] = useState(false);
   const [sellToMarketModal, setSellToMarketModal] = useState({
     isOpen: false,
     item: null,
@@ -373,6 +374,8 @@ const MyItems = () => {
   };
 
   const handleSendGift = async () => {
+    if (isGifting) return;
+
     const { item: group } = giftModal;
     if (!user || !giftRecipientUid || !group) {
       showNotification("error", "선물 정보가 올바르지 않습니다.");
@@ -384,6 +387,7 @@ const MyItems = () => {
       return;
     }
 
+    setIsGifting(true);
     try {
       const recipientInventoryRef = collection(db, "users", giftRecipientUid, "inventory");
       const q = query(recipientInventoryRef, where("itemId", "==", group.displayInfo.itemId));
@@ -469,6 +473,8 @@ const MyItems = () => {
 
       // 트랜잭션 실패 시 실제 데이터로 복구
       if (refreshData) await refreshData();
+    } finally {
+      setIsGifting(false);
     }
   };
 
@@ -664,7 +670,9 @@ const MyItems = () => {
             </div>
             <div className="myitems-modal-footer">
               <button onClick={handleCloseGiftModal} className="button-secondary">취소</button>
-              <button onClick={handleSendGift} className="button-primary">선물하기</button>
+              <button onClick={handleSendGift} className="button-primary" disabled={isGifting}>
+                {isGifting ? "선물하는 중..." : "선물하기"}
+              </button>
             </div>
           </div>
         </div>

@@ -27,6 +27,8 @@ const convertAdminProductsToAccountFormat = (adminProducts) => {
   }));
 };
 
+import "./Banking.css";
+
 const Banking = () => {
   const auth = useAuth();
   const [message, setMessage] = useState(null);
@@ -308,248 +310,9 @@ const Banking = () => {
     }
   };
 
-  const styles = {
-    bankingContainer: {
-      maxWidth: "1000px",
-      margin: "20px auto",
-      padding: "20px",
-      fontFamily: "'Noto Sans KR', sans-serif",
-      backgroundColor: "#f8f9fa",
-      borderRadius: "8px",
-      boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
-    },
-    header: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "15px 25px",
-      backgroundColor: "#ffffff",
-      borderRadius: "8px 8px 0 0",
-      borderBottom: "1px solid #dee2e6",
-    },
-    headerContent: { display: "flex", alignItems: "center" },
-    bankTitle: {
-      fontSize: "24px",
-      fontWeight: "bold",
-      color: "#3a5080",
-      margin: 0,
-      marginLeft: "12px",
-    },
-    logoCircle: {
-      width: "30px",
-      height: "30px",
-      backgroundColor: "#3a5080",
-      borderRadius: "50%",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      color: "white",
-      fontWeight: "bold",
-      fontSize: "16px",
-    },
-    adminButton: {
-      padding: "8px 16px",
-      borderRadius: "6px",
-      border: "1px solid",
-      cursor: "pointer",
-      fontWeight: "500",
-      transition: "all 0.3s ease",
-    },
-    adminActive: {
-      backgroundColor: "#007bff",
-      color: "white",
-      borderColor: "#007bff",
-    },
-    adminInactive: {
-      backgroundColor: "white",
-      color: "#007bff",
-      borderColor: "#007bff",
-    },
-    contentContainer: {
-      padding: "25px",
-      backgroundColor: "#ffffff",
-      borderRadius: "0 0 8px 8px",
-    },
-    message: {
-      padding: "12px 15px",
-      marginBottom: "20px",
-      borderRadius: "6px",
-      fontSize: "14px",
-      borderLeftWidth: "4px",
-      borderLeftStyle: "solid",
-    },
-    successMessage: {
-      backgroundColor: "#e8f5e9",
-      color: "#2e7d32",
-      borderColor: "#4caf50",
-    },
-    warningMessage: {
-      backgroundColor: "#fff3e0",
-      color: "#ef6c00",
-      borderColor: "#ff9800",
-    },
-    errorMessage: {
-      backgroundColor: "#ffebee",
-      color: "#c62828",
-      borderColor: "#f44336",
-    },
-    infoMessage: {
-      backgroundColor: "#e3f2fd",
-      color: "#1565c0",
-      borderColor: "#42a5f5",
-    },
-    tabContainer: { marginBottom: "20px", borderBottom: "1px solid #dee2e6" },
-    tabMenu: { display: "flex" },
-    tabButton: {
-      padding: "10px 20px",
-      border: "none",
-      background: "none",
-      cursor: "pointer",
-      fontSize: "16px",
-      fontWeight: "500",
-      color: "#6c757d",
-      borderBottom: "3px solid transparent",
-      transition: "all 0.3s ease",
-      marginRight: "10px",
-      marginBottom: "-1px",
-    },
-    parkingTabActive: {
-      color: "#3a5080",
-      borderBottomColor: "#3a5080",
-      fontWeight: "bold",
-    },
-    parkingTabInactive: {
-      color: "#6c757d",
-      borderBottomColor: "transparent",
-      fontWeight: "500",
-    },
-    contentBox: {
-      padding: "20px",
-      borderRadius: "8px",
-      backgroundColor: "#f8f9fa",
-      marginTop: "10px",
-    },
-    adminSection: {
-      marginBottom: "30px",
-      paddingBottom: "20px",
-      borderBottom: "1px solid #eee",
-    },
-    adminHeader: {
-      fontSize: "20px",
-      fontWeight: "600",
-      color: "#343a40",
-      marginBottom: "15px",
-    },
-    adminTable: {
-      width: "100%",
-      borderCollapse: "collapse",
-      marginBottom: "15px",
-    },
-    adminTh: {
-      backgroundColor: "#f8f9fa",
-      padding: "10px 12px",
-      textAlign: "left",
-      fontSize: "12px",
-      fontWeight: "600",
-      color: "#495057",
-      borderBottom: "2px solid #dee2e6",
-      textTransform: "uppercase",
-    },
-    adminTd: {
-      padding: "10px 12px",
-      borderBottom: "1px solid #e9ecef",
-      fontSize: "14px",
-      verticalAlign: "middle",
-    },
-    adminInput: {
-      width: "95%",
-      padding: "8px",
-      border: "1px solid #ced4da",
-      borderRadius: "4px",
-      fontSize: "14px",
-      transition: "border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out",
-    },
-    adminButtonSmall: {
-      padding: "6px 12px",
-      fontSize: "13px",
-      borderRadius: "4px",
-      border: "none",
-      cursor: "pointer",
-      fontWeight: "500",
-      transition: "background-color 0.2s ease",
-    },
-    saveButton: {
-      backgroundColor: "#28a745",
-      color: "white",
-      marginRight: "5px",
-    },
-    deleteButton: { backgroundColor: "#dc3545", color: "white" },
-    addButton: { backgroundColor: "#007bff", color: "white" },
-    adminInfoText: {
-      fontSize: "13px",
-      color: "#6c757d",
-      marginBottom: "15px",
-      fontStyle: "italic",
-    },
-    adminActionButtons: { marginTop: "10px", textAlign: "right" },
-    loadingOverlay: {
-      position: "fixed",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "rgba(0,0,0,0.3)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 9999,
-    },
-    loadingSpinner: {
-      backgroundColor: "white",
-      padding: "20px 40px",
-      borderRadius: "8px",
-      fontSize: "16px",
-      fontWeight: "500",
-    },
-    disabledButton: {
-      backgroundColor: "#cccccc",
-      color: "#666666",
-      cursor: "not-allowed",
-    },
-  };
-
-  const getMessageStyle = () => {
-    switch (messageType) {
-      case "success":
-        return { ...styles.message, ...styles.successMessage };
-      case "warning":
-        return { ...styles.message, ...styles.warningMessage };
-      case "error":
-        return { ...styles.message, ...styles.errorMessage };
-      case "info":
-        return { ...styles.message, ...styles.infoMessage };
-      default:
-        return styles.message;
-    }
-  };
-
-  const getContentStyle = () => {
-    if (activeTab === "admin") {
-      return styles.contentBox;
-    }
-    return {};
-  };
-
-  const getAdminButtonStyle = () => {
-    return {
-      ...styles.adminButton,
-      ...(activeTab === "admin" ? styles.adminActive : styles.adminInactive),
-    };
-  };
-
   if (auth.loading) {
     return (
-      <div style={styles.bankingContainer}>
+      <div className="banking-container">
         <div style={{ padding: "20px", textAlign: "center" }}>
           금융 정보 로딩 중...
         </div>
@@ -558,17 +321,17 @@ const Banking = () => {
   }
 
   return (
-    <div style={styles.bankingContainer}>
+    <div className="banking-container">
       {isLoading && (
-        <div style={styles.loadingOverlay}>
-          <div style={styles.loadingSpinner}>처리 중...</div>
+        <div className="loading-overlay">
+          <div className="loading-spinner">처리 중...</div>
         </div>
       )}
 
-      <div style={styles.header}>
-        <div style={styles.headerContent}>
-          <div style={styles.logoCircle}>B</div>
-          <h1 style={styles.bankTitle}>통합 금융 관리</h1>
+      <div className="header">
+        <div className="header-content">
+          <div className="logo-circle">B</div>
+          <h1 className="bank-title">통합 금융 관리</h1>
         </div>
         {auth.user &&
           (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
@@ -576,50 +339,37 @@ const Banking = () => {
               onClick={() =>
                 setActiveTab(activeTab === "admin" ? "parking" : "admin")
               }
-              style={getAdminButtonStyle()}
-            >
+              className={`admin-button ${activeTab === "admin" ? "admin-active" : "admin-inactive"}`}>
               {activeTab === "admin" ? "사용자 화면 보기" : "관리자 모드"}
             </button>
           )}
       </div>
 
-      <div style={styles.contentContainer}>
-        {message && <div style={getMessageStyle()}>{message}</div>}
+      <div className="content-container">
+        {message && <div className={`message ${messageType}-message`}>{message}</div>}
 
-        <div style={styles.tabContainer}>
-          <div style={styles.tabMenu}>
+        <div className="tab-container">
+          <div className="tab-menu">
             <button
-              style={{
-                ...styles.tabButton,
-                ...(activeTab === "parking"
-                  ? styles.parkingTabActive
-                  : styles.parkingTabInactive),
-              }}
-              onClick={() => setActiveTab("parking")}
-            >
+              className={`tab-button ${activeTab === "parking" ? "parking-tab-active" : "parking-tab-inactive"}`}
+              onClick={() => setActiveTab("parking")}>
               나의 금융 현황
             </button>
             {auth.user &&
               (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
                 <button
-                  style={{
-                    ...styles.tabButton,
-                    ...(activeTab === "admin"
-                      ? styles.parkingTabActive
-                      : styles.parkingTabInactive),
-                  }}
+                  className={`tab-button ${activeTab === "admin" ? "parking-tab-active" : "parking-tab-inactive"}`}
                   onClick={() => setActiveTab("admin")}
                   disabled={
                     !(auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
-                  }
-                >
+                  }>
                   상품 관리 (관리자)
                 </button>
               )}
           </div>
         </div>
 
-        <div style={getContentStyle()}>
+        <div className={activeTab === "admin" ? "content-box" : ""}>
           {activeTab === "parking" && (
             <ParkingAccount
               auth={auth}
@@ -632,32 +382,32 @@ const Banking = () => {
             auth.user &&
             (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin") && (
               <div>
-                <h2 style={styles.adminHeader}>
+                <h2 className="admin-header">
                   관리자 - 금융 상품 관리 (일 복리 기준)
                 </h2>
                 {/* Savings Products */}
-                <div style={styles.adminSection}>
+                <div className="admin-section">
                   <h3>파킹 예금 상품</h3>
-                  <p style={styles.adminInfoText}>
+                  <p className="admin-info-text">
                     일 이율(%)과 기간(일)을 입력합니다. 변경 후 '저장' 버튼을
                     클릭하세요.
                   </p>
-                  <table style={styles.adminTable}>
+                  <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{ ...styles.adminTh, width: "25%" }}>
+                        <th style={{width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{ ...styles.adminTh, width: "15%" }}>
+                        <th style={{width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           최소금액(원)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "12%" }}>
+                        <th style={{width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -665,7 +415,7 @@ const Banking = () => {
                     <tbody>
                       {parkingSavingsProducts.map((p, index) => (
                         <tr key={p.id}>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="text"
                               value={p.name}
@@ -677,11 +427,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="1"
@@ -694,11 +444,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               step="0.001"
@@ -712,12 +462,12 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               placeholder="예: 0.01"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="0"
@@ -730,22 +480,17 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <button
                               onClick={() =>
                                 deleteParkingProduct("savings", index)
                               }
-                              style={{
-                                ...styles.adminButtonSmall,
-                                ...styles.deleteButton,
-                                ...(isLoading && styles.disabledButton),
-                              }}
-                              disabled={isLoading}
-                            >
+                              className={`admin-button-small delete-button ${isLoading ? "disabled-button" : ""}`}
+                              disabled={isLoading}>
                               삭제
                             </button>
                           </td>
@@ -753,55 +498,45 @@ const Banking = () => {
                       ))}
                     </tbody>
                   </table>
-                  <div style={styles.adminActionButtons}>
+                  <div className="admin-action-buttons">
                     <button
                       onClick={() => addParkingProduct("savings")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.addButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small add-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       추가
                     </button>
                     <button
                       onClick={() => saveParkingProducts("savings")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.saveButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small save-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       예금 상품 저장
                     </button>
                   </div>
                 </div>
 
                 {/* Installment Products */}
-                <div style={styles.adminSection}>
+                <div className="admin-section">
                   <h3>파킹 적금 상품</h3>
-                  <p style={styles.adminInfoText}>
+                  <p className="admin-info-text">
                     일 이율(%)과 기간(일)을 입력합니다. 변경 후 '저장' 버튼을
                     클릭하세요.
                   </p>
-                  <table style={styles.adminTable}>
+                  <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{ ...styles.adminTh, width: "25%" }}>
+                        <th style={{width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{ ...styles.adminTh, width: "15%" }}>
+                        <th style={{width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           최소 월납입(원)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "12%" }}>
+                        <th style={{width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -809,7 +544,7 @@ const Banking = () => {
                     <tbody>
                       {parkingInstallmentProducts.map((p, index) => (
                         <tr key={p.id}>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="text"
                               value={p.name}
@@ -821,11 +556,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="1"
@@ -838,11 +573,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               step="0.001"
@@ -856,12 +591,12 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               placeholder="예: 0.011"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="0"
@@ -874,22 +609,17 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <button
                               onClick={() =>
                                 deleteParkingProduct("installments", index)
                               }
-                              style={{
-                                ...styles.adminButtonSmall,
-                                ...styles.deleteButton,
-                                ...(isLoading && styles.disabledButton),
-                              }}
-                              disabled={isLoading}
-                            >
+                              className={`admin-button-small delete-button ${isLoading ? "disabled-button" : ""}`}
+                              disabled={isLoading}>
                               삭제
                             </button>
                           </td>
@@ -897,27 +627,17 @@ const Banking = () => {
                       ))}
                     </tbody>
                   </table>
-                  <div style={styles.adminActionButtons}>
+                  <div className="admin-action-buttons">
                     <button
                       onClick={() => addParkingProduct("installments")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.addButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small add-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       추가
                     </button>
                     <button
                       onClick={() => saveParkingProducts("installments")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.saveButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small save-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       적금 상품 저장
                     </button>
                   </div>
@@ -926,26 +646,26 @@ const Banking = () => {
                 {/* Loan Products */}
                 <div style={{ ...styles.adminSection, borderBottom: "none" }}>
                   <h3>파킹 대출 상품</h3>
-                  <p style={styles.adminInfoText}>
+                  <p className="admin-info-text">
                     일 이율(%)과 기간(일)을 입력합니다. 변경 후 '저장' 버튼을
                     클릭하세요.
                   </p>
-                  <table style={styles.adminTable}>
+                  <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{ ...styles.adminTh, width: "25%" }}>
+                        <th style={{width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{ ...styles.adminTh, width: "15%" }}>
+                        <th style={{width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "18%" }}>
+                        <th style={{width: "18%" }}>
                           최대 대출액(원)
                         </th>
-                        <th style={{ ...styles.adminTh, width: "12%" }}>
+                        <th style={{width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -953,7 +673,7 @@ const Banking = () => {
                     <tbody>
                       {parkingLoanProducts.map((p, index) => (
                         <tr key={p.id}>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="text"
                               value={p.name}
@@ -965,11 +685,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="1"
@@ -982,11 +702,11 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               step="0.001"
@@ -1000,12 +720,12 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               placeholder="예: 0.05"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <input
                               type="number"
                               min="0"
@@ -1018,22 +738,17 @@ const Banking = () => {
                                   e.target.value
                                 )
                               }
-                              style={styles.adminInput}
+                              className="admin-input"
                               disabled={isLoading}
                             />
                           </td>
-                          <td style={styles.adminTd}>
+                          <td className="admin-td">
                             <button
                               onClick={() =>
                                 deleteParkingProduct("loans", index)
                               }
-                              style={{
-                                ...styles.adminButtonSmall,
-                                ...styles.deleteButton,
-                                ...(isLoading && styles.disabledButton),
-                              }}
-                              disabled={isLoading}
-                            >
+                              className={`admin-button-small delete-button ${isLoading ? "disabled-button" : ""}`}
+                              disabled={isLoading}>
                               삭제
                             </button>
                           </td>
@@ -1041,27 +756,17 @@ const Banking = () => {
                       ))}
                     </tbody>
                   </table>
-                  <div style={styles.adminActionButtons}>
+                  <div className="admin-action-buttons">
                     <button
                       onClick={() => addParkingProduct("loans")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.addButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small add-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       추가
                     </button>
                     <button
                       onClick={() => saveParkingProducts("loans")}
-                      style={{
-                        ...styles.adminButtonSmall,
-                        ...styles.saveButton,
-                        ...(isLoading && styles.disabledButton),
-                      }}
-                      disabled={isLoading}
-                    >
+                      className={`admin-button-small save-button ${isLoading ? "disabled-button" : ""}`}
+                      disabled={isLoading}>
                       대출 상품 저장
                     </button>
                   </div>

@@ -1,0 +1,337 @@
+/* src/Banking.css */
+
+.banking-container {
+  max-width: 1000px;
+  margin: 20px auto;
+  padding: 20px;
+  font-family: 'Noto Sans KR', sans-serif;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  background-color: #ffffff;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+}
+
+.bank-title {
+  font-size: 24px;
+  font-weight: bold;
+  color: #3a5080;
+  margin: 0;
+  margin-left: 12px;
+}
+
+.logo-circle {
+  width: 30px;
+  height: 30px;
+  background-color: #3a5080;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.admin-button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.admin-active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.admin-inactive {
+  background-color: white;
+  color: #007bff;
+  border-color: #007bff;
+}
+
+.content-container {
+  padding: 25px;
+  background-color: #ffffff;
+  border-radius: 0 0 8px 8px;
+}
+
+.message {
+  padding: 12px 15px;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.success-message {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-color: #4caf50;
+}
+
+.warning-message {
+  background-color: #fff3e0;
+  color: #ef6c00;
+  border-color: #ff9800;
+}
+
+.error-message {
+  background-color: #ffebee;
+  color: #c62828;
+  border-color: #f44336;
+}
+
+.info-message {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  border-color: #42a5f5;
+}
+
+.tab-container {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.tab-menu {
+  display: flex;
+}
+
+.tab-button {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  color: #6c757d;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+  margin-right: 10px;
+  margin-bottom: -1px;
+}
+
+.parking-tab-active {
+  color: #3a5080;
+  border-bottom-color: #3a5080;
+  font-weight: bold;
+}
+
+.parking-tab-inactive {
+  color: #6c757d;
+  border-bottom-color: transparent;
+  font-weight: 500;
+}
+
+.content-box {
+  padding: 20px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  margin-top: 10px;
+}
+
+.admin-section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.admin-header {
+  font-size: 20px;
+  font-weight: 600;
+  color: #343a40;
+  margin-bottom: 15px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 15px;
+}
+
+.admin-th {
+  background-color: #f8f9fa;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+  text-transform: uppercase;
+}
+
+.admin-td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+.admin-input {
+  width: 95%;
+  padding: 8px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.admin-button-small {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.save-button {
+  background-color: #28a745;
+  color: white;
+  margin-right: 5px;
+}
+
+.delete-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.add-button {
+  background-color: #007bff;
+  color: white;
+}
+
+.admin-info-text {
+  font-size: 13px;
+  color: #6c757d;
+  margin-bottom: 15px;
+  font-style: italic;
+}
+
+.admin-action-buttons {
+  margin-top: 10px;
+  text-align: right;
+}
+
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  background-color: white;
+  padding: 20px 40px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.disabled-button {
+  background-color: #cccccc;
+  color: #666666;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .banking-container {
+    padding: 10px;
+  }
+
+  .header {
+    padding: 10px 15px;
+  }
+
+  .bank-title {
+    font-size: 20px;
+  }
+
+  .content-container {
+    padding: 15px;
+  }
+
+  .tab-button {
+    padding: 10px 15px;
+    font-size: 14px;
+  }
+
+  .admin-table,
+  .admin-table thead,
+  .admin-table tbody,
+  .admin-table th,
+  .admin-table td,
+  .admin-table tr {
+    display: block;
+  }
+
+  .admin-table thead tr {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+  }
+
+  .admin-table tr {
+    border: 1px solid #ccc;
+    margin-bottom: 15px;
+  }
+
+  .admin-table td {
+    border: none;
+    border-bottom: 1px solid #eee;
+    position: relative;
+    padding-left: 50%;
+    white-space: normal;
+    text-align: left;
+  }
+
+  .admin-table td:before {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+    text-align: left;
+    font-weight: bold;
+  }
+
+  .admin-table td:nth-of-type(1):before { content: "상품명"; }
+  .admin-table td:nth-of-type(2):before { content: "기간(일)"; }
+  .admin-table td:nth-of-type(3):before { content: "일 이율(%)"; }
+  .admin-table td:nth-of-type(4):before { content: "최소/최대 금액"; }
+  .admin-table td:nth-of-type(5):before { content: "관리"; }
+
+  .admin-input {
+    width: 100%;
+  }
+
+  .admin-action-buttons {
+    text-align: center;
+  }
+}
