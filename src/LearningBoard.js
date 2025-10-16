@@ -905,7 +905,7 @@ const LearningBoard = () => {
                 </h2>
                 {postsLoading ? (
                   <p className="info-message small">게시글 로딩 중...</p>
-                ) : selectedBoardPosts.length === 0 ? (
+                ) : (selectedBoardPosts?.length || 0) === 0 ? (
                   <p className="no-posts">아직 작성된 글이 없습니다.</p>
                 ) : (
                   <div className="posts-list">
@@ -1161,10 +1161,10 @@ const LearningBoard = () => {
               <li>
                 총 게시판 (숨김): {boards.filter((b) => b.isHidden).length}개
               </li>
-              <li>(선택된 게시판) 총 게시글: {selectedBoardPosts.length} 개</li>
+              <li>(선택된 게시판) 총 게시글: {selectedBoardPosts?.length || 0} 개</li>
               <li>
                 (선택된 게시판) 총 획득 쿠폰:{" "}
-                {selectedBoardPosts.reduce(
+                {(selectedBoardPosts || []).reduce(
                   (sum, post) => sum + (post.coupons || 0),
                   0
                 )}{" "}

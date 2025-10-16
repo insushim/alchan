@@ -1,7 +1,9 @@
 // src/AdminSettingsModal.js
 import React, { useState, useEffect, useCallback } from "react";
+import { httpsCallable } from "firebase/functions";
 import {
   db,
+  functions,
   firebaseDoc,
   firebaseCollection,
   firebaseGetSingleDoc,
@@ -691,6 +693,39 @@ const AdminSettingsModal = ({
       setAppLoading(false);
     }
   };
+
+  const adminResetUserPassword = httpsCallable(functions, 'adminResetUserPassword');
+
+  const handleResetPassword = useCallback(async (userId) => {
+    if (!isSuperAdmin) {
+      alert("최고 관리자만 비밀번호를 초기화할 수 있습니다.");
+      return;
+    }
+
+    const newPassword = prompt("새로운 비밀번호를 입력하세요. 6자 이상이어야 합니다.");
+
+    if (!newPassword || newPassword.length < 6) {
+      alert("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+
+    if (window.confirm(`사용자(ID: ${userId})의 비밀번호를 정말로 초기화하시겠습니까?`)) {
+      try {
+        setMembersLoading(true);
+        const result = await adminResetUserPassword({ userId, newPassword });
+        if (result.data.success) {
+          alert(result.data.message);
+        } else {
+          throw new Error(result.data.message || "알 수 없는 오류");
+        }
+      } catch (error) {
+        console.error("비밀번호 초기화 오류:", error);
+        alert(`비밀번호 초기화 중 오류가 발생했습니다: ${error.message}`);
+      } finally {
+        setMembersLoading(false);
+      }
+    }
+  }, [isSuperAdmin, adminResetUserPassword]);
 
   // 관리자 권한 토글
   const toggleAdminStatus = useCallback(
@@ -1507,53 +1542,51 @@ const AdminSettingsModal = ({
               {membersLoading ? (
                 <p>구성원 정보 로딩 중...</p>
               ) : classMembers.length > 0 ? (
-                <div className="members-table-container">
-                  <table className="members-table">
-                    <thead>
-                      <tr>
-                        <th>이름</th>
-                        <th>이메일</th>
-                        <th>학급 코드</th>
-                        <th>권한</th>
-                        {isSuperAdmin && <th>관리</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {classMembers.map((member) => (
-                        <tr key={member.id}>
-                          <td>{member.name}</td>
-                          <td>{member.email}</td>
-                          <td>{member.classCode}</td>
-                          <td>
-                            {member.isSuperAdmin
-                              ? "최고 관리자"
-                              : member.isAdmin
-                              ? "관리자"
-                              : "학생"}
-                          </td>
-                          {isSuperAdmin && (
-                            <td>
-                              {!member.isSuperAdmin && (
-                                <button
-                                  onClick={() =>
-                                    toggleAdminStatus(member.id, member.isAdmin)
-                                  }
-                                  className={
-                                    member.isAdmin
-                                      ? "remove-admin-button"
-                                      : "add-admin-button"
-                                  }
-                                  disabled={membersLoading}
-                                >
-                                  {member.isAdmin ? "관리자 해제" : "관리자 지정"}
-                                </button>
-                              )}
-                            </td>
+                <div className="user-cards-container">
+                  {classMembers.map((member) => (
+                    <div key={member.id} className="user-card">
+                      <div className="user-card-header">
+                        <span className="user-card-name">{member.name}</span>
+                        <span className={`user-card-role role-${member.isSuperAdmin ? 'super' : member.isAdmin ? 'admin' : 'student'}`}>
+                          {member.isSuperAdmin
+                            ? "최고 관리자"
+                            : member.isAdmin
+                            ? "관리자"
+                            : "학생"}
+                        </span>
+                      </div>
+                      <div className="user-card-body">
+                        <p><strong>이메일:</strong> {member.email}</p>
+                        <p><strong>학급 코드:</strong> {member.classCode}</p>
+                      </div>
+                      {isSuperAdmin && (
+                        <div className="user-card-actions">
+                          {!member.isSuperAdmin && (
+                            <button
+                              onClick={() =>
+                                toggleAdminStatus(member.id, member.isAdmin)
+                              }
+                              className={`admin-action-button ${
+                                member.isAdmin
+                                  ? "remove-admin-button"
+                                  : "add-admin-button"
+                              }`}
+                              disabled={membersLoading}
+                            >
+                              {member.isAdmin ? "관리자 해제" : "관리자 지정"}
+                            </button>
                           )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          <button
+                            onClick={() => handleResetPassword(member.id)}
+                            className="admin-action-button reset-password-button"
+                            disabled={membersLoading}
+                          >
+                            비밀번호 초기화
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <p className="no-members-message">

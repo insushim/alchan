@@ -1290,7 +1290,7 @@ function AppLayoutContent() {
               path="/admin/app-settings"
               element={
                 <AdminRoute>
-                  <Dashboard adminTabMode="appSettings" />
+                  <Dashboard adminTabMode="generalSettings" />
                 </AdminRoute>
               }
             />

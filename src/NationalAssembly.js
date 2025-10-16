@@ -82,7 +82,7 @@ const NationalAssembly = () => {
       if (!classCode || adminSettingsLoading) {
         return {
           vetoOverrideRequired: Math.ceil(
-            (adminSettings.totalStudents || 25) * (2 / 3)
+            ((adminSettings?.totalStudents) || 25) * (2 / 3)
           ),
         };
       }
@@ -102,7 +102,7 @@ const NationalAssembly = () => {
       } else {
         const defaultGovSettings = {
           vetoOverrideRequired: Math.ceil(
-            adminSettings.totalStudents * (2 / 3)
+            ((adminSettings?.totalStudents) || 25) * (2 / 3)
           ),
         };
         await setDoc(govSettingsDocRefNode, defaultGovSettings);
@@ -112,10 +112,10 @@ const NationalAssembly = () => {
     {
       interval: 30000,
       enabled: !!classCode && !adminSettingsLoading,
-      deps: [classCode, adminSettings.totalStudents, adminSettingsLoading],
+      deps: [classCode, adminSettings?.totalStudents, adminSettingsLoading],
       defaultValue: {
         vetoOverrideRequired: Math.ceil(
-          (adminSettings.totalStudents || 25) * (2 / 3)
+          ((adminSettings?.totalStudents) || 25) * (2 / 3)
         ),
       },
       onError: (error) => {
@@ -502,20 +502,20 @@ const NationalAssembly = () => {
     }
   };
 
-  const approvedLaws = laws.filter(
+  const approvedLaws = (laws || []).filter(
     (law) =>
       law.status === "veto_overridden" ||
       law.finalStatus === "final_approved"
   );
   // ✨ 수정된 부분: pendingLaws 필터에 'pending_government_approval' 추가
-  const pendingLaws = laws.filter(
+  const pendingLaws = (laws || []).filter(
     (law) =>
       law.status === "pending" ||
       law.status === "rejected" ||
       law.status === "auto_rejected" ||
-      law.status === "pending_government_approval" 
+      law.status === "pending_government_approval"
   );
-  const vetoedLaws = laws.filter((law) => law.status === "vetoed");
+  const vetoedLaws = (laws || []).filter((law) => law.status === "vetoed");
 
   let displayedLaws;
   if (activeTab === "approved") {
@@ -651,6 +651,12 @@ const NationalAssembly = () => {
       <div className="loading-container">
         {loadingParts.join(", ")} 정보를 불러오는 중...
       </div>
+    );
+  }
+
+  if (!adminSettings) {
+    return (
+      <div className="loading-container">관리자 설정을 불러오는 중...</div>
     );
   }
 
@@ -1132,7 +1138,7 @@ const NationalAssembly = () => {
                 </div>
                 <div className="setting-content">
                   <p>
-                    법안 개수: <strong>{laws.length}</strong>개
+                    법안 개수: <strong>{laws?.length || 0}</strong>개
                   </p>
                   <p>
                     가결된 법안: <strong>{approvedLaws.length}</strong>개
