@@ -193,6 +193,12 @@ export default function CouponGoalPage() {
   }, [authLoading, user, currentUserClassCode, loadGoalData]);
 
   useEffect(() => {
+    if (userDoc) {
+      setMyContribution(userDoc.myContribution || 0);
+    }
+  }, [userDoc]);
+
+  useEffect(() => {
     setGoalAchieved(goalProgress >= classCouponGoal && classCouponGoal > 0);
   }, [goalProgress, classCouponGoal]);
 
