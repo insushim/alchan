@@ -53,58 +53,35 @@ jobs:
 
           # 주식 시장 업데이트 (평일 8-15시 KST, 5분마다)
           if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,updateStocks,manageStocks,cleanupStocks"
+            TASK_LIST="$TASK_LIST,updateCentralStockMarket,autoManageStocks"
           fi
 
           # 뉴스 생성 (평일 8-15시 KST, 3분마다)
           if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 3)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,createNews"
+            TASK_LIST="$TASK_LIST,createCentralMarketNews"
           fi
 
           # 뉴스 정리 (5분마다)
           if [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,cleanupNews,syncNews"
+            TASK_LIST="$TASK_LIST,cleanupExpiredCentralNews,syncCentralNewsToClasses"
           fi
 
           # 클래스 뉴스 정리 (10분마다)
           if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,cleanupClassNews"
+            TASK_LIST="$TASK_LIST,cleanupExpiredClassNews"
           fi
 
           # 통계 집계 (10분마다)
           if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,aggregateStats,updateClassStats,updatePortfolio,aggregateLogs"
+            TASK_LIST="$TASK_LIST,aggregateActivityStats"
           fi
 
           # 일일 작업 리셋 (자정 KST)
           if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 10 ]; then
-            TASK_LIST="$TASK_LIST,resetDaily"
+            TASK_LIST="$TASK_LIST,resetDailyTasks"
           fi
 
-          # 주급 지급 (월요일 8:30 KST)
-          if [ $DAY -eq 1 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -ge 30 ] && [ $MINUTE -lt 40 ]; then
-            TASK_LIST="$TASK_LIST,paySalaries"
-          fi
 
-          # 임대료 징수 (금요일 8:30 KST)
-          if [ $DAY -eq 5 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -ge 30 ] && [ $MINUTE -lt 40 ]; then
-            TASK_LIST="$TASK_LIST,collectRent"
-          fi
-
-          # 사회안전망 (매일 8시 KST)
-          if [ $KST_HOUR -eq 8 ] && [ $MINUTE -lt 10 ]; then
-            TASK_LIST="$TASK_LIST,provideSafety"
-          fi
-
-          # 시장 개장 (평일 8시 KST)
-          if [ $DAY -le 5 ] && [ $KST_HOUR -eq 8 ] && [ $MINUTE -lt 10 ]; then
-            TASK_LIST="$TASK_LIST,openMarket"
-          fi
-
-          # 시장 폐장 (평일 15시 KST)
-          if [ $DAY -le 5 ] && [ $KST_HOUR -eq 15 ] && [ $MINUTE -lt 10 ]; then
-            TASK_LIST="$TASK_LIST,closeMarket"
-          fi
 
           if [ -n "$TASK_LIST" ]; then
             # Remove leading comma
