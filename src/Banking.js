@@ -120,7 +120,9 @@ const Banking = () => {
 
     setIsLoading(true);
     try {
-      const productRef = doc(db, "users", product.userId, "products", product.id);
+      // id를 문자열로 변환하여 사용
+      const productId = String(product.id);
+      const productRef = doc(db, "users", product.userId, "products", productId);
       await deleteDoc(productRef);
 
       setMessage("상품이 삭제되었습니다.");
