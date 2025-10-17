@@ -10,6 +10,7 @@ import {
   serverTimestamp,
   collection,
   doc,
+  getDoc,
   getDocs,
   setDoc,
   updateDoc,
@@ -71,7 +72,7 @@ const RealEstateRegistry = () => {
     };
   }, [showAdminPanel, selectedProperty, showQuickAction]);
 
-  // Settings 로드 Effect
+  // Settings 로드 Effect (폴링 방식으로 변경 - 무한 루프 방지)
   useEffect(() => {
     if (!classCode) {
       setSettings(DEFAULT_SETTINGS);
@@ -79,7 +80,10 @@ const RealEstateRegistry = () => {
       setSettingsLoading(false);
       return;
     }
+
+    let mounted = true;
     setSettingsLoading(true);
+
     const settingsRefInstance = doc(
       db,
       "classes",
@@ -87,9 +91,14 @@ const RealEstateRegistry = () => {
       "realEstateSettings",
       "settingsDoc"
     );
-    const unsubscribe = firebaseOnSnapshot(
-      settingsRefInstance,
-      async (docSnap) => {
+
+    const fetchSettings = async () => {
+      if (!mounted) return;
+
+      try {
+        const docSnap = await getDoc(settingsRefInstance);
+        if (!mounted) return;
+
         if (docSnap.exists()) {
           const fetchedSettings = docSnap.data();
           if (fetchedSettings.lastRentCollection?.toDate) {
@@ -111,35 +120,47 @@ const RealEstateRegistry = () => {
               classCode: classCode,
               updatedAt: serverTimestamp(),
             });
-            setSettings(DEFAULT_SETTINGS);
-            setAdminInputs({ ...DEFAULT_SETTINGS });
+            if (mounted) {
+              setSettings(DEFAULT_SETTINGS);
+              setAdminInputs({ ...DEFAULT_SETTINGS });
+            }
           } catch (error) {
-            console.error(
-              "[RealEstate] Error creating default settings:",
-              error
-            );
+            console.error("[RealEstate] Error creating default settings:", error);
           }
         }
-        setSettingsLoading(false);
-      },
-      (error) => {
+        if (mounted) {
+          setSettingsLoading(false);
+        }
+      } catch (error) {
         console.error("[RealEstate] Error fetching settings:", error);
-        setSettings(DEFAULT_SETTINGS);
-        setAdminInputs({ ...DEFAULT_SETTINGS });
-        setSettingsLoading(false);
+        if (mounted) {
+          setSettings(DEFAULT_SETTINGS);
+          setAdminInputs({ ...DEFAULT_SETTINGS });
+          setSettingsLoading(false);
+        }
       }
-    );
-    return () => unsubscribe();
+    };
+
+    fetchSettings(); // 초기 로드
+    const interval = setInterval(fetchSettings, 60000); // 1분마다 폴링
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [classCode]);
 
-  // Properties 로드 Effect
+  // Properties 로드 Effect (폴링 방식으로 변경 - 무한 루프 방지)
   useEffect(() => {
     if (!classCode) {
       setProperties([]);
       setPropertiesLoading(false);
       return;
     }
+
+    let mounted = true;
     setPropertiesLoading(true);
+
     const propertiesCollectionRefInstance = collection(
       db,
       "classes",
@@ -147,9 +168,14 @@ const RealEstateRegistry = () => {
       "realEstateProperties"
     );
     const q = query(propertiesCollectionRefInstance, firebaseOrderBy("id"));
-    const unsubscribe = firebaseOnSnapshot(
-      q,
-      (querySnapshot) => {
+
+    const fetchProperties = async () => {
+      if (!mounted) return;
+
+      try {
+        const querySnapshot = await getDocs(q);
+        if (!mounted) return;
+
         const propsData = querySnapshot.docs.map((doc) => ({
           firestoreDocId: doc.id,
           ...doc.data(),
@@ -158,16 +184,27 @@ const RealEstateRegistry = () => {
             : null,
         }));
         propsData.sort((a, b) => parseInt(a.id) - parseInt(b.id));
-        setProperties(propsData);
-        setPropertiesLoading(false);
-      },
-      (error) => {
+
+        if (mounted) {
+          setProperties(propsData);
+          setPropertiesLoading(false);
+        }
+      } catch (error) {
         console.error("[RealEstate] Error fetching properties:", error);
-        setProperties([]);
-        setPropertiesLoading(false);
+        if (mounted) {
+          setProperties([]);
+          setPropertiesLoading(false);
+        }
       }
-    );
-    return () => unsubscribe();
+    };
+
+    fetchProperties(); // 초기 로드
+    const interval = setInterval(fetchProperties, 60000); // 1분마다 폴링
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
   }, [classCode]);
 
   // 학급 사용자 목록 로드 Effect

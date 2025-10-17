@@ -490,8 +490,8 @@ function Dashboard({ adminTabMode }) {
     // 즉시 한 번 실행
     await pollData();
 
-    // 30초마다 실행
-    const intervalId = setInterval(pollData, 30000);
+    // 5분마다 실행 (30초에서 5분으로 변경 - Firebase 읽기 최적화)
+    const intervalId = setInterval(pollData, 300000);
 
     // Cleanup 함수 저장
     realtimeManager.current.addListener('polling', () => clearInterval(intervalId));

@@ -228,11 +228,13 @@ function UserManagementComponent() {
     setGroupedUsers(sortedGroups);
   }, [users]);
 
+  // 캐시 키 최적화: 실제로 변경될 때만 새로운 키 생성
   const cacheKey = useMemo(() =>
-    `users_${isSuperAdmin ? 'all' : adminClassCode || 'none'}`, 
+    `users_${isSuperAdmin ? 'all' : adminClassCode || 'none'}`,
     [isSuperAdmin, adminClassCode]
   );
 
+  // 캐시 관리 함수들을 useCallback으로 안정화
   const loadCachedUsers = useCallback(() => {
     const cached = userDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -281,6 +283,7 @@ function UserManagementComponent() {
     hasLoadedFromCacheRef.current = false;
   }, [cacheKey]);
 
+  // 🔥 [최적화] 사용자 데이터 폴링 - 의존성 배열 최적화
   useEffect(() => {
     if (!firebaseStatus.initialized || (!isSuperAdmin && !adminClassCode)) {
       if (firebaseStatus.checked) setLoading(false);
@@ -292,6 +295,7 @@ function UserManagementComponent() {
       return;
     }
 
+    // 캐시 로드 시도 (최초 한 번만)
     if (!hasLoadedFromCacheRef.current) {
       if (loadCachedUsers()) {
         hasLoadedFromCacheRef.current = true;
@@ -300,71 +304,65 @@ function UserManagementComponent() {
       }
     }
 
-    let unsubscribe;
-    try {
-      const usersCollection = collection(db, "users");
+    // 폴링 설정
+    const usersCollection = collection(db, "users");
+    const usersQuery = isSuperAdmin
+      ? query(usersCollection, orderBy("createdAt", "desc"))
+      : query(
+          usersCollection,
+          where("classCode", "==", adminClassCode),
+          orderBy("createdAt", "desc")
+        );
 
-      const usersQuery = isSuperAdmin
-        ? query(usersCollection, orderBy("createdAt", "desc"))
-        : query(
-            usersCollection,
-            where("classCode", "==", adminClassCode),
-            orderBy("createdAt", "desc")
-          );
+    const loadUsers = async () => {
+      try {
+        const snapshot = await getDocs(usersQuery);
+        const usersList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
 
-      const loadUsers = async () => {
-        try {
-          const snapshot = await getDocs(usersQuery);
-          const usersList = snapshot.docs.map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          }));
+        setUsers(usersList);
+        updateUserCache(usersList);
+        setLoading(false);
+        setError(null);
+        setLastUpdateTime(Date.now());
+      } catch (error) {
+        console.error("사용자 데이터 로드 오류:", error);
+        setError("사용자 데이터 로딩 오류: " + error.message);
+        setLoading(false);
+      }
+    };
 
-          setUsers(usersList);
-          updateUserCache(usersList);
-          setLoading(false);
-          setError(null);
-          setLastUpdateTime(Date.now());
-        } catch (error) {
-          console.error("사용자 데이터 로드 오류:", error);
-          setError("사용자 데이터 로딩 오류: " + error.message);
-          setLoading(false);
+    const pollUsers = async () => {
+      try {
+        const cached = userDataCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < 240000) { // 4분 이내
+          return;
         }
-      };
+        await loadUsers();
+      } catch (error) {
+        console.error("폴링 오류:", error);
+      }
+    };
 
-      const startUserPolling = () => {
-        const pollUsers = async () => {
-          try {
-            const cached = userDataCache.get(cacheKey);
-            if (cached && Date.now() - cached.timestamp < 240000) { // 4분 이내
-              return;
-            }
-            await loadUsers();
-          } catch (error) {
-            console.error("폴링 오류:", error);
-          }
-        };
-        loadUsers();
-        const pollingInterval = setInterval(pollUsers, 300000); // 5분
-        return () => {
-          clearInterval(pollingInterval);
-        };
-      };
+    // 초기 로드
+    loadUsers();
 
-      return startUserPolling();
+    // 5분마다 폴링 (Firebase 읽기 최적화)
+    const pollingInterval = setInterval(pollUsers, 300000);
 
-    } catch (err) {
-      console.error("사용자 데이터 설정 오류:", err);
-      setError("데이터 구독 설정 오류: " + err.message);
-      setLoading(false);
-    }
+    return () => {
+      clearInterval(pollingInterval);
+    };
   }, [
     firebaseStatus.initialized,
+    firebaseStatus.checked,
     adminClassCode,
     isSuperAdmin,
-    updateUserCache,
+    cacheKey,
     loadCachedUsers,
-    cacheKey
+    updateUserCache
   ]);
 
   const debouncedAddUser = useCallback(

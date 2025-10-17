@@ -381,7 +381,7 @@ export const AuthProvider = ({ children }) => {
               );
             }, 10000); // 10초 후에 실행
 
-            // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (5분마다)
+            // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (10분마다)
             const startUserDocPolling = () => {
               const pollUserDoc = async () => {
                 try {
@@ -427,9 +427,9 @@ export const AuthProvider = ({ children }) => {
                 }
               };
 
-              // 초기 한 번 실행 후 5분마다 폴링
-              setTimeout(pollUserDoc, 30000); // 30초 후 첫 폴링
-              const interval = setInterval(pollUserDoc, 300000); // 5분마다 폴링
+              // 초기 한 번 실행 후 10분마다 폴링 (5분에서 10분으로 변경 - Firebase 읽기 최적화)
+              setTimeout(pollUserDoc, 60000); // 60초 후 첫 폴링 (30초에서 60초로 변경)
+              const interval = setInterval(pollUserDoc, 600000); // 10분마다 폴링 (5분에서 10분으로 변경)
 
               firestoreUnsubscribeRef.current = () => clearInterval(interval);
             };
