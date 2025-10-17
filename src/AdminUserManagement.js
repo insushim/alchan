@@ -159,6 +159,33 @@ const AdminUserManagement = () => {
     setEditFormData({});
   };
 
+  const handleToggleAdmin = async (user) => {
+    const isCurrentlyAdmin = user.isAdmin === true;
+    const actionText = isCurrentlyAdmin ? '관리자 권한을 제거' : '관리자로 지정';
+
+    if (!window.confirm(`정말로 '${user.name}' 학생을 ${actionText}하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const userDocRef = doc(db, 'Class', user.classCode, 'students', user.id);
+      await updateDoc(userDocRef, {
+        isAdmin: !isCurrentlyAdmin
+      });
+
+      setUsers(prevUsers =>
+        prevUsers.map(u =>
+          u.id === user.id ? { ...u, isAdmin: !isCurrentlyAdmin } : u
+        )
+      );
+
+      alert(`${user.name} 학생이 ${actionText}되었습니다.`);
+    } catch (error) {
+      console.error("관리자 권한 변경 중 오류 발생:", error);
+      alert(`권한 변경에 실패했습니다: ${error.message}`);
+    }
+  };
+
   const handleSave = async (id) => {
     const userToEdit = users.find(u => u.id === id);
     if (!userToEdit) return;
@@ -193,6 +220,7 @@ const AdminUserManagement = () => {
         prevUsers.map(user => (user.id === id ? { ...user, ...dataToSave, classCode: userClassCode } : user))
       );
       setEditingUserId(null);
+      setEditFormData({});
     } catch (error) {
       console.error("학생 정보 업데이트 중 오류 발생:", error);
       alert(`정보 업데이트에 실패했습니다: ${error.message}`);
@@ -328,7 +356,14 @@ const AdminUserManagement = () => {
                     {user.name?.charAt(0) || '?'}
                   </div>
                   <div className="user-basic-info">
-                    <h3 className="user-name">{user.name}</h3>
+                    <div className="name-with-badge">
+                      <h3 className="user-name">{user.name}</h3>
+                      {user.isAdmin ? (
+                        <span className="role-badge admin-badge">관리자</span>
+                      ) : (
+                        <span className="role-badge student-badge">학생</span>
+                      )}
+                    </div>
                     <p className="user-email">{user.email}</p>
                   </div>
                 </div>
@@ -359,6 +394,12 @@ const AdminUserManagement = () => {
                 <div className="card-actions">
                   <button onClick={() => handleEdit(user)} className="action-button edit">
                     수정
+                  </button>
+                  <button
+                    onClick={() => handleToggleAdmin(user)}
+                    className={`action-button ${user.isAdmin ? 'remove-admin' : 'make-admin'}`}
+                  >
+                    {user.isAdmin ? '관리자 해제' : '관리자 지정'}
                   </button>
                   <button
                     onClick={() => {

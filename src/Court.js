@@ -23,6 +23,7 @@ import {
   deleteDoc,
   query,
   orderBy,
+  limit,
   getDoc,
   setDoc,
   where,
@@ -366,7 +367,8 @@ const BankruptcySection = ({ refetchComplaints }) => {
             casesRef,
             where("complainantId", "==", userDoc.id),
             where("caseType", "==", "bankruptcy"),
-            where("status", "==", "pending")
+            where("status", "==", "pending"),
+            limit(10)
           );
           const querySnapshot = await getDocs(q);
           setHasPendingBankruptcyCase(!querySnapshot.empty);
@@ -500,7 +502,7 @@ const Court = () => {
     async () => {
       if (!classCode) return [];
       const complaintsRef = collection(db, "classes", classCode, "courtComplaints");
-      const q = query(complaintsRef, orderBy("submissionDate", "desc"));
+      const q = query(complaintsRef, orderBy("submissionDate", "desc"), limit(100));
       const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map((doc) => ({
         id: doc.id,
@@ -521,7 +523,8 @@ const Court = () => {
     async () => {
       if (!classCode) return [];
       const trialRoomsRef = collection(db, "classes", classCode, "trialRooms");
-      const querySnapshot = await getDocs(trialRoomsRef);
+      const q = query(trialRoomsRef, limit(50));
+      const querySnapshot = await getDocs(q);
       return querySnapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),

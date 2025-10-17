@@ -308,10 +308,10 @@ export default function MyAssets() {
     try {
       console.warn('[MyAssets] ⚠️ 클라우드 함수를 우회하고 클라이언트에서 직접 자산을 계산합니다. (진단 모드 v2)');
 
-      // 모든 잠재적 경로를 쿼리합니다.
-      const realEstateRef1 = query(collection(db, "classes", currentUserClassCode, "realEstateProperties"), where("owner", "==", userId));
-      const realEstateRef2 = query(collection(db, "ClassStock", currentUserClassCode, "students", userId, "realestates"));
-      const realEstateRef3 = query(collection(db, "realEstate"), where("ownerId", "==", userId));
+      // 🔥 [최적화] 모든 잠재적 경로를 쿼리합니다 (limit 추가)
+      const realEstateRef1 = query(collection(db, "classes", currentUserClassCode, "realEstateProperties"), where("owner", "==", userId), limit(50));
+      const realEstateRef2 = query(collection(db, "ClassStock", currentUserClassCode, "students", userId, "realestates"), limit(50));
+      const realEstateRef3 = query(collection(db, "realEstate"), where("ownerId", "==", userId), limit(50));
 
       const [snap1, snap2, snap3] = await Promise.all([
         getDocs(realEstateRef1),
@@ -355,8 +355,8 @@ export default function MyAssets() {
       setParkingBalance(totalParkingBalance);
       console.log(`[MyAssets-Debug] 파킹통장 총 잔액: ${totalParkingBalance}`);
 
-      // 다른 자산들도 계속 조회합니다.
-      const loansRef = collection(db, "users", userId, "loans");
+      // 🔥 [최적화] 다른 자산들도 계속 조회합니다 (limit 추가)
+      const loansRef = query(collection(db, "users", userId, "loans"), limit(20));
       const loansSnap = await getDocs(loansRef);
 
       const loansData = loansSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -575,9 +575,11 @@ export default function MyAssets() {
       const batch = writeBatch(db);
       const goalRef = doc(db, "goals", currentGoalId);
 
+      // 🔥 [최적화] 사용자 조회에 limit 추가
       const usersQuery = query(
         collection(db, "users"),
-        where("classCode", "==", currentUserClassCode)
+        where("classCode", "==", currentUserClassCode),
+        limit(100)
       );
       const usersSnapshot = await getDocs(usersQuery);
 

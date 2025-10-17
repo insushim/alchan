@@ -17,6 +17,7 @@ import {
   query,
   where,
   orderBy,
+  limit,
   increment,
   writeBatch,
   setDoc,
@@ -156,7 +157,7 @@ const NationalAssembly = () => {
         classCode,
         "nationalAssemblyLaws"
       );
-      const q = query(lawsCollectionRefNode, orderBy("timestamp", "desc"));
+      const q = query(lawsCollectionRefNode, orderBy("timestamp", "desc"), limit(100));
       const querySnapshot = await getDocs(q);
 
       return querySnapshot.docs.map((doc) => ({

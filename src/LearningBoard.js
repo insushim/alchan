@@ -18,6 +18,7 @@ import {
   query,
   orderBy,
   where,
+  limit,
   serverTimestamp,
   increment,
   arrayUnion,
@@ -133,7 +134,8 @@ const LearningBoard = () => {
         classCode,
         "learningBoards"
       );
-      const q = query(boardsPathRef, orderBy("name"));
+      // 🔥 [최적화] limit 추가 - 최대 100개 게시판만 조회
+      const q = query(boardsPathRef, orderBy("name"), limit(100));
       const snapshot = await getDocs(q);
       console.log(
         "[LearningBoard Debug] Boards fetched. Docs count:",
@@ -176,7 +178,8 @@ const LearningBoard = () => {
         selectedBoard.id,
         "posts"
       );
-      const q = query(postsCollectionRef, orderBy("timestamp", "desc"));
+      // 🔥 [최적화] limit 추가 - 최신 게시글 100개만 조회
+      const q = query(postsCollectionRef, orderBy("timestamp", "desc"), limit(100));
       const snapshot = await getDocs(q);
       console.log(
         `[LearningBoard Debug] Posts fetched for board ${selectedBoard.id}. Docs count:`,

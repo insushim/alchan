@@ -78,23 +78,34 @@ const Banking = () => {
         };
       });
 
-      // 각 유저의 상품 조회
+      // 🔥 [최적화] 각 유저의 상품 조회 - 병렬 처리로 N+1 문제 해결
       const allProducts = [];
-      for (const userId of Object.keys(userMap)) {
+      const userIds = Object.keys(userMap);
+
+      // 모든 유저의 products를 병렬로 조회 (순차 대신 Promise.all 사용)
+      const productPromises = userIds.map(async (userId) => {
         const productsQuery = collection(db, "users", userId, "products");
         const productsSnapshot = await getDocs(productsQuery);
 
-        productsSnapshot.forEach((productDoc) => {
+        return productsSnapshot.docs.map((productDoc) => {
           const productData = productDoc.data();
-          allProducts.push({
+          return {
             firestoreId: productDoc.id, // 실제 Firestore 문서 ID
             userId: userId,
             userName: userMap[userId].name,
             ...productData,
             maturityDate: productData.maturityDate?.toDate ? productData.maturityDate.toDate() : productData.maturityDate
-          });
+          };
         });
-      }
+      });
+
+      // 모든 Promise가 완료될 때까지 대기
+      const productsArrays = await Promise.all(productPromises);
+
+      // 2D 배열을 1D 배열로 평탄화
+      productsArrays.forEach(productsArray => {
+        allProducts.push(...productsArray);
+      });
 
       setAllUserProducts(allProducts);
       console.log("유저 상품 로드 완료:", allProducts);

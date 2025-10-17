@@ -123,7 +123,25 @@
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
 }
 
-.edit-form, .view-mode {
+.edit-form {
+  padding: 30px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-radius: 20px;
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.view-mode {
   padding: 25px;
 }
 
@@ -155,17 +173,43 @@
   flex: 1;
 }
 
+.name-with-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .user-name {
   font-size: 20px;
   font-weight: 700;
   color: #333;
-  margin: 0 0 5px 0;
+  margin: 0;
+}
+
+.role-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-badge {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.student-badge {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
 }
 
 .user-email {
   font-size: 13px;
   color: #666;
-  margin: 0;
+  margin: 5px 0 0 0;
 }
 
 .user-info {
@@ -244,31 +288,34 @@
 
 .form-group label {
   font-weight: 700;
-  color: #667eea;
+  color: #4a5568;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .form-group input {
-  padding: 12px 16px;
-  border-radius: 10px;
-  border: 2px solid #e0e0e0;
-  font-size: 14px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 2px solid #cbd5e0;
+  font-size: 15px;
   transition: all 0.3s ease;
   background-color: #fff;
+  font-weight: 500;
 }
 
 .form-group input:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.15);
+  transform: translateY(-1px);
 }
 
 .form-group input:read-only {
-  background-color: #f5f5f5;
+  background-color: #edf2f7;
   cursor: not-allowed;
+  border-color: #e2e8f0;
 }
 
 .card-actions {
@@ -325,6 +372,14 @@
 
 .action-button.reset-password {
   background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.action-button.make-admin {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.action-button.remove-admin {
+  background: linear-gradient(135deg, #757F9A 0%, #D7DDE8 100%);
 }
 
 @media (max-width: 768px) {
