@@ -1997,6 +1997,11 @@ exports.distributeDividends = onCall({region: "asia-northeast3"}, async (request
   if (!stockId || !dividendPerShare || dividendPerShare <= 0 || !classCode) {
     throw new HttpsError("invalid-argument", "유효한 classCode, stockId, dividendPerShare를 제공해야 합니다.");
   }
+
+  // TODO: 배당금 분배 로직 구현 필요
+  throw new HttpsError("unimplemented", "배당금 분배 기능은 아직 구현되지 않았습니다.");
+});
+
 exports.adminResetUserPassword = onCall({region: "asia-northeast3"}, async (request) => {
   const { uid: adminUid, isSuperAdmin } = await checkAuthAndGetUserData(request, true);
   const { userId, newPassword } = request.data;
