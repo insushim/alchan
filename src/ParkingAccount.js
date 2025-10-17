@@ -843,6 +843,13 @@ const ParkingAccount = ({
     if (isNaN(amount) || amount <= 0) return displayMessage("유효한 금액을 입력하세요.", "error");
 
     setIsProcessing(true);
+    const previousParkingBalance = parkingBalance; // Store for rollback
+    const previousCurrentCash = currentCash; // Store for rollback
+
+    // Optimistically update UI for parking balance and current cash
+    setParkingBalance(prev => prev + amount);
+    setCurrentCash(prev => prev - amount);
+
     try {
       await runTransaction(db, async (transaction) => {
         const userRef = doc(db, "users", userId);
@@ -863,28 +870,20 @@ const ParkingAccount = ({
         }
       });
 
-      // 즉시 UI 업데이트 (낙관적 업데이트)
-      setCurrentCash(prev => {
-        const newCash = prev - amount;
-        console.log("[ParkingAccount] 입금 후 즉시 currentCash 업데이트:", prev, "→", newCash);
-        return newCash;
-      });
-
       displayMessage(`${formatCurrency(amount)}원 입금 완료.`, "success");
 
-      // 백그라운드에서 userDoc 갱신
+      // 백그라운드에서 userDoc 갱신 (AuthContext의 userDoc.cash는 이미 낙관적으로 업데이트됨)
       if (refreshUserDocument) {
         refreshUserDocument().then(() => {
           console.log("[ParkingAccount] 입금 후 userDoc 갱신 완료");
         });
       }
-      await loadAllData();
+      await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
-      // 에러 발생 시 currentCash 롤백
-      if (userDoc?.cash !== undefined) {
-        setCurrentCash(userDoc.cash);
-      }
+      // Rollback UI on error
+      setParkingBalance(previousParkingBalance);
+      setCurrentCash(previousCurrentCash);
     } finally {
       setIsProcessing(false);
     }
@@ -895,6 +894,13 @@ const ParkingAccount = ({
     if (isNaN(amount) || amount <= 0) return displayMessage("유효한 금액을 입력하세요.", "error");
 
     setIsProcessing(true);
+    const previousParkingBalance = parkingBalance; // Store for rollback
+    const previousCurrentCash = currentCash; // Store for rollback
+
+    // Optimistically update UI for parking balance and current cash
+    setParkingBalance(prev => prev - amount);
+    setCurrentCash(prev => prev + amount);
+
     try {
       await runTransaction(db, async (transaction) => {
         const userRef = doc(db, "users", userId);
@@ -908,28 +914,20 @@ const ParkingAccount = ({
         transaction.update(parkingRef, { balance: increment(-amount) });
       });
 
-      // 즉시 UI 업데이트 (낙관적 업데이트)
-      setCurrentCash(prev => {
-        const newCash = prev + amount;
-        console.log("[ParkingAccount] 출금 후 즉시 currentCash 업데이트:", prev, "→", newCash);
-        return newCash;
-      });
-
       displayMessage(`${formatCurrency(amount)}원 출금 완료.`, "success");
 
-      // 백그라운드에서 userDoc 갱신
+      // 백그라운드에서 userDoc 갱신 (AuthContext의 userDoc.cash는 이미 낙관적으로 업데이트됨)
       if (refreshUserDocument) {
         refreshUserDocument().then(() => {
           console.log("[ParkingAccount] 출금 후 userDoc 갱신 완료");
         });
       }
-      await loadAllData();
+      await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
-      // 에러 발생 시 currentCash 롤백
-      if (userDoc?.cash !== undefined) {
-        setCurrentCash(userDoc.cash);
-      }
+      // Rollback UI on error
+      setParkingBalance(previousParkingBalance);
+      setCurrentCash(previousCurrentCash);
     } finally {
       setIsProcessing(false);
     }

@@ -365,8 +365,8 @@ export const AuthProvider = ({ children }) => {
 
             // 핵심: 학급 구성원만 조회 (전체 사용자 대신)
             if (docData.classCode && docData.classCode !== '미지정') {
-              // 수정: forceRefresh를 true로 설정하여 확실히 새로 조회
-              await fetchClassmatesFromFirestore(docData.classCode, firebaseAuthUser.uid, true);
+              // 🔥 [수정] forceRefresh=false로 변경하여 캐시 활용
+              await fetchClassmatesFromFirestore(docData.classCode, firebaseAuthUser.uid, false);
             } else {
               setUsers([]);
               setAllClassMembers([]);
@@ -411,6 +411,7 @@ export const AuthProvider = ({ children }) => {
                       // 학급 변경 감지
                       if (classCodeChanged) {
                         if (newDocData.classCode && newDocData.classCode !== '미지정') {
+                          // 🔥 [수정] 학급 변경 시만 forceRefresh=true
                           await fetchClassmatesFromFirestore(newDocData.classCode, firebaseAuthUser.uid, true);
                         } else {
                           setUsers([]);
@@ -428,7 +429,6 @@ export const AuthProvider = ({ children }) => {
               };
 
               // 초기 한 번 실행 후 10분마다 폴링 (5분에서 10분으로 변경 - Firebase 읽기 최적화)
-              setTimeout(pollUserDoc, 60000); // 60초 후 첫 폴링 (30초에서 60초로 변경)
               const interval = setInterval(pollUserDoc, 600000); // 10분마다 폴링 (5분에서 10분으로 변경)
 
               firestoreUnsubscribeRef.current = () => clearInterval(interval);
@@ -539,7 +539,8 @@ export const AuthProvider = ({ children }) => {
 
           // 핵심: 학급 구성원만 조회
           if (docData.classCode && docData.classCode !== '미지정') {
-            await fetchClassmatesFromFirestore(docData.classCode, firebaseUid, true);
+            // 🔥 [수정] forceRefresh=false로 변경
+            await fetchClassmatesFromFirestore(docData.classCode, firebaseUid, false);
           }
           
           return true;
@@ -711,11 +712,19 @@ export const AuthProvider = ({ children }) => {
         );
 
         if (success) {
-          // 수정: 아래 로컬 캐시/상태 업데이트 로직을 제거합니다.
-          // Firestore의 onSnapshot 리스너가 서버로부터 업데이트된 정확한 데이터를 받아
-          // userDoc 상태를 자동으로 업데이트하므로, 클라이언트에서 임의로 계산하지 않습니다.
-          // 이렇게 하면 데이터 정합성 문제와 race condition을 방지할 수 있습니다.
-          
+          // Optimistically update userDoc and cache
+          const currentCachedUserDoc = getCachedUserDoc(targetUserId);
+          if (currentCachedUserDoc) {
+            const newCash = (currentCachedUserDoc.cash || 0) + effectiveAmount;
+            const updatedUserDoc = { ...currentCachedUserDoc, cash: newCash };
+            setCachedUserDoc(targetUserId, updatedUserDoc);
+
+            // If the targetUserId is the currently logged-in user, update the userDoc state
+            if (targetUserId === (userDoc?.id || userDoc?.uid)) {
+              setUserDoc(updatedUserDoc);
+            }
+          }
+
           if (logDescription) {
             try {
               const txSuccess = await addTransaction(targetUserId, effectiveAmount, logDescription);
@@ -730,10 +739,11 @@ export const AuthProvider = ({ children }) => {
           return false;
         }
       } catch (error) {
+        console.error("Error in modifyUserCashById:", error);
         return false;
       }
     },
-    [firebaseReady, userDoc]
+    [firebaseReady, userDoc, getCachedUserDoc, setCachedUserDoc, setUserDoc]
   );
 
   const deductCashFromUserById = useCallback(
