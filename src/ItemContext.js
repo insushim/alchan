@@ -39,7 +39,7 @@ export const useItems = () => {
 };
 
 export const ItemProvider = ({ children }) => {
-  const { user, userDoc, isAdmin: isAuthAdmin, loading: authLoading } = useAuth() || {};
+  const { user, userDoc, isAdmin: isAuthAdmin, loading: authLoading, deductCash, addCash } = useAuth() || {};
   const userId = user?.uid;
   const currentUserClassCode = userDoc?.classCode;
 
@@ -165,18 +165,37 @@ export const ItemProvider = ({ children }) => {
 
   const purchaseItem = useCallback(async (itemId, quantity = 1) => {
     if (!userId) return { success: false, message: "로그인 필요" };
+    const itemToPurchase = items.find(item => item.id === itemId);
+    if (!itemToPurchase) return { success: false, message: "아이템을 찾을 수 없습니다." };
+
+    const totalPrice = itemToPurchase.price * quantity;
+
+    // Optimistically deduct cash
+    const deductResult = await deductCash(totalPrice, `${itemToPurchase.name} ${quantity}개 구매`);
+    if (!deductResult) {
+      // If deductCash itself failed (e.g., insufficient funds, though it should be checked earlier)
+      return { success: false, message: "현금 차감에 실패했습니다." };
+    }
+
     try {
-      await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
-      refreshData();
-      return { success: true };
+      const result = await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
+      if (result.data.success) {
+        refreshData(); // Keep this to update item stock/availability
+        return { success: true };
+      } else {
+        // Rollback cash if Cloud Function fails
+        await addCash(totalPrice, `${itemToPurchase.name} 구매 실패 (롤백)`);
+        throw new Error(result.data.message || "구매에 실패했습니다.");
+      }
     } catch (error) {
-      refreshData();
+      // Rollback cash if any error occurs
+      await addCash(totalPrice, `${itemToPurchase.name} 구매 실패 (롤백)`);
       if (error.code === 'not-found') {
         return { success: false, message: "아이템 구매 함수(purchaseStoreItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData]);
+  }, [userId, firebaseFunctions, refreshData, items, userDoc?.cash, deductCash, addCash]);
 
   const useItem = useCallback(async (inventoryItemId, quantity = 1) => {
     if (!userId) return { success: false, message: "로그인 필요" };
@@ -210,18 +229,36 @@ export const ItemProvider = ({ children }) => {
 
   const buyMarketItem = useCallback(async (listingId) => {
     if (!userId) return { success: false, message: "로그인 필요" };
+    const itemToBuy = marketListings.find(item => item.id === listingId);
+    if (!itemToBuy) return { success: false, message: "판매 목록에서 아이템을 찾을 수 없습니다." };
+
+    const itemPrice = itemToBuy.price || itemToBuy.totalPrice || 0;
+
+    // Optimistically deduct cash
+    const deductResult = await deductCash(itemPrice, `${itemToBuy.itemName} 구매`);
+    if (!deductResult) {
+      return { success: false, message: "현금 차감에 실패했습니다." };
+    }
+
     try {
-      await firebaseFunctions.buyMarketItem({ listingId });
-      refreshData();
-      return { success: true };
+      const result = await firebaseFunctions.buyMarketItem({ listingId });
+      if (result.data.success) {
+        refreshData(); // Keep this to update market listings
+        return { success: true };
+      } else {
+        // Rollback cash if Cloud Function fails
+        await addCash(itemPrice, `${itemToBuy.itemName} 구매 실패 (롤백)`);
+        throw new Error(result.data.message || "구매에 실패했습니다.");
+      }
     } catch (error) {
-      refreshData();
+      // Rollback cash if any error occurs
+      await addCash(itemPrice, `${itemToBuy.itemName} 구매 실패 (롤백)`);
       if (error.code === 'not-found') {
         return { success: false, message: "구매 처리 함수(buyMarketItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData]);
+  }, [userId, firebaseFunctions, refreshData, marketListings, userDoc?.cash, deductCash, addCash]);
 
   const cancelSale = useCallback(async (listingId) => {
     if (!userId) return { success: false, message: "로그인 필요" };

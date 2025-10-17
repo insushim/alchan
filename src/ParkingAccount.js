@@ -872,12 +872,6 @@ const ParkingAccount = ({
 
       displayMessage(`${formatCurrency(amount)}원 입금 완료.`, "success");
 
-      // 백그라운드에서 userDoc 갱신 (AuthContext의 userDoc.cash는 이미 낙관적으로 업데이트됨)
-      if (refreshUserDocument) {
-        refreshUserDocument().then(() => {
-          console.log("[ParkingAccount] 입금 후 userDoc 갱신 완료");
-        });
-      }
       await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
@@ -916,12 +910,6 @@ const ParkingAccount = ({
 
       displayMessage(`${formatCurrency(amount)}원 출금 완료.`, "success");
 
-      // 백그라운드에서 userDoc 갱신 (AuthContext의 userDoc.cash는 이미 낙관적으로 업데이트됨)
-      if (refreshUserDocument) {
-        refreshUserDocument().then(() => {
-          console.log("[ParkingAccount] 출금 후 userDoc 갱신 완료");
-        });
-      }
       await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
