@@ -10,7 +10,8 @@ import {
 } from "react-router-dom";
 
 // Firebase imports
-import { db, isFirestoreInitialized } from "./firebase";
+import { db, isFirestoreInitialized, functions } from "./firebase";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
@@ -195,18 +196,43 @@ function UserManagementComponent() {
   });
   const [lastUpdateTime, setLastUpdateTime] = useState(Date.now());
   const hasLoadedFromCacheRef = useRef(false);
+  const [groupedUsers, setGroupedUsers] = useState({});
+  const [newPassword, setNewPassword] = useState("");
 
-  const { userDoc } = useAuth();
+  const { userDoc, functions } = useAuth();
   const adminClassCode = userDoc?.classCode;
   const isSuperAdmin = userDoc?.isSuperAdmin;
 
-  // 캐시 키 생성
-  const cacheKey = useMemo(() => 
+  useEffect(() => {
+    const groups = users.reduce((acc, user) => {
+      const classCode = user.classCode || '미지정';
+      if (!acc[classCode]) {
+        acc[classCode] = [];
+      }
+      acc[classCode].push(user);
+      return acc;
+    }, {});
+
+    for (const classCode in groups) {
+      groups[classCode].sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }
+
+    const sortedGroups = Object.keys(groups).sort().reduce(
+      (obj, key) => {
+        obj[key] = groups[key];
+        return obj;
+      },
+      {}
+    );
+
+    setGroupedUsers(sortedGroups);
+  }, [users]);
+
+  const cacheKey = useMemo(() =>
     `users_${isSuperAdmin ? 'all' : adminClassCode || 'none'}`, 
     [isSuperAdmin, adminClassCode]
   );
 
-  // 캐시된 데이터 로드
   const loadCachedUsers = useCallback(() => {
     const cached = userDataCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
@@ -217,22 +243,20 @@ function UserManagementComponent() {
     return false;
   }, [cacheKey]);
 
-  // 사용자 데이터 캐시 업데이트
   const updateUserCache = useCallback((userData) => {
     userDataCache.set(cacheKey, {
       data: userData,
       timestamp: Date.now()
     });
-    
-    // 캐시 만료 타이머 설정
+
     const existingTimeout = cacheTimeouts.get(cacheKey);
     if (existingTimeout) clearTimeout(existingTimeout);
-    
+
     const newTimeout = setTimeout(() => {
       userDataCache.delete(cacheKey);
       cacheTimeouts.delete(cacheKey);
     }, CACHE_DURATION);
-    
+
     cacheTimeouts.set(cacheKey, newTimeout);
   }, [cacheKey]);
 
@@ -253,12 +277,10 @@ function UserManagementComponent() {
     return () => clearTimeout(timer);
   }, []);
 
-  // cacheKey가 변경되면 캐시 로드 플래그 초기화
   useEffect(() => {
     hasLoadedFromCacheRef.current = false;
   }, [cacheKey]);
 
-  // 실시간 리스너 최적화
   useEffect(() => {
     if (!firebaseStatus.initialized || (!isSuperAdmin && !adminClassCode)) {
       if (firebaseStatus.checked) setLoading(false);
@@ -270,7 +292,6 @@ function UserManagementComponent() {
       return;
     }
 
-    // 캐시된 데이터가 있으면 먼저 로드 (한 번만)
     if (!hasLoadedFromCacheRef.current) {
       if (loadCachedUsers()) {
         hasLoadedFromCacheRef.current = true;
@@ -282,18 +303,15 @@ function UserManagementComponent() {
     let unsubscribe;
     try {
       const usersCollection = collection(db, "users");
-      
-      // 쿼리 최적화: 필요한 필드만 선택하고 제한된 수만 가져오기
+
       const usersQuery = isSuperAdmin
-        ? query(usersCollection, orderBy("createdAt", "desc"), limit(100))
+        ? query(usersCollection, orderBy("createdAt", "desc"))
         : query(
-            usersCollection, 
+            usersCollection,
             where("classCode", "==", adminClassCode),
-            orderBy("createdAt", "desc"),
-            limit(50)
+            orderBy("createdAt", "desc")
           );
 
-      // 실시간 리스너 대신 초기 로드 후 주기적 업데이트
       const loadUsers = async () => {
         try {
           const snapshot = await getDocs(usersQuery);
@@ -301,7 +319,7 @@ function UserManagementComponent() {
             id: doc.id,
             ...doc.data(),
           }));
-          
+
           setUsers(usersList);
           updateUserCache(usersList);
           setLoading(false);
@@ -314,28 +332,20 @@ function UserManagementComponent() {
         }
       };
 
-      // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (5분마다)
       const startUserPolling = () => {
         const pollUsers = async () => {
           try {
-            // 캐시가 유효하면 폴링 생략
             const cached = userDataCache.get(cacheKey);
             if (cached && Date.now() - cached.timestamp < 240000) { // 4분 이내
               return;
             }
-
             await loadUsers();
           } catch (error) {
             console.error("폴링 오류:", error);
           }
         };
-
-        // 초기 로드
         loadUsers();
-
-        // 5분마다 폴링
         const pollingInterval = setInterval(pollUsers, 300000); // 5분
-
         return () => {
           clearInterval(pollingInterval);
         };
@@ -352,10 +362,11 @@ function UserManagementComponent() {
     firebaseStatus.initialized,
     adminClassCode,
     isSuperAdmin,
-    updateUserCache
+    updateUserCache,
+    loadCachedUsers,
+    cacheKey
   ]);
 
-  // 디바운스된 추가 함수
   const debouncedAddUser = useCallback(
     debounce(async (userData) => {
       if (!isFirestoreInitialized()) return setError("Firestore 미초기화.");
@@ -371,23 +382,21 @@ function UserManagementComponent() {
           classCode: adminClassCode,
           createdAt: serverTimestamp(),
         });
-        
-        // 로컬 상태 즉시 업데이트 (낙관적 업데이트)
+
         const newUserData = {
           id: docRef.id,
           ...userData,
           classCode: adminClassCode,
           createdAt: { toDate: () => new Date() }
         };
-        
+
         setUsers(prevUsers => [newUserData, ...prevUsers]);
         setNewUser({ name: "", email: "" });
         setError(null);
-        
-        // 캐시 업데이트
+
         const updatedUsers = [newUserData, ...users];
         updateUserCache(updatedUsers);
-        
+
       } catch (error) {
         setError(`사용자 추가 오류: ${error.message}`);
       } finally {
@@ -402,7 +411,6 @@ function UserManagementComponent() {
     debouncedAddUser(newUser);
   };
 
-  // 배치 업데이트를 사용한 사용자 수정
   const handleUpdateUser = async (e) => {
     e.preventDefault();
     if (!isFirestoreInitialized() || !editing) return;
@@ -411,32 +419,30 @@ function UserManagementComponent() {
 
     setLoading(true);
     try {
-      // 배치 큐에 추가
       queueBatchUpdate(`users/${editing.id}`, {
         name: editing.name,
         email: editing.email,
+        classCode: editing.classCode,
       });
-      
-      // 낙관적 업데이트
-      setUsers(prevUsers => 
-        prevUsers.map(user => 
-          user.id === editing.id 
-            ? { ...user, name: editing.name, email: editing.email }
+
+      setUsers(prevUsers =>
+        prevUsers.map(user =>
+          user.id === editing.id
+            ? { ...user, name: editing.name, email: editing.email, classCode: editing.classCode }
             : user
         )
       );
-      
+
       setEditing(null);
       setError(null);
-      
-      // 캐시 업데이트
-      const updatedUsers = users.map(user => 
-        user.id === editing.id 
-          ? { ...user, name: editing.name, email: editing.email }
+
+      const updatedUsers = users.map(user =>
+        user.id === editing.id
+          ? { ...user, name: editing.name, email: editing.email, classCode: editing.classCode }
           : user
       );
       updateUserCache(updatedUsers);
-      
+
     } catch (error) {
       setError(`사용자 업데이트 오류: ${error.message}`);
     } finally {
@@ -447,19 +453,17 @@ function UserManagementComponent() {
   const handleDeleteUser = async (userId) => {
     if (!isFirestoreInitialized()) return;
     if (!window.confirm("정말 삭제하시겠습니까?")) return;
-    
+
     setLoading(true);
     try {
       await deleteDoc(doc(db, "users", userId));
-      
-      // 낙관적 업데이트
+
       setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
       setError(null);
-      
-      // 캐시 업데이트
+
       const updatedUsers = users.filter(user => user.id !== userId);
       updateUserCache(updatedUsers);
-      
+
     } catch (error) {
       setError(`사용자 삭제 오류: ${error.message}`);
     } finally {
@@ -467,26 +471,45 @@ function UserManagementComponent() {
     }
   };
 
-  // 수동 새로고침 함수
+  const handleChangePassword = async () => {
+    if (!editing || !newPassword) {
+      alert("새 비밀번호를 입력하세요.");
+      return;
+    }
+    if (!window.confirm(`${editing.name}님의 비밀번호를 변경하시겠습니까?`)) return;
+
+    setLoading(true);
+    try {
+      const adminResetUserPassword = httpsCallable(functions, 'adminResetUserPassword');
+      await adminResetUserPassword({ uid: editing.id, newPassword });
+      alert("비밀번호가 성공적으로 변경되었습니다.");
+      setNewPassword("");
+      setEditing(null);
+    } catch (error) {
+      setError(`비밀번호 변경 오류: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRefresh = useCallback(async () => {
     setLoading(true);
     try {
       const usersCollection = collection(db, "users");
       const usersQuery = isSuperAdmin
-        ? query(usersCollection, orderBy("createdAt", "desc"), limit(100))
+        ? query(usersCollection, orderBy("createdAt", "desc"))
         : query(
-            usersCollection, 
+            usersCollection,
             where("classCode", "==", adminClassCode),
-            orderBy("createdAt", "desc"),
-            limit(50)
+            orderBy("createdAt", "desc")
           );
-      
+
       const snapshot = await getDocs(usersQuery);
       const usersList = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      
+
       setUsers(usersList);
       updateUserCache(usersList);
       setLastUpdateTime(Date.now());
@@ -517,8 +540,8 @@ function UserManagementComponent() {
             : ""}
         </h1>
         <div>
-          <button 
-            onClick={handleRefresh} 
+          <button
+            onClick={handleRefresh}
             disabled={loading}
             style={{ marginRight: '10px' }}
           >
@@ -529,7 +552,7 @@ function UserManagementComponent() {
           </small>
         </div>
       </div>
-      
+
       {error && (
         <div className="error-message">
           {error} <button onClick={() => setError(null)}>✕</button>
@@ -625,44 +648,57 @@ function UserManagementComponent() {
               </button>
             </div>
           </form>
+          <div className="password-change-container">
+            <h3>비밀번호 변경</h3>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="새 비밀번호"
+              disabled={loading}
+            />
+            <button onClick={handleChangePassword} disabled={loading}>
+              {loading ? "처리 중..." : "비밀번호 변경"}
+            </button>
+          </div>
         </div>
       )}
 
       <div className="users-list">
         <h2>사용자 목록 ({users.length}명)</h2>
-        {users.length === 0 ? (
-          <p>등록된 사용자가 없습니다.</p>
-        ) : (
-          <ul>
-            {users.map((user) => (
-              <li key={user.id}>
-                <div className="user-info">
-                  <strong>{user.name || "이름 없음"}</strong>
-                  <p>이메일: {user.email || "이메일 없음"}</p>
-                  <p>학급 코드: {user.classCode || "미지정"}</p>
-                  <p>ID: {user.id}</p>
-                  {user.createdAt && (
-                    <p>
-                      생성일:{" "}
-                      {new Date(user.createdAt.toDate()).toLocaleString()}
-                    </p>
-                  )}
-                </div>
-                <div className="user-actions">
-                  <button onClick={() => setEditing(user)} disabled={loading}>
-                    수정
-                  </button>
-                  <button
-                    onClick={() => handleDeleteUser(user.id)}
-                    disabled={loading}
-                  >
-                    삭제
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+        {Object.keys(groupedUsers).map(classCode => (
+          <div key={classCode} className="class-group">
+            <h3>{classCode} ({groupedUsers[classCode].length}명)</h3>
+            <ul>
+              {groupedUsers[classCode].map((user) => (
+                <li key={user.id}>
+                  <div className="user-info">
+                    <strong>{user.name || "이름 없음"}</strong>
+                    <p>이메일: {user.email || "이메일 없음"}</p>
+                    <p>ID: {user.id}</p>
+                    {user.createdAt && (
+                      <p>
+                        생성일:{" "}
+                        {new Date(user.createdAt.toDate()).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <div className="user-actions">
+                    <button onClick={() => setEditing(user)} disabled={loading}>
+                      수정
+                    </button>
+                    <button
+                      onClick={() => handleDeleteUser(user.id)}
+                      disabled={loading}
+                    >
+                      삭제
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1130,7 +1166,7 @@ function AppLayoutContent() {
   }
 
   const currentUser = authHook.userDoc;
-  const isAdminUser = currentUser?.isAdmin || currentUser?.role === "admin";
+  const isAdminUser = useMemo(() => currentUser?.isAdmin || currentUser?.role === "admin", [currentUser]);
   const userClassCode = currentUser?.classCode;
 
   return (

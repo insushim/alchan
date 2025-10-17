@@ -12,6 +12,7 @@ import React, {
 import {
   auth,
   db,
+  functions,
   isInitialized,
   authStateListener,
   signInWithEmailAndPassword as fbSignIn,
@@ -891,6 +892,7 @@ export const AuthProvider = ({ children }) => {
       loading,
       firebaseReady,
       auth: auth,
+      functions: functions,
       loginWithEmailPassword,
       logout,
       updateUser,
