@@ -190,29 +190,48 @@
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 1rem;
+  background-color: #f9f9f9;
 }
 
 .user-management-container .class-group h3 {
   margin-top: 0;
+  border-bottom: 2px solid #007bff;
+  padding-bottom: 0.5rem;
+  color: #007bff;
 }
 
 .user-management-container .users-list ul {
   list-style-type: none;
   padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
 }
 
 .user-management-container .users-list li {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  background-color: white;
+  border: 1px solid #eee;
+  border-radius: 8px;
   padding: 1rem;
-  border-bottom: 1px solid #eee;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  display: flex;
+  flex-direction: column;
 }
 
-.user-management-container .users-list li:last-child {
-  border-bottom: none;
+.user-management-container .user-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+
+.user-management-container .user-actions {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .password-change-container {
   margin-top: 1rem;
+  border-top: 1px solid #ddd;
+  padding-top: 1rem;
 }

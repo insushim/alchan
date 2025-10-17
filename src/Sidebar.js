@@ -80,6 +80,7 @@ export default function Sidebar({
     const renderedItems = [];
     menuItems.forEach((item) => {
       if (!item) return;
+      if (item.superAdminOnly && !userDoc?.isSuperAdmin) return;
       if (item.adminOnly && !userDoc?.isAdmin && !userDoc?.isSuperAdmin) return;
       if (item.id === "dashboard") return;
 
@@ -122,6 +123,7 @@ export default function Sidebar({
                     subItem.categoryId === item.id
                 )
                 .map((subItem) => {
+                  if (subItem.superAdminOnly && !userDoc?.isSuperAdmin) return null;
                   if (
                     subItem.adminOnly &&
                     !userDoc?.isAdmin &&

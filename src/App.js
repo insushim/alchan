@@ -961,6 +961,7 @@ const sidebarMenuItems = [
     path: "/user-management",
     categoryId: "adminFunctionsCategory",
     adminOnly: true,
+    superAdminOnly: true,
   },
 ];
 
@@ -993,7 +994,10 @@ function AppLayoutContent() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [lastTaskResetCheck, setLastTaskResetCheck] = useState(Date.now());
 
+  const currentUser = authHook.userDoc;
+  const isAdminUser = useMemo(() => currentUser?.isAdmin || currentUser?.role === "admin", [currentUser]);
   const classCode = authHook.userDoc?.classCode;
+  const userClassCode = currentUser?.classCode;
 
   // 태스크 리셋 체크를 최적화 - 10분마다만 체크
   useEffect(() => {
