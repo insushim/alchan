@@ -517,26 +517,32 @@ input:checked + .slider:before {
 }
 
 /* 모달 스타일 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
+.national-assembly-container .modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 99999 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
-.modal-container {
-  background-color: white;
-  width: 90%;
-  max-width: 600px;
-  border-radius: 10px;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-  overflow: hidden;
+.national-assembly-container .modal-container {
+  background-color: white !important;
+  width: 90% !important;
+  max-width: 600px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
+  overflow: hidden !important;
+  z-index: 100000 !important;
+  position: relative !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .modal-header {

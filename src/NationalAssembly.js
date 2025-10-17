@@ -42,6 +42,27 @@ const NationalAssembly = () => {
   const [localAdminSettings, setLocalAdminSettings] = useState(null);
   const [localGovSettings, setLocalGovSettings] = useState(null);
 
+  // 모달 상태 변경 감지를 위한 useEffect
+  useEffect(() => {
+    console.log("[NationalAssembly] showProposeLawModal 상태 변경:", showProposeLawModal);
+    if (showProposeLawModal) {
+      // DOM에서 모달이 실제로 존재하는지 확인
+      setTimeout(() => {
+        const modal = document.querySelector('.modal-overlay');
+        console.log("[NationalAssembly] DOM에서 모달 찾기:", modal);
+        if (modal) {
+          console.log("[NationalAssembly] 모달 스타일:", {
+            display: modal.style.display,
+            zIndex: window.getComputedStyle(modal).zIndex,
+            position: window.getComputedStyle(modal).position,
+            visibility: window.getComputedStyle(modal).visibility,
+            opacity: window.getComputedStyle(modal).opacity
+          });
+        }
+      }, 100);
+    }
+  }, [showProposeLawModal]);
+
   // 관리자 설정 로드 및 초기화
   const { data: adminSettings, loading: adminSettingsLoading } = usePolling(
     async () => {
@@ -200,11 +221,18 @@ const NationalAssembly = () => {
 
   // --- 🔥 [수정] 새 법안 제안 함수 ---
   const handleProposeLaw = async () => {
+    console.log("[NationalAssembly] handleProposeLaw 시작");
+    console.log("[NationalAssembly] classCode:", classCode);
+    console.log("[NationalAssembly] currentUser:", currentUser);
+    console.log("[NationalAssembly] newLaw:", newLaw);
+
     if (!classCode || !currentUser) {
+      console.log("[NationalAssembly] 학급 정보 또는 유저 정보 없음");
       alert("학급 정보가 없거나 로그인되지 않았습니다.");
       return;
     }
     if (!newLaw.title || !newLaw.description || !newLaw.fine) {
+      console.log("[NationalAssembly] 필수 필드 누락");
       alert("모든 필드를 입력해주세요.");
       return;
     }
@@ -705,7 +733,12 @@ const NationalAssembly = () => {
           <>
             <div className="content-actions">
               <button
-                onClick={() => setShowProposeLawModal(true)}
+                onClick={() => {
+                  console.log("[NationalAssembly] 새 법안 제안하기 버튼 클릭됨");
+                  console.log("[NationalAssembly] showProposeLawModal:", showProposeLawModal);
+                  setShowProposeLawModal(true);
+                  console.log("[NationalAssembly] setShowProposeLawModal(true) 호출 완료");
+                }}
                 className="action-button propose-button"
               >
                 새 법안 제안하기
@@ -1199,7 +1232,10 @@ const NationalAssembly = () => {
       {showProposeLawModal && (
         <div
           className="modal-overlay"
-          onClick={() => setShowProposeLawModal(false)}
+          onClick={() => {
+            console.log("[NationalAssembly] 모달 오버레이 클릭됨 (닫기)");
+            setShowProposeLawModal(false);
+          }}
         >
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -1257,13 +1293,20 @@ const NationalAssembly = () => {
             </div>
             <div className="modal-footer">
               <button
-                onClick={() => setShowProposeLawModal(false)}
+                onClick={() => {
+                  console.log("[NationalAssembly] 취소 버튼 클릭됨");
+                  setShowProposeLawModal(false);
+                }}
                 className="modal-button cancel"
               >
                 취소
               </button>
               <button
-                onClick={handleProposeLaw}
+                onClick={() => {
+                  console.log("[NationalAssembly] 제안하기 버튼 클릭됨");
+                  console.log("[NationalAssembly] 버튼 disabled 상태:", !newLaw.title || !newLaw.description || !newLaw.fine);
+                  handleProposeLaw();
+                }}
                 className="modal-button submit"
                 disabled={!newLaw.title || !newLaw.description || !newLaw.fine}
               >

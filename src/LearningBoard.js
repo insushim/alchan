@@ -47,6 +47,40 @@ const formatDate = (isoString) => {
   }
 };
 
+const calculateCouponChange = (postData, interactionType, userId) => {
+  const { likes = 0, dislikes = 0, likedBy = [], dislikedBy = [] } = postData;
+
+  const userHasLiked = likedBy.includes(userId);
+  const userHasDisliked = dislikedBy.includes(userId);
+
+  let oldEffectiveLikes, newEffectiveLikes;
+
+  if (interactionType === 'like') {
+    if (userHasLiked) return 0;
+    oldEffectiveLikes = likes - dislikes;
+    if (userHasDisliked) {
+      newEffectiveLikes = (likes + 1) - (dislikes - 1);
+    } else {
+      newEffectiveLikes = (likes + 1) - dislikes;
+    }
+  } else if (interactionType === 'dislike') {
+    if (userHasDisliked) return 0;
+    oldEffectiveLikes = likes - dislikes;
+    if (userHasLiked) {
+      newEffectiveLikes = (likes - 1) - (dislikes + 1);
+    } else {
+      newEffectiveLikes = likes - (dislikes + 1);
+    }
+  } else {
+    return 0;
+  }
+
+  const prevThreshold = Math.max(0, Math.floor(oldEffectiveLikes / 3));
+  const currThreshold = Math.max(0, Math.floor(newEffectiveLikes / 3));
+
+  return currThreshold - prevThreshold;
+};
+
 const LearningBoard = () => {
   const {
     userDoc: currentUser,
@@ -74,21 +108,15 @@ const LearningBoard = () => {
   const [editingBoardName, setEditingBoardName] = useState("");
   const [isFullScreenMode, setIsFullScreenMode] = useState(false);
 
-  // boardsCollectionRef 정의
-  const boardsCollectionRef = useMemo(() => {
-    if (classCode) {
-      return collection(db, "classes", classCode, "learningBoards");
-    }
-    return null;
-  }, [classCode]);
-
-  // 게시판 목록 로드 - usePolling으로 변환
-  const {
-    data: boards = [],
-    loading: boardsLoading,
-    refetch: refetchBoards,
-  } = usePolling(
-    async () => {
+    // boardsCollectionRef 정의
+    const boardsCollectionRef = useMemo(() => {
+      if (classCode) {
+        return collection(db, "classes", classCode, "learningBoards");
+      }
+      return null;
+    }, [classCode]);
+  
+    const boardsQueryFn = useCallback(async () => {
       if (!classCode) {
         console.log(
           "[LearningBoard Debug] No classCode. Returning empty boards."
@@ -120,17 +148,20 @@ const LearningBoard = () => {
             : false,
       }));
       return loadedBoards;
-    },
-    { interval: 30000, enabled: !!classCode, deps: [classCode] }
-  );
-
-  // 선택된 게시판의 게시글 로드 - usePolling으로 변환
-  const {
-    data: selectedBoardPosts = [],
-    loading: postsLoading,
-    refetch: refetchPosts,
-  } = usePolling(
-    async () => {
+    }, [classCode]);
+  
+    // 게시판 목록 로드 - usePolling으로 변환
+    const {
+      data: boards = [],
+      loading: boardsLoading,
+      refetch: refetchBoards,
+    } = usePolling(boardsQueryFn, {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+    });
+  
+    const postsQueryFn = useCallback(async () => {
       if (!selectedBoard || !classCode) {
         return [];
       }
@@ -170,61 +201,24 @@ const LearningBoard = () => {
           : new Date().toISOString(),
       }));
       return loadedPosts;
-    },
-    {
+    }, [selectedBoard, classCode]);
+  
+    // 선택된 게시판의 게시글 로드 - usePolling으로 변환
+    const {
+      data: selectedBoardPosts = [],
+      loading: postsLoading,
+      refetch: refetchPosts,
+    } = usePolling(postsQueryFn, {
       interval: 30000,
       enabled: !!selectedBoard && !!classCode,
       deps: [selectedBoard?.id, classCode],
-    }
-  );
-
+    });
   // 전체 화면 모드 관리 useEffect 수정 - 관리자 패널 자동 열림 방지
   useEffect(() => {
-    const currentUserIsAdmin =
-      isAdmin && typeof isAdmin === "function"
-        ? isAdmin()
-        : currentUser?.isAdmin || false;
-
-    const writingActive =
-      isWriting &&
-      selectedBoard &&
-      (!selectedBoard.isHidden || (currentUserIsAdmin && showHiddenBoardsView));
-
-    const viewingBoardActive =
-      !isWriting &&
-      selectedBoard &&
-      (!selectedBoard.isHidden || (currentUserIsAdmin && showHiddenBoardsView));
-
-    const hiddenBoardManagementActive =
-      showHiddenBoardsView && currentUserIsAdmin;
-
-    // 관리자 패널 상태는 수동으로만 변경되도록 수정
-    if (
-      writingActive ||
-      viewingBoardActive ||
-      hiddenBoardManagementActive
-    ) {
-      setIsFullScreenMode(true);
-    } else if (
-      !isWriting &&
-      !selectedBoard &&
-      !showHiddenBoardsView &&
-      !showAdminPanel &&
-      !showBoardSelection
-    ) {
-      setIsFullScreenMode(false);
-    } else if (showBoardSelection) {
-      setIsFullScreenMode(false);
-    }
-  }, [
-    isWriting,
-    selectedBoard,
-    showHiddenBoardsView,
-    isAdmin,
-    currentUser,
-    showAdminPanel,
-    showBoardSelection,
-  ]);
+    const isViewingOrWriting = selectedBoard && !showBoardSelection;
+    const isAdminView = showAdminPanel || showHiddenBoardsView;
+    setIsFullScreenMode(isViewingOrWriting || isAdminView);
+  }, [selectedBoard, showBoardSelection, showAdminPanel, showHiddenBoardsView]);
 
   if (authLoading) {
     return (
@@ -239,10 +233,7 @@ const LearningBoard = () => {
     );
   }
 
-  const currentUserIsAdmin =
-    isAdmin && typeof isAdmin === "function"
-      ? isAdmin()
-      : currentUser?.isAdmin || false;
+  const currentUserIsAdmin = useMemo(() => isAdmin && isAdmin(), [isAdmin]);
 
   if (!classCode && !currentUserIsAdmin) {
     return (
@@ -412,61 +403,30 @@ const LearningBoard = () => {
         if (!postDoc.exists()) throw "게시글을 찾을 수 없습니다.";
 
         const postData = postDoc.data();
-        let updates = {};
-        let couponChangeForAuthor = 0;
-        let giveCouponToAuthor = false;
+        const updates = {};
+        let couponChange = 0;
+
+        const userHasLiked = postData.likedBy?.includes(currentUserId);
+        const userHasDisliked = postData.dislikedBy?.includes(currentUserId);
 
         if (updateType === "like") {
-          if (postData.likedBy?.includes(currentUserId)) return;
+          if (userHasLiked) return;
           updates.likedBy = arrayUnion(currentUserId);
           updates.likes = increment(1);
-          if (postData.dislikedBy?.includes(currentUserId)) {
+          if (userHasDisliked) {
             updates.dislikedBy = arrayRemove(currentUserId);
             updates.dislikes = increment(-1);
           }
-          const oldEffectiveLikes =
-            (postData.likes || 0) -
-            (postData.dislikedBy?.includes(currentUserId)
-              ? (postData.dislikes || 0) - 1
-              : postData.dislikes || 0);
-          const newEffectiveLikes =
-            (postData.likes || 0) +
-            1 -
-            (postData.dislikedBy?.includes(currentUserId)
-              ? (postData.dislikes || 0) - 1
-              : postData.dislikes || 0);
-          const prevThreshold = Math.max(0, Math.floor(oldEffectiveLikes / 3));
-          const currThreshold = Math.max(0, Math.floor(newEffectiveLikes / 3));
-          if (currThreshold > prevThreshold) {
-            couponChangeForAuthor = currThreshold - prevThreshold;
-            updates.coupons = increment(couponChangeForAuthor);
-            giveCouponToAuthor = true;
-          }
+          couponChange = calculateCouponChange(postData, "like", currentUserId);
         } else if (updateType === "dislike") {
-          if (postData.dislikedBy?.includes(currentUserId)) return;
+          if (userHasDisliked) return;
           updates.dislikedBy = arrayUnion(currentUserId);
           updates.dislikes = increment(1);
-          if (postData.likedBy?.includes(currentUserId)) {
+          if (userHasLiked) {
             updates.likedBy = arrayRemove(currentUserId);
             updates.likes = increment(-1);
           }
-          const oldEffectiveLikes =
-            (postData.likedBy?.includes(currentUserId)
-              ? (postData.likes || 0) - 1
-              : postData.likes || 0) - (postData.dislikes || 0);
-          const newEffectiveLikes =
-            (postData.likedBy?.includes(currentUserId)
-              ? (postData.likes || 0) - 1
-              : postData.likes || 0) -
-            ((postData.dislikes || 0) + 1);
-          const prevThreshold = Math.max(0, Math.floor(oldEffectiveLikes / 3));
-          const currThreshold = Math.max(0, Math.floor(newEffectiveLikes / 3));
-
-          if (currThreshold < prevThreshold) {
-            couponChangeForAuthor = -(prevThreshold - currThreshold);
-            updates.coupons = increment(couponChangeForAuthor);
-            giveCouponToAuthor = true;
-          }
+          couponChange = calculateCouponChange(postData, "dislike", currentUserId);
         } else if (
           updateType === "adminCoupon" &&
           currentUserIsAdmin &&
@@ -477,28 +437,31 @@ const LearningBoard = () => {
             alert("이 게시글에는 이미 관리자 쿠폰이 지급되었습니다.");
             return;
           }
-          updates.coupons = increment(interactionValue);
           updates.adminCouponGiven = true;
-          couponChangeForAuthor = interactionValue;
-          giveCouponToAuthor = true;
+          couponChange = interactionValue;
         } else {
           return;
+        }
+
+        if (couponChange !== 0) {
+          updates.coupons = increment(couponChange);
         }
 
         updates.updatedAt = serverTimestamp();
         transaction.update(postRef, updates);
 
         if (
-          giveCouponToAuthor &&
+          couponChange !== 0 &&
           postData.authorId &&
           postData.authorId !== currentUserId &&
-          addCouponsToUser &&
-          couponChangeForAuthor !== 0 // 쿠폰 변경량이 0이 아닐 때만 호출
+          addCouponsToUser
         ) {
-          addCouponsToUser(postData.authorId, couponChangeForAuthor);
+          addCouponsToUser(postData.authorId, couponChange);
         }
       });
+
       refetchPosts();
+
       if (updateType === "adminCoupon" && currentUserIsAdmin) {
         alert(
           `게시글(ID: ${postId.slice(
@@ -653,9 +616,7 @@ const LearningBoard = () => {
     }
   };
 
-  const boardsForGeneralSelection = boards.filter(
-    (board) => !board.isHidden || currentUserIsAdmin
-  );
+  const boardsForGeneralSelection = boards.filter((board) => !board.isHidden);
   const allBoardsForHiddenViewSelection = boards;
 
   // 컨테이너 클래스 설정 수정
@@ -844,8 +805,7 @@ const LearningBoard = () => {
           )}
           {isWriting &&
             selectedBoard &&
-            (!selectedBoard.isHidden ||
-              (currentUserIsAdmin && showHiddenBoardsView)) && (
+            (!selectedBoard.isHidden || currentUserIsAdmin) && (
               <div className="post-form-container">
                 <h2>
                   {selectedBoard.name}에 글쓰기{" "}

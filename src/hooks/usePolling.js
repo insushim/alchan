@@ -24,6 +24,11 @@ export const usePolling = (queryFn, options = {}) => {
   const [error, setError] = useState(null);
   const intervalRef = useRef(null);
   const mountedRef = useRef(true);
+  const queryFnRef = useRef(queryFn);
+
+  useEffect(() => {
+    queryFnRef.current = queryFn;
+  }, [queryFn]);
 
   const fetchData = useCallback(async () => {
     if (!enabled) {
@@ -33,7 +38,7 @@ export const usePolling = (queryFn, options = {}) => {
 
     try {
       setError(null);
-      const result = await queryFn();
+      const result = await queryFnRef.current();
 
       if (mountedRef.current) {
         setData(result);
@@ -46,7 +51,7 @@ export const usePolling = (queryFn, options = {}) => {
         setLoading(false);
       }
     }
-  }, [queryFn, enabled]);
+  }, [enabled]);
 
   const refetch = useCallback(() => {
     setLoading(true);

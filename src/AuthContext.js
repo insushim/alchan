@@ -854,16 +854,28 @@ export const AuthProvider = ({ children }) => {
   // 최적화: 특정 사용자 문서만 새로고침
   const refreshUserDocument = useCallback(
     async (userId) => {
-      if (!userId) return null;
-      
+      // userId가 없으면 현재 사용자 ID 사용
+      const targetUserId = userId || userDoc?.id || userDoc?.uid;
+      if (!targetUserId) return null;
+
+      console.log("[AuthContext] refreshUserDocument 호출:", targetUserId);
+
       // 캐시 무효화
-      userDocCacheRef.current.delete(userId);
-      userDocFetchTimeRef.current.delete(userId);
-      
+      userDocCacheRef.current.delete(targetUserId);
+      userDocFetchTimeRef.current.delete(targetUserId);
+
       // 서버에서 새로 가져오기
-      return fetchUserDocument(userId);
+      const freshDoc = await fetchUserDocument(targetUserId);
+
+      // 현재 로그인한 사용자의 문서라면 즉시 상태 업데이트
+      if (freshDoc && targetUserId === (userDoc?.id || userDoc?.uid)) {
+        console.log("[AuthContext] userDoc 즉시 업데이트:", freshDoc.cash);
+        setUserDoc(freshDoc);
+      }
+
+      return freshDoc;
     },
-    [fetchUserDocument]
+    [fetchUserDocument, userDoc]
   );
 
   // Context value를 useMemo로 메모이제이션하여 불필요한 리렌더링 방지

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { db, doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, runTransaction, collection, getDocs, deleteDoc } from "./firebase";
 import { format, isToday, differenceInDays, isPast } from 'date-fns';
 import { PiggyBank, Landmark, HandCoins, Wallet, X, TrendingUp } from 'lucide-react';
+import { formatKoreanCurrency } from './numberFormatter';
 
 // --- Styles ---
 const styles = {
@@ -523,7 +524,17 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
 };
 
 // --- Main Component ---
-const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts = [], loanProducts = [] }) => {
+const ParkingAccount = ({
+  auth = {},
+  savingsProducts = [],
+  installmentProducts = [],
+  loanProducts = [],
+  activeView = 'parking',
+  onViewChange,
+  onLoadUserProducts,
+  allUserProducts = [],
+  onDeleteUserProduct
+}) => {
   const { user, userDoc, loading, refreshUserDocument, isAdmin } = auth;
   const userId = user?.uid;
 
@@ -536,6 +547,7 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
   const [userSavings, setUserSavings] = useState([]);
   const [userLoans, setUserLoans] = useState([]);
   const [modal, setModal] = useState({ isOpen: false, product: null, type: '' });
+  const [currentCash, setCurrentCash] = useState(userDoc?.cash || 0);
 
   const displayMessage = (text, type = "info", duration = 3000) => {
     setMessage(text);
@@ -624,6 +636,14 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
     if (!loading && userId) loadAllData();
   }, [userId, loading, loadAllData]);
 
+  // userDoc의 cash가 변경될 때마다 currentCash 업데이트
+  useEffect(() => {
+    if (userDoc?.cash !== undefined) {
+      setCurrentCash(userDoc.cash);
+      console.log("[ParkingAccount] currentCash 업데이트:", userDoc.cash);
+    }
+  }, [userDoc?.cash]);
+
   const handleOpenModal = (product, type) => setModal({ isOpen: true, product, type });
   const handleCloseModal = () => setModal({ isOpen: false, product: null, type: '' });
 
@@ -660,14 +680,29 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         transaction.update(userRef, { cash: increment(type === 'loans' ? amount : -amount) });
       });
 
+      // 즉시 UI 업데이트 (낙관적 업데이트)
+      setCurrentCash(prev => {
+        const newCash = type === 'loans' ? prev + amount : prev - amount;
+        console.log("[ParkingAccount] 상품 가입 후 즉시 currentCash 업데이트:", prev, "→", newCash);
+        return newCash;
+      });
+
       displayMessage("상품 가입이 완료되었습니다.", "success");
 
-      // 실시간 업데이트를 위해 순서 변경
-      if (refreshUserDocument) await refreshUserDocument();
+      // 백그라운드에서 userDoc 갱신
+      if (refreshUserDocument) {
+        refreshUserDocument().then(() => {
+          console.log("[ParkingAccount] 상품 가입 후 userDoc 갱신 완료");
+        });
+      }
       await loadAllData();
       handleCloseModal();
     } catch (error) {
       displayMessage(`가입 처리 오류: ${error.message}`, "error");
+      // 에러 발생 시 currentCash 롤백
+      if (userDoc?.cash !== undefined) {
+        setCurrentCash(userDoc.cash);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -707,13 +742,28 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           transaction.delete(productRef);
         });
   
+        // 즉시 UI 업데이트 (낙관적 업데이트)
+        setCurrentCash(prev => {
+          const newCash = isLoan ? prev - total : prev + total;
+          console.log("[ParkingAccount] 만기 수령 후 즉시 currentCash 업데이트:", prev, "→", newCash);
+          return newCash;
+        });
+
         displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
 
-        // 실시간 업데이트를 위해 순서 변경
-        if (refreshUserDocument) await refreshUserDocument();
+        // 백그라운드에서 userDoc 갱신
+        if (refreshUserDocument) {
+          refreshUserDocument().then(() => {
+            console.log("[ParkingAccount] 만기 수령 후 userDoc 갱신 완료");
+          });
+        }
         await loadAllData();
       } catch (error) {
         displayMessage(`처리 오류: ${error.message}`, "error");
+        // 에러 발생 시 currentCash 롤백
+        if (userDoc?.cash !== undefined) {
+          setCurrentCash(userDoc.cash);
+        }
       } finally {
         setIsProcessing(false);
       }
@@ -760,14 +810,29 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
                   transaction.update(userRef, { cash: increment(isLoan ? -balance : balance) });          transaction.delete(productRef);
         });
   
+        // 즉시 UI 업데이트 (낙관적 업데이트)
+        setCurrentCash(prev => {
+          const newCash = isLoan ? prev - balance : prev + balance;
+          console.log("[ParkingAccount] 중도 해지 후 즉시 currentCash 업데이트:", prev, "→", newCash);
+          return newCash;
+        });
+
         displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
 
-        // 실시간 업데이트를 위해 순서 변경
-        if (refreshUserDocument) await refreshUserDocument();
+        // 백그라운드에서 userDoc 갱신
+        if (refreshUserDocument) {
+          refreshUserDocument().then(() => {
+            console.log("[ParkingAccount] 중도 해지 후 userDoc 갱신 완료");
+          });
+        }
         await loadAllData();
       } catch (error) {
         console.error("중도 해지 처리 중 오류:", error);
         displayMessage(`처리 오류: ${error.message}`, "error");
+        // 에러 발생 시 currentCash 롤백
+        if (userDoc?.cash !== undefined) {
+          setCurrentCash(userDoc.cash);
+        }
       } finally {
         setIsProcessing(false);
       }
@@ -785,9 +850,9 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         const userSnapshot = await transaction.get(userRef);
         const parkingSnapshot = await transaction.get(parkingRef);
 
-        const currentCash = userSnapshot.data()?.cash ?? 0;
+        const cashBeforeDeposit = userSnapshot.data()?.cash ?? 0;
 
-        if (currentCash < amount) throw new Error("보유 현금이 부족합니다.");
+        if (cashBeforeDeposit < amount) throw new Error("보유 현금이 부족합니다.");
 
         transaction.update(userRef, { cash: increment(-amount) });
 
@@ -798,13 +863,28 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         }
       });
 
+      // 즉시 UI 업데이트 (낙관적 업데이트)
+      setCurrentCash(prev => {
+        const newCash = prev - amount;
+        console.log("[ParkingAccount] 입금 후 즉시 currentCash 업데이트:", prev, "→", newCash);
+        return newCash;
+      });
+
       displayMessage(`${formatCurrency(amount)}원 입금 완료.`, "success");
 
-      // 실시간 업데이트를 위해 순서 변경
-      if (refreshUserDocument) await refreshUserDocument();
+      // 백그라운드에서 userDoc 갱신
+      if (refreshUserDocument) {
+        refreshUserDocument().then(() => {
+          console.log("[ParkingAccount] 입금 후 userDoc 갱신 완료");
+        });
+      }
       await loadAllData();
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
+      // 에러 발생 시 currentCash 롤백
+      if (userDoc?.cash !== undefined) {
+        setCurrentCash(userDoc.cash);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -828,13 +908,28 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
         transaction.update(parkingRef, { balance: increment(-amount) });
       });
 
+      // 즉시 UI 업데이트 (낙관적 업데이트)
+      setCurrentCash(prev => {
+        const newCash = prev + amount;
+        console.log("[ParkingAccount] 출금 후 즉시 currentCash 업데이트:", prev, "→", newCash);
+        return newCash;
+      });
+
       displayMessage(`${formatCurrency(amount)}원 출금 완료.`, "success");
 
-      // 실시간 업데이트를 위해 순서 변경
-      if (refreshUserDocument) await refreshUserDocument();
+      // 백그라운드에서 userDoc 갱신
+      if (refreshUserDocument) {
+        refreshUserDocument().then(() => {
+          console.log("[ParkingAccount] 출금 후 userDoc 갱신 완료");
+        });
+      }
       await loadAllData();
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
+      // 에러 발생 시 currentCash 롤백
+      if (userDoc?.cash !== undefined) {
+        setCurrentCash(userDoc.cash);
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -869,15 +964,166 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
 
   return (
     <div style={styles.container}>
+      {/* 탭 메뉴 */}
+      <div style={{
+        display: 'flex',
+        gap: '10px',
+        marginBottom: '24px',
+        borderBottom: '2px solid #e5e7eb',
+        paddingBottom: '0'
+      }}>
+        <button
+          onClick={() => onViewChange && onViewChange('parking')}
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            background: activeView === 'parking' ? '#f0f9ff' : 'none',
+            cursor: 'pointer',
+            fontSize: '17px',
+            fontWeight: activeView === 'parking' ? '700' : '500',
+            color: activeView === 'parking' ? '#0369a1' : '#6b7280',
+            borderBottom: `3px solid ${activeView === 'parking' ? '#0369a1' : 'transparent'}`,
+            marginBottom: '-2px',
+            borderRadius: '8px 8px 0 0',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          나의 금융 현황
+        </button>
+        {isAdmin && isAdmin() && (
+          <>
+            <button
+              onClick={() => onViewChange && onViewChange('admin')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeView === 'admin' ? '#f0f9ff' : 'none',
+                cursor: 'pointer',
+                fontSize: '17px',
+                fontWeight: activeView === 'admin' ? '700' : '500',
+                color: activeView === 'admin' ? '#0369a1' : '#6b7280',
+                borderBottom: `3px solid ${activeView === 'admin' ? '#0369a1' : 'transparent'}`,
+                marginBottom: '-2px',
+                borderRadius: '8px 8px 0 0',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              상품 관리
+            </button>
+            <button
+              onClick={() => {
+                if (onViewChange) onViewChange('userProducts');
+                if (onLoadUserProducts) onLoadUserProducts();
+              }}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                background: activeView === 'userProducts' ? '#f0f9ff' : 'none',
+                cursor: 'pointer',
+                fontSize: '17px',
+                fontWeight: activeView === 'userProducts' ? '700' : '500',
+                color: activeView === 'userProducts' ? '#0369a1' : '#6b7280',
+                borderBottom: `3px solid ${activeView === 'userProducts' ? '#0369a1' : 'transparent'}`,
+                marginBottom: '-2px',
+                borderRadius: '8px 8px 0 0',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              유저 상품 조회
+            </button>
+          </>
+        )}
+      </div>
+
       {message && <div style={styles.message(messageType)}>{message}</div>}
-      <div style={styles.grid}>
+
+      {/* 유저 상품 조회 화면 */}
+      {activeView === 'userProducts' && isAdmin && isAdmin() && (
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px',
+          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)'
+        }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+            유저별 가입 상품 조회 및 관리
+          </h2>
+          <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '20px' }}>
+            클래스 내 모든 유저의 가입 상품을 조회하고 필요시 강제 삭제할 수 있습니다.
+          </p>
+
+          {allUserProducts.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+              가입된 상품이 없습니다.
+            </p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>사용자</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>상품명</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>종류</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>잔액/금액</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>금리(일)</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>기간(일)</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>만기일</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>관리</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allUserProducts.map((product, index) => {
+                    const typeLabel = product.type === 'deposit' ? '예금' :
+                                     product.type === 'savings' ? '적금' :
+                                     product.type === 'loan' ? '대출' : '기타';
+                    return (
+                      <tr key={`${product.userId}-${product.id}-${index}`} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.userName}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.name}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{typeLabel}</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{formatKoreanCurrency(product.balance || 0)}원</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.rate}%</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.termInDays}일</td>
+                        <td style={{ padding: '12px', fontSize: '14px' }}>
+                          {product.maturityDate
+                            ? new Date(product.maturityDate).toLocaleDateString('ko-KR')
+                            : '-'}
+                        </td>
+                        <td style={{ padding: '12px' }}>
+                          <button
+                            onClick={() => onDeleteUserProduct && onDeleteUserProduct(product)}
+                            style={{
+                              ...styles.button(false, 'danger'),
+                              fontSize: '12px',
+                              padding: '6px 12px'
+                            }}
+                          >
+                            삭제
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '20px', textAlign: 'right', color: '#6b7280', fontSize: '14px' }}>
+                총 {allUserProducts.length}개의 상품
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 기존 금융 현황 화면 */}
+      {activeView === 'parking' && (
+        <div style={styles.grid}>
         <ParkingAccountSection
           balance={parkingBalance}
           dailyInterest={parkingDailyInterest}
           onDeposit={handleParkingDeposit}
           onWithdraw={handleParkingWithdraw}
           isProcessing={isProcessing}
-          userCash={userDoc?.cash || 0}
+          userCash={currentCash}
         />
         <ProductSection
           title="예금"
@@ -912,7 +1158,8 @@ const ParkingAccount = ({ auth = {}, savingsProducts = [], installmentProducts =
           isAdmin={isAdmin()}
           onAdminDelete={handleAdminDeleteSubscribedProduct}
         />
-      </div>
+        </div>
+      )}
       <SubscriptionModal
         isOpen={modal.isOpen}
         onClose={handleCloseModal}

@@ -8,6 +8,7 @@ import {
   addActivityLog,
   addTransaction,
   processFineTransaction,
+  addSettlementRecord,
 } from "./firebase";
 
 import "./Police.css";
@@ -1003,6 +1004,16 @@ const PoliceStation = () => {
 
       const senderName = getUserNameById(senderId);
       const recipientName = getUserNameById(recipientId);
+
+      await addSettlementRecord({
+        classCode,
+        reportId,
+        amount,
+        senderId,
+        recipientId,
+        reason,
+        processedBy: adminId,
+      });
 
       // 🔥 [최적화] 모든 로그 기록을 병렬로 처리하고 await 제거 (메인 플로우 블로킹 방지)
       Promise.all([

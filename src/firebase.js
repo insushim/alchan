@@ -1241,6 +1241,26 @@ export const addDonationRecord = async (donationData) => {
   }
 };
 
+export const addSettlementRecord = async (settlementData) => {
+  if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
+  if (!settlementData.classCode || !settlementData.reportId) {
+    throw new Error("합의 기록에 필수 필드(classCode, reportId)가 누락되었습니다.");
+  }
+
+  try {
+    const settlementWithTimestamp = {
+      ...settlementData,
+      createdAt: serverTimestamp(),
+    };
+    const docRef = await addDoc(collection(db, "settlements"), settlementWithTimestamp);
+    console.log(`[firebase.js] 합의 기록 추가 성공: ${docRef.id}`);
+    return docRef;
+  } catch (error) {
+    console.error("[firebase.js] 합의 기록 추가 중 오류 발생:", error);
+    throw error;
+  }
+};
+
 // 🔥 [최적화] 캐시를 활용한 기부 내역 조회
 export const getDonationsForClass = async (classCode, goalId = "default_goal", useCache = true) => {
     if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");

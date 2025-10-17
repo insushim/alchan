@@ -151,14 +151,10 @@ const ReportStatus = ({
   }, []);
 
   // 벌금 처리 모달 컴포넌트 (Portal 대신 직접 렌더링)
-  const ProcessReportModal = () => {
-    console.log("ProcessReportModal 렌더링됨", { 
-      reportId: selectedReport?.id,
-      amount: selectedReport?.amount,
-      reason: selectedReport?.reason 
-    });
+  const ProcessReportModal = React.useMemo(() => {
+    if (!showProcessModal || !selectedReport) return null;
 
-    return (
+    return () => (
       <div 
         className="modal-overlay" 
         onClick={(e) => {
@@ -384,7 +380,7 @@ const ReportStatus = ({
         </div>
       </div>
     );
-  };
+  }, [showProcessModal, selectedReport, processingAmount, processingReason, reportReasons]);
 
   return (
     <div className="report-status-container">
@@ -607,7 +603,7 @@ const ReportStatus = ({
       )}
 
       {/* 벌금 처리 모달 - Portal 제거하고 직접 렌더링 */}
-      {showProcessModal && selectedReport && <ProcessReportModal />}
+      {ProcessReportModal && ProcessReportModal()}
     </div>
   );
 };
