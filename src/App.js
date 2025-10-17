@@ -11,7 +11,6 @@ import {
 
 // Firebase imports
 import { db, isFirestoreInitialized, functions } from "./firebase";
-import { db, isFirestoreInitialized, functions } from "./firebase";
 import { httpsCallable } from "firebase/functions";
 import {
   collection,
@@ -1170,9 +1169,7 @@ function AppLayoutContent() {
     );
   }
 
-  const currentUser = authHook.userDoc;
-  const isAdminUser = useMemo(() => currentUser?.isAdmin || currentUser?.role === "admin", [currentUser]);
-  const userClassCode = currentUser?.classCode;
+
 
   return (
     <div className="app-container">
