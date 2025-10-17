@@ -11,6 +11,7 @@ import {
 
 // Firebase imports
 import { db, isFirestoreInitialized, functions } from "./firebase";
+import { db, isFirestoreInitialized, functions } from "./firebase";
 import { httpsCallable } from "firebase/functions";
 import {
   collection,
