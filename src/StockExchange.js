@@ -151,9 +151,17 @@ const batchDataLoader = {
 
   _loadMarketStatus: async function(classCode) {
     try {
-      const marketStatusRef = doc(db, "ClassStock", classCode, "marketStatus", "status");
-      const statusDoc = await getDoc(marketStatusRef);
-      return statusDoc.exists() ? statusDoc.data().isOpen : false;
+      // 현재 한국 시간 기준으로 요일과 시간 확인
+      const now = new Date();
+      const koreaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      const day = koreaTime.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+      const hour = koreaTime.getHours();
+
+      // 월요일(1) ~ 금요일(5), 8시~15시
+      const isWeekday = day >= 1 && day <= 5;
+      const isOpenHour = hour >= 8 && hour < 15;
+
+      return isWeekday && isOpenHour;
     } catch (error) {
       console.error('[batchDataLoader] Market status load error:', error);
       return false;

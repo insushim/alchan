@@ -488,6 +488,10 @@ const STOCK_NEWS = {
 // 🔥 중앙 주식 시장 관련 함수
 // ===================================================================================
 
+// ⚠️ [최적화] Cloud Scheduler 비용 절감을 위해 비활성화
+// GitHub Actions로 전환하거나 필요시 수동 실행
+// SETUP_GUIDE.md 참고하여 GitHub Actions 설정 권장
+/*
 exports.updateCentralStockMarket = onSchedule({
   schedule: "every 5 minutes",
   timeZone: "Asia/Seoul",
@@ -549,7 +553,9 @@ exports.updateCentralStockMarket = onSchedule({
     logger.error("🚨 중앙 주식 시장 업데이트 중 오류 발생:", error);
   }
 });
+*/
 
+/*
 exports.autoManageStocks = onSchedule({
   schedule: "every 10 minutes",
   timeZone: "Asia/Seoul",
@@ -586,7 +592,9 @@ exports.autoManageStocks = onSchedule({
     logger.error("🚨 자동 주식 관리 중 오류 발생:", error);
   }
 });
+*/
 
+/*
 exports.aggregateActivityStats = onSchedule({
   schedule: "every 10 minutes",
   timeZone: "Asia/Seoul",

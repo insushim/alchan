@@ -319,7 +319,7 @@ export const usePolling = (refreshFunction, interval = 300000, enabled = true) =
   const intervalRef = useRef(null);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !interval) return;
 
     intervalRef.current = setInterval(() => {
       refreshFunction();

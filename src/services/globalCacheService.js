@@ -1,4 +1,4 @@
-// src/services/globalCacheService.js - 전역 캐싱 시스템으로 Firestore 사용량 최적화
+// src/services/globalCacheService.js - 전역 캐싱 시스템으로 Firestore 사용량 최적화 (IndexedDB 통합)
 
 import { db } from '../firebase';
 import {
@@ -12,6 +12,7 @@ import {
   limit,
   onSnapshot
 } from 'firebase/firestore';
+import indexedDBCache from './indexedDBCache';
 
 export const cacheStats = {
   hits: 0,
@@ -58,7 +59,7 @@ class GlobalCacheService {
     return `${type}_${JSON.stringify(sortedParams)}`;
   }
 
-  // 🔥 [최적화] localStorage에서 먼저 확인하고 메모리 캐시 확인
+  // 🔥 [최적화] IndexedDB → 메모리 캐시 순서로 확인 (동기 버전)
   get(key) {
     // 1. 메모리 캐시 확인
     if (this.cache.has(key)) {
@@ -71,7 +72,7 @@ class GlobalCacheService {
       this.invalidate(key);
     }
 
-    // 2. localStorage 캐시 확인
+    // 2. localStorage 폴백 (IndexedDB 비동기라서 동기 메서드에서는 localStorage 사용)
     if (this.useLocalStorage) {
       try {
         const lsKey = this.localStoragePrefix + key;
@@ -99,7 +100,63 @@ class GlobalCacheService {
     return null;
   }
 
-  // 🔥 [최적화] 메모리와 localStorage 동시 저장
+  // 🔥 [신규] IndexedDB 사용 비동기 get (추천)
+  async getAsync(key) {
+    // 1. 메모리 캐시 확인
+    if (this.cache.has(key)) {
+      const expiry = this.timestamps.get(key);
+      if (Date.now() <= expiry) {
+        cacheStats.hits++;
+        cacheStats.savings++;
+        return this.cache.get(key);
+      }
+      this.invalidate(key);
+    }
+
+    // 2. IndexedDB 캐시 확인
+    try {
+      const cachedData = await indexedDBCache.get(key);
+      if (cachedData) {
+        // IndexedDB에서 복원하여 메모리 캐시에 저장
+        this.cache.set(key, cachedData);
+        this.timestamps.set(key, Date.now() + this.DEFAULT_TTL);
+        console.log(`[GlobalCache] ✅ IndexedDB에서 복원: ${key}`);
+        cacheStats.hits++;
+        cacheStats.savings++;
+        return cachedData;
+      }
+    } catch (error) {
+      console.warn('[GlobalCache] IndexedDB 읽기 오류:', error);
+    }
+
+    // 3. localStorage 폴백
+    if (this.useLocalStorage) {
+      try {
+        const lsKey = this.localStoragePrefix + key;
+        const cached = localStorage.getItem(lsKey);
+        if (cached) {
+          const {data, expiry} = JSON.parse(cached);
+          if (Date.now() <= expiry) {
+            this.cache.set(key, data);
+            this.timestamps.set(key, expiry);
+            console.log(`[GlobalCache] ✅ localStorage에서 복원: ${key}`);
+            cacheStats.hits++;
+            cacheStats.savings++;
+            return data;
+          } else {
+            localStorage.removeItem(lsKey);
+          }
+        }
+      } catch (error) {
+        console.warn('[GlobalCache] localStorage 읽기 오류:', error);
+      }
+    }
+
+    cacheStats.misses++;
+    return null;
+  }
+
+  // 🔥 [최적화] 메모리, IndexedDB, localStorage 동시 저장
   set(key, data, ttl = this.DEFAULT_TTL) {
     const expiry = Date.now() + ttl;
 
@@ -107,7 +164,12 @@ class GlobalCacheService {
     this.cache.set(key, data);
     this.timestamps.set(key, expiry);
 
-    // localStorage 저장
+    // IndexedDB 저장 (비동기, 실패해도 무시)
+    indexedDBCache.set(key, data, ttl / 1000).catch(err => {
+      console.warn('[GlobalCache] IndexedDB 저장 실패:', err);
+    });
+
+    // localStorage 저장 (폴백)
     if (this.useLocalStorage) {
       try {
         const lsKey = this.localStoragePrefix + key;

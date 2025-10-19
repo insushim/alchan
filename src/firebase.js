@@ -2370,6 +2370,72 @@ const where = originalFirebaseWhere;
 const addDoc = originalFirebaseAddDoc;
 // ⭐️ [수정] 오류 해결을 위해 별칭(alias) 추가
 
+// 🔥 [최적화] 배치 읽기 함수 - 여러 문서를 한 번에 조회
+export const batchGetDocs = async (documentRefs) => {
+  if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
+  if (!documentRefs || documentRefs.length === 0) return [];
+
+  try {
+    // Firestore는 한 번에 최대 500개까지 읽을 수 있음
+    const chunks = [];
+    const chunkSize = 500;
+
+    for (let i = 0; i < documentRefs.length; i += chunkSize) {
+      chunks.push(documentRefs.slice(i, i + chunkSize));
+    }
+
+    const allDocs = [];
+
+    for (const chunk of chunks) {
+      // getAll은 Firestore Admin SDK의 메서드이므로, 클라이언트에서는 Promise.all 사용
+      const docPromises = chunk.map(ref => getDoc(ref));
+      const docs = await Promise.all(docPromises);
+      allDocs.push(...docs);
+    }
+
+    console.log(`[firebase.js] 배치 읽기 완료: ${allDocs.length}개 문서`);
+    return allDocs;
+  } catch (error) {
+    console.error('[firebase.js] 배치 읽기 오류:', error);
+    throw error;
+  }
+};
+
+// 🔥 [최적화] 여러 사용자의 정보를 배치로 조회
+export const batchGetUsers = async (userIds, useCache = true) => {
+  if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
+  if (!userIds || userIds.length === 0) return [];
+
+  const cacheKey = `batch_users_${userIds.sort().join('_')}`;
+
+  if (useCache) {
+    const cached = getCache(cacheKey);
+    if (cached) {
+      console.log(`[firebase.js] 배치 사용자 캐시 조회: ${cached.length}명`);
+      return cached;
+    }
+  }
+
+  try {
+    const userRefs = userIds.map(uid => doc(db, 'users', uid));
+    const userDocs = await batchGetDocs(userRefs);
+
+    const users = userDocs
+      .filter(doc => doc.exists())
+      .map(doc => ({ id: doc.id, ...doc.data() }));
+
+    if (useCache) {
+      setCache(cacheKey, users);
+    }
+
+    console.log(`[firebase.js] 배치 사용자 조회 완료: ${users.length}명`);
+    return users;
+  } catch (error) {
+    console.error('[firebase.js] 배치 사용자 조회 오류:', error);
+    throw error;
+  }
+};
+
 // 🔥 [최적화] 네트워크 상태 관리 함수 추가
 export const goOffline = () => disableNetwork(db);
 export const goOnline = () => enableNetwork(db);
