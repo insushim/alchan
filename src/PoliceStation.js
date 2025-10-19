@@ -4,7 +4,7 @@ import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
 import {
   db,
-  transferCash,
+  processSettlement, // Use the new cloud function wrapper
   addActivityLog,
   addTransaction,
   processFineTransaction,
@@ -490,8 +490,9 @@ const defaultReasons = [
   { reason: "기타", amount: 0, isLaw: false },
 ];
 
+// 국세청과 동일한 nationalTreasuries 컬렉션 사용
 const getClassTreasuryPath = (classCode) =>
-  `classes/${classCode}/treasury/balance`;
+  `nationalTreasuries/${classCode}`;
 
 const PoliceStation = () => {
   const auth = useAuth();
@@ -630,14 +631,24 @@ const PoliceStation = () => {
     async () => {
       if (!treasuryRef) return 0;
       const docSnap = await getDoc(treasuryRef);
-      const balance = docSnap.exists() ? (docSnap.data().balance || 0) : 0;
+      // NationalTaxService.js와 동일하게 totalAmount 필드 사용
+      const balance = docSnap.exists() ? (docSnap.data().totalAmount || 0) : 0;
       if (!docSnap.exists() && hasPoliceAdminRights) {
+        // NationalTaxService.js의 DEFAULT_TREASURY_DATA와 동일한 구조로 생성
         setDoc(treasuryRef, {
-          balance: 0,
-          createdAt: serverTimestamp(),
+          totalAmount: 0,
+          stockTaxRevenue: 0,
+          stockCommissionRevenue: 0,
+          realEstateTransactionTaxRevenue: 0,
+          realEstateAnnualTaxRevenue: 0,
+          incomeTaxRevenue: 0,
+          corporateTaxRevenue: 0,
+          otherTaxRevenue: 0,
           classCode: classCode,
+          createdAt: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
         }).catch((err) =>
-          console.error("Error creating class treasury:", err)
+          console.error("Error creating national treasury:", err)
         );
       }
       return balance;
@@ -966,73 +977,35 @@ const PoliceStation = () => {
     reason,
     adminId
   ) => {
-    console.log("handleSendSettlement 호출됨:", {
-      reportId,
-      amount,
-      senderId,
-      recipientId,
-      reason,
-      adminId
-    });
+    console.log("handleSendSettlement 호출됨 (Cloud Function):", { reportId, amount, senderId, recipientId, reason, adminId });
 
     if (!hasPoliceAdminRights || !classCode) {
       alert("권한이 없거나 학급 정보가 없습니다.");
       return false;
     }
 
-    const reportRef = doc(db, "classes", classCode, "policeReports", reportId);
-
     try {
-      await transferCash(senderId, recipientId, amount,
-        `경찰서 합의금: ${reason || '사건 합의'} (사건번호: ${reportId.slice(-6)})`,
-        true
-      );
-
-      await updateDoc(reportRef, {
-        status: "resolved_settlement",
-        resolution: reason || "상호 합의 완료",
-        amount: amount,
-        resolutionDate: serverTimestamp(),
-        settlementPaid: true,
-        processedById: adminId,
-        processedByName: currentUser.name || currentUser.displayName || "관리자",
-        settlementSenderId: senderId,
-        settlementRecipientId: recipientId,
-      });
-
-      refetchReports(); // 🔥 즉시 새로고침
-
-      const senderName = getUserNameById(senderId);
-      const recipientName = getUserNameById(recipientId);
-
-      await addSettlementRecord({
-        classCode,
+      // Call the new cloud function
+      const result = await processSettlement({
         reportId,
         amount,
         senderId,
         recipientId,
         reason,
-        processedBy: adminId,
+        adminId // adminId is the uid of the caller
       });
 
-      // 🔥 [최적화] 모든 로그 기록을 병렬로 처리하고 await 제거 (메인 플로우 블로킹 방지)
-      Promise.all([
-        addTransaction(senderId, -amount, `경찰서 합의금 지급 to ${recipientName} (사건번호: ${reportId.slice(-6)})`),
-        addTransaction(recipientId, amount, `경찰서 합의금 수령 from ${senderName} (사건번호: ${reportId.slice(-6)})`),
-        addActivityLog(senderId, '합의금 지급',
-          `경찰서 사건(번호: ${reportId.slice(-6)}) 합의금 ${amount.toLocaleString()}원을 ${recipientName}님에게 지급했습니다.`
-        ),
-        addActivityLog(recipientId, '합의금 수령',
-          `경찰서 사건(번호: ${reportId.slice(-6)}) 합의금 ${amount.toLocaleString()}원을 ${senderName}님으로부터 수령했습니다.`
-        )
-      ]).catch(err => console.error('[Police] 합의금 로그 기록 실패 (무시됨):', err));
-
-      alert("합의금 지급 처리가 성공적으로 완료되었습니다.");
-      setIsSettlementModalOpen(false);
-      setSettlementComplaint(null);
-      return true;
+      if (result.success) {
+        alert(result.message || "합의금 지급 처리가 성공적으로 완료되었습니다.");
+        refetchReports(); // Refresh the reports list
+        setIsSettlementModalOpen(false);
+        setSettlementComplaint(null);
+        return true;
+      } else {
+        throw new Error(result.message || "서버에서 처리를 실패했습니다.");
+      }
     } catch (error) {
-      console.error("합의금 처리 실패:", error);
+      console.error("합의금 처리 실패 (Cloud Function):", error);
       alert(`오류: ${error.message || '합의금 처리 중 오류가 발생했습니다.'}`);
       return false;
     }

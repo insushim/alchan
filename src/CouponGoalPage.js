@@ -37,6 +37,7 @@ export default function CouponGoalPage() {
 
   const [assetsLoading, setAssetsLoading] = useState(true);
   const loadingRef = useRef(false);
+  const loadGoalDataRef = useRef(null); // 🔥 loadGoalData 함수를 저장할 ref
   const [goalDonations, setGoalDonations] = useState([]);
 
   const donateCouponFunction = httpsCallable(functions, 'donateCoupon');
@@ -92,7 +93,7 @@ export default function CouponGoalPage() {
     }
   };
 
-  const getCachedFirestoreData = (key) => {
+  const getCachedFirestoreData = useCallback((key) => {
     try {
       const cached = localStorage.getItem(`firestore_cache_${key}_${userId}`);
       if (cached) {
@@ -104,9 +105,9 @@ export default function CouponGoalPage() {
     } catch (error) {
     }
     return null;
-  };
+  }, [userId]);
 
-  const setCachedFirestoreData = (key, data) => {
+  const setCachedFirestoreData = useCallback((key, data) => {
     try {
       const cacheItem = {
         data,
@@ -115,15 +116,17 @@ export default function CouponGoalPage() {
       localStorage.setItem(`firestore_cache_${key}_${userId}`, JSON.stringify(cacheItem));
     } catch (error) {
     }
-  };
+  }, [userId]);
 
-  const loadGoalData = useCallback(async () => {
+  // 🔥 loadGoalData 함수 - useCallback 제거하고 일반 함수로 변경
+  const loadGoalData = async () => {
     if (!userId || !currentUserClassCode || !currentGoalId) {
       setAssetsLoading(false);
       return;
     }
 
     if (loadingRef.current) {
+      console.log('[CouponGoalPage] 이미 로딩 중이므로 중복 실행 방지');
       return;
     }
 
@@ -131,48 +134,71 @@ export default function CouponGoalPage() {
     setAssetsLoading(true);
 
     try {
-      const cacheKey = `goal_${currentGoalId}`;
-      const cachedData = getCachedFirestoreData(cacheKey);
+      console.log('[CouponGoalPage] 목표 데이터 로드 시작');
 
-      if (cachedData) {
-        setClassCouponGoal(cachedData.targetAmount || 1000);
-        setGoalProgress(cachedData.progress || 0);
-        setGoalDonations(cachedData.donations || []);
-        setAssetsLoading(false);
-        loadingRef.current = false;
-        return;
-      }
-
+      // 🔥 Firestore에서 최신 데이터 가져오기
       const goalDocRef = doc(db, "goals", currentGoalId);
       const goalDocSnap = await getDoc(goalDocRef);
 
       if (goalDocSnap.exists()) {
         const goalData = goalDocSnap.data();
-        setClassCouponGoal(goalData.targetAmount || 1000);
-        setGoalProgress(goalData.progress || 0);
-        setGoalDonations(goalData.donations || []);
 
+        console.log('[CouponGoalPage] Firestore에서 로드한 데이터 (전체):', goalData);
+        console.log('[CouponGoalPage] donations 배열:', goalData.donations);
+        console.log('[CouponGoalPage] Firestore에서 로드한 데이터 (요약):', {
+          targetAmount: goalData.targetAmount,
+          progress: goalData.progress,
+          donationsCount: goalData.donations?.length || 0
+        });
+
+        setClassCouponGoal(Number(goalData.targetAmount) || 1000);
+        setGoalProgress(Number(goalData.progress) || 0);
+
+        // 🔥 기부 내역 처리 - timestamp 일관성 유지
+        const donations = Array.isArray(goalData.donations)
+          ? goalData.donations.map((donation) => {
+              let processedTimestamp;
+              if (donation.timestamp && donation.timestamp.toDate) {
+                processedTimestamp = donation.timestamp.toDate().toISOString();
+              } else if (donation.timestamp && donation.timestamp.seconds) {
+                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+              } else if (donation.timestampISO) {
+                processedTimestamp = donation.timestampISO;
+              } else if (typeof donation.timestamp === 'string') {
+                processedTimestamp = donation.timestamp;
+              } else {
+                processedTimestamp = new Date().toISOString();
+              }
+
+              return {
+                ...donation,
+                amount: Number(donation.amount) || 0,
+                timestamp: processedTimestamp,
+                userId: donation.userId || '',
+                userName: donation.userName || '알 수 없는 사용자',
+                message: donation.message || '',
+                classCode: donation.classCode || currentUserClassCode,
+              };
+            })
+          : [];
+
+        setGoalDonations(donations);
+
+        // 🔥 내 기여도 계산
+        const myDonations = donations.filter(d => d.userId === userId);
+        const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
+        setMyContribution(myTotal);
+
+        console.log('[CouponGoalPage] 데이터 처리 완료:', {
+          donationsCount: donations.length,
+          myContribution: myTotal
+        });
+
+        // 🔥 캐시에 저장
+        const cacheKey = `goal_${currentGoalId}`;
         setCachedFirestoreData(cacheKey, goalData);
       } else {
-        await runTransaction(db, async (transaction) => {
-          const goalDoc = await transaction.get(goalDocRef);
-          if (!goalDoc.exists()) {
-            const defaultGoalData = {
-              classCode: currentUserClassCode,
-              targetAmount: 1000,
-              progress: 0,
-              donations: [],
-              donationCount: 0,
-              title: `${currentUserClassCode} 학급 목표`,
-              description: `${currentUserClassCode} 학급의 쿠폰 목표입니다.`,
-              createdAt: serverTimestamp(),
-              updatedAt: serverTimestamp(),
-              createdBy: userId,
-            };
-            transaction.set(goalDocRef, defaultGoalData);
-            setCachedFirestoreData(cacheKey, defaultGoalData);
-          }
-        });
+        console.warn('[CouponGoalPage] 목표 문서가 존재하지 않습니다');
       }
     } catch (error) {
       console.error('[CouponGoalPage] 목표 데이터 로드 실패:', error);
@@ -180,30 +206,38 @@ export default function CouponGoalPage() {
       setAssetsLoading(false);
       loadingRef.current = false;
     }
-  }, [userId, currentUserClassCode, currentGoalId]);
+  };
 
+  // 🔥 ref에 loadGoalData 함수 저장
+  loadGoalDataRef.current = loadGoalData;
+
+  // 🔥 초기 로드 useEffect - loadGoalDataRef 사용
   useEffect(() => {
-    if (!authLoading && user && currentUserClassCode) {
-      loadGoalData();
+    if (!authLoading && user && currentUserClassCode && currentGoalId) {
+      console.log('[CouponGoalPage] useEffect 트리거 - 데이터 로드 시작');
+      if (loadGoalDataRef.current) {
+        loadGoalDataRef.current();
+      }
     } else if (!authLoading && !user) {
       setAssetsLoading(false);
     } else if (authLoading) {
       setAssetsLoading(true);
     }
-  }, [authLoading, user, currentUserClassCode, loadGoalData]);
+  }, [authLoading, user, currentUserClassCode, currentGoalId]);
 
-  useEffect(() => {
-    if (userDoc) {
-      setMyContribution(userDoc.myContribution || 0);
-    }
-  }, [userDoc]);
+  // 🔥 [제거] userDoc.myContribution 사용 중단 - donations 배열에서 직접 계산
+  // useEffect(() => {
+  //   if (userDoc) {
+  //     setMyContribution(userDoc.myContribution || 0);
+  //   }
+  // }, [userDoc]);
 
   useEffect(() => {
     setGoalAchieved(goalProgress >= classCouponGoal && classCouponGoal > 0);
   }, [goalProgress, classCouponGoal]);
 
   const handleDonateCoupon = async (amount, memo) => {
-    if (!userId || !currentUserClassCode) {
+    if (!userId || !currentUserClassCode || !userDoc) {
       alert("사용자 또는 학급 정보가 없어 기부할 수 없습니다.");
       return false;
     }
@@ -214,15 +248,43 @@ export default function CouponGoalPage() {
       return false;
     }
 
+    // 🔥 로딩 상태 표시
     setAssetsLoading(true);
+
     try {
-      await donateCouponFunction({ amount: donationAmount, message: memo });
+      // Call the server function in the background
+      console.log('[CouponGoalPage] Cloud Function 호출 중:', { amount: donationAmount, message: memo });
+      const result = await donateCouponFunction({ amount: donationAmount, message: memo });
+      console.log('[CouponGoalPage] Cloud Function 응답:', result);
+
+      // 🔥 캐시 무효화
+      const cacheKey = `goal_${currentGoalId}`;
+      localStorage.removeItem(`firestore_cache_${cacheKey}_${userId}`);
+      localStorage.removeItem(`goalDonationHistory_${currentUserClassCode}_goal`);
+
+      console.log('[CouponGoalPage] 기부 성공, 캐시 삭제 완료');
+
+      // 🔥 즉시 최신 데이터 로드 (낙관적 업데이트 제거)
+      console.log('[CouponGoalPage] 최신 데이터 로드 중...');
+      loadingRef.current = false;
+      if (loadGoalDataRef.current) {
+        await loadGoalDataRef.current();
+      }
+
       alert(`${donationAmount} 쿠폰 기부 완료!`);
       setShowDonateModal(false);
-      loadGoalData();
+
       return true;
     } catch (error) {
+      console.error('[CouponGoalPage] 기부 오류 (상세):', {
+        error,
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        stack: error.stack
+      });
       alert(`기부 오류: ${error.message}`);
+
       return false;
     } finally {
       setAssetsLoading(false);
@@ -379,7 +441,14 @@ export default function CouponGoalPage() {
       alert(`${amount}개 쿠폰을 판매했습니다.`);
       setShowSellCouponModal(false);
       setSellAmount("");
-      loadGoalData();
+
+      // 🔥 ref를 통해 데이터 다시 로드
+      setTimeout(() => {
+        loadingRef.current = false;
+        if (loadGoalDataRef.current) {
+          loadGoalDataRef.current();
+        }
+      }, 500);
     } catch (error) {
       alert(`판매 오류: ${error.message}`);
     } finally {
@@ -408,7 +477,14 @@ export default function CouponGoalPage() {
         setShowGiftCouponModal(false);
         setGiftRecipient("");
         setGiftAmount("");
-        loadGoalData();
+
+        // 🔥 ref를 통해 데이터 다시 로드
+        setTimeout(() => {
+          loadingRef.current = false;
+          if (loadGoalDataRef.current) {
+            loadGoalDataRef.current();
+          }
+        }, 500);
       } catch (error) {
         alert(`선물 오류: ${error.message}`);
       } finally {

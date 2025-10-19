@@ -45,23 +45,32 @@ const SendReceive = ({ classCode }) => {
   // --- 자산 정보 계산 로직 끝 ---
 
 
-  const treasuryRef = doc(db, "classes", classCode, "treasury", "balanceDoc");
+  // 학급 금고와 국세청 모두 nationalTreasuries 컬렉션 사용 (통일)
+  const treasuryRef = doc(db, "nationalTreasuries", classCode);
   const nationalTreasuryRef = doc(db, "nationalTreasuries", classCode);
 
-  // 금고 잔액 폴링
+  // 금고 잔액 폴링 (nationalTreasuries 컬렉션의 totalAmount 필드 사용)
   const fetchTreasuryBalance = async () => {
     if (!classCode) return;
 
     try {
       const docSnap = await getDoc(treasuryRef);
       if (docSnap.exists()) {
-        setTreasuryBalance(docSnap.data().balance);
+        setTreasuryBalance(docSnap.data().totalAmount || 0);
       } else {
+        // 국고 문서가 없으면 생성 (NationalTaxService.js의 DEFAULT_TREASURY_DATA와 동일)
         await setDoc(treasuryRef, {
-          balance: 0,
+          totalAmount: 0,
+          stockTaxRevenue: 0,
+          stockCommissionRevenue: 0,
+          realEstateTransactionTaxRevenue: 0,
+          realEstateAnnualTaxRevenue: 0,
+          incomeTaxRevenue: 0,
+          corporateTaxRevenue: 0,
+          otherTaxRevenue: 0,
           classCode: classCode,
           createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          lastUpdated: serverTimestamp(),
         });
         setTreasuryBalance(0);
       }
@@ -109,7 +118,7 @@ const SendReceive = ({ classCode }) => {
         }
 
         const latestUserCash = latestUserDocSnap.data().cash || 0;
-        const currentTreasuryBalance = latestTreasurySnap.exists() ? latestTreasurySnap.data().balance || 0 : 0;
+        const currentTreasuryBalance = latestTreasurySnap.exists() ? latestTreasurySnap.data().totalAmount || 0 : 0;
         
         if (actionType === "deposit") {
             let sourceText = '';
@@ -129,7 +138,7 @@ const SendReceive = ({ classCode }) => {
                 sourceText = '신규 발행';
             }
             
-            transaction.update(treasuryRef, { balance: increment(numAmount), updatedAt: serverTimestamp() });
+            transaction.update(treasuryRef, { totalAmount: increment(numAmount), lastUpdated: serverTimestamp() });
             
             // 로그 정보 저장
             logInfo = {
@@ -142,7 +151,7 @@ const SendReceive = ({ classCode }) => {
             if (currentTreasuryBalance < numAmount) throw new Error("출금할 금액이 금고 잔액보다 많습니다.");
             if (!isAdmin?.() && !userDoc.canWithdrawTreasury) throw new Error("금고에서 출금할 권한이 없습니다.");
 
-            transaction.update(treasuryRef, { balance: increment(-numAmount), updatedAt: serverTimestamp() });
+            transaction.update(treasuryRef, { totalAmount: increment(-numAmount), lastUpdated: serverTimestamp() });
 
             let destinationText = '';
             if (withdrawDestination === "personal") {

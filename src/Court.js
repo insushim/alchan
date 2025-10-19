@@ -302,7 +302,7 @@ const TrialResults = ({ complaints, users, onOpenSettlementModal }) => {
     return user?.name || user?.displayName || userId || "알 수 없음";
   };
 
-  const resolvedComplaints = complaints.filter((c) => c.status === "resolved");
+  const resolvedComplaints = (complaints || []).filter((c) => c.status === "resolved");
 
   if (resolvedComplaints.length === 0) {
     return <p className="empty-state">완료된 재판이 없습니다.</p>;
@@ -738,7 +738,7 @@ const Court = () => {
     if (!hasJudgePrivileges || !classCode)
       return alert("재판 시작 권한이 없습니다.");
 
-    const complaint = complaints.find(c => c.id === complaintId);
+    const complaint = (complaints || []).find(c => c.id === complaintId);
     if (!complaint) return alert("사건을 찾을 수 없습니다.");
 
     try {
@@ -808,7 +808,7 @@ const Court = () => {
         resolvedAt: serverTimestamp(),
       });
 
-      const complaint = complaints.find(c => c.id === complaintId);
+      const complaint = (complaints || []).find(c => c.id === complaintId);
       if (complaint?.trialRoomId) {
         const trialRoomRef = doc(
           db,
@@ -897,8 +897,8 @@ const Court = () => {
 
     try {
       await runTransaction(db, async (transaction) => {
-        const senderRef = doc(db, "Class", classCode, "students", senderId);
-        const recipientRef = doc(db, "Class", classCode, "students", recipientId);
+        const senderRef = doc(db, "users", senderId);
+        const recipientRef = doc(db, "users", recipientId);
         const complaintDocRef = doc(
           db,
           "classes",
@@ -912,21 +912,25 @@ const Court = () => {
         const complaintSnap = await transaction.get(complaintDocRef);
 
         if (!senderSnap.exists())
-          throw new Error(`${senderName}님의 학생 정보를 찾을 수 없습니다.`);
+          throw new Error(`${senderName}님의 사용자 정보를 찾을 수 없습니다.`);
         if (!recipientSnap.exists())
           throw new Error(
-            `${recipientName}님의 학생 정보를 찾을 수 없습니다.`
+            `${recipientName}님의 사용자 정보를 찾을 수 없습니다.`
           );
         if (!complaintSnap.exists())
           throw new Error("해당 고소 정보를 찾을 수 없습니다.");
 
-        const senderMoney = senderSnap.data().money || 0;
+        const senderCash = senderSnap.data().cash || 0;
+
+        if (senderCash < numericAmount) {
+          throw new Error(`${senderName}님의 현금이 부족합니다. (보유: ${senderCash.toLocaleString()}원)`);
+        }
 
         transaction.update(senderRef, {
-          money: increment(-numericAmount),
+          cash: increment(-numericAmount),
         });
         transaction.update(recipientRef, {
-          money: increment(numericAmount),
+          cash: increment(numericAmount),
         });
         transaction.update(complaintDocRef, {
           settlementPaid: true,
@@ -995,7 +999,7 @@ const Court = () => {
       case "status":
         return (
           <ComplaintStatus
-            complaints={complaints.filter((c) =>
+            complaints={(complaints || []).filter((c) =>
               ["pending", "indicted", "on_trial", "dismissed"].includes(
                 c.status
               )

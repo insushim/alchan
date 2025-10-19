@@ -43,6 +43,7 @@ export default function MyAssets() {
   // 🔥 [최적화 1] 상태 및 레퍼런스
   const [assetsLoading, setAssetsLoading] = useState(true);
   const loadingRef = useRef(false); // 로딩 중복 방지용 플래그
+  const dataFetchRef = useRef({}); // 데이터 페치 시간 추적용
   const [parkingBalance, setParkingBalance] = useState(0);
   const [loans, setLoans] = useState([]);
   const [realEstateAssets, setRealEstateAssets] = useState([]);
@@ -50,9 +51,8 @@ export default function MyAssets() {
   const [goalDonations, setGoalDonations] = useState([]);
   const [transactionHistory, setTransactionHistory] = useState([]);
 
-  // 🔥 [최적화 2] Firebase Functions 호출 함수들
+  // 🔥 [최적화 2] Firebase Functions 호출 함수들 (기부 제외)
   const getUserAssetsDataFunction = httpsCallable(functions, 'getUserAssetsData');
-  const donateCouponFunction = httpsCallable(functions, 'donateCoupon');
   const sellCouponFunction = httpsCallable(functions, 'sellCoupon');
   const giftCouponFunction = httpsCallable(functions, 'giftCoupon');
 
@@ -257,7 +257,7 @@ export default function MyAssets() {
   };
 
   // 🔥 [핵심 수정] 데이터 덮어쓰기 방지를 위해 트랜잭션을 사용한 안전한 목표 생성 함수
-  const createDefaultGoalForClass = async (classCode, goalId) => {
+  const createDefaultGoalForClass = useCallback(async (classCode, goalId) => {
     try {
       const goalDocRef = doc(db, "goals", goalId);
       const defaultGoalData = {
@@ -284,11 +284,102 @@ export default function MyAssets() {
           setCachedFirestoreData(`goal_${goalId}`, existingData);
         }
       });
-      
+
     } catch (error) {
       throw error;
     }
-  };
+  }, [userId]);
+
+  // 🔥 [수정] 목표 데이터 로드 함수 - 캐시 추가 및 최적화
+  const loadGoalData = useCallback(async () => {
+    if (!currentGoalId || !currentUserClassCode) {
+      return;
+    }
+
+    // 🔥 캐시 먼저 확인
+    const cacheKey = `goal_${currentGoalId}`;
+    const cachedData = getCachedFirestoreData(cacheKey);
+
+    if (cachedData) {
+      console.log('[MyAssets] 캐시된 목표 데이터 사용');
+      setClassCouponGoal(Number(cachedData.targetAmount) || 1000);
+      setGoalProgress(Number(cachedData.progress) || 0);
+
+      const donations = Array.isArray(cachedData.donations) ? cachedData.donations : [];
+      setGoalDonations(donations);
+
+      const myDonations = donations.filter(d => d.userId === userId);
+      const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
+      setMyContribution(myTotal);
+
+      return;
+    }
+
+    try {
+      console.log('[MyAssets] Firestore에서 목표 데이터 로드 중...');
+      const goalDocRef = doc(db, "goals", currentGoalId);
+      const goalDocSnap = await getDoc(goalDocRef);
+
+      if (goalDocSnap.exists()) {
+        const goalData = goalDocSnap.data();
+
+        // 목표 정보 업데이트
+        setClassCouponGoal(Number(goalData.targetAmount) || 1000);
+        setGoalProgress(Number(goalData.progress) || 0);
+
+        // 기부 내역 처리
+        const donations = Array.isArray(goalData.donations)
+          ? goalData.donations.map((donation) => {
+              let processedTimestamp;
+              if (donation.timestamp && donation.timestamp.toDate) {
+                processedTimestamp = donation.timestamp.toDate().toISOString();
+              } else if (donation.timestamp && donation.timestamp.seconds) {
+                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+              } else if (donation.timestampISO) {
+                processedTimestamp = donation.timestampISO;
+              } else if (typeof donation.timestamp === 'string') {
+                processedTimestamp = donation.timestamp;
+              } else {
+                processedTimestamp = new Date().toISOString();
+              }
+
+              return {
+                ...donation,
+                amount: Number(donation.amount) || 0,
+                timestamp: processedTimestamp,
+                userId: donation.userId || '',
+                userName: donation.userName || '알 수 없는 사용자',
+                message: donation.message || '',
+                classCode: donation.classCode || currentUserClassCode,
+              };
+            })
+          : [];
+
+        setGoalDonations(donations);
+
+        // 내 기여 계산
+        const myDonations = donations.filter(d => d.userId === userId);
+        const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
+        setMyContribution(myTotal);
+
+        // 🔥 캐시에 저장
+        setCachedFirestoreData(cacheKey, goalData);
+
+        console.log('[MyAssets] 목표 데이터 로드 완료:', {
+          progress: goalData.progress,
+          targetAmount: goalData.targetAmount,
+          donationsCount: donations.length,
+          myContribution: myTotal
+        });
+      } else {
+        // 목표 문서가 없으면 기본값 생성
+        console.log('[MyAssets] 목표 문서가 없어 기본값 생성');
+        await createDefaultGoalForClass(currentUserClassCode, currentGoalId);
+      }
+    } catch (error) {
+      console.error('[MyAssets] 목표 데이터 로드 실패:', error);
+    }
+  }, [currentGoalId, currentUserClassCode, userId, createDefaultGoalForClass, getCachedFirestoreData, setCachedFirestoreData]);
 
   const loadMyAssetsData = useCallback(async () => {
     if (!userId || !db) {
@@ -351,7 +442,7 @@ export default function MyAssets() {
       });
       totalParkingBalance += parking2Balance;
       console.log(`[MyAssets-Debug] 파킹통장 경로 2 (/ClassStock/.../parkingAccounts) 총 잔액: ${parking2Balance}`);
-      
+
       setParkingBalance(totalParkingBalance);
       console.log(`[MyAssets-Debug] 파킹통장 총 잔액: ${totalParkingBalance}`);
 
@@ -367,13 +458,16 @@ export default function MyAssets() {
       console.log('[MyAssets] ✅ 클라이언트 측 자산 데이터 로드 완료');
       console.log(`[MyAssets-Debug] 발견된 총 부동산 자산: ${allRealEstateAssets.length}개`);
 
+      // 🔥 [새로 추가] 목표 데이터도 함께 로드
+      await loadGoalData();
+
     } catch (fallbackError) {
       console.error('[MyAssets] 🚨 클라이언트 측 직접 조회 실패:', fallbackError);
     } finally {
       setAssetsLoading(false);
       loadingRef.current = false;
     }
-  }, [userId]);
+  }, [userId, currentUserClassCode, loadGoalData]);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -436,7 +530,18 @@ export default function MyAssets() {
     setGoalAchieved(goalProgress >= classCouponGoal && classCouponGoal > 0);
   }, [goalProgress, classCouponGoal]);
 
-  // 🔥 [수정 9] 기부 처리 함수 - 완전 수정된 안전한 상태 업데이트
+  // 🔥 [수정] 목표 데이터 폴링 제거 - 캐시로 충분함
+  // 초기 로드만 수행하고 폴링은 하지 않음 (불필요한 Firestore 조회 방지)
+  useEffect(() => {
+    if (!user || !currentGoalId) {
+      return;
+    }
+
+    console.log('[MyAssets] 목표 데이터 초기 로드');
+    loadGoalData();
+  }, [user, currentGoalId, loadGoalData]);
+
+  // 🔥 [수정] 기부 처리 함수 - 캐시 무효화 개선
   const handleDonateCoupon = async (amount, memo) => {
     if (!userId || !currentUserClassCode) {
       alert("사용자 또는 학급 정보가 없어 기부할 수 없습니다.");
@@ -449,51 +554,147 @@ export default function MyAssets() {
       return false;
     }
 
-    setAssetsLoading(true);
-    try {
-      await donateCouponFunction({ amount: donationAmount, message: memo });
+    // 쿠폰 보유량 확인
+    const currentCoupons = Number(userDoc?.coupons) || 0;
+    if (currentCoupons < donationAmount) {
+      alert(`쿠폰이 부족합니다. (보유: ${currentCoupons}개, 필요: ${donationAmount}개)`);
+      return false;
+    }
 
-      alert(`${donationAmount} 쿠폰 기부 완료!`);
+    setAssetsLoading(true);
+
+    // 낙관적 업데이트 (UI 즉시 반영)
+    const previousProgress = goalProgress;
+    const previousMyContribution = myContribution;
+    const previousDonations = goalDonations;
+
+    const newDonation = {
+      userId: userId,
+      userName: userName,
+      amount: donationAmount,
+      timestamp: new Date().toISOString(),
+      timestampISO: new Date().toISOString(),
+      message: memo || '',
+      classCode: currentUserClassCode,
+    };
+
+    setGoalProgress(prev => prev + donationAmount);
+    setMyContribution(prev => prev + donationAmount);
+    setGoalDonations(prev => [...prev, newDonation]);
+
+    try {
+      // 1. 사용자 쿠폰 차감 (AuthContext 사용)
+      const couponDeducted = await updateUserInAuth({
+        coupons: increment(-donationAmount)
+      });
+
+      if (!couponDeducted) {
+        throw new Error("쿠폰 차감에 실패했습니다.");
+      }
+
+      // 2. Firestore 트랜잭션으로 목표 업데이트
+      const goalDocRef = doc(db, "goals", currentGoalId);
+
+      await runTransaction(db, async (transaction) => {
+        const goalDoc = await transaction.get(goalDocRef);
+
+        if (!goalDoc.exists()) {
+          throw new Error("목표 문서를 찾을 수 없습니다.");
+        }
+
+        const firestoreDonation = {
+          userId: userId,
+          userName: userName,
+          amount: donationAmount,
+          timestamp: serverTimestamp(),
+          timestampISO: new Date().toISOString(),
+          message: memo || '',
+          classCode: currentUserClassCode,
+        };
+
+        // progress 증가 및 donations 배열에 추가
+        transaction.update(goalDocRef, {
+          progress: increment(donationAmount),
+          donations: arrayUnion(firestoreDonation),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      // 3. donations 컬렉션에도 기록 (선택사항, 히스토리 추적용)
+      const donationRecordRef = doc(collection(db, "donations"));
+      await setDoc(donationRecordRef, {
+        userId: userId,
+        userName: userName,
+        amount: donationAmount,
+        timestamp: serverTimestamp(),
+        timestampISO: new Date().toISOString(),
+        message: memo || '',
+        classCode: currentUserClassCode,
+        goalId: currentGoalId,
+      });
+
+      // 4. 트랜잭션 기록
+      await addTransaction(userId, -donationAmount * couponValue, `학급 목표에 ${donationAmount}쿠폰 기부`);
+
+      // 🔥 5. 캐시 무효화 (모든 관련 캐시 삭제)
+      const cacheKey = `goal_${currentGoalId}`;
+      localStorage.removeItem(`firestore_cache_${cacheKey}_${userId}`);
+      localStorage.removeItem(`goalDonationHistory_${currentUserClassCode}_goal`);
+
+      alert(`${donationAmount}개 쿠폰 기부가 완료되었습니다!`);
       setShowDonateModal(false);
-      loadMyAssetsData(); // 데이터 새로고침
+
+      // 🔥 6. 최신 데이터 다시 로드 (캐시가 삭제되었으므로 Firestore에서 가져옴)
+      setTimeout(() => {
+        loadGoalData();
+      }, 500);
+
       return true;
     } catch (error) {
+      console.error('[MyAssets] 기부 오류:', error);
       alert(`기부 오류: ${error.message}`);
+
+      // 에러 발생 시 낙관적 업데이트 롤백
+      setGoalProgress(previousProgress);
+      setMyContribution(previousMyContribution);
+      setGoalDonations(previousDonations);
+
       return false;
     } finally {
       setAssetsLoading(false);
     }
   };
 
-  // 🔥 [추가] 기부 내역 복구를 위한 강제 새로고침 함수
+  // 🔥 [수정] 기부 내역 복구를 위한 강제 새로고침 함수
   const forceRefreshGoalData = async () => {
     if (!currentGoalId || !currentUserClassCode) {
       alert("학급 정보가 없습니다.");
       return;
     }
-    
+
     setAssetsLoading(true);
-    
+
     try {
       // 모든 관련 캐시 삭제
-      localStorage.removeItem(`firestore_cache_goal_${currentGoalId}_${userId}`);
+      const cacheKey = `goal_${currentGoalId}`;
+      localStorage.removeItem(`firestore_cache_${cacheKey}_${userId}`);
       localStorage.removeItem(`firestore_cache_settings_${userId}`);
-      
-      // Firebase에서 직접 최신 데이터 가져오기
+      localStorage.removeItem(`goalDonationHistory_${currentUserClassCode}_goal`);
+
+      console.log('[MyAssets] 캐시 삭제 완료, Firestore에서 최신 데이터 로드 중...');
+
+      // 🔥 Firestore에서 직접 최신 데이터 가져오기
       const goalDocRef = doc(db, "goals", currentGoalId);
       const goalDocSnap = await getDoc(goalDocRef);
-      
+
       if (goalDocSnap.exists()) {
         const latestGoalData = goalDocSnap.data();
-        
-        // 즉시 상태 업데이트
+
         setClassCouponGoal(Number(latestGoalData.targetAmount) || 1000);
         setGoalProgress(Number(latestGoalData.progress) || 0);
-        
-        // 기부 내역 처리
-        const freshDonations = Array.isArray(latestGoalData.donations) 
-          ? latestGoalData.donations.map((donation, index) => {
-              
+
+        const freshDonations = Array.isArray(latestGoalData.donations)
+          ? latestGoalData.donations.map((donation) => {
               let processedTimestamp;
               if (donation.timestamp && donation.timestamp.toDate) {
                 processedTimestamp = donation.timestamp.toDate().toISOString();
@@ -518,17 +719,23 @@ export default function MyAssets() {
               };
             })
           : [];
-        
+
         setGoalDonations(freshDonations);
-        
-        // 새 데이터를 캐시에 저장
-        setCachedFirestoreData(`goal_${currentGoalId}`, latestGoalData);
-        
-        alert(`목표 데이터 새로고침 완료!\n목표 진행률: ${latestGoalData.progress || 0}/${latestGoalData.targetAmount || 1000}\n기부 내역: ${freshDonations.length}개`);
+
+        // 내 기여도 재계산
+        const myDonations = freshDonations.filter(d => d.userId === userId);
+        const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
+        setMyContribution(myTotal);
+
+        // 캐시에 저장
+        setCachedFirestoreData(cacheKey, latestGoalData);
+
+        alert(`목표 데이터 새로고침 완료!\n목표 진행률: ${latestGoalData.progress || 0}/${latestGoalData.targetAmount || 1000}\n기부 내역: ${freshDonations.length}개\n내 기여도: ${myTotal}개`);
       } else {
         alert("목표 문서를 찾을 수 없습니다. 관리자에게 문의해주세요.");
       }
     } catch (error) {
+      console.error('[MyAssets] 데이터 새로고침 오류:', error);
       alert(`데이터 새로고침 중 오류가 발생했습니다: ${error.message}`);
     } finally {
       setAssetsLoading(false);

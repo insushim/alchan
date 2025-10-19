@@ -1237,6 +1237,7 @@ function Dashboard({ adminTabMode }) {
   }, [classCouponGoal, couponValue]);
 
   const handleSaveAdminSettings = useCallback(async () => {
+    console.log("--- [DEBUG] EXECUTING handleSaveAdminSettings with LATEST code ---");
     if (!db) {
       alert("데이터베이스 연결 오류.");
       return;
@@ -1269,34 +1270,14 @@ function Dashboard({ adminTabMode }) {
       if (currentGoalId && isAdmin?.()) {
         try {
           const goalRef = doc(db, "goals", currentGoalId);
-          const goalSnap = await getDoc(goalRef);
+          // setDoc with merge: true ensures we don't overwrite existing fields like progress.
+          // This safely updates the target amount or creates the document if it doesn't exist.
+          await setDoc(goalRef, {
+            targetAmount: newGoal,
+            classCode: userDoc.classCode,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
 
-          if (!goalSnap.exists()) {
-            batchManager.addWrite({
-              type: 'set',
-              ref: goalRef,
-              data: {
-                targetAmount: newGoal,
-                progress: 0,
-                donations: [],
-                donationCount: 0,
-                classCode: userDoc.classCode,
-                title: `${userDoc.classCode} 학급 목표`,
-                description: `${userDoc.classCode} 학급의 쿠폰 목표입니다.`,
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              }
-            });
-          } else if (goalSnap.data().targetAmount !== newGoal) {
-            batchManager.addWrite({
-              type: 'update',
-              ref: goalRef,
-              data: {
-                targetAmount: newGoal,
-                updatedAt: serverTimestamp(),
-              }
-            });
-          }
         } catch (goalError) {
           console.warn(
             "목표 설정 권한이 없어 목표 금액 설정을 건너뜀:",

@@ -25,6 +25,7 @@ export const useItems = () => {
       updateItem: async () => ({ success: false, message: "Context not available" }),
       deleteItem: async () => ({ success: false, message: "Context not available" }),
       useItem: async () => ({ success: false, message: "Context not available" }),
+      updateUserItemQuantity: async () => ({ success: false, message: "Context not available" }),
       listItemForSale: async () => ({ success: false, message: "Context not available" }),
       buyMarketItem: async () => ({ success: false, message: "Context not available" }),
       cancelSale: async () => ({ success: false, message: "Context not available" }),
@@ -62,6 +63,7 @@ export const ItemProvider = ({ children }) => {
     deleteStoreItem: httpsCallable(functions, 'deleteStoreItem'),
     purchaseStoreItem: httpsCallable(functions, 'purchaseStoreItem'),
     useUserItem: httpsCallable(functions, 'useUserItem'),
+    updateUserItemQuantity: httpsCallable(functions, 'updateUserItemQuantity'),
     listUserItemForSale: httpsCallable(functions, 'listUserItemForSale'),
     buyMarketItem: httpsCallable(functions, 'buyMarketItem'),
     cancelMarketSale: httpsCallable(functions, 'cancelMarketSale'),
@@ -335,6 +337,25 @@ export const ItemProvider = ({ children }) => {
     }
   }, [isAuthAdmin, firebaseFunctions, refreshData]);
 
+  const updateUserItemQuantity = useCallback(async (itemId, quantityChange, sourceCollection = 'inventory') => {
+    if (!userId) return { success: false, message: "로그인 필요" };
+    try {
+      const result = await firebaseFunctions.updateUserItemQuantity({ itemId, quantityChange, sourceCollection });
+      if (result.data.success) {
+        refreshData();
+        return { success: true };
+      } else {
+        throw new Error(result.data.message || "아이템 수량 업데이트에 실패했습니다.");
+      }
+    } catch (error) {
+      refreshData();
+      if (error.code === 'not-found') {
+        return { success: false, message: "아이템 수량 업데이트 함수(updateUserItemQuantity)를 찾을 수 없습니다. 관리자에게 문의하세요." };
+      }
+      return { success: false, message: error.message };
+    }
+  }, [userId, firebaseFunctions, refreshData]);
+
   // Final context value
   const contextValue = useMemo(() => ({
     items,
@@ -348,6 +369,7 @@ export const ItemProvider = ({ children }) => {
     deleteItem,
     purchaseItem,
     useItem,
+    updateUserItemQuantity,
     listItemForSale,
     buyMarketItem,
     cancelSale,
@@ -359,7 +381,7 @@ export const ItemProvider = ({ children }) => {
     updateLocalUserItems,
   }), [
     items, userItems, marketListings, marketOffers, loading, error,
-    addItem, updateItem, deleteItem, purchaseItem, useItem,
+    addItem, updateItem, deleteItem, purchaseItem, useItem, updateUserItemQuantity,
     listItemForSale, buyMarketItem, cancelSale, makeOffer, respondToOffer,
     adminCancelSale, adminDeleteItem, refreshData, updateLocalUserItems
   ]);

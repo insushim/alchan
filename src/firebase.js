@@ -841,53 +841,70 @@ export const updateUserCouponsInFirestore = async (userId, amount, logMessage) =
   }
 };
 
-// 🔥 [최적화] 송금 함수
+// 🔥 [수정] 송금 함수 - 원자적 트랜잭션으로 변경
 export const transferCash = async (senderId, receiverId, amount, message = '', allowNegative = false) => {
   if (!senderId || !receiverId || amount <= 0) {
     throw new Error('유효하지 않은 송금 정보입니다.');
   }
 
+  const senderRef = doc(db, "users", senderId);
+  const receiverRef = doc(db, "users", receiverId);
+
   try {
-    // 🔥 [최적화] 배치로 사용자 문서 조회
-    const [senderDoc, receiverDoc] = await Promise.all([
-      getUserDocument(senderId),
-      getUserDocument(receiverId)
-    ]);
+    await runTransaction(db, async (transaction) => {
+      // 1. 송금자와 수신자 문서 읽기
+      const [senderSnap, receiverSnap] = await Promise.all([
+        transaction.get(senderRef),
+        transaction.get(receiverRef)
+      ]);
 
-    if (!allowNegative && (!senderDoc || (senderDoc.cash || 0) < amount)) {
-      throw new Error('잔액이 부족합니다.');
-    }
-    if (!senderDoc) {
-      throw new Error('송신자를 찾을 수 없습니다.');
-    }
-    if (!receiverDoc) {
-      throw new Error('수신자를 찾을 수 없습니다.');
-    }
+      if (!senderSnap.exists()) {
+        throw new Error('송금자를 찾을 수 없습니다.');
+      }
+      if (!receiverSnap.exists()) {
+        throw new Error('수신자를 찾을 수 없습니다.');
+      }
 
-    // 🔥 [최적화] 병렬 처리
+      const senderData = senderSnap.data();
+      const receiverData = receiverSnap.data();
+
+      // 2. 잔액 확인
+      if (!allowNegative && (senderData.cash || 0) < amount) {
+        throw new Error('잔액이 부족합니다.');
+      }
+
+      // 3. 송금자와 수신자 현금 업데이트
+      transaction.update(senderRef, { cash: increment(-amount), updatedAt: serverTimestamp() });
+      transaction.update(receiverRef, { cash: increment(amount), updatedAt: serverTimestamp() });
+    });
+
+    // 트랜잭션 성공 후, 활동 로그 및 거래 기록 추가 (비동기 병렬 처리)
+    const senderDoc = await getUserDocument(senderId, true); // 최신 정보 가져오기
+    const receiverDoc = await getUserDocument(receiverId, true);
+
+    const senderName = senderDoc?.name || '알 수 없는 사용자';
+    const receiverName = receiverDoc?.name || '알 수 없는 사용자';
+    
+    const senderLogMessage = `${receiverName}님에게 ${amount}원을 송금했습니다.${message ? ` 메시지: \'\'${message}\'\'` : ''}`;
+    const receiverLogMessage = `${senderName}님으로부터 ${amount}원을 받았습니다.${message ? ` 메시지: \'\'${message}\'\'` : ''}`;
+
     await Promise.all([
-      updateUserCashInFirestore(
-        senderId,
-        -amount,
-        '',
-        { name: senderDoc.name, message },
-        { name: receiverDoc.name },
-        allowNegative
-      ),
-      updateUserCashInFirestore(
-        receiverId,
-        amount,
-        '',
-        { name: senderDoc.name, message },
-        { name: receiverDoc.name },
-        false
-      )
+      addActivityLog(senderId, '송금', senderLogMessage),
+      addTransaction(senderId, -amount, `송금: ${receiverName}에게`),
+      addActivityLog(receiverId, '송금 수신', receiverLogMessage),
+      addTransaction(receiverId, amount, `송금 수신: ${senderName}으로부터`)
     ]);
+    
+    // 캐시 무효화
+    invalidateCache(`user_${senderId}`);
+    invalidateCache(`user_${receiverId}`);
 
+    console.log(`[firebase.js] 현금 전송 성공: ${senderId} -> ${receiverId}, 금액: ${amount}`);
     return { success: true, amount };
+
   } catch (error) {
-    console.error('현금 전송 실패:', error);
-    throw error;
+    console.error('현금 전송 트랜잭션 실패:', error);
+    throw error; // UI에서 오류를 처리할 수 있도록 다시 던짐
   }
 };
 
@@ -899,7 +916,8 @@ export const processFineTransaction = async (userId, classCode, amount, reason) 
   }
 
   const userRef = doc(db, "users", userId);
-  const treasuryRef = doc(db, `classes/${classCode}/treasury/balance`);
+  // NationalTaxService.js와 동일한 nationalTreasuries 컬렉션 사용
+  const treasuryRef = doc(db, "nationalTreasuries", classCode);
 
   try {
     await runTransaction(db, async (transaction) => {
@@ -918,15 +936,27 @@ export const processFineTransaction = async (userId, classCode, amount, reason) 
       // 사용자 현금 차감 (마이너스 가능)
       transaction.update(userRef, { cash: increment(-amount) });
 
-      // 국고 잔액 증가
+      // 국고 잔액 증가 (totalAmount 필드 사용, otherTaxRevenue에 벌금 수익 추가)
       if (treasurySnap.exists()) {
-        transaction.update(treasuryRef, { balance: increment(amount) });
+        transaction.update(treasuryRef, {
+          totalAmount: increment(amount),
+          otherTaxRevenue: increment(amount),
+          lastUpdated: serverTimestamp()
+        });
       } else {
-        // 국고 문서가 없으면 새로 생성
+        // 국고 문서가 없으면 새로 생성 (NationalTaxService.js의 DEFAULT_TREASURY_DATA와 동일)
         transaction.set(treasuryRef, {
-            balance: amount,
-            createdAt: serverTimestamp(),
-            classCode: classCode
+          totalAmount: amount,
+          stockTaxRevenue: 0,
+          stockCommissionRevenue: 0,
+          realEstateTransactionTaxRevenue: 0,
+          realEstateAnnualTaxRevenue: 0,
+          incomeTaxRevenue: 0,
+          corporateTaxRevenue: 0,
+          otherTaxRevenue: amount,
+          classCode: classCode,
+          createdAt: serverTimestamp(),
+          lastUpdated: serverTimestamp()
         });
       }
     });
@@ -2512,5 +2542,21 @@ export {
   updatePassword,
   deleteUser,
   onSnapshot,
-  invalidateCache,
+  invalidateCache
+};
+
+export const processSettlement = async (settlementData) => {
+  if (!functions) throw new Error("Firebase Functions가 초기화되지 않았습니다.");
+  
+  const processSettlementFunction = httpsCallable(functions, 'processSettlement');
+  try {
+    console.log("[firebase.js] Calling 'processSettlement' cloud function with data:", settlementData);
+    const result = await processSettlementFunction(settlementData);
+    console.log("[firebase.js] 'processSettlement' cloud function result:", result.data);
+    return result.data; // Should be { success: true, message: "..." }
+  } catch (error) {
+    console.error("[firebase.js] processSettlement Cloud Function 호출 오류:", error);
+    // Re-throw the error so the UI can catch it
+    throw new Error(error.message || "서버 함수 호출에 실패했습니다.");
+  }
 };

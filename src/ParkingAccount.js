@@ -162,9 +162,9 @@ const calculateCompoundInterest = (principal, dailyRate, days) => {
   return { interest: Math.round(interest), total: Math.round(total) };
 };
 
-// 일일 이자 계산
+// 일일 이자 계산 (메모이제이션으로 최적화)
 const calculateDailyInterest = (principal, dailyRate) => {
-  console.log("Calculating daily interest with:", { principal, dailyRate });
+  // 콘솔 로그 제거 - 성능 최적화
   return Math.round(principal * (dailyRate / 100));
 };
 

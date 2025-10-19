@@ -578,7 +578,7 @@ exports.autoManageStocks = onSchedule({
       const stockRef = stockDoc.ref;
 
       if (stock.price < stock.minListingPrice) {
-        logger.info(`[상장폐지] ${stock.name} (${stock.id}) 주식이 최소 상장가격 ${stock.minListingPrice} 미만($_PRICE})이 되어 상장폐지됩니다.`);
+        logger.info(`[상장폐지] ${stock.name} (${stock.id}) 주식이 최소 상장가격 ${stock.minListingPrice} 미만(${stock.price})이 되어 상장폐지됩니다.`);
         batch.update(stockRef, {
           isListed: false,
           delistedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -594,7 +594,7 @@ exports.autoManageStocks = onSchedule({
 });
 */
 
-/*
+// 🔥 주석 해제 - aggregateActivityStats 등의 함수들이 사용 가능하도록
 exports.aggregateActivityStats = onSchedule({
   schedule: "every 10 minutes",
   timeZone: "Asia/Seoul",
@@ -1406,6 +1406,165 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
     throw new HttpsError("aborted", error.message || "아이템 사용 트랜잭션에 실패했습니다.");
   }
 });
+
+exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, userData } = await checkAuthAndGetUserData(request);
+  const { reportId, senderId, recipientId, amount, reason } = request.data;
+
+  // 1. Server-side validation
+  if (!reportId || !senderId || !recipientId || !amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "필수 정보(사건 ID, 송금자, 수신자, 금액)가 누락되었습니다.");
+  }
+
+  // 2. Authorization Check: Caller must be an admin or a Police Chief
+  const isSystemAdmin = userData.isAdmin || false;
+  const isPoliceChief = userData.job === '경찰청장' || userData.jobName === '경찰청장';
+
+  if (!isSystemAdmin && !isPoliceChief) {
+    throw new HttpsError("permission-denied", "이 작업을 수행할 권한이 없습니다. (관리자 또는 경찰청장 필요)");
+  }
+
+  const classCode = userData.classCode;
+  if (!classCode) {
+    throw new HttpsError("failed-precondition", "작업을 수행하는 관리자에게 학급 코드가 설정되어 있어야 합니다.");
+  }
+
+  // 3. Define document references
+  const senderRef = db.collection("users").doc(senderId);
+  const recipientRef = db.collection("users").doc(recipientId);
+  const reportRef = db.collection("classes").doc(classCode).collection("policeReports").doc(reportId);
+
+  try {
+    // 4. Execute atomic transaction
+    await db.runTransaction(async (transaction) => {
+      const [senderSnap, recipientSnap, reportSnap] = await transaction.getAll(senderRef, recipientRef, reportRef);
+
+      if (!senderSnap.exists) throw new Error("송금자를 찾을 수 없습니다.");
+      if (!recipientSnap.exists) throw new Error("수신자를 찾을 수 없습니다.");
+      if (!reportSnap.exists) throw new Error("해당 사건 보고서를 찾을 수 없습니다.");
+
+      const senderData = senderSnap.data();
+      
+      // allowNegative is true for settlements, so no balance check needed.
+      
+      // Use serverTimestamp for consistency
+      const timestamp = admin.firestore.FieldValue.serverTimestamp();
+
+      // Update sender and receiver cash
+      transaction.update(senderRef, { cash: admin.firestore.FieldValue.increment(-amount), updatedAt: timestamp });
+      transaction.update(recipientRef, { cash: admin.firestore.FieldValue.increment(amount), updatedAt: timestamp });
+
+      // Update the police report
+      transaction.update(reportRef, {
+        status: "resolved_settlement",
+        resolution: reason || "상호 합의 완료",
+        amount: amount,
+        resolutionDate: timestamp,
+        settlementPaid: true,
+        processedById: uid, // The admin/police chief who processed it
+        processedByName: userData.name || userData.displayName || "관리자",
+        settlementSenderId: senderId,
+        settlementRecipientId: recipientId,
+      });
+
+      // Add a settlement record
+      const settlementRef = db.collection("settlements").doc();
+      transaction.set(settlementRef, {
+        classCode,
+        reportId,
+        amount,
+        senderId,
+        recipientId,
+        reason: reason || "상호 합의 완료",
+        processedBy: uid,
+        createdAt: timestamp,
+      });
+    });
+
+    // 5. Post-transaction logging (outside the main transaction)
+    logger.info(`[processSettlement] Success: Report ${reportId} settled by ${uid}. ${senderId} -> ${recipientId}, Amount: ${amount}`);
+    
+    return { success: true, message: "합의금 지급 처리가 성공적으로 완료되었습니다." };
+
+  } catch (error) {
+    logger.error(`[processSettlement] Error processing settlement for report ${reportId} by user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "합의금 처리 중 서버에서 오류가 발생했습니다.");
+  }
+});
+
+// ===================================================================================
+// 📦 아이템 수량 업데이트 함수 (경매/특수 용도)
+// ===================================================================================
+
+/**
+ * 사용자의 인벤토리 아이템 수량을 변경합니다 (효과 적용 없이)
+ * 경매 등록, 취소 등 특수한 경우에 사용됩니다.
+ */
+exports.updateUserItemQuantity = onCall({
+  region: "asia-northeast3",
+  cors: true,
+}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {itemId, quantityChange, sourceCollection = 'inventory'} = request.data;
+
+  if (!itemId || quantityChange === undefined || quantityChange === 0) {
+    throw new HttpsError("invalid-argument", "아이템 ID와 수량 변경값이 필요합니다.");
+  }
+
+  const inventoryItemRef = db.collection("users").doc(uid).collection(sourceCollection).doc(itemId);
+
+  try {
+    let itemData = null;
+    let operationType = quantityChange > 0 ? "추가" : "차감";
+
+    await db.runTransaction(async (transaction) => {
+      const itemSnap = await transaction.get(inventoryItemRef);
+
+      if (!itemSnap.exists) {
+        throw new Error("인벤토리에 해당 아이템이 없습니다.");
+      }
+
+      itemData = itemSnap.data();
+      const currentQuantity = itemData.quantity || 0;
+      const newQuantity = currentQuantity + quantityChange;
+
+      if (newQuantity < 0) {
+        throw new Error(`아이템 수량이 부족합니다. (보유: ${currentQuantity}, 필요: ${Math.abs(quantityChange)})`);
+      }
+
+      // 수량이 0 이하가 되면 문서 삭제, 아니면 업데이트
+      if (newQuantity <= 0) {
+        transaction.delete(inventoryItemRef);
+      } else {
+        transaction.update(inventoryItemRef, {quantity: newQuantity});
+      }
+    });
+
+    // 로그 기록
+    if (itemData) {
+      await logActivity(
+          null,
+          uid,
+          LOG_TYPES.ITEM_MOVE,
+          `'${itemData.name}' ${Math.abs(quantityChange)}개를 ${operationType}했습니다.`,
+          {
+            itemId: itemId,
+            itemName: itemData.name,
+            quantityChange,
+            sourceCollection,
+            operationType,
+          },
+      );
+    }
+
+    logger.info(`[updateUserItemQuantity] Success: User ${uid} updated item ${itemId} by ${quantityChange}.`);
+    return {success: true, message: "아이템 수량이 업데이트되었습니다."};
+  } catch (error) {
+    logger.error(`[updateUserItemQuantity] Transaction Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 수량 업데이트에 실패했습니다.");
+  }
+});
+
 // ===================================================================================
 // 🏪 마켓 시스템
 // ===================================================================================
@@ -1762,6 +1921,11 @@ exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, userData, classCode} = await checkAuthAndGetUserData(request);
   const {amount, message} = request.data;
 
+  // 사용자의 classCode가 유효한지 확인하는 방어 코드 추가
+  if (!classCode) {
+    throw new HttpsError("failed-precondition", "사용자에게 학급 코드가 할당되지 않았습니다. 프로필을 확인하거나 관리자에게 문의해주세요.");
+  }
+
   if (!amount || amount <= 0) {
     throw new HttpsError("invalid-argument", "유효한 쿠폰 수량을 입력해야 합니다.");
   }
@@ -1771,40 +1935,81 @@ exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
 
   try {
     await db.runTransaction(async (transaction) => {
-      const userDoc = await transaction.get(userRef);
-      if (!userDoc.exists) throw new Error("사용자 정보가 없습니다.");
+      const [userDoc, goalDoc] = await transaction.getAll(userRef, goalRef);
+
+      if (!userDoc.exists) {
+        throw new Error("사용자 정보가 없습니다.");
+      }
 
       const currentCoupons = userDoc.data().coupons || 0;
-      if (currentCoupons < amount) throw new Error("보유한 쿠폰이 부족합니다.");
+      if (currentCoupons < amount) {
+        throw new Error("보유한 쿠폰이 부족합니다.");
+      }
 
-      // 사용자 쿠폰 차감
-      transaction.update(userRef, {
+      // 사용자 쿠폰 차감 및 기여도 증가 (set과 merge:true 사용)
+      transaction.set(userRef, {
         coupons: admin.firestore.FieldValue.increment(-amount),
         myContribution: admin.firestore.FieldValue.increment(amount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // 새 기부 객체 생성
+      const newDonation = {
+        id: db.collection("goals").doc().id, // 유니크 ID 추가
+        userId: uid,
+        userName: userData.name || "알 수 없는 사용자",
+        amount: amount,
+        message: message || "",
+        timestamp: admin.firestore.Timestamp.now(),
+        classCode: classCode,
+      };
+
+      if (goalDoc.exists) {
+        // 🔥 update 사용 - arrayUnion이 제대로 작동하려면 update 필요!
+        transaction.update(goalRef, {
+          progress: admin.firestore.FieldValue.increment(amount),
+          donations: admin.firestore.FieldValue.arrayUnion(newDonation),
+          donationCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        // If goal doc doesn't exist, create it.
+        transaction.set(goalRef, {
+          progress: amount,
+          donations: [newDonation],
+          donationCount: 1,
+          targetAmount: 1000, // Default target
+          classCode: classCode,
+          title: `${classCode} 학급 목표`,
+          description: `${classCode} 학급의 쿠폰 목표입니다.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdBy: uid,
+        });
+      }
+
+      // 활동 로그 기록 (트랜잭션 내에서 직접 처리)
+      const logRefUse = db.collection("activity_logs").doc();
+      transaction.set(logRefUse, {
+        userId: uid,
+        userName: userData.name || "알 수 없는 사용자",
+        classCode: classCode,
+        type: LOG_TYPES.COUPON_USE,
+        description: `학급 목표에 쿠폰 ${amount}개를 기부했습니다.`,
+        metadata: {amount, message, type: "donation"},
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      // 학급 목표에 기여
-      transaction.set(goalRef, {
-        goalProgress: admin.firestore.FieldValue.increment(amount),
-      }, {merge: true});
-
-      // 활동 로그 기록 (쿠폰 사용)
-      logActivity(
-          transaction,
-          uid,
-          LOG_TYPES.COUPON_USE,
-          `학급 목표에 쿠폰 ${amount}개를 기부했습니다.`,
-          {amount, message, type: "donation"},
-      );
-
-      // 활동 로그 기록 (쿠폰 기부)
-      logActivity(
-          transaction,
-          uid,
-          LOG_TYPES.COUPON_DONATE,
-          `쿠폰 ${amount}개를 기부했습니다. 메시지: ${message || "없음"}`,
-          {amount, message},
-      );
+      const logRefDonate = db.collection("activity_logs").doc();
+      transaction.set(logRefDonate, {
+        userId: uid,
+        userName: userData.name || "알 수 없는 사용자",
+        classCode: classCode,
+        type: LOG_TYPES.COUPON_DONATE,
+        description: `쿠폰 ${amount}개를 기부했습니다. 메시지: ${message || "없음"}`,
+        metadata: {amount, message},
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      });
     });
 
     return {success: true, message: "쿠폰 기부가 완료되었습니다."};
@@ -1963,6 +2168,82 @@ exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (reque
   } catch (error) {
     logger.error(`[수동 리셋] 클래스 '${classCode}' 리셋 중 오류:`, error);
     throw new HttpsError("internal", `할일 리셋 실패: ${error.message}`);
+  }
+});
+
+
+// 데이터 복구를 위한 임시 함수
+exports.recoverGoalData = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request, true); // 관리자만 실행
+  const {classCode} = request.data;
+
+  if (!classCode) {
+    throw new HttpsError("invalid-argument", "학급 코드를 반드시 입력해야 합니다.");
+  }
+
+  logger.info(`[recoverGoalData] 데이터 복구를 시작합니다. 학급: ${classCode}, 관리자: ${uid}`);
+
+  try {
+    const logsQuery = db.collection("activity_logs")
+      .where("classCode", "==", classCode)
+      .where("type", "==", "COUPON_DONATE");
+
+    const logsSnapshot = await logsQuery.get();
+
+    if (logsSnapshot.empty) {
+      logger.warn(`[recoverGoalData] 복구할 기부 로그가 없습니다: ${classCode}`);
+      const goalRef = db.collection("goals").doc(`${classCode}_goal`);
+      await goalRef.set({
+        progress: 0,
+        donations: [],
+        donationCount: 0,
+      }, { merge: true });
+      return {success: true, message: `기부 로그가 없어, 학급(${classCode}) 목표를 초기화했습니다.`};
+    }
+
+    let totalProgress = 0;
+    const recoveredDonations = [];
+
+    logsSnapshot.forEach(doc => {
+      const log = doc.data();
+      const amount = log.metadata?.amount || 0;
+      if (amount > 0) {
+        totalProgress += amount;
+        recoveredDonations.push({
+          id: doc.id,
+          userId: log.userId,
+          userName: log.userName,
+          amount: amount,
+          message: log.metadata?.message || "",
+          timestamp: log.timestamp,
+          classCode: log.classCode,
+        });
+      }
+    });
+
+    recoveredDonations.sort((a, b) => a.timestamp.toMillis() - b.timestamp.toMillis());
+
+    const goalRef = db.collection("goals").doc(`${classCode}_goal`);
+    await goalRef.set({
+      progress: totalProgress,
+      donations: recoveredDonations,
+      donationCount: recoveredDonations.length,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      lastRecoveryAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    logger.info(`[recoverGoalData] 복구 완료: ${classCode}. 총 진행률: ${totalProgress}, 총 기부 수: ${recoveredDonations.length}`);
+
+    return {
+      success: true,
+      message: `학급(${classCode}) 데이터 복구에 성공했습니다.`,
+      recoveredProgress: totalProgress,
+      recoveredDonationCount: recoveredDonations.length,
+    };
+
+  } catch (error) {
+    logger.error(`[recoverGoalData] 복구 중 오류 발생: ${classCode}:`, error);
+    throw new HttpsError("internal", `데이터 복구 실패: ${error.message}`);
   }
 });
 

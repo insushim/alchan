@@ -26,7 +26,9 @@ export default function CouponGoal({
   );
 
   const myContributionPercentage =
-    goalProgress > 0 ? Math.round((myContribution / goalProgress) * 100) : 0;
+    validClassCouponGoal > 0
+      ? Math.min(Math.round((myContribution / validClassCouponGoal) * 100), 100)
+      : 0;
 
   return (
     <div
@@ -163,7 +165,7 @@ export default function CouponGoal({
             }}
           >
             <div>내 기여도: {myContribution || 0} 쿠폰</div>
-            <div>전체 기여율: {myContributionPercentage}%</div>
+            <div>내 기여율: {myContributionPercentage}%</div>
           </div>
           <div
             style={{

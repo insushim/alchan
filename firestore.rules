@@ -53,20 +53,78 @@ service cloud.firestore {
       allow create: if isOwner(userId) && isValidUserData();
 
       // 수정: 본인만 (단, 중요 필드는 관리자만)
-      allow update: if isOwner(userId) &&
-                       (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isSuperAdmin', 'classCode']) ||
-                        isAdmin());
+      // 예외: 같은 학급 사용자가 cash 필드만 변경하는 경우 허용 (송금, 벌금 등)
+      allow update: if (isOwner(userId) &&
+                        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isSuperAdmin', 'classCode']) ||
+                         isAdmin())) ||
+                       (isSameClass(resource.data.classCode) &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'updatedAt'])) ||
+                       (isAdmin() &&
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'updatedAt']));
 
       // 삭제: 본인 또는 관리자
       allow delete: if isOwner(userId) || isAdmin();
-    }
 
-    // ========================================================
-    // 📦 인벤토리 (users/{userId}/inventory/{itemId})
-    // ========================================================
-    match /users/{userId}/inventory/{itemId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin();
+      // ========================================================
+      // 💰 거래 기록 서브컬렉션 (users/{userId}/transactions/{transactionId})
+      // ========================================================
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId) || isAdmin();
+        // 생성: 본인 또는 같은 학급 사용자 (송금 시 상대방 거래 기록 생성 가능)
+        allow create: if isOwner(userId) ||
+                         (isSignedIn() &&
+                          isSameClass(get(/databases/$(database)/documents/users/$(userId)).data.classCode));
+        allow update: if false; // 거래 기록은 수정 불가
+        allow delete: if isAdmin();
+      }
+
+      // ========================================================
+      // 📈 주식 포트폴리오 서브컬렉션 (users/{userId}/portfolio/{stockId})
+      // ========================================================
+      match /portfolio/{stockId} {
+        allow read: if isOwner(userId) || isSameClass(get(/databases/$(database)/documents/users/$(userId)).data.classCode) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // ========================================================
+      // 📦 인벤토리 서브컬렉션 (users/{userId}/inventory/{itemId})
+      // ========================================================
+      match /inventory/{itemId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // ========================================================
+      // 🎯 완료된 과제 서브컬렉션 (users/{userId}/completedTasks/{taskId})
+      // ========================================================
+      match /completedTasks/{taskId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // ========================================================
+      // 💰 금융 정보 서브컬렉션 (users/{userId}/financials/{document})
+      // ========================================================
+      match /financials/{document} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // ========================================================
+      // 📦 가입 상품 서브컬렉션 (users/{userId}/products/{productId})
+      // ========================================================
+      match /products/{productId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // ========================================================
+      // 💸 대출 서브컬렉션 (users/{userId}/loans/{loanId})
+      // ========================================================
+      match /loans/{loanId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
     }
 
     // ========================================================
@@ -75,11 +133,31 @@ service cloud.firestore {
     match /ClassStock/{classCode}/portfolio/{userId} {
       allow read: if isSameClass(classCode) || isAdmin();
       allow write: if isOwner(userId) || isAdmin();
+
+      match /holdings/{holdingId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
     }
 
-    match /ClassStock/{classCode}/portfolio/{userId}/holdings/{holdingId} {
+    // ========================================================
+    // 👨‍🎓 학생 데이터 (ClassStock/{classCode}/students/{userId})
+    // ========================================================
+    match /ClassStock/{classCode}/students/{userId} {
       allow read: if isSameClass(classCode) || isAdmin();
       allow write: if isOwner(userId) || isAdmin();
+
+      // 부동산 서브컬렉션
+      match /realestates/{estateId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
+
+      // 파킹통장 서브컬렉션
+      match /parkingAccounts/{accountId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
     }
 
     // ========================================================
@@ -143,18 +221,6 @@ service cloud.firestore {
     }
 
     // ========================================================
-    // 💰 거래 기록 (transactions)
-    // ========================================================
-    match /transactions/{transactionId} {
-      allow read: if isOwner(resource.data.userId) ||
-                     isSameClass(resource.data.classCode) ||
-                     isAdmin();
-      allow create: if isSignedIn();
-      allow update: if false; // 거래 기록은 수정 불가
-      allow delete: if isAdmin();
-    }
-
-    // ========================================================
     // 🏛️ 정부 설정 (governmentSettings)
     // ========================================================
     match /governmentSettings/{classCode} {
@@ -163,17 +229,17 @@ service cloud.firestore {
     }
 
     // ========================================================
-    // 🏦 국고 (nationalTreasury)
+    // 🏦 국고 (nationalTreasuries)
     // ========================================================
-    match /nationalTreasury/{classCode} {
+    match /nationalTreasuries/{classCode} {
       allow read: if isSameClass(classCode);
       allow write: if isAdmin();
     }
 
     // ========================================================
-    // 🏦 은행 상품 (bankingProducts)
+    // 🏦 은행 상품 설정 (bankingSettings)
     // ========================================================
-    match /bankingProducts/{classCode} {
+    match /bankingSettings/{classCode} {
       allow read: if isSameClass(classCode);
       allow write: if isAdmin();
     }
@@ -281,7 +347,7 @@ service cloud.firestore {
     match /policeReports/{reportId} {
       allow read: if isSameClass(resource.data.classCode) || isAdmin();
       allow create: if isSignedIn();
-      allow update: if isAdmin();
+      allow update: if isSameClass(resource.data.classCode) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -321,6 +387,22 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 💼 직업 (jobs)
+    // ========================================================
+    match /jobs/{jobId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ========================================================
+    // 📝 공통 할일 (commonTasks)
+    // ========================================================
+    match /commonTasks/{taskId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ========================================================
     // 🎯 과제 (tasks)
     // ========================================================
     match /tasks/{taskId} {
@@ -328,9 +410,144 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    match /users/{userId}/completedTasks/{taskId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow write: if isOwner(userId) || isAdmin();
+    // ========================================================
+    // ⚙️ 전역 설정 (settings)
+    // ========================================================
+    match /settings/{documentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ========================================================
+    // 🎯 학급 목표 (goals)
+    // ========================================================
+    match /goals/{goalId} {
+      // 읽기: 로그인한 모든 사용자 (목표 확인용)
+      allow read: if isSignedIn();
+
+      // 생성: 관리자만
+      allow create: if isAdmin();
+
+      // 수정: 로그인한 사용자 (기부 시 progress와 donations 업데이트 가능)
+      // 단, targetAmount와 같은 중요 필드는 관리자만 수정 가능
+      allow update: if isSignedIn() || isAdmin();
+
+      // 삭제: 관리자만
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================
+    // 🏫 학급 데이터 (classes)
+    // ========================================================
+    match /classes/{classCode} {
+      allow read: if isSameClass(classCode) || isAdmin();
+      allow write: if isAdmin();
+
+      // 부동산 서브컬렉션
+      match /realEstateProperties/{propertyId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // 🎯 경매 서브컬렉션 (classes/{classCode}/auctions/{auctionId})
+      match /auctions/{auctionId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if isSignedIn() && isSameClass(classCode);
+        allow delete: if isAdmin();
+
+        // 입찰 서브컬렉션
+        match /bids/{bidId} {
+          allow read: if isSameClass(classCode) || isAdmin();
+          allow create: if isSignedIn() && isSameClass(classCode);
+          allow update: if false;
+          allow delete: if isAdmin();
+        }
+      }
+
+      // 🏛️ 국회 법안 서브컬렉션 (classes/{classCode}/nationalAssemblyLaws/{lawId})
+      match /nationalAssemblyLaws/{lawId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && (isSameClass(classCode) || isAdmin());
+        allow update: if isSignedIn() && (isSameClass(classCode) || isAdmin());
+        allow delete: if isAdmin();
+      }
+
+      // 🏛️ 국회 설정 서브컬렉션 (classes/{classCode}/nationalAssemblySettings/{document})
+      match /nationalAssemblySettings/{document} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // 🗳️ 사용자 투표 기록 서브컬렉션 (classes/{classCode}/userVotes/{userId})
+      match /userVotes/{userId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow delete: if isAdmin();
+      }
+
+      // 🏦 국고 서브컬렉션 (classes/{classCode}/treasury/{document})
+      match /treasury/{document} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // 💰 국고 거래 내역 서브컬렉션 (classes/{classCode}/treasuryTransactions/{transactionId})
+      match /treasuryTransactions/{transactionId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isAdmin();
+        allow update: if false; // 거래 내역은 수정 불가
+        allow delete: if isAdmin();
+      }
+
+      // 🚨 경찰서 신고 서브컬렉션 (classes/{classCode}/policeReports/{reportId})
+      match /policeReports/{reportId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if isSignedIn() && isSameClass(classCode);
+        allow delete: if isAdmin();
+      }
+
+      // ⚖️ 법원 고소장 서브컬렉션 (classes/{classCode}/courtComplaints/{complaintId})
+      match /courtComplaints/{complaintId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if isSignedIn() && isSameClass(classCode);
+        allow delete: if isAdmin();
+      }
+
+      // ⚖️ 재판방 서브컬렉션 (classes/{classCode}/trialRooms/{roomId})
+      match /trialRooms/{roomId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if isSignedIn() && isSameClass(classCode);
+        allow delete: if isAdmin();
+
+        // 재판방 메시지 서브컬렉션
+        match /messages/{messageId} {
+          allow read: if isSameClass(classCode) || isAdmin();
+          allow create: if isSignedIn() && isSameClass(classCode);
+          allow update: if false; // 메시지는 수정 불가
+          allow delete: if isAdmin();
+        }
+
+        // 재판방 증거 자료 서브컬렉션
+        match /evidence/{evidenceId} {
+          allow read: if isSameClass(classCode) || isAdmin();
+          allow create: if isSignedIn() && isSameClass(classCode);
+          allow update: if false; // 증거는 수정 불가
+          allow delete: if isAdmin();
+        }
+
+        // 재판방 투표 서브컬렉션
+        match /voting/{votingId} {
+          allow read: if isSameClass(classCode) || isAdmin();
+          allow create: if isSignedIn() && isSameClass(classCode);
+          allow update: if isSignedIn() && isSameClass(classCode);
+          allow delete: if isAdmin();
+        }
+      }
     }
 
     // ========================================================

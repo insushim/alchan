@@ -28,11 +28,10 @@ export default function DonateCouponModal({
       // onDonate는 MyAssets.js의 handleDonateCoupon 함수
       const success = await onDonate(amount, donateMessage);
       if (success) {
-        // 🔥 성공 시 모달을 닫고 상태를 초기화하는 로직만 남김
-        // 🔥 localStorage 업데이트 로직은 MyAssets.js로 이전되었으므로 여기서 삭제
+        // 🔥 성공 시 모달을 닫고 상태를 초기화
         setDonateAmount("");
         setDonateMessage("");
-        // setShowDonateModal(false)는 handleDonateCoupon에서 처리
+        setShowDonateModal(false);
       }
     } catch (error) {
       console.error("[DonateCouponModal] 기부 처리 중 오류:", error);

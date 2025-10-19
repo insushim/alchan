@@ -41,12 +41,11 @@ const Investment = ({ classCode }) => {
   const [lastTransactions, setLastTransactions] = useState([]);
 
   // Firestore 경로 참조 (classCode가 있을 때만 정의)
-  // classCode가 변경될 때마다 참조가 재생성되도록 useEffect 밖으로 빼거나, useCallback/useMemo 사용 고려
-  // 여기서는 useEffect의 dependency array에 classCode를 넣어 처리합니다.
+  // NationalTaxService.js와 동일한 컬렉션 사용: nationalTreasuries
   let treasuryRef = null;
   let treasuryTransactionsColRef = null;
   if (classCode) {
-    treasuryRef = doc(db, "classes", classCode, "treasury", "balanceDoc");
+    treasuryRef = doc(db, "nationalTreasuries", classCode);
     treasuryTransactionsColRef = collection(
       db,
       "classes",
@@ -67,22 +66,31 @@ const Investment = ({ classCode }) => {
 
       const docSnap = await getDoc(treasuryRef);
       if (docSnap.exists()) {
-        return docSnap.data().balance || 0;
+        // NationalTaxService.js와 동일하게 totalAmount 필드 사용
+        return docSnap.data().totalAmount || 0;
       } else {
         try {
+          // NationalTaxService.js의 DEFAULT_TREASURY_DATA와 동일한 구조로 생성
           await setDoc(treasuryRef, {
-            balance: 0,
+            totalAmount: 0,
+            stockTaxRevenue: 0,
+            stockCommissionRevenue: 0,
+            realEstateTransactionTaxRevenue: 0,
+            realEstateAnnualTaxRevenue: 0,
+            incomeTaxRevenue: 0,
+            corporateTaxRevenue: 0,
+            otherTaxRevenue: 0,
             classCode: classCode,
             createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            lastUpdated: serverTimestamp(),
           });
-          console.log(`학급 [${classCode}]의 금고가 없어 새로 생성했습니다.`);
+          console.log(`학급 [${classCode}]의 국고가 없어 새로 생성했습니다.`);
           return 0;
         } catch (error) {
-          console.error("금고 생성 중 오류:", error);
+          console.error("국고 생성 중 오류:", error);
           setMessage({
             type: "error",
-            text: "금고 정보를 초기화하는 데 실패했습니다.",
+            text: "국고 정보를 초기화하는 데 실패했습니다.",
           });
           return 0;
         }
@@ -120,8 +128,8 @@ const Investment = ({ classCode }) => {
   }, [treasuryData, classCode, treasuryRef]);
 
   useEffect(() => {
-    if (transactionsData !== undefined) {
-      setLastTransactions(transactionsData);
+    if (transactionsData !== undefined && transactionsData !== null) {
+      setLastTransactions(Array.isArray(transactionsData) ? transactionsData : []);
       setIsLoading(false);
     } else if (!classCode || !treasuryTransactionsColRef) {
       setLastTransactions([]);
@@ -174,7 +182,7 @@ const Investment = ({ classCode }) => {
           throw new Error("관리자(사용자) 정보를 찾을 수 없습니다.");
 
         const currentTreasuryBalance = latestTreasurySnap.exists()
-          ? latestTreasurySnap.data().balance || 0
+          ? latestTreasurySnap.data().totalAmount || 0
           : 0;
         const currentAdminCash = latestAdminSnap.data().cash || 0;
 
@@ -189,8 +197,8 @@ const Investment = ({ classCode }) => {
           newTreasuryBalance = currentTreasuryBalance - amount;
           newAdminCash = currentAdminCash + amount;
           transaction.update(treasuryRef, {
-            balance: increment(-amount),
-            updatedAt: serverTimestamp(),
+            totalAmount: increment(-amount),
+            lastUpdated: serverTimestamp(),
           });
           transaction.update(adminUserRef, {
             cash: increment(amount),
@@ -208,8 +216,8 @@ const Investment = ({ classCode }) => {
             updatedAt: serverTimestamp(),
           });
           transaction.update(treasuryRef, {
-            balance: increment(amount),
-            updatedAt: serverTimestamp(),
+            totalAmount: increment(amount),
+            lastUpdated: serverTimestamp(),
           });
         } else {
           throw new Error("잘못된 작업 유형입니다.");

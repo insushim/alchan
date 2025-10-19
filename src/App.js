@@ -68,6 +68,8 @@ import AdminDatabase from "./AdminDatabase";
 import AdminJobSettings from "./AdminJobSettings";
 import CouponTransfer from "./CouponTransfer";
 import CouponGoalPage from "./CouponGoalPage";
+import FirestoreDoctor from "./FirestoreDoctor"; // 진단 도구 import
+import RecoverDonations from "./RecoverDonations"; // 기부 복구 도구 import
 
 // 게임 컴포넌트 import
 import GonuGame from "./GonuGame";
@@ -1232,6 +1234,22 @@ function AppLayoutContent() {
               element={
                 <ProtectedRoute>
                   <CouponGoalPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/doctor"
+              element={
+                <ProtectedRoute>
+                  <FirestoreDoctor />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/recover-donations"
+              element={
+                <ProtectedRoute>
+                  <RecoverDonations />
                 </ProtectedRoute>
               }
             />

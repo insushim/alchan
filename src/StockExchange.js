@@ -551,6 +551,9 @@ const StockExchange = () => {
     batchLoad: 0
   });
 
+  // 🔥 fetching 상태를 ref로 관리 (무한 루프 방지)
+  const isFetchingRef = useRef(false);
+
   useEffect(() => {
     if (userDoc?.classCode) {
       setClassCode(userDoc.classCode);
@@ -582,7 +585,8 @@ const StockExchange = () => {
   const fetchAllData = useCallback(async (forceRefresh = false) => {
     if (!classCode || !user) return;
 
-    if (isFetching) {
+    // 🔥 isFetching을 ref로 체크 (state 대신)
+    if (isFetchingRef.current) {
       return;
     }
 
@@ -594,6 +598,7 @@ const StockExchange = () => {
       return;
     }
 
+    isFetchingRef.current = true;
     setIsFetching(true);
 
     try {
@@ -621,9 +626,10 @@ const StockExchange = () => {
       console.error('[StockExchange] 배치 로드 실패:', error);
       alert('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
+      isFetchingRef.current = false;
       setIsFetching(false);
     }
-  }, [classCode, user, isFetching]);
+  }, [classCode, user]);
 
   // === 초기 데이터 로드 및 조건부 자동 새로고침 (읽기 비용 최적화) ===
   useEffect(() => {
@@ -680,6 +686,7 @@ const StockExchange = () => {
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+    // 🔥 fetchAllData는 useCallback으로 메모이제이션되어 있으므로 의존성에 포함 안전
   }, [user, firebaseReady, classCode, marketOpen, fetchAllData]);
 
   // === 자동 상장/폐지 관리는 Firebase Functions에서 처리 ===
