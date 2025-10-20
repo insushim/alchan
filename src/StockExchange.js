@@ -362,13 +362,10 @@ const getProductBadgeClass = (productType) => {
 
 // === 캐시 무효화 함수 ===
 const invalidateCache = (pattern) => {
-  const keysToDelete = [];
-  for (const key of globalCache.cache.keys()) {
-    if (key.includes(pattern)) {
-      keysToDelete.push(key);
-    }
+  // globalCache.invalidatePattern 메서드 사용 (더 안전함)
+  if (globalCache && typeof globalCache.invalidatePattern === 'function') {
+    globalCache.invalidatePattern(pattern);
   }
-  keysToDelete.forEach(key => globalCache.invalidate(key));
 };
 
 // === 관리자 패널 컴포넌트 ===
@@ -586,8 +583,9 @@ const StockExchange = () => {
   const fetchAllData = useCallback(async (forceRefresh = false) => {
     if (!classCode || !user) return;
 
-    // 🔥 isFetching을 ref로 체크 (state 대신)
-    if (isFetchingRef.current) {
+    // 🔥 강제 새로고침일 때는 이전 fetching을 무시하고 새로 시작
+    if (isFetchingRef.current && !forceRefresh) {
+      console.log('[StockExchange] 이미 fetching 중이므로 대기');
       return;
     }
 
