@@ -345,15 +345,10 @@ function UserManagementComponent() {
       }
     };
 
-    // 초기 로드
+    // 초기 로드만 실행 (폴링 완전 제거)
     loadUsers();
 
-    // 5분마다 폴링 (Firebase 읽기 최적화)
-    const pollingInterval = setInterval(pollUsers, 300000);
-
-    return () => {
-      clearInterval(pollingInterval);
-    };
+    // 폴링 제거됨 - 사용자 데이터는 필요할 때만 수동 새로고침하도록 변경
   }, [
     firebaseStatus.initialized,
     firebaseStatus.checked,

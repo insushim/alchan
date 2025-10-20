@@ -725,7 +725,7 @@ const calculateMarketCondition = (stocks) => {
 // ===================================================================================
 
 exports.createCentralMarketNews = onSchedule({
-  schedule: "every 3 minutes",
+  schedule: "every 5 minutes",
   timeZone: "Asia/Seoul",
   region: "asia-northeast3",
 }, async (event) => {
@@ -836,7 +836,7 @@ exports.cleanupExpiredCentralNews = onSchedule({
 });
 
 exports.syncCentralNewsToClasses = onSchedule({
-  schedule: "every 5 minutes",
+  schedule: "every 10 minutes",
   timeZone: "Asia/Seoul",
   region: "asia-northeast3",
 }, async (event) => {
@@ -2279,6 +2279,32 @@ async function resetTasksForClass(classCode) {
 // ===================================================================================
 // 🧑‍🎓 학생 자산 관련 정기 함수
 // ===================================================================================
+
+exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
+  const {classCode, isSuperAdmin} = await checkAuthAndGetUserData(request, true); // 관리자 권한 확인
+
+  try {
+    const settingsRef = db.collection("settings");
+    const mainSettingsDoc = await settingsRef.doc("mainSettings").get();
+    const classCodesDoc = await settingsRef.doc("classCodes").get();
+
+    const mainSettings = mainSettingsDoc.exists ? mainSettingsDoc.data() : {};
+    const classCodes = classCodesDoc.exists ? classCodesDoc.data().validCodes || [] : [];
+
+    return { 
+      success: true, 
+      data: { 
+        mainSettings: {
+          couponValue: mainSettings.couponValue || 1000,
+        },
+        classCodes: isSuperAdmin ? classCodes : [], // 최고 관리자만 학급 코드 접근
+      }
+    };
+  } catch (error) {
+    logger.error("getAdminSettingsData 함수 오류:", error);
+    throw new HttpsError("internal", "관리자 설정 데이터를 불러오는 중 오류가 발생했습니다.");
+  }
+});
 
 exports.distributeDividends = onCall({region: "asia-northeast3"}, async (request) => {
   await checkAuthAndGetUserData(request, true);

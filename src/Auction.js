@@ -268,13 +268,10 @@ export default function Auction() {
       }
     };
 
-    // 초기 로드
+    // 초기 로드만 실행 (폴링 제거)
     loadAuctions();
 
-    // 30초마다 폴링 (경매 종료 시간 확인용)
-    const pollingInterval = setInterval(loadAuctions, 30000);
-
-    return () => clearInterval(pollingInterval);
+    // 🔥 [최적화] 폴링 제거 - 사용자가 페이지 새로고침으로 경매 확인
   }, [classCode, currentUserId]);
 
   useEffect(() => {

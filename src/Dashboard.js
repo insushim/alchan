@@ -548,7 +548,7 @@ function Dashboard({ adminTabMode }) {
     }
 
     // 최소 요청 간격 보장 (30초)
-    if (!forceRefresh && now - lastFetchTime.current < 30000) {
+    if (!forceRefresh && now - lastFetchTime.current < 300000) {
       setAppLoading(false);
       return;
     }

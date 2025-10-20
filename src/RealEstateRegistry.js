@@ -142,7 +142,7 @@ const RealEstateRegistry = () => {
     };
 
     fetchSettings(); // 초기 로드
-    const interval = setInterval(fetchSettings, 60000); // 1분마다 폴링
+    const interval = setInterval(fetchSettings, 300000); // 5분마다 폴링
 
     return () => {
       mounted = false;
@@ -199,7 +199,7 @@ const RealEstateRegistry = () => {
     };
 
     fetchProperties(); // 초기 로드
-    const interval = setInterval(fetchProperties, 60000); // 1분마다 폴링
+    const interval = setInterval(fetchProperties, 300000); // 5분마다 폴링
 
     return () => {
       mounted = false;
