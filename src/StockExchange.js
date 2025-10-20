@@ -12,6 +12,7 @@ import { db } from "./firebase";
 import { applyStockTax } from "./utils/taxUtils";
 // 자동 상장/폐지는 Firebase Functions에서 처리 (10분마다)
 // import { startAutoManagementScheduler } from "./services/stockAutoManagementService";
+import { httpsCallable } from "firebase/functions";
 import {
   collection,
   doc,
@@ -520,7 +521,7 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
 
 // === 메인 컴포넌트 ===
 const StockExchange = () => {
-  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady } = useAuth();
+  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady, functions } = useAuth();
 
   const [classCode, setClassCode] = useState(null);
   const [stocks, setStocks] = useState([]);
@@ -883,24 +884,28 @@ const StockExchange = () => {
         transaction.update(userRef, { cash: increment(-totalCost) });
       });
 
-      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (한 번만)
-      if (taxAmount > 0) {
-        const { addTaxToTreasury } = await import('./utils/taxUtils');
-        await addTaxToTreasury(classCode, 'stock', taxAmount, `주식 매수 거래세: ${cost.toLocaleString()}원`);
+      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (실패해도 매수는 성공)
+      try {
+        if (taxAmount > 0) {
+          const { addTaxToTreasury } = await import('./utils/taxUtils');
+          await addTaxToTreasury(classCode, 'stock', taxAmount, `주식 매수 거래세: ${cost.toLocaleString()}원`);
 
-        const { addActivityLog } = await import('./firebase');
-        await addActivityLog(user.uid, 'TAX_PAYMENT',
-          `주식 거래세 ${taxAmount.toLocaleString()}원을 납부했습니다.`, {
-            taxType: 'stock',
-            originalAmount: cost,
-            taxRate: taxRate,
-            taxAmount: taxAmount,
-            transactionType: '매수'
-          });
+          const { addActivityLog } = await import('./firebase');
+          await addActivityLog(user.uid, 'TAX_PAYMENT',
+            `주식 거래세 ${taxAmount.toLocaleString()}원을 납부했습니다.`, {
+              taxType: 'stock',
+              originalAmount: cost,
+              taxRate: taxRate,
+              taxAmount: taxAmount,
+              transactionType: '매수'
+            });
+        }
+
+        if (commission > 0 && userDoc?.classCode)
+          await updateNationalTreasury(commission, 'commission', userDoc.classCode);
+      } catch (taxError) {
+        console.error('[buyStock] 세금/수수료 기록 실패 (매수는 성공):', taxError);
       }
-
-      if (commission > 0 && userDoc?.classCode)
-        await updateNationalTreasury(commission, 'commission', userDoc.classCode);
 
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
@@ -976,24 +981,28 @@ const StockExchange = () => {
         });
       });
 
-      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (한 번만)
-      if (transactionTax > 0) {
-        const { addTaxToTreasury } = await import('./utils/taxUtils');
-        await addTaxToTreasury(classCode, 'stock', transactionTax, `주식 매도 거래세: ${sellPrice.toLocaleString()}원`);
+      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (실패해도 매도는 성공)
+      try {
+        if (transactionTax > 0) {
+          const { addTaxToTreasury } = await import('./utils/taxUtils');
+          await addTaxToTreasury(classCode, 'stock', transactionTax, `주식 매도 거래세: ${sellPrice.toLocaleString()}원`);
 
-        const { addActivityLog } = await import('./firebase');
-        await addActivityLog(user.uid, 'TAX_PAYMENT',
-          `주식 거래세 ${transactionTax.toLocaleString()}원을 납부했습니다.`, {
-            taxType: 'stock',
-            originalAmount: sellPrice,
-            taxRate: taxRate,
-            taxAmount: transactionTax,
-            transactionType: '매도'
-          });
+          const { addActivityLog } = await import('./firebase');
+          await addActivityLog(user.uid, 'TAX_PAYMENT',
+            `주식 거래세 ${transactionTax.toLocaleString()}원을 납부했습니다.`, {
+              taxType: 'stock',
+              originalAmount: sellPrice,
+              taxRate: taxRate,
+              taxAmount: transactionTax,
+              transactionType: '매도'
+            });
+        }
+
+        if (totalTax > 0 && userDoc?.classCode) await updateNationalTreasury(totalTax, 'tax', userDoc.classCode);
+        if (commission > 0 && userDoc?.classCode) await updateNationalTreasury(commission, 'commission', userDoc.classCode);
+      } catch (taxError) {
+        console.error('[sellStock] 세금/수수료 기록 실패 (매도는 성공):', taxError);
       }
-
-      if (totalTax > 0 && userDoc?.classCode) await updateNationalTreasury(totalTax, 'tax', userDoc.classCode);
-      if (commission > 0 && userDoc?.classCode) await updateNationalTreasury(commission, 'commission', userDoc.classCode);
 
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);

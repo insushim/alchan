@@ -841,7 +841,8 @@ export default function MyAssets() {
       alert(`${amount}개 쿠폰을 판매했습니다.`);
       setShowSellCouponModal(false);
       setSellAmount("");
-      loadMyAssetsData(); // 데이터 새로고침
+      // 🔥 [최적화] Firebase Function이 자동으로 userDoc를 업데이트하므로
+      // AuthContext의 실시간 리스너가 자동으로 UI를 갱신함 (loadMyAssetsData 제거)
     } catch (error) {
       alert(`판매 오류: ${error.message}`);
     } finally {
@@ -871,7 +872,8 @@ export default function MyAssets() {
         setShowGiftCouponModal(false);
         setGiftRecipient("");
         setGiftAmount("");
-        loadMyAssetsData(); // 데이터 새로고침
+        // 🔥 [최적화] Firebase Function이 자동으로 userDoc를 업데이트하므로
+        // AuthContext의 실시간 리스너가 자동으로 UI를 갱신함 (loadMyAssetsData 제거)
       } catch (error) {
         alert(`선물 오류: ${error.message}`);
       } finally {
@@ -930,10 +932,8 @@ export default function MyAssets() {
             setShowTransferModal(false);
             setTransferRecipient("");
             setTransferAmount("");
-
-            setTimeout(() => {
-              loadMyAssetsData();
-            }, 500);
+            // 🔥 [최적화] 송금은 현금만 변경하므로 AuthContext의 optimistic update로 충분
+            // loadMyAssetsData() 호출 제거 - 불필요한 Firestore 조회 및 렌더링 방지
           } else {
             alert("받는 사람 현금 추가 오류. 송금 취소를 시도합니다.");
             await addCashToUserById(userId, amount, "송금 실패로 인한 복원");

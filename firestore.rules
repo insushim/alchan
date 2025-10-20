@@ -422,6 +422,16 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 💰 세금 설정 (taxSettings)
+    // ========================================================
+    match /taxSettings/{classCode} {
+      // 읽기: 로그인한 사용자 (주식 거래 시 세율 확인용)
+      allow read: if isSignedIn();
+      // 쓰기: 관리자만
+      allow write: if isAdmin();
+    }
+
+    // ========================================================
     // 🎯 학급 목표 (goals)
     // ========================================================
     match /goals/{goalId} {
@@ -588,8 +598,25 @@ service cloud.firestore {
     // ========================================================
     match /taxRecords/{recordId} {
       allow read: if isOwner(resource.data.userId) || isAdmin();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn(); // 모든 로그인 사용자가 세금 기록 생성 가능
       allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================
+    // 💰 국고 (treasury) - 루트 레벨
+    // ========================================================
+    match /treasury/{classCode} {
+      // 읽기: 같은 학급 또는 관리자
+      allow read: if isSameClass(classCode) || isAdmin();
+
+      // 생성: 관리자 또는 같은 학급 사용자 (초기 생성 시)
+      allow create: if isAdmin() || isSameClass(classCode);
+
+      // 수정: 관리자 또는 같은 학급 사용자 (세금 납부, 금고 입출금 시)
+      allow update: if isAdmin() || isSameClass(classCode);
+
+      // 삭제: 관리자만
       allow delete: if isAdmin();
     }
 

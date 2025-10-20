@@ -2329,3 +2329,93 @@ exports.adminResetUserPassword = onCall({region: "asia-northeast3"}, async (requ
     throw new HttpsError("internal", "비밀번호 초기화에 실패했습니다.", error.message);
   }
 });
+
+const { getTaxSettings, applyStockTax } = require("./taxUtils");
+
+exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
+  const { stockId, quantity } = request.data;
+
+  if (!stockId || !quantity || quantity <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 상품 ID와 수량을 입력해야 합니다.");
+  }
+
+  const stockRef = db.collection("CentralStocks").doc(stockId);
+  const userRef = db.collection("users").doc(uid);
+  const holdingRef = db.collection("users").doc(uid).collection("portfolio").doc(stockId);
+
+  try {
+    const taxSettings = await getTaxSettings(db, classCode);
+    const taxRate = taxSettings.stockTransactionTaxRate || 0.01;
+
+    await db.runTransaction(async (transaction) => {
+      const stockDoc = await transaction.get(stockRef);
+      const userDoc = await transaction.get(userRef);
+
+      if (!stockDoc.exists) throw new Error("존재하지 않는 상품입니다.");
+      if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+      const stock = stockDoc.data();
+      const user = userDoc.data();
+
+      if (!stock.isListed) throw new Error("현재 거래할 수 없는 상품입니다.");
+
+      const cost = stock.price * quantity;
+      const commission = Math.round(cost * 0.003); // 수수료 0.3%
+      const taxAmount = Math.floor(cost * taxRate);
+      const totalCost = cost + commission + taxAmount;
+
+      if (user.cash < totalCost) {
+        throw new Error(`현금이 부족합니다. (매수비용: ${cost.toLocaleString()}원 + 수수료: ${commission.toLocaleString()}원 + 거래세: ${taxAmount.toLocaleString()}원 = 총 ${totalCost.toLocaleString()}원 필요)`);
+      }
+
+      // 사용자 현금 차감
+      transaction.update(userRef, { cash: admin.firestore.FieldValue.increment(-totalCost) });
+
+      // 주식 거래량 업데이트
+      transaction.update(stockRef, {
+        tradingVolume: admin.firestore.FieldValue.increment(quantity),
+        buyVolume: admin.firestore.FieldValue.increment(quantity),
+        recentBuyVolume: admin.firestore.FieldValue.increment(quantity * 0.3)
+      });
+
+      // 사용자 포트폴리오 업데이트
+      const holdingDoc = await transaction.get(holdingRef);
+      if (holdingDoc.exists) {
+        const holdingData = holdingDoc.data();
+        const newQuantity = holdingData.quantity + quantity;
+        const newAveragePrice = Math.round(((holdingData.averagePrice * holdingData.quantity) + cost) / newQuantity);
+        transaction.update(holdingRef, {
+          quantity: newQuantity,
+          averagePrice: newAveragePrice,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastBuyTime: admin.firestore.FieldValue.serverTimestamp()
+        });
+      } else {
+        transaction.set(holdingRef, {
+          stockId,
+          stockName: stock.name,
+          quantity,
+          averagePrice: stock.price,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          lastBuyTime: admin.firestore.FieldValue.serverTimestamp(),
+          delistedAt: null,
+          classCode: classCode,
+          productType: stock.productType || "stock"
+        });
+        transaction.update(stockRef, { holderCount: admin.firestore.FieldValue.increment(1) });
+      }
+
+      // 세금 적용
+      if (taxAmount > 0) {
+        await applyStockTax(db, classCode, uid, cost, "매수", transaction);
+      }
+    });
+
+    return { success: true, message: "매수 완료!" };
+  } catch (error) {
+    logger.error(`[buyStock] User: ${uid}, Stock: ${stockId}, Qty: ${quantity}, Error:`, error);
+    throw new HttpsError("aborted", error.message || "매수 처리 중 오류가 발생했습니다.");
+  }
+});

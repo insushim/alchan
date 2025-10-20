@@ -45,12 +45,12 @@ export const addTaxToTreasury = async (classCode, taxType, amount, description) 
     const treasuryRef = doc(db, 'treasury', classCode);
     const batch = writeBatch(db);
 
-    // 국고 업데이트
-    batch.update(treasuryRef, {
+    // 🔥 [수정] update 대신 set with merge를 사용 (문서가 없을 때 자동 생성)
+    batch.set(treasuryRef, {
       totalAmount: increment(amount),
       [`${taxType}Revenue`]: increment(amount),
       lastUpdated: serverTimestamp()
-    });
+    }, { merge: true });
 
     // 세금 납부 기록 추가
     const taxRecordRef = doc(collection(db, 'taxRecords'));
