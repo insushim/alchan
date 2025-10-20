@@ -153,9 +153,21 @@ export default function DonationHistoryModal({
           // 모든 기부 기록을 처리하여 학생별 기부액과 총 기부액을 계산
           classDonations.forEach((donation) => {
             const amount = Number(donation.amount) || 0;
-            if (donation.userId) {
-              donationsByStudent[donation.userId] =
-                (donationsByStudent[donation.userId] || 0) + amount;
+            const donorId = donation.userId;
+            const donorName = donation.userName || donation.name || "알 수 없는 사용자";
+
+            if (donorId) {
+              if (!donationsByStudent[donorId]) {
+                donationsByStudent[donorId] = {
+                  amount: 0,
+                  name: donorName
+                };
+              }
+              donationsByStudent[donorId].amount += amount;
+              // 이름 업데이트 (가장 최신 이름 사용)
+              if (donorName && donorName !== "알 수 없는 사용자") {
+                donationsByStudent[donorId].name = donorName;
+              }
             }
             currentClassGoalTotal += amount;
           });
@@ -164,29 +176,34 @@ export default function DonationHistoryModal({
 
           console.log("[DonationHistoryModal] 기부 집계:", {
             donationsByStudent,
-            totalAmount: currentClassGoalTotal
+            totalAmount: currentClassGoalTotal,
+            uniqueDonors: Object.keys(donationsByStudent).length
           });
 
-          // 학급의 '모든' 학생 목록을 기반으로 최종 목록 생성
-          const summary = validStudents
-            .map((student) => {
-              // student.id 또는 student.uid 중 유효한 값 사용
-              const studentId = student.id || student.uid || student.userId;
-              const studentName =
-                student.name || student.nickname || "알 수 없는 학생";
-              const isCurrentUser = userId && studentId === userId;
+          // 🔥 수정: donations 배열에서 직접 기부자 목록 생성
+          // students prop에 없는 사용자도 포함
+          const donorIds = Object.keys(donationsByStudent);
+
+          // 기부한 사용자들의 목록 생성
+          const summary = donorIds
+            .map((donorId) => {
+              const donorInfo = donationsByStudent[donorId];
+              const isCurrentUser = userId && donorId === userId;
 
               return {
-                id: studentId,
-                name: studentName,
-                cumulativeAmount: donationsByStudent[studentId] || 0,
+                id: donorId,
+                name: donorInfo.name,
+                cumulativeAmount: donorInfo.amount,
                 isCurrentUser: isCurrentUser,
               };
             })
-            // 이름 기준으로 가나다순 정렬
-            .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+            // 기부액 기준으로 내림차순 정렬 (많이 기부한 순서)
+            .sort((a, b) => b.cumulativeAmount - a.cumulativeAmount);
 
-          console.log("[DonationHistoryModal] 최종 학생 목록:", summary);
+          console.log("[DonationHistoryModal] 최종 학생 목록:", {
+            totalDonors: summary.length,
+            summary
+          });
 
           setStudentDonationSummary(summary);
         } catch (err) {
