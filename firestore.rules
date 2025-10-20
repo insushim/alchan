@@ -618,6 +618,38 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 🎵 음악 신청방 (musicRooms)
+    // ========================================================
+    match /musicRooms/{roomId} {
+      // 읽기: 방 생성자(선생님) 또는 관리자
+      allow read: if isSignedIn() && (isOwner(resource.data.teacherId) || isAdmin());
+
+      // 생성: 로그인한 사용자 (선생님)
+      allow create: if isSignedIn() && isOwner(request.resource.data.teacherId);
+
+      // 수정: 방 생성자 또는 관리자
+      allow update: if isOwner(resource.data.teacherId) || isAdmin();
+
+      // 삭제: 방 생성자 또는 관리자
+      allow delete: if isOwner(resource.data.teacherId) || isAdmin();
+
+      // 재생목록 서브컬렉션 (musicRooms/{roomId}/playlist/{songId})
+      match /playlist/{songId} {
+        // 읽기: 로그인한 모든 사용자 (학생들도 자신의 신청곡 확인)
+        allow read: if isSignedIn();
+
+        // 생성: 로그인한 모든 사용자 (학생들의 음악 신청)
+        allow create: if isSignedIn();
+
+        // 수정: 방 생성자 또는 관리자만
+        allow update: if isOwner(get(/databases/$(database)/documents/musicRooms/$(roomId)).data.teacherId) || isAdmin();
+
+        // 삭제: 방 생성자 또는 관리자만 (재생 완료 시)
+        allow delete: if isOwner(get(/databases/$(database)/documents/musicRooms/$(roomId)).data.teacherId) || isAdmin();
+      }
+    }
+
+    // ========================================================
     // 🚫 기타 모든 컬렉션은 기본적으로 차단
     // ========================================================
     match /{document=**} {
