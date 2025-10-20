@@ -619,8 +619,8 @@ const LearningBoard = () => {
     }
   };
 
-  const boardsForGeneralSelection = boards.filter((board) => !board.isHidden);
-  const allBoardsForHiddenViewSelection = boards;
+  const boardsForGeneralSelection = (boards || []).filter((board) => !board.isHidden);
+  const allBoardsForHiddenViewSelection = boards || [];
 
   // 컨테이너 클래스 설정 수정
   const containerClasses = `learning-board-container ${

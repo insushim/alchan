@@ -442,6 +442,30 @@ service cloud.firestore {
       allow read: if isSameClass(classCode) || isAdmin();
       allow write: if isAdmin();
 
+      // 📚 학습 게시판 서브컬렉션 (classes/{classCode}/learningBoards/{boardId})
+      match /learningBoards/{boardId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isAdmin();
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+
+        // 게시글 서브컬렉션 (classes/{classCode}/learningBoards/{boardId}/posts/{postId})
+        match /posts/{postId} {
+          allow read: if isSameClass(classCode) || isAdmin();
+          allow create: if isSignedIn() && isSameClass(classCode);
+          allow update: if isSignedIn() && isSameClass(classCode);
+          allow delete: if isAdmin();
+        }
+      }
+
+      // 🎵 음악 요청 서브컬렉션 (classes/{classCode}/musicRequests/{requestId})
+      match /musicRequests/{requestId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if isSignedIn() && isSameClass(classCode);
+        allow delete: if isOwner(resource.data.requesterId) || isAdmin();
+      }
+
       // 부동산 서브컬렉션
       match /realEstateProperties/{propertyId} {
         allow read: if isSameClass(classCode) || isAdmin();
