@@ -52,15 +52,14 @@ service cloud.firestore {
       // 생성: 본인만 (회원가입)
       allow create: if isOwner(userId) && isValidUserData();
 
-      // 수정: 본인만 (단, 중요 필드는 관리자만)
-      // 예외: 같은 학급 사용자가 cash 필드만 변경하는 경우 허용 (송금, 벌금 등)
-      allow update: if (isOwner(userId) &&
-                        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isSuperAdmin', 'classCode']) ||
-                         isAdmin())) ||
+      // 수정: 본인, 같은 학급, 또는 관리자
+      // - 본인: 중요 필드(isAdmin, isSuperAdmin, classCode) 제외 모든 필드 수정 가능
+      // - 같은 학급: cash, updatedAt 필드만 수정 가능 (송금, 벌금 등)
+      // - 관리자: 모든 필드 수정 가능
+      allow update: if isOwner(userId) ||
                        (isSameClass(resource.data.classCode) &&
                         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'updatedAt'])) ||
-                       (isAdmin() &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cash', 'updatedAt']));
+                       isAdmin();
 
       // 삭제: 본인 또는 관리자
       allow delete: if isOwner(userId) || isAdmin();
@@ -557,6 +556,40 @@ service cloud.firestore {
       allow read: if isOwner(resource.data.userId) || isAdmin();
       allow create: if isSignedIn();
       allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================
+    // 💰 국고 (nationalTreasuries) - 추가된 규칙
+    // ========================================================
+    match /nationalTreasuries/{classCode} {
+      // 읽기: 같은 학급 또는 관리자
+      allow read: if isSameClass(classCode) || isAdmin();
+
+      // 생성: 관리자 또는 같은 학급 사용자 (초기 생성 시)
+      allow create: if isAdmin() || isSameClass(classCode);
+
+      // 수정: 관리자 또는 같은 학급 사용자 (금고 입출금 시)
+      allow update: if isAdmin() || isSameClass(classCode);
+
+      // 삭제: 관리자만
+      allow delete: if isAdmin();
+    }
+
+    // ========================================================
+    // 💳 거래 기록 (transactions) - 루트 레벨
+    // ========================================================
+    match /transactions/{transactionId} {
+      // 읽기: 본인 거래 또는 관리자
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // 생성: 로그인한 사용자 (자신의 거래만)
+      allow create: if isSignedIn();
+
+      // 수정: 불가 (거래 기록은 불변)
+      allow update: if false;
+
+      // 삭제: 관리자만
       allow delete: if isAdmin();
     }
 
