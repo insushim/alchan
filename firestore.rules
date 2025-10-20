@@ -532,6 +532,12 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
 
+      // 🚨 경찰서 신고 사유 서브컬렉션 (classes/{classCode}/policeReportReasons/{document})
+      match /policeReportReasons/{document} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isAdmin();
+      }
+
       // ⚖️ 법원 고소장 서브컬렉션 (classes/{classCode}/courtComplaints/{complaintId})
       match /courtComplaints/{complaintId} {
         allow read: if isSameClass(classCode) || isAdmin();
