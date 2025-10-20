@@ -1,9 +1,7 @@
 // AdminCommonTaskSettings.js
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
-  setupTaskResetTimer,
   manualResetAllTaskCounts,
-  checkAndResetOnAppStart,
 } from "./TaskResetService";
 
 export default function AdminCommonTaskSettings({
@@ -16,58 +14,7 @@ export default function AdminCommonTaskSettings({
   const [isResetting, setIsResetting] = useState(false);
   const [resetMessage, setResetMessage] = useState(null);
 
-  // 컴포넌트 마운트 시 앱 시작 초기화 확인 및 타이머 설정
-  useEffect(() => {
-    // 앱 시작 시 초기화 확인
-    const checkInitialReset = async () => {
-      try {
-        const result = await checkAndResetOnAppStart();
-        if (
-          result.success &&
-          result.message !==
-            "오늘은 이미 초기화되었거나 초기화 시간이 아닙니다."
-        ) {
-          setResetMessage({
-            type: "info",
-            text: result.message,
-          });
 
-          // 메시지 3초 후 자동 제거
-          setTimeout(() => setResetMessage(null), 3000);
-        }
-      } catch (error) {
-        console.error("초기화 확인 중 오류:", error);
-      }
-    };
-
-    checkInitialReset();
-
-    // 다음 오전 8시 초기화 타이머 설정
-    const resetTimerId = setupTaskResetTimer((result) => {
-      // 자동 초기화 완료 후 메시지 표시
-      if (result.success) {
-        setResetMessage({
-          type: "success",
-          text: "모든 할일 횟수가 자동으로 초기화되었습니다.",
-        });
-      } else {
-        setResetMessage({
-          type: "error",
-          text: "할일 자동 초기화 중 오류가 발생했습니다.",
-        });
-      }
-
-      // 메시지 3초 후 자동 제거
-      setTimeout(() => setResetMessage(null), 3000);
-    });
-
-    // 컴포넌트 언마운트 시 타이머 제거
-    return () => {
-      if (resetTimerId) {
-        clearTimeout(resetTimerId);
-      }
-    };
-  }, []);
 
   // 관리자의 수동 초기화 처리
   const handleResetTaskCounts = async () => {

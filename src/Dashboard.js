@@ -425,6 +425,17 @@ function Dashboard({ adminTabMode }) {
       : [];
   }, [jobs, currentSelectedJobIdsFromUserDoc]);
 
+  const commonTasksWithUserProgress = useMemo(() => {
+    if (!commonTasks || !userDoc) {
+      return [];
+    }
+    const userCompletedTasks = userDoc.completedTasks || {};
+    return commonTasks.map(task => ({
+      ...task,
+      clicks: userCompletedTasks[task.id] || 0,
+    }));
+  }, [commonTasks, userDoc]);
+
   // Utility function for generating IDs
   const generateId = useCallback(() => {
     try {
@@ -1119,34 +1130,39 @@ function Dashboard({ adminTabMode }) {
             }
           });
         } else {
+          // 공통 할일 로직 수정
           currentTaskData = commonTasks.find((t) => t.id === taskId);
           if (!currentTaskData)
             throw new Error("공통 할일을 찾을 수 없습니다.");
 
-          if (currentTaskData.clicks >= currentTaskData.maxClicks) {
+          const userCompletedTasks = userDoc.completedTasks || {};
+          const currentClicks = userCompletedTasks[taskId] || 0;
+
+          if (currentClicks >= currentTaskData.maxClicks) {
             alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
             setIsHandlingTask(false);
             return;
           }
 
           taskReward = currentTaskData.reward;
-          
-          // 낙관적 업데이트
-          setCommonTasks(prevTasks =>
-            prevTasks.map(t =>
-              t.id === taskId
-                ? { ...t, clicks: t.clicks + 1 }
-                : t
-            )
-          );
 
-          const currentTaskRef = doc(db, "commonTasks", taskId);
+          // 낙관적 업데이트 (userDoc 상태 업데이트)
+          const updatedCompletedTasks = {
+            ...userCompletedTasks,
+            [taskId]: currentClicks + 1,
+          };
+          setUserDoc(prevUserDoc => ({
+            ...prevUserDoc,
+            completedTasks: updatedCompletedTasks,
+          }));
+
+          // Firestore 업데이트 (user document의 completedTasks 필드)
+          const userRef = doc(db, "users", userDoc.id);
           batchManager.addWrite({
             type: 'update',
-            ref: currentTaskRef,
+            ref: userRef,
             data: {
-              clicks: increment(1),
-              updatedAt: serverTimestamp(),
+              [`completedTasks.${taskId}`]: increment(1),
             }
           });
         }
@@ -1213,19 +1229,25 @@ function Dashboard({ adminTabMode }) {
             )
           );
         } else {
-          setCommonTasks(prevTasks =>
-            prevTasks.map(t =>
-              t.id === taskId
-                ? { ...t, clicks: Math.max(0, t.clicks - 1) }
-                : t
-            )
-          );
+          // 공통 할일 롤백 (userDoc)
+          const userCompletedTasks = userDoc.completedTasks || {};
+          const currentClicks = userCompletedTasks[taskId] || 0;
+          if (currentClicks > 0) {
+            const updatedCompletedTasks = {
+              ...userCompletedTasks,
+              [taskId]: currentClicks - 1,
+            };
+            setUserDoc(prevUserDoc => ({
+              ...prevUserDoc,
+              completedTasks: updatedCompletedTasks,
+            }));
+          }
         }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [userDoc, isHandlingTask, jobs, commonTasks, updateUser]
+    [userDoc, isHandlingTask, jobs, commonTasks, updateUser, setUserDoc]
   );
 
   // Admin settings handlers
@@ -1637,12 +1659,12 @@ function Dashboard({ adminTabMode }) {
               </div>
               <div style={{ marginTop: "15px" }}>
                 <CommonTaskList
-                  tasks={commonTasks}
+                  tasks={commonTasksWithUserProgress} // 사용자 진행 상황이 포함된 데이터 전달
                   isAdmin={isAdmin?.()}
                   onEarnCoupon={(taskId) =>
                     handleTaskEarnCoupon(taskId, null, false)
                   }
-                  onEditTask={(task) => handleEditTask(task, null)}
+                  onEditTask={(taskId) => handleEditTask(commonTasks.find(t => t.id === taskId), null)}
                   onDeleteTask={(taskId) => handleDeleteTask(taskId, null)}
                   isHandlingTask={isHandlingTask}
                 />

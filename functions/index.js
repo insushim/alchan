@@ -2249,30 +2249,30 @@ exports.recoverGoalData = onCall({region: "asia-northeast3"}, async (request) =>
 
 async function resetTasksForClass(classCode) {
   const batch = db.batch();
-  let updateCount = 0;
+  let userCount = 0;
   try {
-    const jobsSnapshot = await db.collection("jobs").where("classCode", "==", classCode).get();
-    jobsSnapshot.forEach((doc) => {
-      const jobData = doc.data();
-      if (jobData.tasks && Array.isArray(jobData.tasks)) {
-        const resetTasks = jobData.tasks.map((task) => ({...task, clicks: 0}));
-        batch.update(doc.ref, {tasks: resetTasks, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
-        updateCount += jobData.tasks.length;
-      }
-    });
+    // 학급의 모든 사용자 조회
+    const usersQuery = db.collection("users").where("classCode", "==", classCode);
+    const usersSnapshot = await usersQuery.get();
 
-    const commonTasksSnapshot = await db.collection("commonTasks").where("classCode", "==", classCode).get();
-    commonTasksSnapshot.forEach((doc) => {
-      batch.update(doc.ref, {clicks: 0, updatedAt: admin.firestore.FieldValue.serverTimestamp()});
-      updateCount++;
+    if (usersSnapshot.empty) {
+      logger.info(`[${classCode}] 초기화할 사용자가 없습니다.`);
+      return 0;
+    }
+
+    // 각 사용자의 completedTasks 필드를 빈 객체로 업데이트
+    usersSnapshot.forEach((userDoc) => {
+      const userRef = userDoc.ref;
+      batch.update(userRef, { completedTasks: {} });
+      userCount++;
     });
 
     await batch.commit();
-    logger.info(`[${classCode}] 할일 리셋 완료: ${updateCount}개 할일`);
-    return updateCount;
+    logger.info(`[${classCode}] 학생 ${userCount}명의 할일 기록을 초기화했습니다.`);
+    return userCount;
   } catch (error) {
     logger.error(`[${classCode}] 할일 리셋 중 오류:`, error);
-    throw error;
+    throw error; // 상위 함수에서 오류를 처리하도록 전파
   }
 }
 

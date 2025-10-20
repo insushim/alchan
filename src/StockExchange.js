@@ -362,12 +362,12 @@ const getProductBadgeClass = (productType) => {
 // === 캐시 무효화 함수 ===
 const invalidateCache = (pattern) => {
   const keysToDelete = [];
-  for (const key of globalCache.keys()) {
+  for (const key of globalCache.cache.keys()) {
     if (key.includes(pattern)) {
       keysToDelete.push(key);
     }
   }
-  keysToDelete.forEach(key => globalCache.delete(key));
+  keysToDelete.forEach(key => globalCache.invalidate(key));
 };
 
 // === 관리자 패널 컴포넌트 ===

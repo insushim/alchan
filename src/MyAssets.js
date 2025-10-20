@@ -467,8 +467,9 @@ export default function MyAssets() {
       setAssetsLoading(false);
       loadingRef.current = false;
     }
-  }, [userId, currentUserClassCode, loadGoalData]);
+  }, [userId, currentUserClassCode]); // loadGoalData 제거하여 무한 루프 방지
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!authLoading && user) {
       loadMyAssetsData();
@@ -487,7 +488,7 @@ export default function MyAssets() {
     } else if (authLoading) {
       setAssetsLoading(true);
     }
-  }, [authLoading, user, loadMyAssetsData]);
+  }, [authLoading, user]); // loadMyAssetsData 제거하여 무한 루프 방지
 
   useEffect(() => {
     const cashValue = Number(userDoc?.cash) || 0;
@@ -532,6 +533,7 @@ export default function MyAssets() {
 
   // 🔥 [수정] 목표 데이터 폴링 제거 - 캐시로 충분함
   // 초기 로드만 수행하고 폴링은 하지 않음 (불필요한 Firestore 조회 방지)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user || !currentGoalId) {
       return;
@@ -539,7 +541,7 @@ export default function MyAssets() {
 
     console.log('[MyAssets] 목표 데이터 초기 로드');
     loadGoalData();
-  }, [user, currentGoalId, loadGoalData]);
+  }, [user, currentGoalId]); // loadGoalData 제거하여 무한 루프 방지
 
   // 🔥 [수정] 기부 처리 함수 - 캐시 무효화 개선
   const handleDonateCoupon = async (amount, memo) => {

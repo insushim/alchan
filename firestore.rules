@@ -389,7 +389,9 @@ service cloud.firestore {
     // 💼 직업 (jobs)
     // ========================================================
     match /jobs/{jobId} {
+      // 읽기: 로그인한 사용자, classCode 쿼리 허용
       allow read: if isSignedIn();
+      // 쓰기: 관리자만
       allow write: if isAdmin();
     }
 
@@ -397,7 +399,9 @@ service cloud.firestore {
     // 📝 공통 할일 (commonTasks)
     // ========================================================
     match /commonTasks/{taskId} {
+      // 읽기: 로그인한 사용자, classCode 쿼리 허용
       allow read: if isSignedIn();
+      // 쓰기: 관리자만
       allow write: if isAdmin();
     }
 

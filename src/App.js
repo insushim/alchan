@@ -34,10 +34,7 @@ import { ItemProvider } from "./ItemContext";
 import { formatKoreanCurrency, formatCouponCount } from "./numberFormatter";
 
 // 서비스 및 컴포넌트 imports
-import {
-  setupTaskResetTimer,
-  checkAndResetOnAppStart,
-} from "./TaskResetService";
+
 import AdminCommonTaskSettings from "./AdminCommonTaskSettings";
 import Dashboard from "./Dashboard";
 import ItemStore from "./ItemStore";
@@ -992,48 +989,13 @@ function AppLayoutContent() {
   const location = useLocation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [lastTaskResetCheck, setLastTaskResetCheck] = useState(Date.now());
 
   const currentUser = authHook.userDoc;
   const isAdminUser = useMemo(() => currentUser?.isAdmin || currentUser?.role === "admin", [currentUser]);
   const classCode = authHook.userDoc?.classCode;
   const userClassCode = currentUser?.classCode;
 
-  // 태스크 리셋 체크를 최적화 - 10분마다만 체크
-  useEffect(() => {
-    const checkInitialReset = async () => {
-      if (!classCode) {
-        return;
-      }
-      
-      // 마지막 체크로부터 10분이 지났는지 확인
-      const now = Date.now();
-      if (now - lastTaskResetCheck < 10 * 60 * 1000) { // 10분
-        return;
-      }
-      
-      try {
-        const result = await checkAndResetOnAppStart(classCode);
-        setLastTaskResetCheck(now);
-      } catch (error) {
-      }
-    };
 
-    if (classCode) {
-      checkInitialReset();
-      
-      // 태스크 리셋 타이머를 1시간마다만 체크하도록 최적화
-      const resetTimerId = setupTaskResetTimer(() => {
-        setLastTaskResetCheck(Date.now());
-      }, classCode);
-      
-      return () => {
-        if (resetTimerId) {
-          clearTimeout(resetTimerId);
-        }
-      };
-    }
-  }, [classCode, lastTaskResetCheck]);
 
   const toggleSidebar = useCallback(() => {
     setIsSidebarOpen((prev) => !prev);
