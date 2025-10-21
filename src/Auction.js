@@ -36,6 +36,7 @@ export default function Auction() {
   const authLoading = authContext?.loading ?? true;
   const firebaseUser = !authLoading ? authContext?.user : null;
   const userDoc = !authLoading ? authContext?.userDoc : null;
+  const optimisticUpdate = authContext?.optimisticUpdate;
 
   const balance = userDoc?.cash ?? 0;
   const currentUserId = firebaseUser?.uid || userDoc?.id;
@@ -385,6 +386,11 @@ export default function Auction() {
       return;
     }
 
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ cash: -amount });
+    }
+
     try {
       await runTransaction(db, async (transaction) => {
         const auctionDoc = await transaction.get(auctionRef);
@@ -446,6 +452,11 @@ export default function Auction() {
     } catch (error) {
       console.error("[Auction Bid] 입찰 오류:", error);
       showNotification(`입찰 실패: ${error.message}`, "error");
+
+      // 실패 시 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: amount });
+      }
     }
   };
 

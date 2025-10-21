@@ -40,7 +40,7 @@ export const useItems = () => {
 };
 
 export const ItemProvider = ({ children }) => {
-  const { user, userDoc, isAdmin: isAuthAdmin, loading: authLoading, deductCash, addCash } = useAuth() || {};
+  const { user, userDoc, isAdmin: isAuthAdmin, loading: authLoading, deductCash, addCash, optimisticUpdate } = useAuth() || {};
   const userId = user?.uid;
   const currentUserClassCode = userDoc?.classCode;
 
@@ -172,32 +172,35 @@ export const ItemProvider = ({ children }) => {
 
     const totalPrice = itemToPurchase.price * quantity;
 
-    // Optimistically deduct cash
-    const deductResult = await deductCash(totalPrice, `${itemToPurchase.name} ${quantity}개 구매`);
-    if (!deductResult) {
-      // If deductCash itself failed (e.g., insufficient funds, though it should be checked earlier)
-      return { success: false, message: "현금 차감에 실패했습니다." };
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ cash: -totalPrice });
     }
 
     try {
       const result = await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
       if (result.data.success) {
+        // Cloud Function 성공 - 서버에서 이미 현금 차감됨
         refreshData(); // Keep this to update item stock/availability
         return { success: true };
       } else {
-        // Rollback cash if Cloud Function fails
-        await addCash(totalPrice, `${itemToPurchase.name} 구매 실패 (롤백)`);
+        // Cloud Function 실패 - 롤백
+        if (optimisticUpdate) {
+          optimisticUpdate({ cash: totalPrice });
+        }
         throw new Error(result.data.message || "구매에 실패했습니다.");
       }
     } catch (error) {
-      // Rollback cash if any error occurs
-      await addCash(totalPrice, `${itemToPurchase.name} 구매 실패 (롤백)`);
+      // 에러 발생 - 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: totalPrice });
+      }
       if (error.code === 'not-found') {
         return { success: false, message: "아이템 구매 함수(purchaseStoreItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData, items, userDoc?.cash, deductCash, addCash]);
+  }, [userId, firebaseFunctions, refreshData, items, optimisticUpdate]);
 
   const useItem = useCallback(async (inventoryItemId, quantity = 1) => {
     if (!userId) return { success: false, message: "로그인 필요" };

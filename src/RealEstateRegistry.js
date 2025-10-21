@@ -43,6 +43,7 @@ const RealEstateRegistry = () => {
     loading: authLoading,
     isAdmin,
     refreshUserDocument,
+    optimisticUpdate,
   } = useAuth();
 
   const classCode = currentUser?.classCode;
@@ -304,7 +305,21 @@ const RealEstateRegistry = () => {
       return;
     }
 
-    console.log('[RealEstate] 부동산 구매 시작:', { propertyId });
+    const property = properties.find(p => p.id === propertyId);
+    if (!property) {
+      alert("부동산 정보를 찾을 수 없습니다.");
+      return;
+    }
+
+    const purchasePrice = property.salePrice || property.price;
+
+    console.log('[RealEstate] 부동산 구매 시작:', { propertyId, purchasePrice });
+
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ cash: -purchasePrice });
+    }
+
     setOperationLoading(true);
 
     try {
@@ -319,6 +334,12 @@ const RealEstateRegistry = () => {
       alert(`부동산 #${propertyId}를 성공적으로 구매했습니다.`);
     } catch (error) {
       console.error('[RealEstate] 구매 실패:', error);
+
+      // 실패 시 롤백 (낙관적 업데이트 취소)
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: purchasePrice });
+      }
+
       alert(error.message || '부동산 구매 중 오류가 발생했습니다.');
     } finally {
       setOperationLoading(false);

@@ -357,6 +357,7 @@ function Dashboard({ adminTabMode }) {
     refreshUserDocument,
     isAdmin,
     isSuperAdmin,
+    optimisticUpdate,
   } = useAuth();
 
   // Refs for cleanup
@@ -1086,6 +1087,7 @@ function Dashboard({ adminTabMode }) {
       // 낙관적 업데이트를 위한 이전 상태 저장
       let previousJobsState = null;
       let previousUserDocState = null;
+      let rewardAmount = 0;
 
       try {
         // 낙관적 업데이트
@@ -1102,6 +1104,8 @@ function Dashboard({ adminTabMode }) {
             setIsHandlingTask(false);
             return;
           }
+
+          rewardAmount = currentTaskData.reward || 0;
 
           setJobs(prevJobs =>
             prevJobs.map(j =>
@@ -1131,6 +1135,8 @@ function Dashboard({ adminTabMode }) {
             return;
           }
 
+          rewardAmount = currentTaskData.reward || 0;
+
           const updatedCompletedTasks = {
             ...userCompletedTasks,
             [taskId]: currentClicks + 1,
@@ -1139,6 +1145,11 @@ function Dashboard({ adminTabMode }) {
             ...prevUserDoc,
             completedTasks: updatedCompletedTasks,
           }));
+        }
+
+        // 🔥 쿠폰 즉시 UI 업데이트 (낙관적 업데이트)
+        if (optimisticUpdate && rewardAmount > 0) {
+          optimisticUpdate({ coupons: rewardAmount });
         }
 
         // Cloud Function 호출
@@ -1163,11 +1174,16 @@ function Dashboard({ adminTabMode }) {
         } else if (previousUserDocState) {
           setUserDoc(previousUserDocState);
         }
+
+        // 쿠폰도 롤백
+        if (optimisticUpdate && rewardAmount > 0) {
+          optimisticUpdate({ coupons: -rewardAmount });
+        }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [userDoc, isHandlingTask, jobs, commonTasks, refreshUserDocument]
+    [userDoc, isHandlingTask, jobs, commonTasks, refreshUserDocument, optimisticUpdate]
   );
 
   // Admin settings handlers

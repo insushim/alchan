@@ -33,6 +33,7 @@ export default function MyAssets() {
     updateUser: updateUserInAuth,
     addCashToUserById,
     deductCash: deductCurrentUserCash,
+    optimisticUpdate,
   } = useAuth();
 
   const userId = user?.uid;
@@ -558,6 +559,11 @@ export default function MyAssets() {
     setMyContribution(prev => prev + donationAmount);
     setGoalDonations(prev => [...prev, newDonation]);
 
+    // 🔥 쿠폰 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ coupons: -donationAmount });
+    }
+
     try {
       // 1. 사용자 쿠폰 차감 (AuthContext 사용)
       const couponDeducted = await updateUserInAuth({
@@ -634,6 +640,11 @@ export default function MyAssets() {
       setGoalProgress(previousProgress);
       setMyContribution(previousMyContribution);
       setGoalDonations(previousDonations);
+
+      // 쿠폰도 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ coupons: donationAmount });
+      }
 
       return false;
     } finally {
@@ -808,6 +819,12 @@ export default function MyAssets() {
       return;
     }
 
+    // 🔥 쿠폰 차감 및 현금 증가 즉시 UI 업데이트 (낙관적 업데이트)
+    const cashGained = amount * couponValue;
+    if (optimisticUpdate) {
+      optimisticUpdate({ coupons: -amount, cash: cashGained });
+    }
+
     setAssetsLoading(true);
     try {
       await sellCouponFunction({ amount });
@@ -819,6 +836,11 @@ export default function MyAssets() {
       // AuthContext의 실시간 리스너가 자동으로 UI를 갱신함 (loadMyAssetsData 제거)
     } catch (error) {
       alert(`판매 오류: ${error.message}`);
+
+      // 실패 시 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ coupons: amount, cash: -cashGained });
+      }
     } finally {
       setAssetsLoading(false);
     }
@@ -838,6 +860,11 @@ export default function MyAssets() {
     }
 
     if (window.confirm(`${recipientUser.name}님에게 쿠폰 ${amount}개를 선물하시겠습니까?`)) {
+      // 🔥 쿠폰 즉시 UI 업데이트 (낙관적 업데이트)
+      if (optimisticUpdate) {
+        optimisticUpdate({ coupons: -amount });
+      }
+
       setAssetsLoading(true);
       try {
         await giftCouponFunction({ recipientId: recipientUser.id, amount, message: "" });
@@ -850,6 +877,11 @@ export default function MyAssets() {
         // AuthContext의 실시간 리스너가 자동으로 UI를 갱신함 (loadMyAssetsData 제거)
       } catch (error) {
         alert(`선물 오류: ${error.message}`);
+
+        // 실패 시 롤백
+        if (optimisticUpdate) {
+          optimisticUpdate({ coupons: amount });
+        }
       } finally {
         setAssetsLoading(false);
       }
@@ -889,15 +921,20 @@ export default function MyAssets() {
 
     if (
       window.confirm(
-        `${ 
+        `${
           recipientUser.name || recipientUser.nickname || "사용자"
         }님에게 ${amount.toLocaleString()}원을 송금하시겠습니까?`
       )
     ) {
+      // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: -amount });
+      }
+
       setAssetsLoading(true);
       try {
         const recipientName = recipientUser.name || recipientUser.nickname || "사용자";
-        
+
         const deductSuccess = await deductCurrentUserCash(amount, `${recipientName}님에게 송금`);
         if (deductSuccess) {
           const addSuccess = await addCashToUserById(recipientUser.id, amount, `${userName}님으로부터 입금`);
@@ -911,12 +948,27 @@ export default function MyAssets() {
           } else {
             alert("받는 사람 현금 추가 오류. 송금 취소를 시도합니다.");
             await addCashToUserById(userId, amount, "송금 실패로 인한 복원");
+
+            // 실패 시 롤백
+            if (optimisticUpdate) {
+              optimisticUpdate({ cash: amount });
+            }
           }
         } else {
           alert("현금 차감 오류입니다.");
+
+          // 실패 시 롤백
+          if (optimisticUpdate) {
+            optimisticUpdate({ cash: amount });
+          }
         }
       } catch (error) {
         alert("송금 오류: " + error.message);
+
+        // 실패 시 롤백
+        if (optimisticUpdate) {
+          optimisticUpdate({ cash: amount });
+        }
       } finally {
         setAssetsLoading(false);
       }
