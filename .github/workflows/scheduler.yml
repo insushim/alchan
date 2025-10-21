@@ -49,52 +49,49 @@ jobs:
           # KST 시간 계산 (UTC + 9)
           KST_HOUR=$(( (HOUR + 9) % 24 ))
 
-          TASK_LIST=""
+          TASKS_ARRAY="["
 
           # 주식 시장 업데이트 (평일 8-15시 KST, 5분마다)
           if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,updateCentralStockMarket,autoManageStocks"
+            TASKS_ARRAY="${TASKS_ARRAY}\"updateCentralStockMarket\",\"autoManageStocks\","
           fi
 
           # 뉴스 생성 (평일 8-15시 KST, 3분마다)
           if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 3)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,createCentralMarketNews"
+            TASKS_ARRAY="${TASKS_ARRAY}\"createCentralMarketNews\","
           fi
 
           # 뉴스 정리 (5분마다)
           if [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,cleanupExpiredCentralNews,syncCentralNewsToClasses"
+            TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredCentralNews\",\"syncCentralNewsToClasses\","
           fi
 
           # 클래스 뉴스 정리 (10분마다)
           if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,cleanupExpiredClassNews"
+            TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredClassNews\","
           fi
 
           # 통계 집계 (10분마다)
           if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASK_LIST="$TASK_LIST,aggregateActivityStats"
+            TASKS_ARRAY="${TASKS_ARRAY}\"aggregateActivityStats\","
           fi
 
           # 일일 작업 리셋 (자정 KST)
           if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 10 ]; then
-            TASK_LIST="$TASK_LIST,resetDailyTasks"
+            TASKS_ARRAY="${TASKS_ARRAY}\"resetDailyTasks\","
           fi
 
-
-
-          if [ -n "$TASK_LIST" ]; then
-            # Remove leading comma
-            TASK_LIST=${TASK_LIST:1}
-            TASKS=$(echo "$TASK_LIST" | tr ',' '\n' | jq -R . | jq -s -c .)
+          # Remove trailing comma and close array
+          if [ "$TASKS_ARRAY" != "[" ]; then
+            TASKS_ARRAY="${TASKS_ARRAY%,}]"
           else
-            TASKS="[]"
+            TASKS_ARRAY="[]"
           fi
 
           echo "tasks<<EOF" >> $GITHUB_OUTPUT
-          echo "$TASKS" >> $GITHUB_OUTPUT
+          echo "$TASKS_ARRAY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
-          echo "실행할 작업: $TASKS"
+          echo "실행할 작업: $TASKS_ARRAY"
 
       - name: Call Firebase Function
         if: steps.tasks.outputs.tasks != '[]'
