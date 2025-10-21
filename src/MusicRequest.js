@@ -10,17 +10,37 @@ const MusicRequest = ({ user }) => {
     const [roomName, setRoomName] = useState('');
     const [createdRoom, setCreatedRoom] = useState(null); // 새로 생성된 방 정보
     const [error, setError] = useState('');
+    const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
-    // 사용자가 생성한 방 목록을 폴링으로 가져옵니다.
+    // 관리자 권한 확인
+    usePolling(
+        async () => {
+            if (!user) return false;
+            const userDoc = await getDoc(doc(db, "users", user.uid));
+            const isAdminUser = userDoc.exists() && userDoc.data().role === 'admin';
+            setIsAdmin(isAdminUser);
+            return isAdminUser;
+        },
+        { interval: 60000, enabled: !!user, deps: [user] }
+    );
+
+    // 관리자: 자신이 생성한 방 목록, 학생: 모든 방 목록을 폴링으로 가져옵니다.
     const { data: myRooms, loading, refetch } = usePolling(
         async () => {
             if (!user) return [];
-            const q = query(collection(db, "musicRooms"), where("teacherId", "==", user.uid));
+            let q;
+            if (isAdmin) {
+                // 관리자는 자신이 만든 방만 표시
+                q = query(collection(db, "musicRooms"), where("teacherId", "==", user.uid));
+            } else {
+                // 학생은 모든 방을 볼 수 있음
+                q = collection(db, "musicRooms");
+            }
             const snap = await getDocs(q);
             return snap.docs.map(d => ({ id: d.id, ...d.data() }));
         },
-        { interval: 30000, enabled: !!user, deps: [user] }
+        { interval: 30000, enabled: !!user, deps: [user, isAdmin] }
     );
 
     // 방이 삭제되었을 경우를 대비하여, 현재 보고 있는 createdRoom이 실제로 존재하는지 확인합니다.
@@ -38,6 +58,10 @@ const MusicRequest = ({ user }) => {
 
 
     const createRoom = async () => {
+        if (!isAdmin) {
+            setError('관리자만 방을 만들 수 있습니다.');
+            return;
+        }
         if (!roomName.trim()) {
             setError('방 이름을 입력해주세요.');
             return;
@@ -77,44 +101,48 @@ const MusicRequest = ({ user }) => {
     return (
         <div className="music-request-container">
             <h2>음악 신청방</h2>
-            
-            {/* 방 만들기 섹션 */}
-            <div className="create-room-section">
-                <h3>새로운 방 만들기</h3>
-                <input
-                    type="text"
-                    value={roomName}
-                    onChange={(e) => setRoomName(e.target.value)}
-                    placeholder="방 이름을 입력하세요"
-                    className="room-name-input"
-                />
-                <button onClick={createRoom} className="create-room-btn">방 만들기</button>
-                {error && <p className="error-message">{error}</p>}
-            </div>
-            
-            {/* 새로 생성된 방 정보 표시 */}
-            {createdRoom && (
-                <div className="room-created-section">
-                    <h3>"{createdRoom.name}" 방이 생성되었습니다!</h3>
-                    <p>학생들에게 아래 QR코드를 보여주거나 링크를 공유해주세요.</p>
-                    <div className="qr-code-container">
-                        <QRCodeSVG value={getRoomUrl(createdRoom.id)} size={256} />
+
+            {/* 관리자만 방 만들기 섹션 표시 */}
+            {isAdmin && (
+                <>
+                    <div className="create-room-section">
+                        <h3>새로운 방 만들기</h3>
+                        <input
+                            type="text"
+                            value={roomName}
+                            onChange={(e) => setRoomName(e.target.value)}
+                            placeholder="방 이름을 입력하세요"
+                            className="room-name-input"
+                        />
+                        <button onClick={createRoom} className="create-room-btn">방 만들기</button>
+                        {error && <p className="error-message">{error}</p>}
                     </div>
-                    <p className="room-link">{getRoomUrl(createdRoom.id)}</p>
-                    <Link to={`/music-room/${createdRoom.id}`} className="enter-room-link">
-                        음악 재생 목록 보기
-                    </Link>
-                </div>
+
+                    {/* 새로 생성된 방 정보 표시 */}
+                    {createdRoom && (
+                        <div className="room-created-section">
+                            <h3>"{createdRoom.name}" 방이 생성되었습니다!</h3>
+                            <p>학생들에게 아래 QR코드를 보여주거나 링크를 공유해주세요.</p>
+                            <div className="qr-code-container">
+                                <QRCodeSVG value={getRoomUrl(createdRoom.id)} size={256} />
+                            </div>
+                            <p className="room-link">{getRoomUrl(createdRoom.id)}</p>
+                            <Link to={`/music-room/${createdRoom.id}`} className="enter-room-link">
+                                음악 재생 목록 보기
+                            </Link>
+                        </div>
+                    )}
+                </>
             )}
 
-            {/* 내가 만든 방 목록 */}
+            {/* 방 목록 */}
             <div className="my-rooms-section">
-                <h3>내가 만든 방 목록</h3>
+                <h3>{isAdmin ? '내가 만든 방 목록' : '음악 신청 가능한 방 목록'}</h3>
                 {myRooms && myRooms.length > 0 ? (
                     <ul className="my-rooms-list">
                         {myRooms.map(room => (
                             <li key={room.id} className="my-room-item">
-                                <Link to={`/music-room/${room.id}`}>
+                                <Link to={isAdmin ? `/music-room/${room.id}` : `/student-request/${room.id}`}>
                                     <span>{room.name}</span>
                                     <small>({new Date(room.createdAt.seconds * 1000).toLocaleString()})</small>
                                 </Link>
@@ -122,7 +150,7 @@ const MusicRequest = ({ user }) => {
                         ))}
                     </ul>
                 ) : (
-                    <p>아직 생성한 방이 없습니다.</p>
+                    <p>{isAdmin ? '아직 생성한 방이 없습니다.' : '현재 이용 가능한 방이 없습니다.'}</p>
                 )}
             </div>
         </div>
