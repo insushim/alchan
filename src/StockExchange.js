@@ -8,7 +8,7 @@ import React, {
 import "./StockExchange.css";
 import { formatKoreanCurrency } from './numberFormatter';
 import { useAuth } from "./AuthContext";
-import { db } from "./firebase";
+import { db, functions } from "./firebase";
 import { applyStockTax } from "./utils/taxUtils";
 // 자동 상장/폐지는 Firebase Functions에서 처리 (10분마다)
 // import { startAutoManagementScheduler } from "./services/stockAutoManagementService";
@@ -824,101 +824,35 @@ const StockExchange = () => {
     if (isNaN(quantity) || quantity <= 0) return alert("유효한 수량을 입력해주세요.");
     const stock = stocks.find(s => s.id === stockId);
     if (!user || !stock || !stock.isListed) return alert("매수할 수 없는 상태입니다.");
-    const cost = stock.price * quantity;
-    const commission = Math.round(cost * COMMISSION_RATE);
 
-    // 🔥 거래세 계산만 하고 로그는 나중에 (트랜잭션 성공 후)
-    const { getTaxSettings } = await import('./utils/taxUtils');
-    const taxSettings = await getTaxSettings(classCode);
-    const taxRate = taxSettings.stockTransactionTaxRate || 0.01;
-    const taxAmount = Math.floor(cost * taxRate);
-    const totalCost = cost + commission + taxAmount;
+    console.log('[buyStock] 매수 시작:', { stockId, stockName: stock.name, quantity });
 
     setIsTrading(true);
     try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", user.uid);
-        const stockRef = doc(db, "CentralStocks", stockId);
-        const holdingRef = doc(db, "users", user.uid, "portfolio", stockId);
+      // Cloud Function 호출
+      const buyStockFunction = httpsCallable(functions, 'buyStock');
+      const result = await buyStockFunction({ stockId, quantity });
 
-        const userDocSnapshot = await transaction.get(userRef);
-        if (!userDocSnapshot.exists() || userDocSnapshot.data().cash < totalCost)
-          throw new Error(`현금이 부족합니다. (매수비용: ${cost.toLocaleString()}원 + 수수료: ${commission.toLocaleString()}원 + 거래세: ${taxAmount.toLocaleString()}원 = 총 ${totalCost.toLocaleString()}원 필요)`);
+      console.log('[buyStock] 매수 성공:', result.data);
 
-        const holdingDoc = await transaction.get(holdingRef);
-        if (holdingDoc.exists()) {
-          const holdingData = holdingDoc.data();
-          const newQuantity = holdingData.quantity + quantity;
-          const newAveragePrice = Math.round(((holdingData.averagePrice * holdingData.quantity) + cost) / newQuantity);
-          transaction.update(holdingRef, {
-            quantity: newQuantity,
-            averagePrice: newAveragePrice,
-            updatedAt: serverTimestamp(),
-            lastBuyTime: serverTimestamp()
-          });
-        } else {
-          transaction.set(holdingRef, {
-            stockId,
-            stockName: stock.name,
-            quantity,
-            averagePrice: stock.price,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastBuyTime: serverTimestamp(),
-            delistedAt: null,
-            classCode,
-            productType: stock.productType || PRODUCT_TYPES.STOCK
-          });
-          transaction.update(stockRef, {
-            holderCount: increment(1),
-          });
-        }
-
-        transaction.update(stockRef, {
-          tradingVolume: increment(quantity),
-          buyVolume: increment(quantity),
-          recentBuyVolume: increment(quantity * 0.3)
-        });
-
-        transaction.update(userRef, { cash: increment(-totalCost) });
-      });
-
-      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (실패해도 매수는 성공)
-      try {
-        if (taxAmount > 0) {
-          const { addTaxToTreasury } = await import('./utils/taxUtils');
-          await addTaxToTreasury(classCode, 'stock', taxAmount, `주식 매수 거래세: ${cost.toLocaleString()}원`);
-
-          const { addActivityLog } = await import('./firebase');
-          await addActivityLog(user.uid, 'TAX_PAYMENT',
-            `주식 거래세 ${taxAmount.toLocaleString()}원을 납부했습니다.`, {
-              taxType: 'stock',
-              originalAmount: cost,
-              taxRate: taxRate,
-              taxAmount: taxAmount,
-              transactionType: '매수'
-            });
-        }
-
-        if (commission > 0 && userDoc?.classCode)
-          await updateNationalTreasury(commission, 'commission', userDoc.classCode);
-      } catch (taxError) {
-        console.error('[buyStock] 세금/수수료 기록 실패 (매수는 성공):', taxError);
-      }
-
+      // 캐시 무효화 및 데이터 새로고침
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
       invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
+
+      const cost = stock.price * quantity;
+      const commission = Math.round(cost * COMMISSION_RATE);
       alert(`${stock.name} ${quantity}주 매수 완료!\n수수료: ${formatCurrency(commission)}`);
     } catch (error) {
-      alert(error.message);
+      console.error('[buyStock] 매수 실패:', error);
+      alert(error.message || '매수 처리 중 오류가 발생했습니다.');
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, user, userDoc, isTrading, classCode, marketOpen, fetchAllData]);
+  }, [stocks, user, isTrading, classCode, marketOpen, functions, fetchAllData, invalidateCache]);
 
   const sellStock = useCallback(async (holdingId, quantityString) => {
     if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
