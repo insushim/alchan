@@ -889,6 +889,44 @@ export const AuthProvider = ({ children }) => {
     [fetchUserDocument, userDoc]
   );
 
+  // 🔥 낙관적 업데이트 함수 (Cloud Function 호출 시 즉시 UI 업데이트)
+  const optimisticUpdate = useCallback(
+    (updates) => {
+      if (!userDoc?.id) {
+        console.warn('[AuthContext] optimisticUpdate: userDoc가 없습니다');
+        return;
+      }
+
+      const updatedUserDoc = { ...userDoc };
+
+      Object.keys(updates).forEach(key => {
+        const value = updates[key];
+
+        // 숫자 증감 처리 (예: cash: -1000, coupons: +5)
+        if (typeof value === 'number') {
+          const currentValue = Number(userDoc[key]) || 0;
+          updatedUserDoc[key] = currentValue + value;
+        } else {
+          // 직접 값 설정
+          updatedUserDoc[key] = value;
+        }
+      });
+
+      // 즉시 상태 업데이트 (Firebase 응답 기다리지 않음)
+      setUserDoc(updatedUserDoc);
+
+      // 캐시도 업데이트
+      userDocCacheRef.current.set(userDoc.id, updatedUserDoc);
+
+      console.log('[AuthContext] 낙관적 업데이트 완료:', {
+        updates,
+        newCash: updatedUserDoc.cash,
+        newCoupons: updatedUserDoc.coupons
+      });
+    },
+    [userDoc]
+  );
+
   // Context value를 useMemo로 메모이제이션하여 불필요한 리렌더링 방지
   const value = useMemo(
     () => ({
@@ -906,6 +944,7 @@ export const AuthProvider = ({ children }) => {
       loginWithEmailPassword,
       logout,
       updateUser,
+      optimisticUpdate,
       changePassword,
       deleteCurrentUserAccount,
       fetchUserDocument,
@@ -933,6 +972,7 @@ export const AuthProvider = ({ children }) => {
       loginWithEmailPassword,
       logout,
       updateUser,
+      optimisticUpdate,
       changePassword,
       deleteCurrentUserAccount,
       fetchUserDocument,

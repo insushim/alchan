@@ -519,7 +519,7 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
 
 // === 메인 컴포넌트 ===
 const StockExchange = () => {
-  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady, functions } = useAuth();
+  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady, functions, optimisticUpdate } = useAuth();
 
   const [classCode, setClassCode] = useState(null);
   const [stocks, setStocks] = useState([]);
@@ -825,7 +825,18 @@ const StockExchange = () => {
     const stock = stocks.find(s => s.id === stockId);
     if (!user || !stock || !stock.isListed) return alert("매수할 수 없는 상태입니다.");
 
-    console.log('[buyStock] 매수 시작:', { stockId, stockName: stock.name, quantity });
+    const cost = stock.price * quantity;
+    const commission = Math.round(cost * COMMISSION_RATE);
+    const taxRate = 0.01; // 기본 거래세율 1%
+    const taxAmount = Math.floor(cost * taxRate);
+    const totalCost = cost + commission + taxAmount;
+
+    console.log('[buyStock] 매수 시작:', { stockId, stockName: stock.name, quantity, totalCost });
+
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ cash: -totalCost });
+    }
 
     setIsTrading(true);
     try {
@@ -843,16 +854,20 @@ const StockExchange = () => {
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
 
-      const cost = stock.price * quantity;
-      const commission = Math.round(cost * COMMISSION_RATE);
       alert(`${stock.name} ${quantity}주 매수 완료!\n수수료: ${formatCurrency(commission)}`);
     } catch (error) {
       console.error('[buyStock] 매수 실패:', error);
+
+      // 실패 시 롤백 (낙관적 업데이트 취소)
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: totalCost });
+      }
+
       alert(error.message || '매수 처리 중 오류가 발생했습니다.');
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, user, isTrading, classCode, marketOpen, functions, fetchAllData, invalidateCache]);
+  }, [stocks, user, isTrading, classCode, marketOpen, functions, fetchAllData, invalidateCache, optimisticUpdate]);
 
   const sellStock = useCallback(async (holdingId, quantityString) => {
     if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
@@ -871,7 +886,22 @@ const StockExchange = () => {
     const stock = stocks.find(s => s.id === holding.stockId);
     if (!stock || !stock.isListed) return alert("현재 거래할 수 없는 상품입니다.");
 
-    console.log('[sellStock] 매도 시작:', { holdingId, stockName: stock.name, quantity });
+    // 예상 수익 계산 (낙관적 업데이트용)
+    const sellPrice = stock.price * quantity;
+    const commission = Math.round(sellPrice * COMMISSION_RATE);
+    const profit = (stock.price - holding.averagePrice) * quantity;
+    const profitTax = profit > 0 ? Math.floor(profit * 0.22) : 0;
+    const transactionTax = Math.floor(sellPrice * 0.01);
+    const totalTax = profitTax + transactionTax;
+    const estimatedNetRevenue = sellPrice - commission - totalTax;
+
+    console.log('[sellStock] 매도 시작:', { holdingId, stockName: stock.name, quantity, estimatedNetRevenue });
+
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ cash: estimatedNetRevenue });
+    }
+
     setIsTrading(true);
 
     try {
@@ -888,16 +918,22 @@ const StockExchange = () => {
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
 
-      const { stockName, sellPrice, commission, totalTax, profit, netRevenue } = result.data;
-      const taxInfo = totalTax > 0 ? `\n세금: ${formatCurrency(totalTax)}` : '';
-      alert(`${stockName} ${quantity}주 매도 완료!\n수익: ${formatCurrency(profit)}${taxInfo}\n수수료: ${formatCurrency(commission)}\n순수익: ${formatCurrency(netRevenue)}`);
+      const { stockName, sellPrice: actualSellPrice, commission: actualCommission, totalTax: actualTax, profit: actualProfit, netRevenue } = result.data;
+      const taxInfo = actualTax > 0 ? `\n세금: ${formatCurrency(actualTax)}` : '';
+      alert(`${stockName} ${quantity}주 매도 완료!\n수익: ${formatCurrency(actualProfit)}${taxInfo}\n수수료: ${formatCurrency(actualCommission)}\n순수익: ${formatCurrency(netRevenue)}`);
     } catch (error) {
       console.error('[sellStock] 매도 실패:', error);
+
+      // 실패 시 롤백 (낙관적 업데이트 취소)
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: -estimatedNetRevenue });
+      }
+
       alert(error.message || '매도 처리 중 오류가 발생했습니다.');
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions]);
+  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions, optimisticUpdate]);
 
   const deleteHolding = useCallback(async (holdingId) => {
     if (!user) return;
