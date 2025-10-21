@@ -338,14 +338,28 @@ const MyItems = () => {
 
     const { item: group } = giftModal;
     if (!user || !giftRecipientUid || !group) {
+      console.error('[MyItems] 선물 정보 오류:', { user: !!user, giftRecipientUid, group: !!group });
       showNotification("error", "선물 정보가 올바르지 않습니다.");
       return;
     }
     const quantity = Number(giftQuantity) || 1;
     if (quantity <= 0 || quantity > group.totalQuantity) {
+      console.error('[MyItems] 선물 수량 오류:', { quantity, totalQuantity: group.totalQuantity });
       showNotification("error", "선물 수량이 올바르지 않습니다.");
       return;
     }
+
+    // 받는 사람 정보 찾기
+    const recipient = classmates.find(c => (c.uid || c.id) === giftRecipientUid);
+    const recipientName = recipient ? recipient.name : '알 수 없는 사용자';
+
+    console.log('[MyItems] 선물 시작:', {
+      아이템: group.displayInfo.name,
+      수량: quantity,
+      보내는사람: userDoc?.name || user.uid,
+      받는사람: recipientName,
+      받는사람UID: giftRecipientUid
+    });
 
     setIsGifting(true);
     try {
@@ -353,6 +367,11 @@ const MyItems = () => {
       const q = query(recipientInventoryRef, where("itemId", "==", group.displayInfo.itemId));
       const recipientQuerySnapshot = await getDocs(q);
       const recipientItemDocRef = recipientQuerySnapshot.empty ? null : recipientQuerySnapshot.docs[0].ref;
+
+      console.log('[MyItems] 받는 사람 인벤토리 조회:', {
+        기존아이템존재: !recipientQuerySnapshot.empty,
+        문서수: recipientQuerySnapshot.size
+      });
 
       const originalUserItems = [...userItems];
 
@@ -385,10 +404,20 @@ const MyItems = () => {
 
           const senderItemRef = firebaseDoc(db, "users", user.uid, "inventory", senderDoc.id);
           const senderItemSnap = await transaction.get(senderItemRef);
-          if (!senderItemSnap.exists()) continue;
+          if (!senderItemSnap.exists()) {
+            console.warn('[MyItems] 보내는 사람 아이템 문서가 존재하지 않음:', senderDoc.id);
+            continue;
+          }
 
           const amountFromThisDoc = Math.min(senderItemSnap.data().quantity, remainingToSend);
           const newSenderQty = senderItemSnap.data().quantity - amountFromThisDoc;
+
+          console.log('[MyItems] 아이템 차감:', {
+            문서ID: senderDoc.id,
+            기존수량: senderItemSnap.data().quantity,
+            차감수량: amountFromThisDoc,
+            남은수량: newSenderQty
+          });
 
           if (newSenderQty <= 0) {
             transaction.delete(senderItemRef);
@@ -399,8 +428,10 @@ const MyItems = () => {
         }
 
         if (recipientItemDocRef) {
+          console.log('[MyItems] 받는 사람 아이템 업데이트 (기존 아이템에 추가):', { 추가수량: quantity });
           transaction.update(recipientItemDocRef, { quantity: increment(quantity) });
         } else {
+          console.log('[MyItems] 받는 사람 아이템 생성 (새 아이템):', { 수량: quantity });
           const newRecipientItemRef = firebaseDoc(recipientInventoryRef);
           transaction.set(newRecipientItemRef, {
             itemId: group.displayInfo.itemId,
@@ -414,7 +445,8 @@ const MyItems = () => {
         }
       });
 
-      showNotification("success", `선물하기가 완료되었습니다.`);
+      console.log('[MyItems] ✅ 선물 트랜잭션 완료');
+      showNotification("success", `${recipientName}님에게 ${group.displayInfo.name} ${quantity}개를 선물했습니다.`);
       handleCloseGiftModal();
 
       setTimeout(() => {
@@ -422,6 +454,7 @@ const MyItems = () => {
       }, 2000);
 
     } catch (error) {
+      console.error('[MyItems] 선물하기 실패:', error);
       showNotification("error", `선물하기 오류: ${error.message}`);
 
       if (refreshData) await refreshData();
