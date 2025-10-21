@@ -13,8 +13,8 @@ const MusicRequest = ({ user }) => {
     const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
-    // 관리자 권한 확인
-    usePolling(
+    // 관리자 권한 확인 - 즉시 실행하고 폴링도 설정
+    const { data: isAdminData, loading: adminLoading } = usePolling(
         async () => {
             if (!user) return false;
             const userDoc = await getDoc(doc(db, "users", user.uid));
@@ -96,6 +96,10 @@ const MusicRequest = ({ user }) => {
 
     if (!user) {
         return <div>로그인이 필요합니다.</div>;
+    }
+
+    if (adminLoading) {
+        return <div>권한 확인 중...</div>;
     }
 
     return (
