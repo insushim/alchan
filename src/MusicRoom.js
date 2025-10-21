@@ -141,23 +141,30 @@ const MusicRoom = ({ user }) => {
             </div>
             <div className="sidebar-content">
                 <div className="share-info-panel">
-                    <h4>학생 초대하기</h4>
+                    <h4>음악 신청 QR</h4>
                     <div className="qr-code-container-room">
-                        <QRCodeSVG value={getRoomUrl()} size={150} />
+                        <QRCodeSVG value={getRoomUrl()} size={120} />
                     </div>
                     <p className="room-link-title">공유 링크</p>
                     <p className="room-link-box">{getRoomUrl()}</p>
                 </div>
                 <div className="playlist-panel">
-                    <h3>재생 목록</h3>
-                    <ul className="playlist">
-                        {playlist.map((song, index) => (
-                             <li key={song.id} className={index === 0 ? 'playing' : ''}>
-                                 <span className="song-title">{index + 1}. {song.title}</span>
-                                 <span className="requester">신청: {song.requesterName}</span>
-                             </li>
-                        ))}
-                    </ul>
+                    <h3>재생 목록 ({playlist.length}곡)</h3>
+                    {playlist.length > 0 ? (
+                        <ul className="playlist">
+                            {playlist.map((song, index) => (
+                                <li key={song.id} className={index === 0 ? 'playing' : ''}>
+                                    <span className="song-title">{index + 1}. {song.title}</span>
+                                    <span className="requester">신청: {song.requesterName}</span>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="no-playlist-message">
+                            <p>아직 신청된 곡이 없습니다.</p>
+                            <p>학생들에게 QR 코드를 공유해주세요!</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
