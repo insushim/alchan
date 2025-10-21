@@ -113,26 +113,32 @@ const RealEstateRegistry = () => {
             layoutColumns: fetchedSettings.layoutColumns.toString(),
           });
         } else {
-          try {
-            await setDoc(settingsRefInstance, {
-              ...DEFAULT_SETTINGS,
-              createdAt: serverTimestamp(),
-              classCode: classCode,
-              updatedAt: serverTimestamp(),
-            });
-            if (mounted) {
-              setSettings(DEFAULT_SETTINGS);
-              setAdminInputs({ ...DEFAULT_SETTINGS });
+          // 설정이 없으면 기본값 사용 (관리자만 생성 가능)
+          if (mounted) {
+            setSettings(DEFAULT_SETTINGS);
+            setAdminInputs({ ...DEFAULT_SETTINGS });
+          }
+
+          // 관리자인 경우에만 기본 설정 생성 시도
+          if (isAdmin && isAdmin()) {
+            try {
+              await setDoc(settingsRefInstance, {
+                ...DEFAULT_SETTINGS,
+                createdAt: serverTimestamp(),
+                classCode: classCode,
+                updatedAt: serverTimestamp(),
+              });
+            } catch (error) {
+              console.warn("[RealEstate] 기본 설정 생성 실패 (관리자만 가능):", error.message);
             }
-          } catch (error) {
-            console.error("[RealEstate] Error creating default settings:", error);
           }
         }
         if (mounted) {
           setSettingsLoading(false);
         }
       } catch (error) {
-        console.error("[RealEstate] Error fetching settings:", error);
+        // 학생 계정은 settings 읽기 권한이 없을 수 있으므로 warn으로 처리
+        console.warn("[RealEstate] Settings 읽기 실패 (기본값 사용):", error.message);
         if (mounted) {
           setSettings(DEFAULT_SETTINGS);
           setAdminInputs({ ...DEFAULT_SETTINGS });
