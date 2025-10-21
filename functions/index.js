@@ -2654,3 +2654,102 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
     throw new HttpsError("aborted", error.message || "할일 완료 처리 중 오류가 발생했습니다.");
   }
 });
+
+exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
+  const { holdingId, quantity } = request.data;
+
+  if (!holdingId || !quantity || quantity <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 보유 ID와 수량을 입력해야 합니다.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const holdingRef = db.collection("users").doc(uid).collection("portfolio").doc(holdingId);
+
+  try {
+    const taxSettings = await getTaxSettings(db, classCode);
+    const taxRate = taxSettings.stockTransactionTaxRate || 0.01;
+
+    let stockId, stockName, sellPrice, commission, totalTax, netRevenue, profit;
+
+    await db.runTransaction(async (transaction) => {
+      // 🔥 모든 READ 먼저 수행
+      const holdingDoc = await transaction.get(holdingRef);
+      const userDoc = await transaction.get(userRef);
+
+      if (!holdingDoc.exists) throw new Error("보유 주식을 찾을 수 없습니다.");
+      if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+      const holding = holdingDoc.data();
+      stockId = holding.stockId;
+
+      if (holding.delistedAt) throw new Error("상장폐지된 상품은 매도할 수 없습니다.");
+      if (holding.quantity < quantity) throw new Error("보유 수량이 부족합니다.");
+
+      const stockRef = db.collection("CentralStocks").doc(stockId);
+      const stockDoc = await transaction.get(stockRef);
+
+      if (!stockDoc.exists) throw new Error("주식 정보를 찾을 수 없습니다.");
+
+      const stock = stockDoc.data();
+      stockName = stock.name;
+
+      if (!stock.isListed) throw new Error("현재 거래할 수 없는 상품입니다.");
+
+      // 가격 및 세금 계산
+      sellPrice = stock.price * quantity;
+      commission = Math.round(sellPrice * 0.003); // 수수료 0.3%
+
+      profit = (stock.price - holding.averagePrice) * quantity;
+      const profitTax = profit > 0 ? Math.floor(profit * 0.22) : 0; // 양도소득세
+      const transactionTax = Math.floor(sellPrice * taxRate); // 거래세
+      totalTax = profitTax + transactionTax;
+      netRevenue = sellPrice - commission - totalTax;
+
+      // 🔥 모든 WRITE 수행
+      // 사용자에게 현금 지급
+      transaction.update(userRef, { cash: admin.firestore.FieldValue.increment(netRevenue) });
+
+      // 포트폴리오 업데이트
+      if (holding.quantity === quantity) {
+        // 전량 매도
+        transaction.delete(holdingRef);
+        transaction.update(stockRef, {
+          holderCount: admin.firestore.FieldValue.increment(-1),
+          sellVolume: admin.firestore.FieldValue.increment(quantity),
+          recentSellVolume: admin.firestore.FieldValue.increment(quantity * 0.3)
+        });
+      } else {
+        // 일부 매도
+        transaction.update(holdingRef, {
+          quantity: admin.firestore.FieldValue.increment(-quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        transaction.update(stockRef, {
+          sellVolume: admin.firestore.FieldValue.increment(quantity),
+          recentSellVolume: admin.firestore.FieldValue.increment(quantity * 0.3)
+        });
+      }
+
+      // 세금 적용
+      if (totalTax > 0) {
+        await applyStockTax(db, classCode, uid, sellPrice, "매도", transaction);
+      }
+    });
+
+    return {
+      success: true,
+      message: `${stockName} ${quantity}주 매도 완료!`,
+      stockName: stockName,
+      quantity: quantity,
+      sellPrice: sellPrice,
+      commission: commission,
+      totalTax: totalTax,
+      profit: profit,
+      netRevenue: netRevenue,
+    };
+  } catch (error) {
+    logger.error(`[sellStock] User: ${uid}, Holding: ${holdingId}, Qty: ${quantity}, Error:`, error);
+    throw new HttpsError("aborted", error.message || "매도 처리 중 오류가 발생했습니다.");
+  }
+});

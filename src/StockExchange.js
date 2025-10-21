@@ -870,87 +870,34 @@ const StockExchange = () => {
 
     const stock = stocks.find(s => s.id === holding.stockId);
     if (!stock || !stock.isListed) return alert("현재 거래할 수 없는 상품입니다.");
-    const sellPrice = stock.price * quantity;
-    const commission = Math.round(sellPrice * COMMISSION_RATE);
-    const profit = (stock.price - holding.averagePrice) * quantity;
 
-    // 🔥 거래세 계산만 하고 로그는 나중에 (트랜잭션 성공 후)
-    const existingTax = calculateStockTax(profit, stock.productType);
-    const { getTaxSettings } = await import('./utils/taxUtils');
-    const taxSettings = await getTaxSettings(classCode);
-    const taxRate = taxSettings.stockTransactionTaxRate || 0.01;
-    const transactionTax = Math.floor(sellPrice * taxRate);
-    const totalTax = existingTax + transactionTax;
-    const netRevenue = sellPrice - commission - totalTax;
-
+    console.log('[sellStock] 매도 시작:', { holdingId, stockName: stock.name, quantity });
     setIsTrading(true);
+
     try {
-      await runTransaction(db, async (transaction) => {
-        const userRef = doc(db, "users", user.uid);
-        const holdingRef = doc(db, "users", user.uid, "portfolio", holdingId);
-        const stockRef = doc(db, "CentralStocks", holding.stockId);
+      const sellStockFunction = httpsCallable(functions, 'sellStock');
+      const result = await sellStockFunction({ holdingId, quantity });
 
-        const currentHoldingDoc = await transaction.get(holdingRef);
-        if (!currentHoldingDoc.exists() || currentHoldingDoc.data().quantity < quantity)
-          throw new Error("보유 수량이 변경되었습니다.");
+      console.log('[sellStock] 매도 성공:', result.data);
 
-        transaction.update(userRef, { cash: increment(netRevenue) });
-
-        if (currentHoldingDoc.data().quantity === quantity) {
-          transaction.delete(holdingRef);
-          transaction.update(stockRef, {
-            holderCount: increment(-1),
-          });
-        } else {
-          transaction.update(holdingRef, {
-            quantity: increment(-quantity),
-            updatedAt: serverTimestamp()
-          });
-        }
-
-        transaction.update(stockRef, {
-          sellVolume: increment(quantity),
-          recentSellVolume: increment(quantity * 0.3)
-        });
-      });
-
-      // 🔥 트랜잭션 성공 후 세금 납부 및 활동 로그 기록 (실패해도 매도는 성공)
-      try {
-        if (transactionTax > 0) {
-          const { addTaxToTreasury } = await import('./utils/taxUtils');
-          await addTaxToTreasury(classCode, 'stock', transactionTax, `주식 매도 거래세: ${sellPrice.toLocaleString()}원`);
-
-          const { addActivityLog } = await import('./firebase');
-          await addActivityLog(user.uid, 'TAX_PAYMENT',
-            `주식 거래세 ${transactionTax.toLocaleString()}원을 납부했습니다.`, {
-              taxType: 'stock',
-              originalAmount: sellPrice,
-              taxRate: taxRate,
-              taxAmount: transactionTax,
-              transactionType: '매도'
-            });
-        }
-
-        if (totalTax > 0 && userDoc?.classCode) await updateNationalTreasury(totalTax, 'tax', userDoc.classCode);
-        if (commission > 0 && userDoc?.classCode) await updateNationalTreasury(commission, 'commission', userDoc.classCode);
-      } catch (taxError) {
-        console.error('[sellStock] 세금/수수료 기록 실패 (매도는 성공):', taxError);
-      }
-
+      // 캐시 무효화 및 데이터 새로고침
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
       invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
+
+      const { stockName, sellPrice, commission, totalTax, profit, netRevenue } = result.data;
       const taxInfo = totalTax > 0 ? `\n세금: ${formatCurrency(totalTax)}` : '';
-      alert(`${stock.name} ${quantity}주 매도 완료!\n수익: ${formatCurrency(profit)}${taxInfo}\n수수료: ${formatCurrency(commission)}\n순수익: ${formatCurrency(netRevenue)}`);
+      alert(`${stockName} ${quantity}주 매도 완료!\n수익: ${formatCurrency(profit)}${taxInfo}\n수수료: ${formatCurrency(commission)}\n순수익: ${formatCurrency(netRevenue)}`);
     } catch (error) {
-      alert(error.message);
+      console.error('[sellStock] 매도 실패:', error);
+      alert(error.message || '매도 처리 중 오류가 발생했습니다.');
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData]);
+  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions]);
 
   const deleteHolding = useCallback(async (holdingId) => {
     if (!user) return;
