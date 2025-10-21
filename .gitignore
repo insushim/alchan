@@ -5,7 +5,7 @@ yarn-debug.log*
 yarn-error.log*
 
 # Production
-build
+# build  # GitHub Actions 자동 배포를 위해 build 폴더 커밋
 .firebase
 .firebaserc
 
