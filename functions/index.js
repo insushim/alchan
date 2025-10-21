@@ -555,7 +555,7 @@ exports.updateCentralStockMarket = onSchedule({
 });
 */
 
-/*
+// 자동 주식 관리 - 상장폐지 체크
 exports.autoManageStocks = onSchedule({
   schedule: "every 10 minutes",
   timeZone: "Asia/Seoul",
@@ -573,26 +573,36 @@ exports.autoManageStocks = onSchedule({
     }
 
     const batch = db.batch();
+    let delistedCount = 0;
+
     stocksSnapshot.docs.forEach((stockDoc) => {
       const stock = {id: stockDoc.id, ...stockDoc.data()};
       const stockRef = stockDoc.ref;
 
-      if (stock.price < stock.minListingPrice) {
-        logger.info(`[상장폐지] ${stock.name} (${stock.id}) 주식이 최소 상장가격 ${stock.minListingPrice} 미만(${stock.price})이 되어 상장폐지됩니다.`);
+      // minListingPrice가 있으면 그 값을 사용, 없으면 initialPrice의 10%를 사용
+      const minPrice = stock.minListingPrice || (stock.initialPrice || stock.price) * 0.1;
+
+      if (stock.price < minPrice) {
+        logger.info(`[상장폐지] ${stock.name} (${stock.id}) 주식이 최소 상장가격 ${minPrice} 미만(${stock.price})이 되어 상장폐지됩니다.`);
         batch.update(stockRef, {
           isListed: false,
           delistedAt: admin.firestore.FieldValue.serverTimestamp(),
+          delistReason: `가격 급락 (최소 상장가 ${minPrice} 미만)`,
         });
+        delistedCount++;
       }
     });
 
-    await batch.commit();
-    logger.info(`✅ 자동 주식 관리 완료.`);
+    if (delistedCount > 0) {
+      await batch.commit();
+      logger.info(`✅ 자동 주식 관리 완료: ${delistedCount}개 주식 상장폐지`);
+    } else {
+      logger.info(`✅ 자동 주식 관리 완료: 상장폐지 대상 없음`);
+    }
   } catch (error) {
     logger.error("🚨 자동 주식 관리 중 오류 발생:", error);
   }
 });
-*/
 
 // 🔥 주석 해제 - aggregateActivityStats 등의 함수들이 사용 가능하도록
 exports.aggregateActivityStats = onSchedule({
