@@ -117,14 +117,13 @@ const batchDataLoader = {
     try {
       const allNews = [];
 
-      // 중앙 뉴스만 가져오기
+      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거)
       try {
         const centralNewsRef = collection(db, "CentralNews");
         const centralActiveQuery = query(
           centralNewsRef,
           where("isActive", "==", true),
-          orderBy("timestamp", "desc"),
-          limit(15)
+          limit(50)
         );
         const centralSnapshot = await getDocs(centralActiveQuery);
 
@@ -141,8 +140,10 @@ const batchDataLoader = {
         console.warn('[batchDataLoader] Central news load failed:', centralError);
       }
 
-      // 시간순으로 정렬
-      return allNews.sort((a, b) => b.timestamp - a.timestamp);
+      // 클라이언트 측에서 시간순으로 정렬하고 최신 15개만 반환
+      return allNews
+        .sort((a, b) => b.timestamp - a.timestamp)
+        .slice(0, 15);
 
     } catch (error) {
       console.error('[batchDataLoader] News load error:', error);
