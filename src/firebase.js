@@ -67,7 +67,7 @@ const db = initializeFirestore(app, {
 });
 
 // Firestore 로그 레벨 설정 (WebChannel 오류 숨기기)
-setLogLevel('error'); // 'debug', 'error', 'silent' 중 선택
+// setLogLevel('error'); // 'debug', 'error', 'silent' 중 선택
 
 const auth = getAuth(app);
 const storage = getStorage(app);

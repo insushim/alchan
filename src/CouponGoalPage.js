@@ -30,6 +30,7 @@ export default function CouponGoalPage() {
     classmates,
     allClassMembers,
     loading: authLoading,
+    optimisticUpdate,
   } = useAuth();
 
   const userId = user?.uid;
@@ -248,6 +249,13 @@ export default function CouponGoalPage() {
       return false;
     }
 
+    // 🔥 쿠폰 즉시 UI 업데이트 (낙관적 업데이트)
+    if (optimisticUpdate) {
+      optimisticUpdate({ coupons: -donationAmount });
+    }
+    setMyContribution(prev => prev + donationAmount);
+    setGoalProgress(prev => prev + donationAmount);
+
     // 🔥 로딩 상태 표시
     setAssetsLoading(true);
 
@@ -264,7 +272,7 @@ export default function CouponGoalPage() {
 
       console.log('[CouponGoalPage] 기부 성공, 캐시 삭제 완료');
 
-      // 🔥 즉시 최신 데이터 로드 (낙관적 업데이트 제거)
+      // 🔥 즉시 최신 데이터 로드
       console.log('[CouponGoalPage] 최신 데이터 로드 중...');
       loadingRef.current = false;
       if (loadGoalDataRef.current) {
@@ -284,6 +292,11 @@ export default function CouponGoalPage() {
         stack: error.stack
       });
       alert(`기부 오류: ${error.message}`);
+
+      // 실패 시 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ coupons: donationAmount });
+      }
 
       return false;
     } finally {
@@ -435,6 +448,14 @@ export default function CouponGoalPage() {
       return;
     }
 
+    // 🔥 낙관적 업데이트
+    if (optimisticUpdate) {
+      optimisticUpdate({ 
+        coupons: -amount,
+        cash: amount * couponValue 
+      });
+    }
+
     setAssetsLoading(true);
     try {
       await sellCouponFunction({ amount });
@@ -457,6 +478,7 @@ export default function CouponGoalPage() {
   };
 
   const handleGiftCoupon = async () => {
+    console.log("handleGiftCoupon called"); // 함수 호출 확인 로그
     const recipientUser = users.find((u) => u.id === giftRecipient);
     const amount = parseInt(giftAmount, 10);
 
@@ -467,6 +489,11 @@ export default function CouponGoalPage() {
     if (isNaN(amount) || amount <= 0) {
       alert("올바른 수량을 입력해주세요.");
       return;
+    }
+
+    // 낙관적 업데이트
+    if (optimisticUpdate) {
+      optimisticUpdate({ coupons: -amount });
     }
 
     if (window.confirm(`${recipientUser.name}님에게 쿠폰 ${amount}개를 선물하시겠습니까?`)) {
@@ -487,6 +514,10 @@ export default function CouponGoalPage() {
         }, 500);
       } catch (error) {
         alert(`선물 오류: ${error.message}`);
+        // 롤백
+        if (optimisticUpdate) {
+          optimisticUpdate({ coupons: amount });
+        }
       } finally {
         setAssetsLoading(false);
       }

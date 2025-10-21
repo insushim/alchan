@@ -1,5 +1,4 @@
 /* eslint-disable */
-/* eslint-disable */
 /* eslint-disable max-len */
 // eslint-disable-next-line no-unused-vars
 const functions = require("firebase-functions");
@@ -485,19 +484,11 @@ const STOCK_NEWS = {
 };
 
 // ===================================================================================
-// 🔥 중앙 주식 시장 관련 함수
+// 🔥 스케줄러 함수 구현
 // ===================================================================================
 
-// ⚠️ [최적화] Cloud Scheduler 비용 절감을 위해 비활성화
-// GitHub Actions로 전환하거나 필요시 수동 실행
-// SETUP_GUIDE.md 참고하여 GitHub Actions 설정 권장
-/*
-exports.updateCentralStockMarket = onSchedule({
-  schedule: "every 5 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  logger.info("--- [실행] updateCentralStockMarket 함수가 호출되었습니다. ---");
+const _updateCentralStockMarket = async () => {
+  logger.info("--- [실행] _updateCentralStockMarket 함수가 호출되었습니다. ---");
 
   if (!isMarketOpen()) {
     logger.info("[정보] 시장이 열려있지 않아 주식 가격 업데이트를 건너뜁니다.");
@@ -552,16 +543,10 @@ exports.updateCentralStockMarket = onSchedule({
   } catch (error) {
     logger.error("🚨 중앙 주식 시장 업데이트 중 오류 발생:", error);
   }
-});
-*/
+};
 
-// 자동 주식 관리 - 상장폐지 체크
-exports.autoManageStocks = onSchedule({
-  schedule: "every 10 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  logger.info("--- [실행] autoManageStocks 함수가 호출되었습니다. ---");
+const _autoManageStocks = async () => {
+  logger.info("--- [실행] _autoManageStocks 함수가 호출되었습니다. ---");
 
   try {
     const stocksRef = db.collection("CentralStocks");
@@ -602,15 +587,10 @@ exports.autoManageStocks = onSchedule({
   } catch (error) {
     logger.error("🚨 자동 주식 관리 중 오류 발생:", error);
   }
-});
+};
 
-// 🔥 주석 해제 - aggregateActivityStats 등의 함수들이 사용 가능하도록
-exports.aggregateActivityStats = onSchedule({
-  schedule: "every 10 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  logger.info("--- [실행] aggregateActivityStats 함수가 호출되었습니다. ---");
+const _aggregateActivityStats = async () => {
+  logger.info("--- [실행] _aggregateActivityStats 함수가 호출되었습니다. ---");
 
   try {
     const now = new Date();
@@ -643,7 +623,7 @@ exports.aggregateActivityStats = onSchedule({
   } catch (error) {
     logger.error("🚨 활동 로그 통계 집계 중 오류 발생:", error);
   }
-});
+};
 
 const calculatePriceChange = (stock, marketCondition, newsEffect) => {
   let priceChange = 0;
@@ -730,16 +710,8 @@ const calculateMarketCondition = (stocks) => {
   return globalMarketCondition;
 };
 
-// ===================================================================================
-// 📰 중앙 뉴스 관리 시스템
-// ===================================================================================
-
-exports.createCentralMarketNews = onSchedule({
-  schedule: "every 5 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  logger.info("--- [실행] createCentralMarketNews 함수가 호출되었습니다. ---");
+const _createCentralMarketNews = async () => {
+  logger.info("--- [실행] _createCentralMarketNews 함수가 호출되었습니다. ---");
   if (!isMarketOpen()) {
     logger.info("[정보] 시장이 열려있지 않아 중앙 뉴스 생성을 건너뜁니다.");
     return;
@@ -814,13 +786,9 @@ exports.createCentralMarketNews = onSchedule({
   } catch (error) {
     logger.error("🚨 중앙 뉴스 생성 중 오류 발생:", error);
   }
-});
+};
 
-exports.cleanupExpiredCentralNews = onSchedule({
-  schedule: "every 5 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
+const _cleanupExpiredCentralNews = async () => {
   logger.info("🧹 만료된 중앙 뉴스 정리를 시작합니다.");
   try {
     const now = admin.firestore.Timestamp.now();
@@ -843,13 +811,9 @@ exports.cleanupExpiredCentralNews = onSchedule({
   } catch (error) {
     logger.error("🚨 중앙 뉴스 정리 중 오류 발생:", error);
   }
-});
+};
 
-exports.syncCentralNewsToClasses = onSchedule({
-  schedule: "every 10 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
+const _syncCentralNewsToClasses = async () => {
   logger.info("🔄 클래스별 뉴스 동기화를 시작합니다.");
   try {
     const classStockSnapshot = await db.collection("ClassStock").get();
@@ -896,13 +860,9 @@ exports.syncCentralNewsToClasses = onSchedule({
   } catch (error) {
     logger.error("🚨 클래스별 뉴스 동기화 중 오류 발생:", error);
   }
-});
+};
 
-exports.cleanupExpiredClassNews = onSchedule({
-  schedule: "every 10 minutes",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
+const _cleanupExpiredClassNews = async () => {
   logger.info("🧹 클래스별 만료된 뉴스 정리를 시작합니다.");
   try {
     const classStockSnapshot = await db.collection("ClassStock").get();
@@ -924,6 +884,105 @@ exports.cleanupExpiredClassNews = onSchedule({
   } catch (error) {
     logger.error("🚨 클래스별 뉴스 정리 중 오류 발생:", error);
   }
+};
+
+const _resetDailyTasks = async () => {
+    logger.info("🔄 일일 할일 리셋 시작");
+  try {
+    const classCodesDoc = await db.collection("settings").doc("classCodes").get();
+    if (!classCodesDoc.exists) {
+        logger.warn("'settings/classCodes' 문서가 없어 클래스 목록을 가져올 수 없습니다.");
+        return;
+    }
+    const classCodes = classCodesDoc.data().validCodes;
+
+    if (!classCodes || classCodes.length === 0) {
+      logger.info("리셋할 클래스가 없습니다.");
+      return;
+    }
+    const resetPromises = classCodes.map((classCode) => resetTasksForClass(classCode));
+    const results = await Promise.all(resetPromises);
+    const totalUpdated = results.reduce((sum, count) => sum + count, 0);
+    logger.info(`✅ 일일 할일 리셋 완료: ${classCodes.length}개 클래스, 총 ${totalUpdated}개 할일 리셋`);
+  } catch (error) {
+    logger.error("🚨 일일 할일 리셋 중 오류 발생:", error);
+  }
+}
+
+exports.runScheduler = onRequest({region: "asia-northeast3"}, async (req, res) => {
+  logger.info("--- [실행] runScheduler 함수가 호출되었습니다. ---", {
+    headers: req.headers,
+    body: req.body,
+  });
+
+  // 인증
+  const authToken = req.headers.authorization?.split("Bearer ")[1];
+  if (authToken !== functions.config().scheduler.auth_token) {
+    logger.error("🚨 인증 실패: 유효하지 않은 인증 토큰입니다.");
+    res.status(401).send("Unauthorized");
+    return;
+  }
+
+  const tasks = req.body.tasks;
+  if (!tasks || !Array.isArray(tasks)) {
+    logger.error("🚨 잘못된 요청: 'tasks' 배열이 필요합니다.");
+    res.status(400).send("Bad Request: 'tasks' array is required.");
+    return;
+  }
+
+  logger.info(`[정보] 실행할 작업 목록: ${tasks.join(", ")}`);
+
+  const results = {};
+  for (const task of tasks) {
+    try {
+      switch (task) {
+        case "updateCentralStockMarket":
+          await _updateCentralStockMarket();
+          results[task] = "성공";
+          break;
+        case "autoManageStocks":
+          await _autoManageStocks();
+          results[task] = "성공";
+          break;
+        case "createCentralMarketNews":
+          await _createCentralMarketNews();
+          results[task] = "성공";
+          break;
+        case "cleanupExpiredCentralNews":
+          await _cleanupExpiredCentralNews();
+          results[task] = "성공";
+          break;
+        case "syncCentralNewsToClasses":
+          await _syncCentralNewsToClasses();
+          results[task] = "성공";
+          break;
+        case "cleanupExpiredClassNews":
+          await _cleanupExpiredClassNews();
+          results[task] = "성공";
+          break;
+        case "aggregateActivityStats":
+          await _aggregateActivityStats();
+          results[task] = "성공";
+          break;
+        case "resetDailyTasks":
+            await _resetDailyTasks();
+            results[task] = "성공";
+            break;
+        default:
+          logger.warn(`[경고] 알 수 없는 작업입니다: ${task}`);
+          results[task] = "알 수 없는 작업";
+      }
+    } catch (error) {
+      logger.error(`🚨 작업 '${task}' 실행 중 오류 발생:`, error);
+      results[task] = `실패: ${error.message}`;
+    }
+  }
+
+  logger.info("✅ 모든 스케줄된 작업 실행 완료.", {results});
+  res.status(200).send({
+    message: "스케줄러 실행 완료",
+    results,
+  });
 });
 
 // ===================================================================================
@@ -1997,8 +2056,7 @@ exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
           createdBy: uid,
         });
       }
-
-      // 활동 로그 기록 (트랜잭션 내에서 직접 처리)
+// 활동 로그 기록 (트랜잭션 내에서 직접 처리)
       const logRefUse = db.collection("activity_logs").doc();
       transaction.set(logRefUse, {
         userId: uid,
@@ -2140,26 +2198,34 @@ exports.giftCoupon = onCall({region: "asia-northeast3"}, async (request) => {
 // 📅 일일 할일 리셋 시스템
 // ===================================================================================
 
-exports.resetDailyTasks = onSchedule({
-  schedule: "0 0 * * *",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  logger.info("🔄 일일 할일 리셋 시작");
+async function resetTasksForClass(classCode) {
+  const batch = db.batch();
+  let userCount = 0;
   try {
-    const classSnapshot = await db.collection("ClassStock").get();
-    if (classSnapshot.empty) {
-      logger.info("리셋할 클래스가 없습니다.");
-      return;
+    // 학급의 모든 사용자 조회
+    const usersQuery = db.collection("users").where("classCode", "==", classCode);
+    const usersSnapshot = await usersQuery.get();
+
+    if (usersSnapshot.empty) {
+      logger.info(`[${classCode}] 초기화할 사용자가 없습니다.`);
+      return 0;
     }
-    const resetPromises = classSnapshot.docs.map((doc) => resetTasksForClass(doc.id));
-    const results = await Promise.all(resetPromises);
-    const totalUpdated = results.reduce((sum, count) => sum + count, 0);
-    logger.info(`✅ 일일 할일 리셋 완료: ${classSnapshot.size}개 클래스, 총 ${totalUpdated}개 할일 리셋`);
+
+    // 각 사용자의 completedTasks 필드를 빈 객체로 업데이트
+    usersSnapshot.forEach((userDoc) => {
+      const userRef = userDoc.ref;
+      batch.update(userRef, { completedTasks: {} });
+      userCount++;
+    });
+
+    await batch.commit();
+    logger.info(`[${classCode}] 학생 ${userCount}명의 할일 기록을 초기화했습니다.`);
+    return userCount;
   } catch (error) {
-    logger.error("🚨 일일 할일 리셋 중 오류 발생:", error);
+    logger.error(`[${classCode}] 할일 리셋 중 오류:`, error);
+    throw error; // 상위 함수에서 오류를 처리하도록 전파
   }
-});
+}
 
 exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request, true);
@@ -2168,11 +2234,8 @@ exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (reque
 
   logger.info(`[수동 리셋] 관리자(UID: ${uid})가 클래스 '${classCode}'의 할일을 수동 리셋합니다.`);
   try {
-    const classDoc = await db.collection("ClassStock").doc(classCode).get();
-    if (!classDoc.exists) throw new HttpsError("not-found", `클래스 '${classCode}'를 찾을 수 없습니다.`);
-
     const updatedCount = await resetTasksForClass(classCode);
-    const message = `클래스 '${classCode}'의 ${updatedCount}개 할일이 리셋되었습니다.`;
+    const message = `클래스 '${classCode}'의 ${updatedCount}명의 할일이 리셋되었습니다.`;
     logger.info(`[수동 리셋] ${message}`);
     return {success: true, message, updatedCount};
   } catch (error) {
@@ -2256,35 +2319,6 @@ exports.recoverGoalData = onCall({region: "asia-northeast3"}, async (request) =>
     throw new HttpsError("internal", `데이터 복구 실패: ${error.message}`);
   }
 });
-
-async function resetTasksForClass(classCode) {
-  const batch = db.batch();
-  let userCount = 0;
-  try {
-    // 학급의 모든 사용자 조회
-    const usersQuery = db.collection("users").where("classCode", "==", classCode);
-    const usersSnapshot = await usersQuery.get();
-
-    if (usersSnapshot.empty) {
-      logger.info(`[${classCode}] 초기화할 사용자가 없습니다.`);
-      return 0;
-    }
-
-    // 각 사용자의 completedTasks 필드를 빈 객체로 업데이트
-    usersSnapshot.forEach((userDoc) => {
-      const userRef = userDoc.ref;
-      batch.update(userRef, { completedTasks: {} });
-      userCount++;
-    });
-
-    await batch.commit();
-    logger.info(`[${classCode}] 학생 ${userCount}명의 할일 기록을 초기화했습니다.`);
-    return userCount;
-  } catch (error) {
-    logger.error(`[${classCode}] 할일 리셋 중 오류:`, error);
-    throw error; // 상위 함수에서 오류를 처리하도록 전파
-  }
-}
 
 // ===================================================================================
 // 🧑‍🎓 학생 자산 관련 정기 함수

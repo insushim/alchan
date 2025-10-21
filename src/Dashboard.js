@@ -1166,7 +1166,7 @@ function Dashboard({ adminTabMode }) {
         alert(result.data.message);
       } catch (error) {
         console.error('[Dashboard] 할일 완료 실패:', error);
-        alert(error.message || '할일 완료 중 오류가 발생했습니다.');
+        alert(`할일 완료 중 오류가 발생했습니다: ${error.message}`);
 
         // 실패 시 낙관적 업데이트 롤백
         if (isJobTask && jobId && previousJobsState) {

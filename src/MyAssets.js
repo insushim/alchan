@@ -32,7 +32,7 @@ export default function MyAssets() {
     loading: authLoading,
     updateUser: updateUserInAuth,
     addCashToUserById,
-    deductCash: deductCurrentUserCash,
+    deductCash,
     optimisticUpdate,
   } = useAuth();
 
@@ -51,6 +51,7 @@ export default function MyAssets() {
   const [totalNetAssets, setTotalNetAssets] = useState(0);
   const [goalDonations, setGoalDonations] = useState([]);
   const [transactionHistory, setTransactionHistory] = useState([]);
+  const [forceReload, setForceReload] = useState(0); // 캐시 문제 해결을 위한 상태 변수
 
   // 🔥 [최적화 2] Firebase Functions 호출 함수들 (기부 제외)
   const getUserAssetsDataFunction = httpsCallable(functions, 'getUserAssetsData');
@@ -888,90 +889,71 @@ export default function MyAssets() {
     }
   };
 
-  const handleTransfer = async () => {
-    if (
-      !userDoc ||
-      !userId ||
-      !db ||
-      !users ||
-      !deductCurrentUserCash ||
-      !addCashToUserById
-    ) {
-      alert("정보가 부족합니다.");
-      return;
-    }
-    const recipientUser = users.find((u) => u.id === transferRecipient);
-    const amount = parseInt(transferAmount, 10);
-    if (!recipientUser) {
-      alert("받는 사람을 선택해주세요.");
-      return;
-    }
-    if (recipientUser.id === userId) {
-      alert("자신에게는 송금할 수 없습니다.");
-      return;
-    }
-    if (isNaN(amount) || amount <= 0) {
-      alert("올바른 금액을 입력해주세요.");
-      return;
-    }
-    if ((Number(userDoc.cash) || 0) < amount) {
-      alert("현금이 부족합니다.");
-      return;
-    }
-
-    if (
-      window.confirm(
-        `${
-          recipientUser.name || recipientUser.nickname || "사용자"
-        }님에게 ${amount.toLocaleString()}원을 송금하시겠습니까?`
-      )
-    ) {
-      // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
-      if (optimisticUpdate) {
-        optimisticUpdate({ cash: -amount });
+  const handleTransferMoney = async () => {
+    setAssetsLoading(true);
+    try {
+      if (
+        !userDoc ||
+        !userId ||
+        !db ||
+        !users ||
+        !deductCash ||
+        !addCashToUserById
+      ) {
+        alert("필수 정보가 로드되지 않았습니다. 잠시 후 다시 시도해주세요.");
+        return;
       }
 
-      setAssetsLoading(true);
-      try {
-        const recipientName = recipientUser.name || recipientUser.nickname || "사용자";
+      const amount = parseInt(transferAmount, 10);
+      if (isNaN(amount) || amount <= 0) {
+        alert("올바른 송금액을 입력해주세요.");
+        return;
+      }
 
-        const deductSuccess = await deductCurrentUserCash(amount, `${recipientName}님에게 송금`);
-        if (deductSuccess) {
-          const addSuccess = await addCashToUserById(recipientUser.id, amount, `${userName}님으로부터 입금`);
-          if (addSuccess) {
-            alert("송금이 완료되었습니다.");
-            setShowTransferModal(false);
-            setTransferRecipient("");
-            setTransferAmount("");
-            // 🔥 [최적화] 송금은 현금만 변경하므로 AuthContext의 optimistic update로 충분
-            // loadMyAssetsData() 호출 제거 - 불필요한 Firestore 조회 및 렌더링 방지
-          } else {
-            alert("받는 사람 현금 추가 오류. 송금 취소를 시도합니다.");
-            await addCashToUserById(userId, amount, "송금 실패로 인한 복원");
+      if ((Number(userDoc.cash) || 0) < amount) {
+        alert("보유 현금이 부족합니다.");
+        return;
+      }
 
-            // 실패 시 롤백
-            if (optimisticUpdate) {
-              optimisticUpdate({ cash: amount });
-            }
-          }
+      const recipientUser = users.find((u) => u.id === transferRecipient);
+      if (!recipientUser) {
+        alert("송금 대상을 찾을 수 없습니다. 목록을 새로고침하고 다시 시도해주세요.");
+        return;
+      }
+
+      if (recipientUser.id === userId) {
+        alert("자기 자신에게는 송금할 수 없습니다.");
+        return;
+      }
+      
+      const recipientName = recipientUser.name || recipientUser.nickname || "사용자";
+
+      // 사용자의 요청에 따라 확인 창을 제거합니다.
+      const deductSuccess = await deductCash(amount, `${recipientName}님에게 송금`);
+      if (deductSuccess) {
+        const addSuccess = await addCashToUserById(recipientUser.id, amount, `${userName}님으로부터 입금`);
+        if (addSuccess) {
+          alert("송금이 완료되었습니다.");
+          setShowTransferModal(false);
+          setTransferRecipient("");
+          setTransferAmount("");
         } else {
-          alert("현금 차감 오류입니다.");
-
-          // 실패 시 롤백
-          if (optimisticUpdate) {
-            optimisticUpdate({ cash: amount });
-          }
+          alert("받는 사람에게 현금을 전달하는 데 실패했습니다. 송금이 취소됩니다.");
+          // 송금 실패 시 차감했던 금액을 다시 복원합니다.
+          await addCashToUserById(userId, amount, "송금 실패로 인한 복원");
         }
-      } catch (error) {
-        alert("송금 오류: " + error.message);
-
-        // 실패 시 롤백
-        if (optimisticUpdate) {
-          optimisticUpdate({ cash: amount });
-        }
-      } finally {
-        setAssetsLoading(false);
+      } else {
+        alert("계좌에서 현금을 인출하는 데 실패했습니다.");
       }
+    } catch (error) {
+      console.error("!!! 송금 처리 중 예기치 않은 오류 발생 !!!", error);
+      alert(`송금 중 오류가 발생했습니다: ${error.message}`);
+      // 실패 시 롤백
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: parseInt(transferAmount, 10) || 0 });
+      }
+    } finally {
+      setAssetsLoading(false);
     }
   };
 
@@ -1396,7 +1378,7 @@ export default function MyAssets() {
           setTransferRecipient={setTransferRecipient}
           transferAmount={transferAmount}
           setTransferAmount={setTransferAmount}
-          handleTransfer={handleTransfer}
+          handleTransfer={handleTransferMoney}
           userId={userId}
           userCash={Number(userDoc?.cash) || 0}
         />

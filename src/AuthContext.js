@@ -905,7 +905,17 @@ export const AuthProvider = ({ children }) => {
         // 숫자 증감 처리 (예: cash: -1000, coupons: +5)
         if (typeof value === 'number') {
           const currentValue = Number(userDoc[key]) || 0;
-          updatedUserDoc[key] = currentValue + value;
+          let newValue = currentValue + value;
+
+          // 쿠폰이나 현금이 음수가 되지 않도록 방지
+          if ((key === 'coupons' || key === 'cash') && newValue < 0) {
+            // 롤백 시 음수가 되는 것을 막기 위해 0으로 설정하거나,
+            // 혹은 이전 값으로 되돌리는 등의 처리를 할 수 있습니다.
+            // 여기서는 0으로 설정합니다.
+            newValue = 0;
+          }
+          
+          updatedUserDoc[key] = newValue;
         } else {
           // 직접 값 설정
           updatedUserDoc[key] = value;
