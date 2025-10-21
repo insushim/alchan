@@ -86,12 +86,14 @@ jobs:
           if [ -n "$TASK_LIST" ]; then
             # Remove leading comma
             TASK_LIST=${TASK_LIST:1}
-            TASKS=$(echo "$TASK_LIST" | tr ',' '\n' | jq -R . | jq -s .)
+            TASKS=$(echo "$TASK_LIST" | tr ',' '\n' | jq -R . | jq -s -c .)
           else
             TASKS="[]"
           fi
 
-          echo "tasks=$TASKS" >> $GITHUB_OUTPUT
+          echo "tasks<<EOF" >> $GITHUB_OUTPUT
+          echo "$TASKS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
           echo "실행할 작업: $TASKS"
 
       - name: Call Firebase Function
