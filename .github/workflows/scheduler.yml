@@ -95,9 +95,13 @@ jobs:
 
       - name: Call Firebase Function
         if: steps.tasks.outputs.tasks != '[]'
+        env:
+          TASKS_JSON: ${{ steps.tasks.outputs.tasks }}
+          PROJECT_ID: inconomysu-class
+          AUTH_TOKEN: ${{ secrets.SCHEDULER_AUTH_TOKEN }}
         run: |
           curl -X POST \
             -H "Content-Type: application/json" \
-            -H "Authorization: Bearer ${{ secrets.SCHEDULER_AUTH_TOKEN }}" \
-            -d "{\"tasks\": ${{ steps.tasks.outputs.tasks }}}" \
-            https://asia-northeast3-${{ secrets.FIREBASE_PROJECT_ID }}.cloudfunctions.net/runScheduler
+            -H "Authorization: Bearer ${AUTH_TOKEN}" \
+            -d "{\"tasks\": ${TASKS_JSON}}" \
+            "https://asia-northeast3-${PROJECT_ID}.cloudfunctions.net/runScheduler"
