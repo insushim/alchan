@@ -397,8 +397,6 @@ export default function MyAssets() {
     setAssetsLoading(true);
 
     try {
-      console.warn('[MyAssets] ⚠️ 클라우드 함수를 우회하고 클라이언트에서 직접 자산을 계산합니다. (진단 모드 v2)');
-
       // 🔥 [최적화] 모든 잠재적 경로를 쿼리합니다 (limit 추가)
       const realEstateRef1 = query(collection(db, "classes", currentUserClassCode, "realEstateProperties"), where("owner", "==", userId), limit(50));
       const realEstateRef2 = query(collection(db, "ClassStock", currentUserClassCode, "students", userId, "realestates"), limit(50));
@@ -409,10 +407,6 @@ export default function MyAssets() {
         getDocs(realEstateRef2),
         getDocs(realEstateRef3),
       ]);
-
-      console.log(`[MyAssets-Debug] 경로 1 (classes/.../realEstateProperties) 결과: ${snap1.size}개`);
-      console.log(`[MyAssets-Debug] 경로 2 (ClassStock/.../realestates) 결과: ${snap2.size}개`);
-      console.log(`[MyAssets-Debug] 경로 3 (realEstate) 결과: ${snap3.size}개`);
 
       const allRealEstateAssets = [];
       snap1.forEach(doc => allRealEstateAssets.push({ id: doc.id, ...doc.data() }));
@@ -431,20 +425,13 @@ export default function MyAssets() {
       let totalParkingBalance = 0;
       if (parkingSnap1.exists()) {
         totalParkingBalance += parkingSnap1.data().balance || 0;
-        console.log(`[MyAssets-Debug] 파킹통장 경로 1 (/users/.../parkingAccount) 잔액: ${parkingSnap1.data().balance || 0}`);
-      } else {
-        console.log(`[MyAssets-Debug] 파킹통장 경로 1 결과 없음`);
       }
 
-      let parking2Balance = 0;
       parkingSnap2.forEach(doc => {
-        parking2Balance += doc.data().balance || 0;
+        totalParkingBalance += doc.data().balance || 0;
       });
-      totalParkingBalance += parking2Balance;
-      console.log(`[MyAssets-Debug] 파킹통장 경로 2 (/ClassStock/.../parkingAccounts) 총 잔액: ${parking2Balance}`);
 
       setParkingBalance(totalParkingBalance);
-      console.log(`[MyAssets-Debug] 파킹통장 총 잔액: ${totalParkingBalance}`);
 
       // 🔥 [최적화] 다른 자산들도 계속 조회합니다 (limit 추가)
       const loansRef = query(collection(db, "users", userId, "loans"), limit(20));
@@ -454,9 +441,6 @@ export default function MyAssets() {
       setLoans(loansData);
 
       setRealEstateAssets(allRealEstateAssets);
-
-      console.log('[MyAssets] ✅ 클라이언트 측 자산 데이터 로드 완료');
-      console.log(`[MyAssets-Debug] 발견된 총 부동산 자산: ${allRealEstateAssets.length}개`);
 
       // 🔥 [새로 추가] 목표 데이터도 함께 로드
       await loadGoalData();
@@ -508,15 +492,6 @@ export default function MyAssets() {
       realEstateValue -
       loanTotal;
 
-    console.log('[MyAssets] 총 순자산 계산:', {
-      현금: cashValue,
-      쿠폰가치: couponMonetaryValue,
-      파킹통장: Number(parkingBalance),
-      부동산: realEstateValue,
-      대출: loanTotal,
-      총합: calculatedTotalAssets
-    });
-
     setTotalNetAssets(calculatedTotalAssets);
   }, [
     userDoc?.cash,
@@ -539,7 +514,6 @@ export default function MyAssets() {
       return;
     }
 
-    console.log('[MyAssets] 목표 데이터 초기 로드');
     loadGoalData();
   }, [user, currentGoalId]); // loadGoalData 제거하여 무한 루프 방지
 
