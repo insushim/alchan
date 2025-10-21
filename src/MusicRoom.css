@@ -1,8 +1,10 @@
 .music-room-container-grid {
     display: grid;
-    grid-template-columns: 1fr 400px; /* Main content takes remaining space, sidebar is 400px */
+    grid-template-columns: 1fr 380px; /* Main content takes remaining space, sidebar is 380px */
     gap: 20px;
     padding: 20px;
+    max-width: 1920px;
+    margin: 0 auto;
     height: calc(100vh - 100px); /* Adjust based on your header/footer height */
     box-sizing: border-box;
 }
@@ -17,17 +19,30 @@
 }
 
 .video-player-wrapper {
-    flex-grow: 1; /* Takes up all available vertical space */
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 Aspect Ratio (9 / 16 = 0.5625) */
     background-color: #000;
-    min-height: 0; /* Important for flex-grow in a flex column */
+    overflow: hidden;
 }
 
 .youtube-player {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.youtube-player iframe {
     width: 100%;
     height: 100%;
 }
 
 .no-video-placeholder {
+    position: absolute;
+    top: 0;
+    left: 0;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -224,4 +239,28 @@
     font-weight: 600;
     font-size: 1.1rem;
     color: #666;
+}
+
+/* 반응형 디자인 - 태블릿 */
+@media (max-width: 1200px) {
+    .music-room-container-grid {
+        grid-template-columns: 1fr 320px;
+    }
+}
+
+/* 반응형 디자인 - 모바일 */
+@media (max-width: 768px) {
+    .music-room-container-grid {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .sidebar-content {
+        gap: 15px;
+    }
+
+    .qr-code-container-room svg {
+        width: 100px !important;
+        height: 100px !important;
+    }
 }
