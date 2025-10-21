@@ -7,6 +7,7 @@ import { useAuth } from "./AuthContext";
 // firebase.js에서 익스포트하는 함수들
 import {
   db,
+  functions,
   serverTimestamp,
   collection,
   doc,
@@ -20,6 +21,7 @@ import {
   runTransaction,
   increment,
 } from "./firebase";
+import { httpsCallable } from "firebase/functions";
 
 // onSnapshot과 orderBy는 firebase/firestore에서 직접 가져옵니다.
 import {
@@ -301,63 +303,23 @@ const RealEstateRegistry = () => {
       alert("로그인이 필요하거나 학급 정보가 없습니다.");
       return;
     }
+
+    console.log('[RealEstate] 부동산 구매 시작:', { propertyId });
     setOperationLoading(true);
-    const propertyRef = doc(
-      db,
-      "classes",
-      classCode,
-      "realEstateProperties",
-      propertyId
-    );
-    const userRef = doc(db, "users", currentUser.id);
+
     try {
-      await runTransaction(db, async (transaction) => {
-        const propertyDoc = await transaction.get(propertyRef);
-        if (!propertyDoc.exists())
-          throw new Error("부동산 정보를 찾을 수 없습니다.");
-        const propertyData = propertyDoc.data();
-        const userDoc = await transaction.get(userRef);
-        if (!userDoc.exists())
-          throw new Error("구매자 정보를 찾을 수 없습니다.");
-        const currentUserFirestoreData = userDoc.data();
-        const purchasePrice = propertyData.forSale
-          ? propertyData.salePrice
-          : propertyData.price;
-        if (currentUserFirestoreData.cash < purchasePrice)
-          throw new Error("현금이 부족합니다.");
-        transaction.update(userRef, {
-          cash: increment(-purchasePrice),
-          updatedAt: serverTimestamp(),
-        });
-        if (propertyData.owner !== "government") {
-          const sellerRef = doc(db, "users", propertyData.owner);
-          const sellerDoc = await transaction.get(sellerRef);
-          if (sellerDoc.exists()) {
-            transaction.update(sellerRef, {
-              cash: increment(purchasePrice),
-              updatedAt: serverTimestamp(),
-            });
-          } else {
-            console.warn(
-              `[RealEstate] Seller ${propertyData.owner} not found. Cannot credit sale amount.`
-            );
-          }
-        }
-        transaction.update(propertyRef, {
-          owner: currentUser.id,
-          ownerName: currentUser.name || "알 수 없는 소유자",
-          forSale: false,
-          salePrice: 0,
-          updatedAt: serverTimestamp(),
-        });
-      });
+      const purchaseRealEstateFunction = httpsCallable(functions, 'purchaseRealEstate');
+      const result = await purchaseRealEstateFunction({ propertyId });
+
+      console.log('[RealEstate] 구매 성공:', result.data);
+
       if (refreshUserDocument) refreshUserDocument();
       setShowQuickAction(null);
       setSelectedProperty(null);
       alert(`부동산 #${propertyId}를 성공적으로 구매했습니다.`);
     } catch (error) {
-      console.error("부동산 구매 오류:", error);
-      alert(`구매 중 오류 발생: ${error.message}`);
+      console.error('[RealEstate] 구매 실패:', error);
+      alert(error.message || '부동산 구매 중 오류가 발생했습니다.');
     } finally {
       setOperationLoading(false);
     }

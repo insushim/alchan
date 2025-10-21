@@ -2448,3 +2448,209 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
     throw new HttpsError("aborted", error.message || "매수 처리 중 오류가 발생했습니다.");
   }
 });
+
+exports.purchaseRealEstate = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
+  const { propertyId } = request.data;
+
+  if (!propertyId) {
+    throw new HttpsError("invalid-argument", "부동산 ID가 필요합니다.");
+  }
+
+  const propertyRef = db.collection("classes").doc(classCode).collection("realEstateProperties").doc(propertyId);
+  const userRef = db.collection("users").doc(uid);
+
+  try {
+    let sellerRef = null;
+    let sellerUid = null;
+
+    await db.runTransaction(async (transaction) => {
+      // 🔥 모든 READ를 먼저 수행
+      const propertyDoc = await transaction.get(propertyRef);
+      const userDoc = await transaction.get(userRef);
+
+      // 유효성 검사
+      if (!propertyDoc.exists) throw new Error("존재하지 않는 부동산입니다.");
+      if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+      const property = propertyDoc.data();
+      const user = userDoc.data();
+
+      if (!property.forSale) throw new Error("현재 판매 중이 아닌 부동산입니다.");
+      if (property.owner === uid) throw new Error("자신의 부동산은 구매할 수 없습니다.");
+
+      const purchasePrice = property.salePrice || 0;
+      if (user.cash < purchasePrice) {
+        throw new Error(`현금이 부족합니다. (필요: ${purchasePrice.toLocaleString()}원, 보유: ${user.cash.toLocaleString()}원)`);
+      }
+
+      // 판매자 정보 저장 (WRITE 전에)
+      if (property.owner && property.owner !== "정부") {
+        sellerUid = property.owner;
+        sellerRef = db.collection("users").doc(sellerUid);
+      }
+
+      // 판매자가 있으면 판매자 문서도 READ
+      let sellerDoc = null;
+      if (sellerRef) {
+        sellerDoc = await transaction.get(sellerRef);
+        if (!sellerDoc.exists) {
+          logger.warn(`[purchaseRealEstate] Seller ${sellerUid} not found`);
+          sellerRef = null; // 판매자가 없으면 null로 설정
+        }
+      }
+
+      // 🔥 모든 WRITE를 수행
+      // 구매자 현금 차감
+      transaction.update(userRef, { cash: admin.firestore.FieldValue.increment(-purchasePrice) });
+
+      // 판매자에게 대금 지급
+      if (sellerRef && sellerDoc && sellerDoc.exists) {
+        transaction.update(sellerRef, { cash: admin.firestore.FieldValue.increment(purchasePrice) });
+      }
+
+      // 부동산 소유권 이전
+      transaction.update(propertyRef, {
+        owner: uid,
+        ownerName: userData.name || "알 수 없는 소유자",
+        forSale: false,
+        salePrice: 0,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return { success: true, message: "부동산 구매가 완료되었습니다!" };
+  } catch (error) {
+    logger.error(`[purchaseRealEstate] User: ${uid}, Property: ${propertyId}, Error:`, error);
+    throw new HttpsError("aborted", error.message || "부동산 구매 중 오류가 발생했습니다.");
+  }
+});
+
+exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
+  const { taskId, jobId = null, isJobTask = false } = request.data;
+
+  if (!taskId) {
+    throw new HttpsError("invalid-argument", "할일 ID가 필요합니다.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+
+  try {
+    let taskReward = 0;
+    let taskName = "";
+
+    if (isJobTask && jobId) {
+      // 직업 할일 처리
+      const jobRef = db.collection("jobs").doc(jobId);
+
+      await db.runTransaction(async (transaction) => {
+        // 🔥 모든 READ 먼저 수행
+        const jobDoc = await transaction.get(jobRef);
+        const userDoc = await transaction.get(userRef);
+
+        if (!jobDoc.exists) throw new Error("직업을 찾을 수 없습니다.");
+        if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+        const jobData = jobDoc.data();
+        const jobTasks = jobData.tasks || [];
+        const taskIndex = jobTasks.findIndex((t) => t.id === taskId);
+
+        if (taskIndex === -1) throw new Error("직업 할일을 찾을 수 없습니다.");
+
+        const task = jobTasks[taskIndex];
+        taskName = task.name;
+        taskReward = task.reward || 0;
+
+        const currentClicks = task.clicks || 0;
+        if (currentClicks >= task.maxClicks) {
+          throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
+        }
+
+        // 🔥 모든 WRITE 수행
+        const updatedTasks = [...jobTasks];
+        updatedTasks[taskIndex].clicks = currentClicks + 1;
+
+        transaction.update(jobRef, {
+          tasks: updatedTasks,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        if (taskReward > 0) {
+          transaction.update(userRef, {
+            coupons: admin.firestore.FieldValue.increment(taskReward),
+          });
+        }
+      });
+    } else {
+      // 공통 할일 처리
+      const commonTaskRef = db.collection("commonTasks").doc(taskId);
+
+      await db.runTransaction(async (transaction) => {
+        // 🔥 모든 READ 먼저 수행
+        const commonTaskDoc = await transaction.get(commonTaskRef);
+        const userDoc = await transaction.get(userRef);
+
+        if (!commonTaskDoc.exists) throw new Error("공통 할일을 찾을 수 없습니다.");
+        if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+        const taskData = commonTaskDoc.data();
+        taskName = taskData.name;
+        taskReward = taskData.reward || 0;
+
+        const userData = userDoc.data();
+        const completedTasks = userData.completedTasks || {};
+        const currentClicks = completedTasks[taskId] || 0;
+
+        if (currentClicks >= taskData.maxClicks) {
+          throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
+        }
+
+        // 🔥 모든 WRITE 수행
+        const updateData = {
+          [`completedTasks.${taskId}`]: admin.firestore.FieldValue.increment(1),
+        };
+
+        if (taskReward > 0) {
+          updateData.coupons = admin.firestore.FieldValue.increment(taskReward);
+        }
+
+        transaction.update(userRef, updateData);
+      });
+    }
+
+    // 활동 로그 기록 (트랜잭션 외부에서)
+    if (taskReward > 0) {
+      try {
+        await db.collection("activity_logs").add({
+          userId: uid,
+          userName: userData.name || userData.nickname || "사용자",
+          type: "쿠폰 획득",
+          description: `'${taskName}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`,
+          metadata: {
+            taskName: taskName,
+            reward: taskReward,
+            taskId: taskId,
+            isJobTask: isJobTask,
+            jobId: jobId || null,
+          },
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+          classCode: classCode,
+        });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+        // 로그 실패는 전체 작업을 실패시키지 않음
+      }
+    }
+
+    return {
+      success: true,
+      message: `'${taskName}' 완료! ${taskReward > 0 ? `+${taskReward} 쿠폰!` : ""}`,
+      taskName: taskName,
+      reward: taskReward,
+    };
+  } catch (error) {
+    logger.error(`[completeTask] User: ${uid}, Task: ${taskId}, Error:`, error);
+    throw new HttpsError("aborted", error.message || "할일 완료 처리 중 오류가 발생했습니다.");
+  }
+});

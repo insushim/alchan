@@ -354,6 +354,7 @@ function Dashboard({ adminTabMode }) {
     setUserDoc,
     loading: authLoading,
     updateUser,
+    refreshUserDocument,
     isAdmin,
     isSuperAdmin,
   } = useAuth();
@@ -1080,17 +1081,21 @@ function Dashboard({ adminTabMode }) {
 
       setIsHandlingTask(true);
 
-      try {
-        let taskReward = 0;
-        let currentTaskData;
+      console.log('[Dashboard] 할일 완료 시작:', { taskId, jobId, isJobTask });
 
+      // 낙관적 업데이트를 위한 이전 상태 저장
+      let previousJobsState = null;
+      let previousUserDocState = null;
+
+      try {
+        // 낙관적 업데이트
         if (isJobTask && jobId) {
+          previousJobsState = jobs;
           const job = jobs.find((j) => j.id === jobId);
           if (!job) throw new Error("직업을 찾을 수 없습니다.");
 
-          currentTaskData = job.tasks.find((t) => t.id === taskId);
-          if (!currentTaskData)
-            throw new Error("직업 할일을 찾을 수 없습니다.");
+          const currentTaskData = job.tasks.find((t) => t.id === taskId);
+          if (!currentTaskData) throw new Error("직업 할일을 찾을 수 없습니다.");
 
           if (currentTaskData.clicks >= currentTaskData.maxClicks) {
             alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
@@ -1098,9 +1103,6 @@ function Dashboard({ adminTabMode }) {
             return;
           }
 
-          taskReward = currentTaskData.reward;
-
-          // 낙관적 업데이트
           setJobs(prevJobs =>
             prevJobs.map(j =>
               j.id === jobId
@@ -1115,34 +1117,10 @@ function Dashboard({ adminTabMode }) {
                 : j
             )
           );
-
-          // 즉시 Firestore 업데이트 (배치 사용 안 함 - 학생 권한 문제 해결)
-          const jobRef = doc(db, "jobs", jobId);
-          const jobSnap = await getDoc(jobRef);
-
-          if (!jobSnap.exists())
-            throw new Error("직업 문서(DB)를 찾을 수 없습니다.");
-
-          const jobDbTasks = jobSnap.data().tasks || [];
-          const taskIndex = jobDbTasks.findIndex((t) => t.id === taskId);
-
-          if (taskIndex === -1)
-            throw new Error("DB에서 해당 직업 할일을 찾을 수 없습니다.");
-
-          const updatedDbTasks = [...jobDbTasks];
-          updatedDbTasks[taskIndex].clicks =
-            (updatedDbTasks[taskIndex].clicks || 0) + 1;
-
-          // 즉시 업데이트
-          await updateDoc(jobRef, {
-            tasks: updatedDbTasks,
-            updatedAt: serverTimestamp(),
-          });
         } else {
-          // 공통 할일 로직 - 사용자 문서에 completedTasks 저장
-          currentTaskData = commonTasks.find((t) => t.id === taskId);
-          if (!currentTaskData)
-            throw new Error("공통 할일을 찾을 수 없습니다.");
+          previousUserDocState = userDoc;
+          const currentTaskData = commonTasks.find((t) => t.id === taskId);
+          if (!currentTaskData) throw new Error("공통 할일을 찾을 수 없습니다.");
 
           const userCompletedTasks = userDoc.completedTasks || {};
           const currentClicks = userCompletedTasks[taskId] || 0;
@@ -1153,9 +1131,6 @@ function Dashboard({ adminTabMode }) {
             return;
           }
 
-          taskReward = currentTaskData.reward;
-
-          // 낙관적 업데이트 (userDoc 상태 업데이트)
           const updatedCompletedTasks = {
             ...userCompletedTasks,
             [taskId]: currentClicks + 1,
@@ -1164,95 +1139,35 @@ function Dashboard({ adminTabMode }) {
             ...prevUserDoc,
             completedTasks: updatedCompletedTasks,
           }));
-
-          // Firestore 즉시 업데이트 (배치 사용 안 함)
-          const userRef = doc(db, "users", userDoc.id);
-          await updateDoc(userRef, {
-            [`completedTasks.${taskId}`]: increment(1),
-          });
         }
 
-        if (taskReward > 0) {
-          const couponUpdateSuccess = await updateUser({
-            coupons: increment(taskReward),
-          });
+        // Cloud Function 호출
+        const completeTaskFunction = httpsCallable(functions, 'completeTask');
+        const result = await completeTaskFunction({ taskId, jobId, isJobTask });
 
-          if (!couponUpdateSuccess) {
-            console.error("쿠폰 지급 실패");
-            alert("쿠폰 지급에 실패했습니다. 관리자에게 문의하세요.");
-            throw new Error("쿠폰 지급 실패");
-          }
+        console.log('[Dashboard] 할일 완료 성공:', result.data);
 
-          // 🔥 쿠폰 획득 활동 로그 기록
-          try {
-            const activityLogRef = doc(firestoreCollection(db, "activity_logs"));
-            await setDoc(activityLogRef, {
-              userId: userDoc.id,
-              userName: userDoc.name || userDoc.nickname || "사용자",
-              type: "쿠폰 획득",
-              description: `'${currentTaskData.name}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`,
-              metadata: {
-                taskName: currentTaskData.name,
-                reward: taskReward,
-                taskId: taskId,
-                isJobTask: isJobTask,
-                jobId: jobId || null
-              },
-              timestamp: serverTimestamp(),
-              classCode: userDoc.classCode
-            });
-            console.log(`[Dashboard] 쿠폰 획득 활동 로그 기록 완료: ${taskReward}개`);
-          } catch (logError) {
-            console.error("[Dashboard] 활동 로그 기록 실패:", logError);
-            // 로그 실패는 전체 작업을 실패시키지 않음
-          }
+        // 사용자 문서 새로고침 (쿠폰 업데이트 반영)
+        if (refreshUserDocument) {
+          await refreshUserDocument();
         }
 
-        alert(
-          `'${currentTaskData.name}' 완료! ${
-            taskReward > 0 ? `+${taskReward} 쿠폰!` : ""
-          }`
-        );
+        alert(result.data.message);
       } catch (error) {
-        console.error("handleTaskEarnCoupon 오류:", error);
-        alert(`오류 발생: ${error.message}`);
-        
+        console.error('[Dashboard] 할일 완료 실패:', error);
+        alert(error.message || '할일 완료 중 오류가 발생했습니다.');
+
         // 실패 시 낙관적 업데이트 롤백
-        if (isJobTask && jobId) {
-          setJobs(prevJobs => 
-            prevJobs.map(j => 
-              j.id === jobId 
-                ? {
-                    ...j,
-                    tasks: j.tasks.map(t => 
-                      t.id === taskId 
-                        ? { ...t, clicks: Math.max(0, t.clicks - 1) }
-                        : t
-                    )
-                  }
-                : j
-            )
-          );
-        } else {
-          // 공통 할일 롤백 (userDoc)
-          const userCompletedTasks = userDoc.completedTasks || {};
-          const currentClicks = userCompletedTasks[taskId] || 0;
-          if (currentClicks > 0) {
-            const updatedCompletedTasks = {
-              ...userCompletedTasks,
-              [taskId]: currentClicks - 1,
-            };
-            setUserDoc(prevUserDoc => ({
-              ...prevUserDoc,
-              completedTasks: updatedCompletedTasks,
-            }));
-          }
+        if (isJobTask && jobId && previousJobsState) {
+          setJobs(previousJobsState);
+        } else if (previousUserDocState) {
+          setUserDoc(previousUserDocState);
         }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [userDoc, isHandlingTask, jobs, commonTasks, updateUser, setUserDoc]
+    [userDoc, isHandlingTask, jobs, commonTasks, refreshUserDocument]
   );
 
   // Admin settings handlers
