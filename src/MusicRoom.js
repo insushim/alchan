@@ -14,41 +14,45 @@ const MusicRoom = ({ user }) => {
     const [currentVideoId, setCurrentVideoId] = useState(null);
     const navigate = useNavigate();
 
-    // Fetch room data
-    const fetchRoom = async () => {
-        if (!user) return;
-
-        const roomRef = doc(db, 'musicRooms', roomId);
-        const docSnap = await getDoc(roomRef);
-
-        if (docSnap.exists()) {
-            if (docSnap.data().teacherId === user.uid) {
-                setRoom({ id: docSnap.id, ...docSnap.data() });
-            } else {
-                alert("접근 권한이 없습니다.");
-                navigate('/learning-board');
-            }
-        } else {
-            alert("존재하지 않는 방입니다.");
-            navigate('/learning-board/music-request');
-        }
-    };
-
-    // Fetch playlist
-    const fetchPlaylist = async () => {
-        if (!room) return;
-
-        const q = query(collection(db, 'musicRooms', roomId, 'playlist'), orderBy('requestedAt', 'asc'));
-        const querySnapshot = await getDocs(q);
-        const newPlaylist = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setPlaylist(newPlaylist);
-    };
-
     // Use polling for room data
-    const { refetch: refetchRoom } = usePolling(fetchRoom, 30000, [user, roomId]);
+    const { refetch: refetchRoom } = usePolling(
+        async () => {
+            if (!user) return null;
+
+            const roomRef = doc(db, 'musicRooms', roomId);
+            const docSnap = await getDoc(roomRef);
+
+            if (docSnap.exists()) {
+                if (docSnap.data().teacherId === user.uid) {
+                    setRoom({ id: docSnap.id, ...docSnap.data() });
+                    return { id: docSnap.id, ...docSnap.data() };
+                } else {
+                    alert("접근 권한이 없습니다.");
+                    navigate('/learning-board');
+                    return null;
+                }
+            } else {
+                alert("존재하지 않는 방입니다.");
+                navigate('/learning-board/music-request');
+                return null;
+            }
+        },
+        { interval: 30000, enabled: !!user, deps: [user, roomId] }
+    );
 
     // Use polling for playlist
-    const { refetch: refetchPlaylist } = usePolling(fetchPlaylist, 30000, [room, roomId]);
+    const { refetch: refetchPlaylist } = usePolling(
+        async () => {
+            if (!room) return [];
+
+            const q = query(collection(db, 'musicRooms', roomId, 'playlist'), orderBy('requestedAt', 'asc'));
+            const querySnapshot = await getDocs(q);
+            const newPlaylist = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setPlaylist(newPlaylist);
+            return newPlaylist;
+        },
+        { interval: 5000, enabled: !!room, deps: [room, roomId] }
+    );
 
     useEffect(() => {
         if (!user) {
