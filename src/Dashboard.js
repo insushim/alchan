@@ -452,11 +452,10 @@ function Dashboard({ adminTabMode }) {
 
     const pollData = async () => {
       try {
-        // Jobs 조회
+        // Jobs 조회 (인덱스 없이 작동하도록 orderBy 제거)
         const jobsQuery = query(
           firestoreCollection(db, "jobs"),
           where("classCode", "==", classCode),
-          orderBy("updatedAt", "desc"),
           limit(50)
         );
 
@@ -471,15 +470,21 @@ function Dashboard({ adminTabMode }) {
             maxClicks: task.maxClicks || 5,
           })),
           active: d.data().active !== false,
-        }));
+        }))
+        // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
+        .sort((a, b) => {
+          const timeA = a.updatedAt?.toMillis?.() || 0;
+          const timeB = b.updatedAt?.toMillis?.() || 0;
+          return timeB - timeA;
+        });
+
         setJobs(loadedJobs);
         dataCache.set(`jobs_${classCode}`, loadedJobs, 10 * 60 * 1000);
 
-        // Common Tasks 조회
+        // Common Tasks 조회 (인덱스 없이 작동하도록 orderBy 제거)
         const tasksQuery = query(
           firestoreCollection(db, "commonTasks"),
           where("classCode", "==", classCode),
-          orderBy("updatedAt", "desc"),
           limit(50)
         );
 
@@ -490,7 +495,14 @@ function Dashboard({ adminTabMode }) {
           reward: d.data().reward || 0,
           clicks: d.data().clicks || 0,
           maxClicks: d.data().maxClicks || 5,
-        }));
+        }))
+        // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
+        .sort((a, b) => {
+          const timeA = a.updatedAt?.toMillis?.() || 0;
+          const timeB = b.updatedAt?.toMillis?.() || 0;
+          return timeB - timeA;
+        });
+
         setCommonTasks(loadedCommonTasks);
         dataCache.set(`commonTasks_${classCode}`, loadedCommonTasks, 10 * 60 * 1000);
       } catch (error) {
@@ -1087,15 +1099,15 @@ function Dashboard({ adminTabMode }) {
           }
 
           taskReward = currentTaskData.reward;
-          
+
           // 낙관적 업데이트
-          setJobs(prevJobs => 
-            prevJobs.map(j => 
-              j.id === jobId 
+          setJobs(prevJobs =>
+            prevJobs.map(j =>
+              j.id === jobId
                 ? {
                     ...j,
-                    tasks: j.tasks.map(t => 
-                      t.id === taskId 
+                    tasks: j.tasks.map(t =>
+                      t.id === taskId
                         ? { ...t, clicks: t.clicks + 1 }
                         : t
                     )
@@ -1104,7 +1116,7 @@ function Dashboard({ adminTabMode }) {
             )
           );
 
-          // 배치 매니저를 통한 비동기 업데이트
+          // 즉시 Firestore 업데이트 (배치 사용 안 함 - 학생 권한 문제 해결)
           const jobRef = doc(db, "jobs", jobId);
           const jobSnap = await getDoc(jobRef);
 
@@ -1121,16 +1133,13 @@ function Dashboard({ adminTabMode }) {
           updatedDbTasks[taskIndex].clicks =
             (updatedDbTasks[taskIndex].clicks || 0) + 1;
 
-          batchManager.addWrite({
-            type: 'update',
-            ref: jobRef,
-            data: {
-              tasks: updatedDbTasks,
-              updatedAt: serverTimestamp(),
-            }
+          // 즉시 업데이트
+          await updateDoc(jobRef, {
+            tasks: updatedDbTasks,
+            updatedAt: serverTimestamp(),
           });
         } else {
-          // 공통 할일 로직 수정
+          // 공통 할일 로직 - 사용자 문서에 completedTasks 저장
           currentTaskData = commonTasks.find((t) => t.id === taskId);
           if (!currentTaskData)
             throw new Error("공통 할일을 찾을 수 없습니다.");
@@ -1156,14 +1165,10 @@ function Dashboard({ adminTabMode }) {
             completedTasks: updatedCompletedTasks,
           }));
 
-          // Firestore 업데이트 (user document의 completedTasks 필드)
+          // Firestore 즉시 업데이트 (배치 사용 안 함)
           const userRef = doc(db, "users", userDoc.id);
-          batchManager.addWrite({
-            type: 'update',
-            ref: userRef,
-            data: {
-              [`completedTasks.${taskId}`]: increment(1),
-            }
+          await updateDoc(userRef, {
+            [`completedTasks.${taskId}`]: increment(1),
           });
         }
 
