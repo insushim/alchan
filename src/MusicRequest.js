@@ -13,12 +13,18 @@ const MusicRequest = ({ user }) => {
     const [isAdmin, setIsAdmin] = useState(false);
     const navigate = useNavigate();
 
-    // 관리자 권한 확인 - 즉시 실행하고 폴링도 설정
+    // 관리자 권한 확인 - 슈퍼 관리자도 포함
     const { data: isAdminData, loading: adminLoading } = usePolling(
         async () => {
             if (!user) return false;
             const userDoc = await getDoc(doc(db, "users", user.uid));
-            const isAdminUser = userDoc.exists() && userDoc.data().role === 'admin';
+            if (!userDoc.exists()) return false;
+
+            const userData = userDoc.data();
+            // role이 'admin'이거나 isAdmin, isSuperAdmin 필드가 true인 경우
+            const isAdminUser = userData.role === 'admin' ||
+                               userData.isAdmin === true ||
+                               userData.isSuperAdmin === true;
             setIsAdmin(isAdminUser);
             return isAdminUser;
         },

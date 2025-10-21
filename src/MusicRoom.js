@@ -23,12 +23,19 @@ const MusicRoom = ({ user }) => {
             const docSnap = await getDoc(roomRef);
 
             if (docSnap.exists()) {
-                if (docSnap.data().teacherId === user.uid) {
-                    setRoom({ id: docSnap.id, ...docSnap.data() });
-                    return { id: docSnap.id, ...docSnap.data() };
+                const roomData = docSnap.data();
+
+                // 방 생성자이거나 슈퍼 관리자인 경우 접근 허용
+                const userDocSnap = await getDoc(doc(db, 'users', user.uid));
+                const userData = userDocSnap.exists() ? userDocSnap.data() : {};
+                const isAdmin = userData.isAdmin === true || userData.isSuperAdmin === true || userData.role === 'admin';
+
+                if (roomData.teacherId === user.uid || isAdmin) {
+                    setRoom({ id: docSnap.id, ...roomData });
+                    return { id: docSnap.id, ...roomData };
                 } else {
                     alert("접근 권한이 없습니다.");
-                    navigate('/learning-board');
+                    navigate('/learning-board/music-request');
                     return null;
                 }
             } else {
