@@ -299,6 +299,12 @@ h2 {
     border-color: #667eea;
 }
 
+.my-room-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
 .my-room-item a {
     display: flex;
     justify-content: space-between;
@@ -307,6 +313,7 @@ h2 {
     text-decoration: none;
     color: #333;
     transition: color 0.3s;
+    flex: 1;
 }
 
 .my-room-item:hover a {
@@ -333,4 +340,26 @@ h2 {
     color: #999;
     font-style: italic;
     padding: 2rem;
+}
+
+.delete-room-btn-small {
+    background: linear-gradient(135deg, #f5365c 0%, #e02146 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin-right: 1rem;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: transform 0.2s, box-shadow 0.2s;
+    flex-shrink: 0;
+}
+
+.delete-room-btn-small:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(245, 54, 92, 0.4);
+}
+
+.delete-room-btn-small:active {
+    transform: translateY(0);
 }

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from './firebase';
-import { collection, addDoc, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, getDocs, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePolling } from './hooks/usePolling';
@@ -31,22 +31,15 @@ const MusicRequest = ({ user }) => {
         { interval: 60000, enabled: !!user, deps: [user] }
     );
 
-    // 관리자: 자신이 생성한 방 목록, 학생: 모든 방 목록을 폴링으로 가져옵니다.
+    // 관리자/슈퍼관리자: 모든 방 목록, 학생: 모든 방 목록을 폴링으로 가져옵니다.
     const { data: myRooms, loading, refetch } = usePolling(
         async () => {
             if (!user) return [];
-            let q;
-            if (isAdmin) {
-                // 관리자는 자신이 만든 방만 표시
-                q = query(collection(db, "musicRooms"), where("teacherId", "==", user.uid));
-            } else {
-                // 학생은 모든 방을 볼 수 있음
-                q = collection(db, "musicRooms");
-            }
-            const snap = await getDocs(q);
+            // 모든 사용자가 모든 방을 볼 수 있음
+            const snap = await getDocs(collection(db, "musicRooms"));
             return snap.docs.map(d => ({ id: d.id, ...d.data() }));
         },
-        { interval: 30000, enabled: !!user, deps: [user, isAdmin] }
+        { interval: 30000, enabled: !!user, deps: [user] }
     );
 
     // 방이 삭제되었을 경우를 대비하여, 현재 보고 있는 createdRoom이 실제로 존재하는지 확인합니다.
@@ -100,6 +93,41 @@ const MusicRequest = ({ user }) => {
         return `${window.location.origin}/student-request/${roomId}`;
     };
 
+    const deleteRoom = async (roomId, roomName) => {
+        if (!isAdmin) {
+            alert('관리자만 방을 삭제할 수 있습니다.');
+            return;
+        }
+
+        if (!window.confirm(`"${roomName}" 방을 정말 삭제하시겠습니까?\n모든 재생목록이 함께 삭제됩니다.`)) {
+            return;
+        }
+
+        try {
+            // 재생목록 서브컬렉션 삭제
+            const playlistQuery = query(collection(db, 'musicRooms', roomId, 'playlist'));
+            const playlistSnapshot = await getDocs(playlistQuery);
+            const deletePromises = playlistSnapshot.docs.map((docSnapshot) => deleteDoc(docSnapshot.ref));
+            await Promise.all(deletePromises);
+
+            // 방 삭제
+            await deleteDoc(doc(db, 'musicRooms', roomId));
+
+            // 방 목록 새로고침
+            refetch();
+
+            // 현재 생성된 방이 삭제된 방이면 초기화
+            if (createdRoom && createdRoom.id === roomId) {
+                setCreatedRoom(null);
+            }
+
+            alert('방이 삭제되었습니다.');
+        } catch (error) {
+            console.error("Error deleting room: ", error);
+            alert('방을 삭제하는 중 오류가 발생했습니다.');
+        }
+    };
+
     if (!user) {
         return <div>로그인이 필요합니다.</div>;
     }
@@ -147,7 +175,7 @@ const MusicRequest = ({ user }) => {
 
             {/* 방 목록 */}
             <div className="my-rooms-section">
-                <h3>{isAdmin ? '내가 만든 방 목록' : '음악 신청 가능한 방 목록'}</h3>
+                <h3>{isAdmin ? '모든 음악 신청방 목록' : '음악 신청 가능한 방 목록'}</h3>
                 {myRooms && myRooms.length > 0 ? (
                     <ul className="my-rooms-list">
                         {myRooms.map(room => (
@@ -156,6 +184,18 @@ const MusicRequest = ({ user }) => {
                                     <span>{room.name}</span>
                                     <small>({new Date(room.createdAt.seconds * 1000).toLocaleString()})</small>
                                 </Link>
+                                {isAdmin && (
+                                    <button
+                                        className="delete-room-btn-small"
+                                        onClick={(e) => {
+                                            e.preventDefault();
+                                            deleteRoom(room.id, room.name);
+                                        }}
+                                        title="방 삭제"
+                                    >
+                                        🗑️
+                                    </button>
+                                )}
                             </li>
                         ))}
                     </ul>
