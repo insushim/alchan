@@ -2375,9 +2375,12 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
     const taxRate = taxSettings.stockTransactionTaxRate || 0.01;
 
     await db.runTransaction(async (transaction) => {
+      // 🔥 모든 READ를 먼저 수행
       const stockDoc = await transaction.get(stockRef);
       const userDoc = await transaction.get(userRef);
+      const holdingDoc = await transaction.get(holdingRef);
 
+      // 유효성 검사
       if (!stockDoc.exists) throw new Error("존재하지 않는 상품입니다.");
       if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
 
@@ -2395,6 +2398,7 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
         throw new Error(`현금이 부족합니다. (매수비용: ${cost.toLocaleString()}원 + 수수료: ${commission.toLocaleString()}원 + 거래세: ${taxAmount.toLocaleString()}원 = 총 ${totalCost.toLocaleString()}원 필요)`);
       }
 
+      // 🔥 모든 WRITE를 수행
       // 사용자 현금 차감
       transaction.update(userRef, { cash: admin.firestore.FieldValue.increment(-totalCost) });
 
@@ -2406,7 +2410,6 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
       });
 
       // 사용자 포트폴리오 업데이트
-      const holdingDoc = await transaction.get(holdingRef);
       if (holdingDoc.exists) {
         const holdingData = holdingDoc.data();
         const newQuantity = holdingData.quantity + quantity;
