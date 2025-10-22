@@ -1072,118 +1072,63 @@ function Dashboard({ adminTabMode }) {
     setViewMode("list");
   }, []);
 
-  // Task completion handler - 디바운싱 및 낙관적 업데이트 적용
   const handleTaskEarnCoupon = useCallback(
     async (taskId, jobId = null, isJobTask = false) => {
-      if (!db || !userDoc?.id || isHandlingTask) {
-        alert("데이터베이스/사용자 정보 오류 또는 처리 중입니다.");
+      if (isHandlingTask) return;
+      if (!userDoc?.id) {
+        alert("사용자 정보가 로드되지 않았습니다.");
         return;
       }
 
       setIsHandlingTask(true);
-
-      console.log('[Dashboard] 할일 완료 시작:', { taskId, jobId, isJobTask });
-
-      // 낙관적 업데이트를 위한 이전 상태 저장
-      let previousJobsState = null;
-      let previousUserDocState = null;
-      let rewardAmount = 0;
+      console.log("[Dashboard] 할일 완료 처리 시작:", { taskId, jobId, isJobTask });
 
       try {
-        // 낙관적 업데이트
-        if (isJobTask && jobId) {
-          previousJobsState = jobs;
-          const job = jobs.find((j) => j.id === jobId);
-          if (!job) throw new Error("직업을 찾을 수 없습니다.");
-
-          const currentTaskData = job.tasks.find((t) => t.id === taskId);
-          if (!currentTaskData) throw new Error("직업 할일을 찾을 수 없습니다.");
-
-          if (currentTaskData.clicks >= currentTaskData.maxClicks) {
-            alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
-            setIsHandlingTask(false);
-            return;
-          }
-
-          rewardAmount = currentTaskData.reward || 0;
-
-          setJobs(prevJobs =>
-            prevJobs.map(j =>
-              j.id === jobId
-                ? {
-                    ...j,
-                    tasks: j.tasks.map(t =>
-                      t.id === taskId
-                        ? { ...t, clicks: t.clicks + 1 }
-                        : t
-                    )
-                  }
-                : j
-            )
-          );
-        } else {
-          previousUserDocState = userDoc;
-          const currentTaskData = commonTasks.find((t) => t.id === taskId);
-          if (!currentTaskData) throw new Error("공통 할일을 찾을 수 없습니다.");
-
-          const userCompletedTasks = userDoc.completedTasks || {};
-          const currentClicks = userCompletedTasks[taskId] || 0;
-
-          if (currentClicks >= currentTaskData.maxClicks) {
-            alert(`${currentTaskData.name} 할일은 오늘 이미 최대 완료했습니다.`);
-            setIsHandlingTask(false);
-            return;
-          }
-
-          rewardAmount = currentTaskData.reward || 0;
-
-          const updatedCompletedTasks = {
-            ...userCompletedTasks,
-            [taskId]: currentClicks + 1,
-          };
-          setUserDoc(prevUserDoc => ({
-            ...prevUserDoc,
-            completedTasks: updatedCompletedTasks,
-          }));
-        }
-
-        // 🔥 쿠폰 즉시 UI 업데이트 (낙관적 업데이트)
-        if (optimisticUpdate && rewardAmount > 0) {
-          optimisticUpdate({ coupons: rewardAmount });
-        }
-
-        // Cloud Function 호출
-        const completeTaskFunction = httpsCallable(functions, 'completeTask');
+        const completeTaskFunction = httpsCallable(functions, "completeTask");
         const result = await completeTaskFunction({ taskId, jobId, isJobTask });
 
-        console.log('[Dashboard] 할일 완료 성공:', result.data);
+        const resultData = result.data;
+        console.log("✅ [디버그] 서버로부터 받은 결과:", resultData);
 
-        // 사용자 문서 새로고침 (쿠폰 업데이트 반영)
-        if (refreshUserDocument) {
-          await refreshUserDocument();
+        if (resultData.success) {
+          const newCash = typeof resultData.updatedCash === 'number' ? resultData.updatedCash : userDoc.cash;
+          const newCoupons = typeof resultData.updatedCoupons === 'number' ? resultData.updatedCoupons : userDoc.coupons;
+
+          console.log(`✅ [디버그] 쿠폰 상태 업데이트 전: 현재 ${userDoc.coupons}, 서버가 반환한 새 값 ${resultData.updatedCoupons}, 최종 적용될 값 ${newCoupons}`);
+
+          if (isJobTask && jobId) {
+            setUserDoc(prevDoc => ({ ...prevDoc, cash: newCash, coupons: newCoupons }));
+            setJobs(prevJobs =>
+              prevJobs.map(j =>
+                j.id === jobId
+                  ? { ...j, tasks: j.tasks.map(t => t.id === taskId ? { ...t, clicks: (t.clicks || 0) + 1 } : t) }
+                  : j
+              )
+            );
+          } else {
+            setUserDoc(prevDoc => ({
+              ...prevDoc,
+              cash: newCash,
+              coupons: newCoupons,
+              completedTasks: {
+                ...(prevDoc.completedTasks || {}),
+                [taskId]: (prevDoc.completedTasks?.[taskId] || 0) + 1,
+              }
+            }));
+          }
+          alert(resultData.message);
+        } else {
+          throw new Error(resultData.message || "알 수 없는 서버 오류");
         }
-
-        alert(result.data.message);
       } catch (error) {
-        console.error('[Dashboard] 할일 완료 실패:', error);
-        alert(`할일 완료 중 오류가 발생했습니다: ${error.message}`);
-
-        // 실패 시 낙관적 업데이트 롤백
-        if (isJobTask && jobId && previousJobsState) {
-          setJobs(previousJobsState);
-        } else if (previousUserDocState) {
-          setUserDoc(previousUserDocState);
-        }
-
-        // 쿠폰도 롤백
-        if (optimisticUpdate && rewardAmount > 0) {
-          optimisticUpdate({ coupons: -rewardAmount });
-        }
+        console.error("[Dashboard] 할일 완료 처리 중 심각한 오류:", error);
+        alert(`할일 완료에 실패했습니다: ${error.message}`);
+        refreshUserDocument(); 
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [userDoc, isHandlingTask, jobs, commonTasks, refreshUserDocument, optimisticUpdate]
+    [isHandlingTask, userDoc, setUserDoc, setJobs, refreshUserDocument]
   );
 
   // Admin settings handlers
@@ -1433,35 +1378,57 @@ function Dashboard({ adminTabMode }) {
     loadTasksData(true);
   }, [loadTasksData, userDoc?.classCode, setupPolling]);
 
-  // 🔄 수동 할일 리셋 핸들러 (새로 추가)
   const handleManualTaskReset = useCallback(async () => {
+    console.log("[Dashboard] 수동 할일 리셋 시작");
     if (!userDoc?.classCode) {
+      console.error("[Dashboard] 학급 코드 정보가 없어 리셋을 중단합니다.");
       alert("학급 코드 정보가 없습니다.");
       return;
     }
 
-    if (!window.confirm(`'${userDoc.classCode}' 클래스의 모든 할일을 리셋하시겠습니까?\n\n이 작업은 클래스의 모든 사용자에게 적용되며 되돌릴 수 없습니다.`)) {
+    if (!window.confirm(`'${userDoc.classCode}' 클래스의 모든 학생들의 '오늘의 할일' 완료 기록을 초기화하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.`)) {
+      console.log("[Dashboard] 사용자가 리셋을 취소했습니다.");
       return;
     }
 
+    console.log(`[Dashboard] ${userDoc.classCode} 클래스 리셋 실행...`);
     setAppLoading(true);
     try {
+      const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
       const result = await manualResetClassTasks({ classCode: userDoc.classCode });
+      console.log("[Dashboard] 클라우드 함수 결과 수신:", result.data);
       
       if (result.data.success) {
-        alert(`성공적으로 리셋되었습니다!\n\n${result.data.message}`);
-        // 데이터 새로고침
-        handleForceRefresh();
+        // 성공 시, 새로고침 대신 클라이언트 상태를 직접 초기화하여 즉시 UI에 반영
+        
+        // 1. 공통 할일 상태 초기화
+        setUserDoc(prevDoc => ({
+          ...prevDoc,
+          completedTasks: {},
+        }));
+
+        // 2. 직업 할일 상태 초기화
+        setJobs(prevJobs => 
+          prevJobs.map(job => ({
+            ...job,
+            tasks: job.tasks.map(task => ({ ...task, clicks: 0 }))
+          }))
+        );
+
+        alert(`리셋 성공!\n${result.data.message}`);
+        console.log(`[Dashboard] 리셋 성공: ${result.data.message}`);
+
       } else {
         throw new Error(result.data.message || "알 수 없는 오류");
       }
     } catch (error) {
-      console.error("할일 리셋 실패:", error);
-      alert(`할일 리셋 실패: ${error.message}`);
+      console.error("[Dashboard] 할일 리셋 실패:", error);
+      alert(`오류: 할일 리셋에 실패했습니다.\n\n${error.message}`);
     } finally {
       setAppLoading(false);
+      console.log("[Dashboard] 수동 할일 리셋 종료");
     }
-  }, [userDoc?.classCode, handleForceRefresh]);
+  }, [userDoc?.classCode, setUserDoc, setJobs]);
 
   // Loading and error states
   if (authLoading || appLoading) {

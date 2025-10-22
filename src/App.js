@@ -35,7 +35,7 @@ import { formatKoreanCurrency, formatCouponCount } from "./numberFormatter";
 
 // 서비스 및 컴포넌트 imports
 
-import AdminCommonTaskSettings from "./AdminCommonTaskSettings";
+
 import Dashboard from "./Dashboard";
 import ItemStore from "./ItemStore";
 import MyItems from "./MyItems";
