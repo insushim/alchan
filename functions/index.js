@@ -1022,7 +1022,13 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
 
   try {
     const result = await db.runTransaction(async (transaction) => {
-      const [userDoc, itemDoc] = await transaction.getAll(userRef, itemRef);
+      // 🔥 모든 읽기 작업을 먼저 수행
+      const userItemRef = userRef.collection("items").doc(itemId);
+      const [userDoc, itemDoc, userItemDoc] = await transaction.getAll(
+        userRef,
+        itemRef,
+        userItemRef
+      );
 
       if (!userDoc.exists) {
         throw new Error("사용자 정보를 찾을 수 없습니다.");
@@ -1042,6 +1048,8 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
         throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
       }
 
+      // 🔥 이제 모든 쓰기 작업 수행
+
       // 현금 차감
       transaction.update(userRef, {
         cash: admin.firestore.FieldValue.increment(-totalCost),
@@ -1049,9 +1057,6 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
       });
 
       // 사용자 아이템에 추가
-      const userItemRef = userRef.collection("items").doc(itemId);
-      const userItemDoc = await transaction.get(userItemRef);
-
       if (userItemDoc.exists) {
         transaction.update(userItemRef, {
           quantity: admin.firestore.FieldValue.increment(quantity),
