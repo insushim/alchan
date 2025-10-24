@@ -53,10 +53,12 @@ exports.runScheduler = onRequest({
       try {
         switch(task) {
           case 'updateStocks':
+          case 'updateCentralStockMarket':
             await updateCentralStockMarketLogic();
             results[task] = 'success';
             break;
           case 'manageStocks':
+          case 'autoManageStocks':
             await autoManageStocksLogic();
             results[task] = 'success';
             break;
@@ -65,22 +67,27 @@ exports.runScheduler = onRequest({
             results[task] = 'success';
             break;
           case 'createNews':
+          case 'createCentralMarketNews':
             await createCentralMarketNewsLogic();
             results[task] = 'success';
             break;
           case 'cleanupNews':
+          case 'cleanupExpiredCentralNews':
             await cleanupExpiredCentralNewsLogic();
             results[task] = 'success';
             break;
           case 'syncNews':
+          case 'syncCentralNewsToClasses':
             await syncCentralNewsToClassesLogic();
             results[task] = 'success';
             break;
           case 'cleanupClassNews':
+          case 'cleanupExpiredClassNews':
             await cleanupExpiredClassNewsLogic();
             results[task] = 'success';
             break;
           case 'resetDaily':
+          case 'resetDailyTasks':
             await resetDailyTasksLogic();
             results[task] = 'success';
             break;
@@ -140,93 +147,263 @@ exports.runScheduler = onRequest({
 });
 
 // ===================================================================================
-// 실제 로직 함수들 (index.js에서 복사)
+// 실제 로직 함수들
 // ===================================================================================
 
-// 이 함수들은 index.js의 onSchedule 내부 로직을 복사하면 됩니다
-// 간단한 placeholder로 시작합니다
-
 async function updateCentralStockMarketLogic() {
-  logger.info("📈 주식 시장 업데이트 실행");
-  // TODO: index.js의 updateCentralStockMarket 로직 복사
+  logger.info("📈 [스케줄러] 주식 시장 가격 업데이트 시작");
+  try {
+    const stocksSnapshot = await db.collection("CentralStocks").where("isListed", "==", true).get();
+
+    if (stocksSnapshot.empty) {
+      logger.info("상장된 주식이 없습니다.");
+      return;
+    }
+
+    const batch = db.batch();
+    let updateCount = 0;
+
+    for (const stockDoc of stocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+
+      // 수동 관리 주식은 건너뜀
+      if (stockData.isManual) {
+        continue;
+      }
+
+      const currentPrice = stockData.price || 0;
+      const minPrice = stockData.minListingPrice || 1000;
+
+      // 거래량 기반 변동성 계산
+      const buyVolume = stockData.recentBuyVolume || 0;
+      const sellVolume = stockData.recentSellVolume || 0;
+      const netVolume = buyVolume - sellVolume;
+
+      // 기본 변동성
+      let volatility = stockData.volatility || 0.02; // 2%
+      if (stockData.productType === "bond") {
+        volatility = 0.005; // 채권은 변동성 낮음 (0.5%)
+      }
+
+      // 거래량에 따른 변동성 조정
+      const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.05);
+      const direction = netVolume > 0 ? 1 : netVolume < 0 ? -1 : 0;
+
+      // 랜덤 변동 + 거래량 영향
+      const randomChange = (Math.random() - 0.5) * volatility * 2;
+      const volumeChange = direction * volumeImpact;
+      const totalChange = randomChange + volumeChange;
+
+      let newPrice = Math.round(currentPrice * (1 + totalChange));
+
+      // 최소 가격 유지
+      if (newPrice < minPrice) {
+        newPrice = minPrice;
+      }
+
+      // 가격 히스토리 업데이트
+      const priceHistory = stockData.priceHistory || [currentPrice];
+      const updatedHistory = [...priceHistory.slice(-19), newPrice]; // 최근 20개만 유지
+
+      batch.update(stockDoc.ref, {
+        price: newPrice,
+        priceHistory: updatedHistory,
+        recentBuyVolume: 0, // 거래량 리셋
+        recentSellVolume: 0,
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      updateCount++;
+    }
+
+    await batch.commit();
+    logger.info(`✅ ${updateCount}개 주식 가격 업데이트 완료`);
+  } catch (error) {
+    logger.error("❌ 주식 가격 업데이트 중 오류:", error);
+    throw error;
+  }
 }
 
 async function autoManageStocksLogic() {
-  logger.info("🔄 자동 주식 관리 실행");
-  // TODO: index.js의 autoManageStocks 로직 복사
+  logger.info("🔄 [스케줄러] 자동 주식 상장/폐지 관리 시작");
+  // 현재는 수동으로 관리하므로 비워둠
 }
 
 async function cleanupWorthlessStocksLogic() {
-  logger.info("🧹 무가치 주식 정리 실행");
-  // TODO: index.js의 cleanupWorthlessStocks 로직 복사
+  logger.info("🧹 [스케줄러] 무가치 주식 정리 시작");
+  // 필요시 나중에 구현
 }
 
 async function createCentralMarketNewsLogic() {
-  logger.info("📰 중앙 뉴스 생성 실행");
-  // TODO: index.js의 createCentralMarketNews 로직 복사
+  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작");
+  try {
+    const stocksSnapshot = await db.collection("CentralStocks")
+      .where("isListed", "==", true)
+      .get();
+
+    if (stocksSnapshot.empty) {
+      logger.info("상장된 주식이 없어 뉴스를 생성하지 않습니다.");
+      return;
+    }
+
+    const newsItems = [];
+    const now = admin.firestore.Timestamp.now();
+
+    // 가격 변동이 큰 주식 찾기
+    for (const stockDoc of stocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+      const priceHistory = stockData.priceHistory || [];
+
+      if (priceHistory.length < 2) continue;
+
+      const currentPrice = priceHistory[priceHistory.length - 1];
+      const previousPrice = priceHistory[priceHistory.length - 2];
+      const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
+
+      // 5% 이상 변동 시 뉴스 생성
+      if (Math.abs(changePercent) >= 5) {
+        const isRise = changePercent > 0;
+        const newsTemplates = isRise ? [
+          `${stockData.name} 주가 급등! ${changePercent.toFixed(1)}% 상승`,
+          `${stockData.name}, 투자자들의 관심 집중으로 ${changePercent.toFixed(1)}% 급등세`,
+          `${stockData.name} 강세장 진입, ${changePercent.toFixed(1)}% 상승 기록`,
+        ] : [
+          `${stockData.name} 주가 급락, ${Math.abs(changePercent).toFixed(1)}% 하락`,
+          `${stockData.name} 투자 심리 악화로 ${Math.abs(changePercent).toFixed(1)}% 급락`,
+          `${stockData.name} 약세장 진입, ${Math.abs(changePercent).toFixed(1)}% 하락 기록`,
+        ];
+
+        const randomTemplate = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
+
+        newsItems.push({
+          title: randomTemplate,
+          content: `현재가: ${currentPrice.toLocaleString()}원`,
+          relatedStocks: [stockDoc.id],
+          isActive: true,
+          timestamp: now,
+          expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 후 만료
+          createdAt: now,
+        });
+      }
+    }
+
+    // 랜덤 일반 뉴스도 추가
+    if (Math.random() > 0.5) {
+      const generalNews = [
+        "오늘의 시장 전망: 투자자들의 신중한 접근 필요",
+        "글로벌 경제 동향이 국내 증시에 영향",
+        "전문가들 \"장기 투자 관점에서 접근해야\"",
+        "시장 변동성 확대, 분산 투자 권장",
+      ];
+
+      newsItems.push({
+        title: generalNews[Math.floor(Math.random() * generalNews.length)],
+        content: "자세한 내용은 경제 전문가와 상담하세요.",
+        relatedStocks: [],
+        isActive: true,
+        timestamp: now,
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 60 * 60 * 1000), // 1시간 후 만료
+        createdAt: now,
+      });
+    }
+
+    // Firestore에 뉴스 추가
+    const batch = db.batch();
+    for (const news of newsItems) {
+      const newsRef = db.collection("CentralNews").doc();
+      batch.set(newsRef, news);
+    }
+
+    await batch.commit();
+    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
+  } catch (error) {
+    logger.error("❌ 뉴스 생성 중 오류:", error);
+    throw error;
+  }
 }
 
 async function cleanupExpiredCentralNewsLogic() {
-  logger.info("🧹 만료 뉴스 정리 실행");
-  // TODO: index.js의 cleanupExpiredCentralNews 로직 복사
+  logger.info("🧹 [스케줄러] 만료된 중앙 뉴스 정리 시작");
+  try {
+    const now = admin.firestore.Timestamp.now();
+    const expiredNewsSnapshot = await db.collection("CentralNews")
+      .where("expiresAt", "<=", now)
+      .get();
+
+    if (expiredNewsSnapshot.empty) {
+      logger.info("만료된 뉴스가 없습니다.");
+      return;
+    }
+
+    const batch = db.batch();
+    for (const newsDoc of expiredNewsSnapshot.docs) {
+      batch.update(newsDoc.ref, { isActive: false });
+    }
+
+    await batch.commit();
+    logger.info(`✅ ${expiredNewsSnapshot.size}개의 만료된 뉴스 비활성화 완료`);
+  } catch (error) {
+    logger.error("❌ 뉴스 정리 중 오류:", error);
+    throw error;
+  }
 }
 
 async function syncCentralNewsToClassesLogic() {
-  logger.info("🔄 뉴스 동기화 실행");
-  // TODO: index.js의 syncCentralNewsToClasses 로직 복사
+  logger.info("🔄 [스케줄러] 중앙 뉴스를 클래스로 동기화 시작");
+  // 현재는 중앙 뉴스만 사용하므로 비워둠
 }
 
 async function cleanupExpiredClassNewsLogic() {
-  logger.info("🧹 클래스 뉴스 정리 실행");
-  // TODO: index.js의 cleanupExpiredClassNews 로직 복사
+  logger.info("🧹 [스케줄러] 만료된 클래스 뉴스 정리 시작");
+  // 현재는 중앙 뉴스만 사용하므로 비워둠
 }
 
 async function resetDailyTasksLogic() {
-  logger.info("🔄 일일 작업 리셋 실행");
-  // TODO: index.js의 resetDailyTasks 로직 복사
+  logger.info("🔄 [스케줄러] 일일 작업 리셋 시작");
+  // 필요시 나중에 구현
 }
 
 async function payWeeklySalariesLogic() {
-  logger.info("💰 주급 지급 실행");
-  // TODO: index.js의 payWeeklySalaries 로직 복사
+  logger.info("💰 [스케줄러] 주급 지급 시작");
+  // 필요시 나중에 구현
 }
 
 async function collectWeeklyRentLogic() {
-  logger.info("🏠 임대료 징수 실행");
-  // TODO: index.js의 collectWeeklyRent 로직 복사
+  logger.info("🏠 [스케줄러] 임대료 징수 시작");
+  // 필요시 나중에 구현
 }
 
 async function provideSocialSafetyNetLogic() {
-  logger.info("🛡️ 사회안전망 제공 실행");
-  // TODO: index.js의 provideSocialSafetyNet 로직 복사
+  logger.info("🛡️ [스케줄러] 사회안전망 제공 시작");
+  // 필요시 나중에 구현
 }
 
 async function openMarketLogic() {
-  logger.info("🔓 시장 개장 실행");
-  // TODO: index.js의 openMarket 로직 복사
+  logger.info("🔓 [스케줄러] 시장 개장 시작");
+  // 필요시 나중에 구현
 }
 
 async function closeMarketLogic() {
-  logger.info("🔒 시장 폐장 실행");
-  // TODO: index.js의 closeMarket 로직 복사
+  logger.info("🔒 [스케줄러] 시장 폐장 시작");
+  // 필요시 나중에 구현
 }
 
 async function aggregateActivityStatsLogic() {
-  logger.info("📊 활동 통계 집계 실행");
-  // TODO: index.js의 aggregateActivityStats 로직 복사
+  logger.info("📊 [스케줄러] 활동 통계 집계 시작");
+  // 필요시 나중에 구현
 }
 
 async function updateClassStatsLogic() {
-  logger.info("📊 클래스 통계 업데이트 실행");
-  // TODO: index.js의 updateClassStats 로직 복사
+  logger.info("📊 [스케줄러] 클래스 통계 업데이트 시작");
+  // 필요시 나중에 구현
 }
 
 async function updatePortfolioSummaryLogic() {
-  logger.info("📊 포트폴리오 요약 업데이트 실행");
-  // TODO: index.js의 updatePortfolioSummary 로직 복사
+  logger.info("📊 [스케줄러] 포트폴리오 요약 업데이트 시작");
+  // 필요시 나중에 구현
 }
 
 async function aggregateActivityLogsLogic() {
-  logger.info("📊 활동 로그 집계 실행");
-  // TODO: index.js의 aggregateActivityLogs 로직 복사
+  logger.info("📊 [스케줄러] 활동 로그 집계 시작");
+  // 필요시 나중에 구현
 }
