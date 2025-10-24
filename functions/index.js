@@ -1188,24 +1188,10 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
 // ===================================================================================
 
 exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
-  const {uid} = await checkAuthAndGetUserData(request);
+  const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
   const {tab} = request.data;
 
   try {
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) {
-      throw new Error("사용자 정보를 찾을 수 없습니다.");
-    }
-
-    const userData = userDoc.data();
-    const classCode = userData.classCode;
-    const isAdmin = userData.role === "admin" || userData.role === "superAdmin";
-    const isSuperAdmin = userData.role === "superAdmin";
-
-    if (!isAdmin) {
-      throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
-    }
-
     let data = {};
 
     switch (tab) {
@@ -1281,22 +1267,10 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 // ===================================================================================
 
 exports.batchPaySalaries = onCall({region: "asia-northeast3"}, async (request) => {
-  const {uid, classCode} = await checkAuthAndGetUserData(request);
+  const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
   const {studentIds, payAll} = request.data;
 
   try {
-    const userDoc = await db.collection("users").doc(uid).get();
-    if (!userDoc.exists) {
-      throw new Error("사용자 정보를 찾을 수 없습니다.");
-    }
-
-    const userData = userDoc.data();
-    const isAdmin = userData.role === "admin" || userData.role === "superAdmin";
-
-    if (!isAdmin) {
-      throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
-    }
-
     // 급여 설정 가져오기
     const salaryDoc = await db.collection("classSettings")
       .doc(classCode)
