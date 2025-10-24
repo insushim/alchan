@@ -955,10 +955,28 @@ exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request)
       .collection("items")
       .get();
 
-    const userItems = userItemsSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const userItems = userItemsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      const itemId = data.itemId || doc.id;
+
+      // storeItems에서 아이템 정보 찾기
+      const storeItem = storeItems.find(item => item.id === itemId);
+
+      return {
+        id: doc.id,
+        ...data,
+        itemId: itemId,
+        // 아이템 정보가 없으면 storeItems에서 가져오기
+        name: data.name || (storeItem ? storeItem.name : '알 수 없는 아이템'),
+        icon: data.icon || (storeItem ? storeItem.icon : '🔮'),
+        description: data.description || (storeItem ? storeItem.description : ''),
+        type: data.type || (storeItem ? storeItem.type : 'general'),
+        category: data.category || (storeItem ? storeItem.category : ''),
+      };
+    });
+
+    logger.info(`[getItemContextData] User ${uid} has ${userItems.length} items in subcollection:`,
+      userItems.map(item => `${item.itemId}:${item.name}(${item.quantity})`).join(', '));
 
     // 3. 마켓 리스팅 조회
     const marketListingsSnapshot = await db.collection("marketListings")
@@ -1019,68 +1037,73 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
 
   const userRef = db.collection("users").doc(uid);
   const itemRef = db.collection("storeItems").doc(itemId);
+  const userItemRef = userRef.collection("items").doc(itemId);
 
   try {
-    const result = await db.runTransaction(async (transaction) => {
-      // 🔥 모든 읽기 작업을 먼저 수행
-      const userItemRef = userRef.collection("items").doc(itemId);
-      const [userDoc, itemDoc, userItemDoc] = await transaction.getAll(
-        userRef,
-        itemRef,
-        userItemRef
-      );
+    // 먼저 데이터를 읽어서 검증
+    const [userDoc, itemDoc, userItemDoc] = await Promise.all([
+      userRef.get(),
+      itemRef.get(),
+      userItemRef.get(),
+    ]);
 
-      if (!userDoc.exists) {
-        throw new Error("사용자 정보를 찾을 수 없습니다.");
-      }
+    if (!userDoc.exists) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
+    }
 
-      if (!itemDoc.exists) {
-        throw new Error("아이템을 찾을 수 없습니다.");
-      }
+    if (!itemDoc.exists) {
+      throw new Error("아이템을 찾을 수 없습니다.");
+    }
 
-      const userData = userDoc.data();
-      const itemData = itemDoc.data();
+    const userData = userDoc.data();
+    const itemData = itemDoc.data();
 
-      const totalCost = itemData.price * quantity;
-      const currentCash = userData.cash || 0;
+    const totalCost = itemData.price * quantity;
+    const currentCash = userData.cash || 0;
 
-      if (currentCash < totalCost) {
-        throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
-      }
+    if (currentCash < totalCost) {
+      throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
+    }
 
-      // 🔥 이제 모든 쓰기 작업 수행
+    // Batch write로 원자적 처리
+    const batch = db.batch();
 
-      // 현금 차감
-      transaction.update(userRef, {
-        cash: admin.firestore.FieldValue.increment(-totalCost),
+    // 현금 차감
+    batch.update(userRef, {
+      cash: admin.firestore.FieldValue.increment(-totalCost),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 사용자 아이템에 추가
+    if (userItemDoc.exists) {
+      batch.update(userItemRef, {
+        quantity: admin.firestore.FieldValue.increment(quantity),
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-
-      // 사용자 아이템에 추가
-      if (userItemDoc.exists) {
-        transaction.update(userItemRef, {
-          quantity: admin.firestore.FieldValue.increment(quantity),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      } else {
-        transaction.set(userItemRef, {
-          itemId: itemId,
-          name: itemData.name,
-          category: itemData.category,
-          description: itemData.description,
-          effect: itemData.effect,
-          quantity: quantity,
-          acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      }
-
-      return {
-        itemName: itemData.name,
+    } else {
+      const newItemData = {
+        itemId: itemId,
+        name: itemData.name || "",
         quantity: quantity,
-        totalCost: totalCost,
+        acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       };
-    });
+
+      // optional 필드들만 추가
+      if (itemData.category) newItemData.category = itemData.category;
+      if (itemData.description) newItemData.description = itemData.description;
+      if (itemData.effect) newItemData.effect = itemData.effect;
+
+      batch.set(userItemRef, newItemData);
+    }
+
+    await batch.commit();
+
+    const result = {
+      itemName: itemData.name,
+      quantity: quantity,
+      totalCost: totalCost,
+    };
 
     logger.info(`[purchaseStoreItem] ${uid}님이 ${result.itemName} ${result.quantity}개 구매 (${result.totalCost}원)`);
 
@@ -1157,5 +1180,191 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   } catch (error) {
     logger.error(`[useUserItem] Error for user ${uid}:`, error);
     throw new HttpsError("aborted", error.message || "아이템 사용에 실패했습니다.");
+  }
+});
+
+// ===================================================================================
+// 관리자 설정 데이터 통합 조회 (최적화)
+// ===================================================================================
+
+exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {tab} = request.data;
+
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
+    }
+
+    const userData = userDoc.data();
+    const classCode = userData.classCode;
+    const isAdmin = userData.role === "admin" || userData.role === "superAdmin";
+    const isSuperAdmin = userData.role === "superAdmin";
+
+    if (!isAdmin) {
+      throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    let data = {};
+
+    switch (tab) {
+      case "studentManagement":
+        // 학생 데이터 조회
+        const studentsSnapshot = await db.collection("users")
+          .where("classCode", "==", classCode)
+          .where("role", "==", "student")
+          .get();
+
+        data.students = studentsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        break;
+
+      case "salarySettings":
+        // 급여 설정 조회
+        const salaryDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .collection("settings")
+          .doc("salary")
+          .get();
+
+        data.salarySettings = salaryDoc.exists ? salaryDoc.data() : {};
+        break;
+
+      case "generalSettings":
+        // 일반 설정 조회
+        const settingsDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .get();
+
+        data.generalSettings = settingsDoc.exists ? settingsDoc.data() : {};
+        break;
+
+      case "systemManagement":
+        if (!isSuperAdmin) {
+          throw new HttpsError("permission-denied", "최고 관리자 권한이 필요합니다.");
+        }
+
+        // 시스템 관리 데이터 조회
+        const allClassesSnapshot = await db.collection("classSettings").get();
+        data.allClasses = allClassesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        break;
+
+      default:
+        // 기본적으로 일반 설정 반환
+        const defaultDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .get();
+
+        data = defaultDoc.exists ? defaultDoc.data() : {};
+    }
+
+    logger.info(`[getAdminSettingsData] ${uid}님이 ${tab} 데이터 조회`);
+
+    return {
+      success: true,
+      data: data,
+    };
+  } catch (error) {
+    logger.error(`[getAdminSettingsData] Error for user ${uid}:`, error);
+    throw new HttpsError("internal", error.message || "데이터 조회에 실패했습니다.");
+  }
+});
+
+// ===================================================================================
+// 배치 급여 지급
+// ===================================================================================
+
+exports.batchPaySalaries = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, classCode} = await checkAuthAndGetUserData(request);
+  const {studentIds, payAll} = request.data;
+
+  try {
+    const userDoc = await db.collection("users").doc(uid).get();
+    if (!userDoc.exists) {
+      throw new Error("사용자 정보를 찾을 수 없습니다.");
+    }
+
+    const userData = userDoc.data();
+    const isAdmin = userData.role === "admin" || userData.role === "superAdmin";
+
+    if (!isAdmin) {
+      throw new HttpsError("permission-denied", "관리자 권한이 필요합니다.");
+    }
+
+    // 급여 설정 가져오기
+    const salaryDoc = await db.collection("classSettings")
+      .doc(classCode)
+      .collection("settings")
+      .doc("salary")
+      .get();
+
+    const salarySettings = salaryDoc.exists ? salaryDoc.data() : {};
+
+    // 지급할 학생 목록 결정
+    let targetStudents = [];
+    if (payAll) {
+      const studentsSnapshot = await db.collection("users")
+        .where("classCode", "==", classCode)
+        .where("role", "==", "student")
+        .get();
+
+      targetStudents = studentsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    } else {
+      // 특정 학생들만 조회
+      const studentDocs = await Promise.all(
+        studentIds.map(id => db.collection("users").doc(id).get())
+      );
+
+      targetStudents = studentDocs
+        .filter(doc => doc.exists)
+        .map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+    }
+
+    // 배치로 급여 지급
+    const batch = db.batch();
+    let paidCount = 0;
+    let totalAmount = 0;
+
+    for (const student of targetStudents) {
+      const job = student.job || "무직";
+      const salary = salarySettings[job] || 0;
+
+      if (salary > 0) {
+        const studentRef = db.collection("users").doc(student.id);
+        batch.update(studentRef, {
+          cash: admin.firestore.FieldValue.increment(salary),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        paidCount++;
+        totalAmount += salary;
+      }
+    }
+
+    await batch.commit();
+
+    logger.info(`[batchPaySalaries] ${uid}님이 ${paidCount}명에게 총 ${totalAmount}원 지급`);
+
+    return {
+      success: true,
+      message: `${paidCount}명에게 총 ${totalAmount.toLocaleString()}원 지급 완료`,
+      paidCount: paidCount,
+      totalAmount: totalAmount,
+    };
+  } catch (error) {
+    logger.error(`[batchPaySalaries] Error for user ${uid}:`, error);
+    throw new HttpsError("internal", error.message || "급여 지급에 실패했습니다.");
   }
 });
