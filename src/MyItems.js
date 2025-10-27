@@ -679,11 +679,25 @@ const MyItems = () => {
         if(remainingToSell <= 0) break;
         const amountToSell = Math.min(doc.quantity, remainingToSell);
 
-        // 🔥 FIX: 판매 전 description 필드가 undefined인 경우 빈 문자열로 업데이트
+        // 🔥 FIX: 판매 전 필수 필드가 undefined인 경우 기본값으로 업데이트
+        const updateFields = {};
         if (doc.description === undefined) {
           console.warn(`[MyItems] 누락된 description 필드 수정: ${doc.id}`);
+          updateFields.description = "";
+        }
+        if (doc.icon === undefined) {
+          console.warn(`[MyItems] 누락된 icon 필드 수정: ${doc.id}`);
+          updateFields.icon = "🔮";
+        }
+        if (doc.type === undefined) {
+          console.warn(`[MyItems] 누락된 type 필드 수정: ${doc.id}`);
+          updateFields.type = "general";
+        }
+        if (Object.keys(updateFields).length > 0) {
           const itemRef = firebaseDoc(db, "users", user.uid, "inventory", doc.id);
-          await updateDoc(itemRef, { description: "" });
+          await updateDoc(itemRef, updateFields);
+          // 로컬 doc 객체도 업데이트
+          Object.assign(doc, updateFields);
         }
 
         const result = await listItemForSale({
