@@ -370,8 +370,9 @@ const invalidateCache = (pattern) => {
 };
 
 // === 관리자 패널 컴포넌트 ===
-const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats }) => {
+const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate }) => {
     const [showAddForm, setShowAddForm] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
     const [newStock, setNewStock] = useState({
         name: "",
         price: "",
@@ -382,6 +383,19 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
         maturityYears: "",
         couponRate: ""
     });
+
+    const handleManualUpdate = async () => {
+        if (isUpdating) return;
+        setIsUpdating(true);
+        try {
+            await onManualUpdate();
+            alert("주식 가격 및 뉴스 업데이트 완료!");
+        } catch (error) {
+            alert("업데이트 실패: " + error.message);
+        } finally {
+            setIsUpdating(false);
+        }
+    };
 
     const handleAddStock = async () => {
         if (!newStock.name || !newStock.price || !newStock.minListingPrice) return alert("모든 필드를 입력해주세요.");
@@ -431,6 +445,23 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
                 </div>
             </div>
             <div className="admin-content">
+                <div className="admin-section">
+                    <h3>🔄 시장 관리</h3>
+                    <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px' }}>
+                        <p style={{ marginBottom: '10px', color: '#0369a1' }}>
+                            📊 주식/ETF/채권 가격을 즉시 업데이트하고 뉴스를 생성합니다.<br/>
+                            ⏰ 자동 업데이트: 평일 8시-15시, 5분마다 가격 변동 / 3분마다 뉴스 생성
+                        </p>
+                        <button
+                            onClick={handleManualUpdate}
+                            disabled={isUpdating}
+                            className="btn btn-success"
+                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold' }}
+                        >
+                            {isUpdating ? '⏳ 업데이트 중...' : '🚀 지금 즉시 가격 & 뉴스 업데이트'}
+                        </button>
+                    </div>
+                </div>
                 <div className="admin-section">
                     <h3><BarChart3 size={20} /> 상품 목록 관리</h3>
                     <div className="admin-stock-list">
@@ -940,17 +971,42 @@ const StockExchange = () => {
     if (window.confirm("이 상품(휴지조각)을 포트폴리오에서 삭제하시겠습니까?")) {
       try {
         await deleteDoc(doc(db, "users", user.uid, "portfolio", holdingId));
-        
+
         invalidateCache(`PORTFOLIO_user_${user.uid}`);
         invalidateCache(`BATCH_${classCode}`);
         await fetchAllData(true);
-        
+
         alert("삭제되었습니다.");
-      } catch (error) { 
-        alert("삭제 중 오류가 발생했습니다."); 
+      } catch (error) {
+        alert("삭제 중 오류가 발생했습니다.");
       }
     }
   }, [user, classCode, fetchAllData]);
+
+  // 🔥 수동으로 주식 시장 업데이트 (관리자 전용)
+  const manualUpdateStockMarket = useCallback(async () => {
+    if (!functions) {
+      throw new Error("Firebase Functions가 초기화되지 않았습니다.");
+    }
+
+    try {
+      console.log('[manualUpdateStockMarket] 수동 업데이트 시작');
+      const manualUpdateFunction = httpsCallable(functions, 'manualUpdateStockMarket');
+      const result = await manualUpdateFunction({});
+
+      console.log('[manualUpdateStockMarket] 업데이트 성공:', result.data);
+
+      // 캐시 무효화 및 데이터 새로고침
+      invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH_${classCode}`);
+      await fetchAllData(true);
+
+      return result.data;
+    } catch (error) {
+      console.error('[manualUpdateStockMarket] 업데이트 실패:', error);
+      throw error;
+    }
+  }, [functions, classCode, fetchAllData, invalidateCache]);
 
   // === stocks 데이터를 Map으로 변환하여 조회 성능 향상 ===
   const stocksMap = useMemo(() => {
@@ -1003,7 +1059,7 @@ const StockExchange = () => {
   if (authLoading || !firebaseReady) return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
   if (!user || !userDoc) return <div className="loading-message">로그인이 필요합니다.</div>;
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
-  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} />; 
+  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} />; 
 
   return (
     <div className="stock-exchange-container">

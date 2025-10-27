@@ -89,7 +89,9 @@ service cloud.firestore {
       // 📦 인벤토리 서브컬렉션 (users/{userId}/inventory/{itemId})
       // ========================================================
       match /inventory/{itemId} {
-        allow read: if isOwner(userId) || isAdmin();
+        // 읽기: 본인, 관리자, 또는 같은 학급 사용자 (아이템 선물 기능을 위해)
+        allow read: if isOwner(userId) || isAdmin() || (isSignedIn() && isSameClass(get(/databases/$(database)/documents/users/$(userId)).data.classCode));
+        // 쓰기: 본인, 관리자, 또는 같은 학급 사용자 (아이템 선물 기능을 위해)
         allow write: if isOwner(userId) || isAdmin() || (isSignedIn() && isSameClass(get(/databases/$(database)/documents/users/$(userId)).data.classCode));
       }
 
@@ -482,6 +484,12 @@ service cloud.firestore {
 
       // 부동산 서브컬렉션
       match /realEstateProperties/{propertyId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow write: if isAdmin();
+      }
+
+      // 부동산 설정 서브컬렉션
+      match /realEstateSettings/{settingsDoc} {
         allow read: if isSameClass(classCode) || isAdmin();
         allow write: if isAdmin();
       }

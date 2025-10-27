@@ -76,12 +76,12 @@ console.log("[firebase.js] Firebase 앱 초기화 완료");
 
 // 로컬 개발 환경일 때 에뮬레이터에 연결
 // ⚠️ 에뮬레이터 비활성화: 로컬에서도 배포 서버 사용
-if (false && window.location.hostname === 'localhost') {
+if (process.env.NODE_ENV === 'development') {
   console.log('[firebase.js] 로컬 개발 환경: 에뮬레이터에 연결합니다...');
   try {
-    connectFirestoreEmulator(db, 'localhost', 8080);
-    connectAuthEmulator(auth, 'http://localhost:9099');
-    connectFunctionsEmulator(functions, 'localhost', 5001);
+    connectFirestoreEmulator(db, '127.0.0.1', 8080);
+    connectAuthEmulator(auth, 'http://127.0.0.1:9099');
+    connectFunctionsEmulator(functions, '127.0.0.1', 5001);
     console.log('[firebase.js] 로컬 에뮬레이터 연결 성공.');
   } catch (error) {
     console.error('[firebase.js] 에뮬레이터 연결 오류:', error);

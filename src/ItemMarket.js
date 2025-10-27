@@ -805,10 +805,7 @@ const ItemMarket = () => {
     }
   };
 
-  // 상품 삭제 처리 (최적화: 로컬 상태 즉시 업데이트)
-  const handleDeleteItem = async (itemId) => {
-    if (!currentUserId || !classCode) return;
-
+  const handleCancelSale = async (itemId) => {
     const item = items.find(i => i.id === itemId);
     if (!item) return;
 
@@ -817,76 +814,27 @@ const ItemMarket = () => {
       return;
     }
 
-    if (item.status !== "available" && item.status !== "active") {
-      alert("판매 중인 상품만 삭제할 수 있습니다.");
-      return;
-    }
-
     const pendingProposals = proposals.filter(p => 
       p.itemId === itemId && p.status === "pending"
     );
 
+    let confirmationText = "정말로 이 상품의 판매를 취소하시겠습니까?";
     if (pendingProposals.length > 0) {
-      if (!window.confirm(`이 상품에 ${pendingProposals.length}개의 대기 중인 제안이 있습니다. 정말 삭제하시겠습니까?`)) {
-        return;
-      }
-    } else {
-      if (!window.confirm("정말로 이 상품을 삭제하시겠습니까?")) {
-        return;
-      }
+      confirmationText = `이 상품에 ${pendingProposals.length}개의 대기 중인 제안이 있습니다. 정말로 판매를 취소하시겠습니까? 제안은 모두 거절됩니다.`;
+    }
+    
+    if (!window.confirm(confirmationText)) {
+      return;
     }
 
     try {
-      // 인벤토리로 복구
-      if (item.inventoryItemId && item.quantity > 0) {
-        const inventoryRef = collection(db, "users", currentUserId, "inventory");
-        const inventoryQuery = query(inventoryRef, where("itemId", "==", item.originalStoreItemId), limit(1));
-        const inventorySnap = await getDocs(inventoryQuery);
-
-        if (!inventorySnap.empty) {
-          // 기존 아이템이 있으면 수량 증가
-          const existingDoc = inventorySnap.docs[0];
-          await updateDoc(existingDoc.ref, {
-            quantity: increment(item.quantity),
-            updatedAt: serverTimestamp()
-          });
-        } else {
-          // 없으면 새로 추가
-          await addDoc(inventoryRef, {
-            itemId: item.originalStoreItemId,
-            name: item.itemName,
-            icon: item.itemIcon,
-            description: item.itemDescription || "",
-            type: item.itemType || "기타",
-            quantity: item.quantity,
-            purchasedAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-        }
+      const result = await cancelSale(itemId); // 컨텍스트 함수 사용
+      if (!result.success) {
+        throw new Error(result.message || "판매 취소에 실패했습니다.");
       }
-
-      const itemRef = doc(db, "classes", classCode, "marketItems", itemId);
-
-      await deleteDoc(itemRef);
-
-      if (pendingProposals.length > 0) {
-        const updatePromises = pendingProposals.map(proposal => {
-          const proposalRef = doc(db, "classes", classCode, "marketProposals", proposal.id);
-          return updateDoc(proposalRef, {
-            status: "rejected",
-            rejectedAt: serverTimestamp(),
-            rejectionReason: "상품이 삭제됨"
-          });
-        });
-        await Promise.all(updatePromises);
-      }
-
-      // 데이터 새로고침
-      await refreshData();
-
-      alert("상품이 삭제되어 인벤토리로 복구되었습니다.");
+      alert("판매가 취소되었습니다. 아이템은 인벤토리로 복구됩니다.");
     } catch (error) {
-      alert("상품 삭제 중 오류이 발생했습니다: " + error.message);
+      alert(`판매 취소 중 오류: ${error.message}`);
     }
   };
 
@@ -1130,7 +1078,7 @@ const ItemMarket = () => {
                     <div className="item-actions">
                       {(item.status === "available" || item.status === "active") && (
                         <button
-                          onClick={() => handleDeleteItem(item.id)}
+                          onClick={() => handleCancelSale(item.id)}
                           className="delete-button"
                         >
                           삭제

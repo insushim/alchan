@@ -102,13 +102,16 @@ const _updateCentralStockMarket = async () => {
       return;
     }
 
+    // 활성 뉴스 가져오기
+    const activeNewsSnapshot = await db.collection("CentralNews").where("isActive", "==", true).get();
+    const activeNews = activeNewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
     const batch = db.batch();
     let updateCount = 0;
 
     for (const stockDoc of stocksSnapshot.docs) {
       const stockData = stockDoc.data();
 
-      // 수동 관리 주식은 건너뜀
       if (stockData.isManual) {
         continue;
       }
@@ -116,41 +119,49 @@ const _updateCentralStockMarket = async () => {
       const currentPrice = stockData.price || 0;
       const minPrice = stockData.minListingPrice || 1000;
 
-      // 거래량 기반 변동성 계산
       const buyVolume = stockData.recentBuyVolume || 0;
       const sellVolume = stockData.recentSellVolume || 0;
       const netVolume = buyVolume - sellVolume;
 
-      // 기본 변동성
-      let volatility = stockData.volatility || 0.02; // 2%
+      let volatility = stockData.volatility || 0.02;
       if (stockData.productType === "bond") {
-        volatility = 0.005; // 채권은 변동성 낮음 (0.5%)
+        volatility = 0.005;
       }
 
-      // 거래량에 따른 변동성 조정
       const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.05);
       const direction = netVolume > 0 ? 1 : netVolume < 0 ? -1 : 0;
 
-      // 랜덤 변동 + 거래량 영향
       const randomChange = (Math.random() - 0.5) * volatility * 2;
       const volumeChange = direction * volumeImpact;
-      const totalChange = randomChange + volumeChange;
 
+      // 뉴스 영향 계산
+      let newsImpact = 0;
+      const relatedNews = activeNews.find(news => news.relatedStocks && news.relatedStocks.includes(stockDoc.id));
+
+      if (relatedNews) {
+        switch (relatedNews.category) {
+          case "strong_bull": newsImpact = 0.03; break; // +3%
+          case "bull": newsImpact = 0.015; break;      // +1.5%
+          case "bear": newsImpact = -0.015; break;     // -1.5%
+          case "strong_bear": newsImpact = -0.03; break; // -3%
+        }
+        logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
+      }
+
+      const totalChange = randomChange + volumeChange + newsImpact;
       let newPrice = Math.round(currentPrice * (1 + totalChange));
 
-      // 최소 가격 유지
       if (newPrice < minPrice) {
         newPrice = minPrice;
       }
 
-      // 가격 히스토리 업데이트
       const priceHistory = stockData.priceHistory || [currentPrice];
-      const updatedHistory = [...priceHistory.slice(-19), newPrice]; // 최근 20개만 유지
+      const updatedHistory = [...priceHistory.slice(-19), newPrice];
 
       batch.update(stockDoc.ref, {
         price: newPrice,
         priceHistory: updatedHistory,
-        recentBuyVolume: 0, // 거래량 리셋
+        recentBuyVolume: 0,
         recentSellVolume: 0,
         lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
       });
@@ -176,6 +187,296 @@ const _aggregateActivityStats = async () => {
   // 필요시 나중에 구현
 };
 
+// 13개 섹터별 × 4가지 상태별 뉴스 템플릿 (총 52개)
+const SECTOR_NEWS_TEMPLATES = {
+  TECH: {
+    strong_bull: [ // 강세 (3% 이상 상승)
+      "IT 대기업 주가 급등, 신제품 기대감 고조",
+      "반도체 업계 실적 개선 전망, 강세 지속",
+      "기술주 대표기업 투자심리 회복, 상승폭 확대"
+    ],
+    bull: [ // 강보합 (1% ~ 3% 상승)
+      "전자기기 제조사 안정적 상승세 유지",
+      "IT 업계 긍정적 전망, 완만한 상승",
+      "기술주 매수세 유입, 상승 마감 전망"
+    ],
+    bear: [ // 약보합 (-3% ~ -1% 하락)
+      "반도체 수요 둔화 우려, 소폭 조정",
+      "IT 대기업 차익실현 매물 출회",
+      "기술주 단기 조정 국면, 관망세 지속"
+    ],
+    strong_bear: [ // 약세 (-3% 이하 하락)
+      "전자기기 업계 실적 우려, 급락세",
+      "IT 섹터 투자심리 악화, 하락폭 확대",
+      "반도체 업계 수급 불안, 약세 지속"
+    ]
+  },
+  FINANCE: {
+    strong_bull: [
+      "금융 대기업 순이익 급증, 주가 강세",
+      "은행권 대출 증가세, 실적 개선 기대",
+      "증권사 거래대금 확대, 수익성 개선"
+    ],
+    bull: [
+      "금융주 안정적 회복세, 배당 매력 부각",
+      "보험업계 실적 양호, 완만한 상승",
+      "은행권 순이자마진 개선 기대감"
+    ],
+    bear: [
+      "금융권 규제 우려, 소폭 하락",
+      "증권사 수수료 수익 감소 전망",
+      "은행주 대출 부실 우려, 약보합"
+    ],
+    strong_bear: [
+      "금융 대기업 부실채권 우려 확산",
+      "은행권 실적 악화, 급락세 지속",
+      "보험업계 운용손실 우려, 하락폭 확대"
+    ]
+  },
+  CONSUMER: {
+    strong_bull: [
+      "소비재 대기업 매출 급증, 강세 전환",
+      "유통업계 소비심리 회복, 주가 급등",
+      "식품업계 해외 수출 호조, 실적 개선"
+    ],
+    bull: [
+      "생활용품 업계 안정적 수요, 상승세",
+      "유통주 계절적 성수기 진입 기대",
+      "소비재 섹터 방어적 매수세 유입"
+    ],
+    bear: [
+      "소비재 업계 원자재 가격 상승 부담",
+      "유통업계 소비 위축 우려, 조정",
+      "식품주 수익성 악화 전망, 약보합"
+    ],
+    strong_bear: [
+      "소비재 대기업 실적 쇼크, 급락",
+      "유통업계 경기 둔화 영향, 하락세",
+      "생활용품 업체 판매 부진, 약세 지속"
+    ]
+  },
+  HEALTHCARE: {
+    strong_bull: [
+      "제약 대기업 신약 승인 기대, 급등",
+      "바이오 업계 임상시험 성공 소식",
+      "의료기기 업체 수출 확대, 강세"
+    ],
+    bull: [
+      "헬스케어 섹터 방어적 매수 지속",
+      "제약주 안정적 실적 기대감",
+      "바이오 업계 연구개발 투자 확대"
+    ],
+    bear: [
+      "제약 업계 약가 인하 압박, 조정",
+      "바이오주 임상 불확실성, 약보합",
+      "의료기기 업체 경쟁 심화 우려"
+    ],
+    strong_bear: [
+      "제약 대기업 신약 개발 실패 충격",
+      "바이오 업계 투자심리 급랭",
+      "헬스케어 섹터 규제 강화 우려"
+    ]
+  },
+  ENERGY: {
+    strong_bull: [
+      "에너지 대기업 유가 상승 수혜, 급등",
+      "정유사 정제마진 개선, 강세 전환",
+      "신재생에너지 업체 정부 지원 확대"
+    ],
+    bull: [
+      "에너지 섹터 수요 증가 전망",
+      "전력회사 안정적 배당 매력",
+      "정유업계 계절적 수요 증가 기대"
+    ],
+    bear: [
+      "에너지 업계 유가 하락 부담",
+      "정유사 정제마진 축소 우려",
+      "전력회사 연료비 상승 압박"
+    ],
+    strong_bear: [
+      "에너지 대기업 유가 급락 충격",
+      "정유업계 수요 감소, 급락세",
+      "신재생에너지 투자 축소 우려"
+    ]
+  },
+  INDUSTRIAL: {
+    strong_bull: [
+      "제조 대기업 수주 증가, 강세",
+      "중공업 업체 해외 프로젝트 수주",
+      "건설사 수주잔고 확대, 급등"
+    ],
+    bull: [
+      "산업재 섹터 경기 회복 기대",
+      "제조업 가동률 상승세 지속",
+      "건설주 정부 SOC 투자 확대"
+    ],
+    bear: [
+      "중공업 업체 수주 경쟁 심화",
+      "제조업 원자재 가격 부담 확대",
+      "건설사 공사 지연 우려, 조정"
+    ],
+    strong_bear: [
+      "산업재 대기업 수주 급감 충격",
+      "중공업 경기 둔화 직격탄",
+      "건설업계 부실 우려 확산"
+    ]
+  },
+  MATERIALS: {
+    strong_bull: [
+      "철강 대기업 가격 상승, 급등세",
+      "화학 업체 제품 수요 급증",
+      "소재 기업 공급 부족 수혜"
+    ],
+    bull: [
+      "원자재 업계 수요 회복 기대",
+      "철강주 재고 감소, 상승 전환",
+      "화학 섹터 마진 개선 전망"
+    ],
+    bear: [
+      "소재 업계 원자재 가격 하락",
+      "철강 수요 둔화 우려, 조정",
+      "화학주 경쟁 심화, 약보합"
+    ],
+    strong_bear: [
+      "철강 대기업 수요 급감, 급락",
+      "화학 업계 재고 증가 부담",
+      "소재 섹터 경기 둔화 직격탄"
+    ]
+  },
+  REALESTATE: {
+    strong_bull: [
+      "부동산 대기업 분양 호조, 급등",
+      "건설사 수주 확대, 강세 지속",
+      "리츠 기업 배당 매력 부각"
+    ],
+    bull: [
+      "부동산 섹터 정책 기대감 확산",
+      "건설주 재건축 수요 증가",
+      "개발업체 프로젝트 진행 순조"
+    ],
+    bear: [
+      "부동산 규제 강화 우려, 조정",
+      "건설사 분양 부진 우려",
+      "리츠 금리 상승 부담, 약보합"
+    ],
+    strong_bear: [
+      "부동산 대기업 분양 급감 충격",
+      "건설업계 자금 압박 우려",
+      "개발업체 프로젝트 중단 리스크"
+    ]
+  },
+  UTILITIES: {
+    strong_bull: [
+      "공기업 배당 확대 기대, 급등",
+      "인프라 기업 정부 투자 확대",
+      "유틸리티 업체 안정적 수익 구조"
+    ],
+    bull: [
+      "공공 섹터 방어적 매수세 유입",
+      "인프라 주식 배당 매력 부각",
+      "유틸리티 안정적 실적 기대"
+    ],
+    bear: [
+      "공기업 요금 인상 제한 부담",
+      "인프라 기업 투자 지연 우려",
+      "유틸리티 규제 강화, 조정"
+    ],
+    strong_bear: [
+      "공기업 실적 악화 우려 확산",
+      "인프라 투자 축소 충격",
+      "유틸리티 섹터 정책 불확실성"
+    ]
+  },
+  COMMUNICATION: {
+    strong_bull: [
+      "통신 대기업 5G 투자 수혜, 급등",
+      "미디어 기업 광고 매출 증가",
+      "방송사 콘텐츠 수출 호조"
+    ],
+    bull: [
+      "통신주 배당 매력, 상승세",
+      "미디어 업계 구독자 증가 지속",
+      "방송 섹터 안정적 실적 유지"
+    ],
+    bear: [
+      "통신 업계 경쟁 심화, 조정",
+      "미디어 기업 광고 수익 감소",
+      "방송사 시청률 하락 우려"
+    ],
+    strong_bear: [
+      "통신 대기업 가입자 이탈 가속",
+      "미디어 업계 실적 악화 충격",
+      "방송 섹터 구조조정 우려"
+    ]
+  },
+  ENTERTAINMENT: {
+    strong_bull: [
+      "엔터 대기업 해외 진출 성공, 급등",
+      "게임사 신작 흥행, 강세 전환",
+      "콘텐츠 기업 IP 가치 상승"
+    ],
+    bull: [
+      "엔터 업계 한류 열풍 수혜",
+      "게임주 이용자 증가 지속",
+      "콘텐츠 섹터 해외 수출 확대"
+    ],
+    bear: [
+      "엔터 업계 경쟁 심화, 조정",
+      "게임사 신작 부진 우려",
+      "콘텐츠 기업 제작비 부담"
+    ],
+    strong_bear: [
+      "엔터 대기업 실적 쇼크, 급락",
+      "게임업계 규제 강화 충격",
+      "콘텐츠 섹터 수익성 악화"
+    ]
+  },
+  INDEX: {
+    strong_bull: [
+      "종합주가지수 강세, 시장 전반 상승",
+      "시장 대표 지수 급등, 투자심리 개선",
+      "지수 추종 상품 강세, 매수세 집중"
+    ],
+    bull: [
+      "종합지수 완만한 상승, 안정적 흐름",
+      "시장 지수 상승 전환, 긍정적 분위기",
+      "지수 상품 꾸준한 매수세 유입"
+    ],
+    bear: [
+      "종합지수 소폭 하락, 조정 국면",
+      "시장 지수 약보합, 관망세 지속",
+      "지수 상품 차익실현 매물 출회"
+    ],
+    strong_bear: [
+      "종합주가지수 급락, 시장 전반 약세",
+      "시장 대표 지수 하락폭 확대",
+      "지수 추종 상품 투자심리 악화"
+    ]
+  },
+  GOVERNMENT: {
+    strong_bull: [
+      "국채 가격 급등, 안전자산 선호 현상",
+      "정부 채권 수요 급증, 금리 하락",
+      "국채 시장 강세, 경기 둔화 우려"
+    ],
+    bull: [
+      "국채 안정적 상승, 안전 자산 매력",
+      "정부 채권 꾸준한 매수세",
+      "국채 금리 하락, 채권 가격 상승"
+    ],
+    bear: [
+      "국채 가격 조정, 금리 상승 압력",
+      "정부 채권 매도세, 약보합",
+      "국채 시장 변동성 확대"
+    ],
+    strong_bear: [
+      "국채 가격 급락, 금리 급등 충격",
+      "정부 채권 대량 매도, 약세 지속",
+      "국채 시장 불안, 투자 심리 악화"
+    ]
+  }
+};
+
 const _createCentralMarketNews = async () => {
   logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작");
   try {
@@ -188,76 +489,55 @@ const _createCentralMarketNews = async () => {
       return;
     }
 
-    const newsItems = [];
     const now = admin.firestore.Timestamp.now();
 
-    // 가격 변동이 큰 주식 찾기
+    const stocksBySector = {};
     for (const stockDoc of stocksSnapshot.docs) {
       const stockData = stockDoc.data();
-      const priceHistory = stockData.priceHistory || [];
-
-      if (priceHistory.length < 2) continue;
-
-      const currentPrice = priceHistory[priceHistory.length - 1];
-      const previousPrice = priceHistory[priceHistory.length - 2];
-      const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
-
-      // 5% 이상 변동 시 뉴스 생성
-      if (Math.abs(changePercent) >= 5) {
-        const isRise = changePercent > 0;
-        const newsTemplates = isRise ? [
-          `${stockData.name} 주가 급등! ${changePercent.toFixed(1)}% 상승`,
-          `${stockData.name}, 투자자들의 관심 집중으로 ${changePercent.toFixed(1)}% 급등세`,
-          `${stockData.name} 강세장 진입, ${changePercent.toFixed(1)}% 상승 기록`,
-        ] : [
-          `${stockData.name} 주가 급락, ${Math.abs(changePercent).toFixed(1)}% 하락`,
-          `${stockData.name} 투자 심리 악화로 ${Math.abs(changePercent).toFixed(1)}% 급락`,
-          `${stockData.name} 약세장 진입, ${Math.abs(changePercent).toFixed(1)}% 하락 기록`,
-        ];
-
-        const randomTemplate = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
-
-        newsItems.push({
-          title: randomTemplate,
-          content: `현재가: ${currentPrice.toLocaleString()}원`,
-          relatedStocks: [stockDoc.id],
-          isActive: true,
-          timestamp: now,
-          expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 후 만료
-          createdAt: now,
-        });
+      const sector = stockData.sector || "TECH";
+      if (!stocksBySector[sector]) {
+        stocksBySector[sector] = [];
       }
+      stocksBySector[sector].push(stockDoc.id);
     }
 
-    // 랜덤 일반 뉴스도 추가
-    if (Math.random() > 0.5) {
-      const generalNews = [
-        "오늘의 시장 전망: 투자자들의 신중한 접근 필요",
-        "글로벌 경제 동향이 국내 증시에 영향",
-        "전문가들 \"장기 투자 관점에서 접근해야\"",
-        "시장 변동성 확대, 분산 투자 권장",
-      ];
+    const newsItems = [];
+    const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
+    const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
+
+    for (let i = 0; i < 2; i++) {
+      const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
+      const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
+      const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
+      const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+
+      const relatedStockIds = stocksBySector[randomSector] || [];
+
+      logger.info(`[뉴스 생성] 랜덤 선택된 뉴스 ${i + 1}: ${randomSector} (${randomCategory}) - ${randomTemplate}`);
 
       newsItems.push({
-        title: generalNews[Math.floor(Math.random() * generalNews.length)],
-        content: "자세한 내용은 경제 전문가와 상담하세요.",
-        relatedStocks: [],
+        title: randomTemplate,
+        content: "투자 판단 시 신중한 분석이 필요합니다.",
+        relatedStocks: relatedStockIds,
+        category: randomCategory, // 주가 영향용 카테고리
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 60 * 60 * 1000), // 1시간 후 만료
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 3 * 60 * 1000), // 3분 후 만료
         createdAt: now,
       });
     }
 
-    // Firestore에 뉴스 추가
-    const batch = db.batch();
-    for (const news of newsItems) {
-      const newsRef = db.collection("CentralNews").doc();
-      batch.set(newsRef, news);
-    }
+    logger.info(`[뉴스 생성] 최종 생성될 뉴스 개수: ${newsItems.length}개`);
 
-    await batch.commit();
-    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
+    if (newsItems.length > 0) {
+      const batch = db.batch();
+      for (const news of newsItems) {
+        const newsRef = db.collection("CentralNews").doc();
+        batch.set(newsRef, news);
+      }
+      await batch.commit();
+      logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
+    }
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
   }
@@ -375,15 +655,58 @@ exports.runScheduler = onRequest({region: "asia-northeast3"}, async (req, res) =
   for (const task of tasks) {
     try {
       switch (task) {
+        case "updateCentralStockMarket":
+          await _updateCentralStockMarket();
+          break;
+        case "createCentralMarketNews":
+          await _createCentralMarketNews();
+          break;
+        case "cleanupExpiredCentralNews":
+          await _cleanupExpiredCentralNews();
+          break;
+        case "autoManageStocks":
+          await _autoManageStocks();
+          break;
+        case "aggregateActivityStats":
+          await _aggregateActivityStats();
+          break;
+        case "syncCentralNewsToClasses":
+          await _syncCentralNewsToClasses();
+          break;
+        case "cleanupExpiredClassNews":
+          await _cleanupExpiredClassNews();
+          break;
         case "resetDailyTasks":
           await _resetDailyTasks();
           break;
+        default:
+          logger.warn(`⚠️ 알 수 없는 작업: ${task}`);
       }
     } catch (error) {
       logger.error(`🚨 작업 '${task}' 실행 중 오류 발생:`, error);
     }
   }
   res.status(200).send({ message: "스케줄러 실행 완료" });
+});
+
+// 🔥 수동 테스트용 엔드포인트 (관리자 전용)
+exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("📈 [수동 실행] 주식 시장 업데이트 시작");
+
+  try {
+    await _updateCentralStockMarket();
+    await _createCentralMarketNews();
+
+    return {
+      success: true,
+      message: "주식 가격 업데이트 및 뉴스 생성 완료"
+    };
+  } catch (error) {
+    logger.error("❌ [수동 실행] 오류:", error);
+    throw new HttpsError("internal", error.message || "업데이트 실패");
+  }
 });
 
 exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
@@ -952,7 +1275,7 @@ exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request)
     // 2. 사용자 아이템 조회
     const userItemsSnapshot = await db.collection("users")
       .doc(uid)
-      .collection("items")
+      .collection("inventory")
       .get();
 
     const userItems = userItemsSnapshot.docs.map(doc => {
@@ -1037,7 +1360,7 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
 
   const userRef = db.collection("users").doc(uid);
   const itemRef = db.collection("storeItems").doc(itemId);
-  const userItemRef = userRef.collection("items").doc(itemId);
+  const userItemRef = userRef.collection("inventory").doc(itemId);
 
   try {
     // 먼저 데이터를 읽어서 검증
@@ -1127,7 +1450,7 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   }
 
   const userRef = db.collection("users").doc(uid);
-  const userItemRef = userRef.collection("items").doc(itemId);
+  const userItemRef = userRef.collection("inventory").doc(itemId);
 
   try {
     const result = await db.runTransaction(async (transaction) => {
@@ -1180,6 +1503,64 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   } catch (error) {
     logger.error(`[useUserItem] Error for user ${uid}:`, error);
     throw new HttpsError("aborted", error.message || "아이템 사용에 실패했습니다.");
+  }
+});
+
+exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
+  const {inventoryItemId, quantity, price} = request.data;
+
+  if (!inventoryItemId || !quantity || quantity <= 0 || !price || price <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 아이템 정보, 수량, 가격을 입력해야 합니다.");
+  }
+
+  const userItemRef = db.collection("users").doc(uid).collection("inventory").doc(inventoryItemId);
+  const marketListingsRef = db.collection("marketListings");
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const userItemDoc = await transaction.get(userItemRef);
+
+      if (!userItemDoc.exists) {
+        throw new Error("판매할 아이템을 인벤토리에서 찾을 수 없습니다.");
+      }
+
+      const itemData = userItemDoc.data();
+      const currentQuantity = itemData.quantity || 0;
+
+      if (currentQuantity < quantity) {
+        throw new Error(`아이템 수량이 부족합니다. (보유: ${currentQuantity}, 판매 요청: ${quantity})`);
+      }
+
+      // 인벤토리에서 아이템 수량 차감
+      const newQuantity = currentQuantity - quantity;
+      if (newQuantity > 0) {
+        transaction.update(userItemRef, {quantity: newQuantity});
+      } else {
+        transaction.delete(userItemRef);
+      }
+
+      // 새로운 마켓 리스팅 생성
+      const newListingRef = marketListingsRef.doc();
+      transaction.set(newListingRef, {
+        sellerId: uid,
+        sellerName: userData.name,
+        classCode: classCode,
+        itemId: itemData.itemId || inventoryItemId,
+        name: itemData.name,
+        icon: itemData.icon,
+        description: itemData.description,
+        quantity: quantity,
+        price: price,
+        status: "active",
+        listedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return {success: true, message: "아이템을 시장에 등록했습니다."};
+  } catch (error) {
+    logger.error(`[listUserItemForSale] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 판매 등록에 실패했습니다.");
   }
 });
 

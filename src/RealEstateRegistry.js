@@ -657,8 +657,9 @@ const RealEstateRegistry = () => {
         if (property.tenantId && property.rent > 0) {
           try {
             // Firestore 트랜잭션을 사용하여 데이터 일관성 보장
-            // 트랜잭션은 결과 객체를 반환하여 외부에서 처리하도록 함
+            // 🔥 중요: 트랜잭션 내에서 모든 읽기(get)를 먼저 수행하고, 그 다음 모든 쓰기(update)를 수행해야 함
             const result = await runTransaction(db, async (transaction) => {
+              // ===== 1단계: 모든 읽기 작업 수행 =====
               const tenantDocRef = doc(db, "users", property.tenantId);
               const tenantSnap = await transaction.get(tenantDocRef);
 
@@ -667,7 +668,8 @@ const RealEstateRegistry = () => {
                 console.warn(`세입자 ID ${property.tenantId}를 찾을 수 없습니다. 계약을 자동으로 해지합니다.`);
                 transaction.update(propDoc.ref, {
                   tenantId: null,
-                  rent: 0,
+                  tenant: null,
+                  tenantName: null,
                   lastRentPayment: null,
                   updatedAt: now,
                 });
@@ -681,7 +683,14 @@ const RealEstateRegistry = () => {
               const tenantData = tenantSnap.data();
               const rentAmount = property.rent;
 
-              // --- 💡 여기가 핵심 수정 로직입니다 ---
+              // 집주인 문서 미리 읽기 (쓰기 전에 모든 읽기 완료)
+              let ownerSnap = null;
+              if (property.owner !== "government" && property.owner !== property.tenantId) {
+                const ownerDocRef = doc(db, "users", property.owner);
+                ownerSnap = await transaction.get(ownerDocRef);
+              }
+
+              // ===== 2단계: 모든 쓰기 작업 수행 =====
               // 돈이 부족한 경우: 있는 돈만 모두 지불하고 미납 처리
               if (tenantData.cash < rentAmount) {
                 const amountPaid = tenantData.cash; // 실제 지불할 금액
@@ -693,19 +702,11 @@ const RealEstateRegistry = () => {
                 });
 
                 // 집주인에게 지불 (0원 이상일 때)
-                if (
-                  amountPaid > 0 &&
-                  property.owner !== "government" &&
-                  property.owner !== property.tenantId
-                ) {
-                  const ownerDocRef = doc(db, "users", property.owner);
-                  const ownerDoc = await transaction.get(ownerDocRef);
-                  if (ownerDoc.exists()) {
-                    transaction.update(ownerDocRef, {
-                      cash: increment(amountPaid),
-                      updatedAt: now,
-                    });
-                  }
+                if (amountPaid > 0 && ownerSnap && ownerSnap.exists()) {
+                  transaction.update(ownerSnap.ref, {
+                    cash: increment(amountPaid),
+                    updatedAt: now,
+                  });
                 }
 
                 // 부동산 납부일 갱신
@@ -720,7 +721,6 @@ const RealEstateRegistry = () => {
                   name: tenantData.name || `ID: ${property.tenantId}`,
                 };
               }
-              // --- 수정 로직 끝 ---
 
               // 돈이 충분한 경우: 정상 납부
               transaction.update(tenantDocRef, {
@@ -728,18 +728,11 @@ const RealEstateRegistry = () => {
                 updatedAt: now,
               });
 
-              if (
-                property.owner !== "government" &&
-                property.owner !== property.tenantId
-              ) {
-                const ownerDocRef = doc(db, "users", property.owner);
-                const ownerDoc = await transaction.get(ownerDocRef);
-                if (ownerDoc.exists()) {
-                  transaction.update(ownerDocRef, {
-                    cash: increment(rentAmount),
-                    updatedAt: now,
-                  });
-                }
+              if (ownerSnap && ownerSnap.exists()) {
+                transaction.update(ownerSnap.ref, {
+                  cash: increment(rentAmount),
+                  updatedAt: now,
+                });
               }
 
               transaction.update(propDoc.ref, {

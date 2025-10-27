@@ -110,7 +110,7 @@ export const ItemProvider = ({ children }) => {
 
   // Public refresh function
   const refreshData = useCallback(() => {
-    fetchData();
+    return fetchData();
   }, [fetchData]);
 
   // 🔥 로컬 상태 즉시 업데이트 함수 (Firestore 읽기 없이)

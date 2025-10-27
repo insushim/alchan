@@ -18,6 +18,8 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
+  updateDoc,
 } from "./firebase";
 
 const ITEM_DEFAULT_DURATION_MS = 5 * 60 * 1000;
@@ -70,6 +72,16 @@ const MyItems = () => {
   };
 
   const groupedUserItems = useMemo(() => {
+    console.log('[MyItems] 🔍 groupedUserItems 계산 시작, userItems:', {
+      개수: userItems?.length || 0,
+      처음5개: userItems?.slice(0, 5).map(item => ({
+        id: item.id,
+        itemId: item.itemId,
+        name: item.name,
+        quantity: item.quantity
+      }))
+    });
+
     if (!userItems || userItems.length === 0) {
       return [];
     }
@@ -171,6 +183,7 @@ const MyItems = () => {
   const [giftRecipientUid, setGiftRecipientUid] = useState("");
   const [giftQuantity, setGiftQuantity] = useState(1);
   const [isGifting, setIsGifting] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [sellToMarketModal, setSellToMarketModal] = useState({
     isOpen: false,
     item: null,
@@ -362,18 +375,85 @@ const MyItems = () => {
     });
 
     setIsGifting(true);
+    let originalUserItems;
     try {
-      const recipientInventoryRef = collection(db, "users", giftRecipientUid, "inventory");
-      const q = query(recipientInventoryRef, where("itemId", "==", group.displayInfo.itemId));
-      const recipientQuerySnapshot = await getDocs(q);
-      const recipientItemDocRef = recipientQuerySnapshot.empty ? null : recipientQuerySnapshot.docs[0].ref;
+      // 🔥 디버깅: inventory 컬렉션 전체 조회
+      const inventoryRef = collection(db, "users", user.uid, "inventory");
+      const allInventoryDocs = await getDocs(inventoryRef);
+      const actualDocs = allInventoryDocs.docs.map(doc => ({
+        id: doc.id,
+        itemId: doc.data().itemId,
+        name: doc.data().name,
+        quantity: doc.data().quantity
+      }));
 
-      console.log('[MyItems] 받는 사람 인벤토리 조회:', {
+      console.log('[MyItems] 🔍 실제 inventory 컬렉션 전체 조회:');
+      console.log('총문서수:', allInventoryDocs.size);
+      console.log('문서들:', actualDocs);
+
+      // itemId로 그룹핑
+      const itemIdGroups = {};
+      actualDocs.forEach(doc => {
+        const key = doc.itemId || doc.id;
+        if (!itemIdGroups[key]) itemIdGroups[key] = [];
+        itemIdGroups[key].push(doc.id);
+      });
+      console.log('[MyItems] itemId별 그룹:', itemIdGroups);
+
+      // 🔥 보내는 사람의 실제 아이템 문서를 Firestore에서 다시 조회
+      // group.sourceDocs에서 문서 ID 목록 가져오기
+      const docIds = group.sourceDocs.map(doc => doc.id);
+
+      console.log('[MyItems] 캐시된 문서 ID 목록:', docIds);
+
+      // 각 문서 ID로 직접 조회 (getDoc 사용)
+      const actualSourceDocs = [];
+      let actualTotalQuantity = 0;
+
+      for (const docId of docIds) {
+        const docRef = firebaseDoc(db, "users", user.uid, "inventory", docId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          actualSourceDocs.push({
+            id: docSnap.id,
+            ...data
+          });
+          actualTotalQuantity += (data.quantity || 0);
+          console.log('[MyItems] ✅ 문서 발견:', { id: docSnap.id, quantity: data.quantity });
+        } else {
+          console.warn('[MyItems] ⚠️ 문서 없음:', docId);
+        }
+      }
+
+      console.log('[MyItems] 보내는 사람 인벤토리 실제 조회 완료:', {
+        캐시문서수: group.sourceDocs.length,
+        실제문서수: actualSourceDocs.length,
+        실제총수량: actualTotalQuantity
+      });
+
+      if (actualSourceDocs.length === 0) {
+        throw new Error('보유 중인 아이템을 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+      }
+
+      if (actualTotalQuantity < quantity) {
+        throw new Error(`아이템 수량이 부족합니다. (필요: ${quantity}, 실제 보유: ${actualTotalQuantity})`);
+      }
+
+      // 🔥 받는 사람의 인벤토리 쿼리 (트랜잭션 외부에서 실행 - Firestore 제한사항)
+      const recipientInventoryRef = collection(db, "users", giftRecipientUid, "inventory");
+      const recipientQuery = query(recipientInventoryRef, where("itemId", "==", group.displayInfo.itemId));
+      const recipientQuerySnapshot = await getDocs(recipientQuery);
+
+      const recipientExistingDocRef = recipientQuerySnapshot.empty ? null : recipientQuerySnapshot.docs[0].ref;
+
+      console.log('[MyItems] 받는 사람 인벤토리 조회 (트랜잭션 외부):', {
         기존아이템존재: !recipientQuerySnapshot.empty,
         문서수: recipientQuerySnapshot.size
       });
 
-      const originalUserItems = [...userItems];
+      originalUserItems = [...userItems];
 
       const updatedUserItems = [];
       let remainingToDeduct = quantity;
@@ -397,24 +477,72 @@ const MyItems = () => {
         updateLocalUserItems(updatedUserItems);
       }
 
+      // 🔥 트랜잭션: 모든 읽기를 먼저 수행하고, 그 다음 모든 쓰기를 수행
       await runTransaction(db, async (transaction) => {
-        let remainingToSend = quantity;
-        for (const senderDoc of group.sourceDocs) {
-          if (remainingToSend <= 0) break;
+        // ===== 1단계: 모든 읽기 작업 =====
 
+        // 1-1. 보내는 사람의 아이템 문서들 읽기
+        const senderItemSnaps = [];
+        for (const senderDoc of actualSourceDocs) {
           const senderItemRef = firebaseDoc(db, "users", user.uid, "inventory", senderDoc.id);
           const senderItemSnap = await transaction.get(senderItemRef);
+
           if (!senderItemSnap.exists()) {
-            console.warn('[MyItems] 보내는 사람 아이템 문서가 존재하지 않음:', senderDoc.id);
-            continue;
+            console.error('[MyItems] ❌ 트랜잭션 중 아이템 문서가 사라짐:', senderDoc.id);
+            throw new Error('트랜잭션 중 아이템이 사라졌습니다. 다시 시도해주세요.');
           }
 
-          const amountFromThisDoc = Math.min(senderItemSnap.data().quantity, remainingToSend);
-          const newSenderQty = senderItemSnap.data().quantity - amountFromThisDoc;
+          const currentQuantity = senderItemSnap.data().quantity || 0;
+          if (currentQuantity <= 0) {
+            console.error('[MyItems] ❌ 트랜잭션 중 아이템 수량이 0:', senderDoc.id);
+            throw new Error('트랜잭션 중 아이템 수량이 변경되었습니다. 다시 시도해주세요.');
+          }
+
+          senderItemSnaps.push({
+            ref: senderItemRef,
+            snap: senderItemSnap,
+            quantity: currentQuantity
+          });
+        }
+
+        // 1-2. 받는 사람의 인벤토리 아이템 읽기 (트랜잭션 내부에서)
+        let recipientItemRef = null;
+        let recipientCurrentQuantity = 0;
+
+        if (recipientExistingDocRef) {
+          // 기존 아이템이 있는 경우, 트랜잭션 내에서 다시 읽기
+          recipientItemRef = recipientExistingDocRef;
+          const recipientSnap = await transaction.get(recipientItemRef);
+
+          if (recipientSnap.exists()) {
+            recipientCurrentQuantity = recipientSnap.data().quantity || 0;
+            console.log('[MyItems] 받는 사람 기존 아이템 발견:', {
+              문서ID: recipientItemRef.id,
+              현재수량: recipientCurrentQuantity
+            });
+          } else {
+            console.warn('[MyItems] ⚠️ 받는 사람의 기존 아이템이 사라짐, 새로 생성합니다.');
+            recipientItemRef = null;
+          }
+        } else {
+          console.log('[MyItems] 받는 사람에게 새 아이템 생성 예정');
+        }
+
+        // ===== 2단계: 모든 쓰기 작업 =====
+
+        let remainingToSend = quantity;
+        let processedAmount = 0;
+
+        // 2-1. 보내는 사람의 아이템 차감
+        for (const { ref: senderItemRef, quantity: currentQuantity } of senderItemSnaps) {
+          if (remainingToSend <= 0) break;
+
+          const amountFromThisDoc = Math.min(currentQuantity, remainingToSend);
+          const newSenderQty = currentQuantity - amountFromThisDoc;
 
           console.log('[MyItems] 아이템 차감:', {
-            문서ID: senderDoc.id,
-            기존수량: senderItemSnap.data().quantity,
+            문서ID: senderItemRef.id,
+            기존수량: currentQuantity,
             차감수량: amountFromThisDoc,
             남은수량: newSenderQty
           });
@@ -424,14 +552,32 @@ const MyItems = () => {
           } else {
             transaction.update(senderItemRef, { quantity: newSenderQty });
           }
+
           remainingToSend -= amountFromThisDoc;
+          processedAmount += amountFromThisDoc;
         }
 
-        if (recipientItemDocRef) {
-          console.log('[MyItems] 받는 사람 아이템 업데이트 (기존 아이템에 추가):', { 추가수량: quantity });
-          transaction.update(recipientItemDocRef, { quantity: increment(quantity) });
+        // 실제로 처리된 수량 확인
+        if (processedAmount < quantity) {
+          console.error('[MyItems] 처리된 수량 부족:', { 요청: quantity, 처리됨: processedAmount });
+          throw new Error(`아이템 수량이 부족합니다. (필요: ${quantity}, 실제 보유: ${processedAmount})`);
+        }
+
+        // 2-2. 받는 사람에게 아이템 추가
+        if (recipientItemRef) {
+          // 기존 아이템에 수량 추가
+          console.log('[MyItems] 받는 사람 아이템 업데이트 (기존 아이템에 추가):', {
+            기존수량: recipientCurrentQuantity,
+            추가수량: processedAmount,
+            최종수량: recipientCurrentQuantity + processedAmount
+          });
+          transaction.update(recipientItemRef, {
+            quantity: recipientCurrentQuantity + processedAmount,
+            updatedAt: serverTimestamp()
+          });
         } else {
-          console.log('[MyItems] 받는 사람 아이템 생성 (새 아이템):', { 수량: quantity });
+          // 새 아이템 생성
+          console.log('[MyItems] 받는 사람 아이템 생성 (새 아이템):', { 수량: processedAmount });
           const newRecipientItemRef = firebaseDoc(recipientInventoryRef);
           transaction.set(newRecipientItemRef, {
             itemId: group.displayInfo.itemId,
@@ -439,8 +585,9 @@ const MyItems = () => {
             icon: group.displayInfo.icon,
             description: group.displayInfo.description,
             type: group.displayInfo.type,
-            quantity,
+            quantity: processedAmount,
             receivedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           });
         }
       });
@@ -455,9 +602,29 @@ const MyItems = () => {
 
     } catch (error) {
       console.error('[MyItems] 선물하기 실패:', error);
-      showNotification("error", `선물하기 오류: ${error.message}`);
 
-      if (refreshData) await refreshData();
+      // 낙관적 업데이트 롤백
+      if (updateLocalUserItems && originalUserItems) {
+        console.log('[MyItems] 낙관적 업데이트 롤백 - 원래 상태로 복원');
+        updateLocalUserItems(originalUserItems);
+      }
+
+      // 데이터 동기화 후 에러 메시지 표시
+      showNotification("error", `선물하기 실패: ${error.message}`);
+
+      // 항상 데이터 새로고침
+      if (refreshData) {
+        console.log('[MyItems] 데이터 새로고침 시작');
+        try {
+          const result = refreshData();
+          if (result && typeof result.then === 'function') {
+            await result;
+          }
+          console.log('[MyItems] 데이터 새로고침 완료');
+        } catch (syncError) {
+          console.error("[MyItems] 데이터 새로고침 실패:", syncError);
+        }
+      }
     } finally {
       setIsGifting(false);
     }
@@ -470,13 +637,54 @@ const MyItems = () => {
       return;
     }
 
-    let remainingToSell = quantity;
-    const itemsToProcess = [...group.sourceDocs].sort((a,b) => a.quantity - b.quantity);
-
     try {
+      // 🔥 실제 Firestore에서 문서 다시 조회
+      const docIds = group.sourceDocs.map(doc => doc.id);
+      const actualSourceDocs = [];
+      let actualTotalQuantity = 0;
+
+      for (const docId of docIds) {
+        const docRef = firebaseDoc(db, "users", user.uid, "inventory", docId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          actualSourceDocs.push({
+            id: docSnap.id,
+            ...data
+          });
+          actualTotalQuantity += (data.quantity || 0);
+        }
+      }
+
+      console.log('[MyItems] 시장에 팔기 - 실제 조회:', {
+        요청수량: quantity,
+        실제보유: actualTotalQuantity,
+        문서수: actualSourceDocs.length
+      });
+
+      if (actualSourceDocs.length === 0) {
+        throw new Error('판매할 아이템을 찾을 수 없습니다. 페이지를 새로고침해주세요.');
+      }
+
+      if (actualTotalQuantity < quantity) {
+        throw new Error(`아이템 수량이 부족합니다. (필요: ${quantity}, 실제 보유: ${actualTotalQuantity})`);
+      }
+
+      // 실제 문서들로 판매 진행
+      let remainingToSell = quantity;
+      const itemsToProcess = [...actualSourceDocs].sort((a,b) => a.quantity - b.quantity);
+
       for(const doc of itemsToProcess) {
         if(remainingToSell <= 0) break;
         const amountToSell = Math.min(doc.quantity, remainingToSell);
+
+        // 🔥 FIX: 판매 전 description 필드가 undefined인 경우 빈 문자열로 업데이트
+        if (doc.description === undefined) {
+          console.warn(`[MyItems] 누락된 description 필드 수정: ${doc.id}`);
+          const itemRef = firebaseDoc(db, "users", user.uid, "inventory", doc.id);
+          await updateDoc(itemRef, { description: "" });
+        }
 
         const result = await listItemForSale({
           itemId: doc.id,
@@ -500,7 +708,28 @@ const MyItems = () => {
       }, 500);
 
     } catch(error) {
-      showNotification("error", `시장 판매 등록 중 오류: ${error.message}`);
+      console.error('[MyItems] 시장 판매 등록 실패:', error);
+
+      if (error.message.includes('아이템을 찾을 수 없') || error.message.includes('수량이 부족합니다')) {
+        showNotification("warning", "아이템 정보가 변경되었습니다. 데이터를 동기화합니다.");
+        setIsSyncing(true);
+        
+        if (refreshData) {
+            refreshData().then(() => {
+                showNotification("success", "동기화가 완료되었습니다. 다시 시도해주세요.");
+                setIsSyncing(false);
+            }).catch((syncError) => {
+                console.error("[MyItems] 데이터 동기화 실패:", syncError);
+                showNotification("error", "데이터 동기화에 실패했습니다.");
+                setIsSyncing(false);
+            });
+        } else {
+            showNotification("error", `오류가 발생했으며 데이터를 새로고칠 수 없습니다: ${error.message}`);
+            setIsSyncing(false);
+        }
+      } else {
+        showNotification("error", `시장 판매 등록 중 오류: ${error.message}`);
+      }
     }
   };
 
@@ -557,19 +786,19 @@ const MyItems = () => {
                         <div className="my-item-actions">
                           <button className="use-item-button" onClick={() => {
                             handleOpenUseItemModal(group);
-                          }}>사용하기</button>
+                          }} disabled={isSyncing}>사용하기</button>
                           <button
                             className="gift-item-button"
                             onClick={() => {
                               handleOpenGiftModal(group);
                             }}
-                            disabled={!classmates || classmates.length === 0}
+                            disabled={!classmates || classmates.length === 0 || isSyncing}
                           >
-                            선물하기
+                            {isSyncing ? '동기화 중' : '선물하기'}
                           </button>
                           <button className="sell-to-market-button" onClick={() => {
                             handleOpenSellToMarketModal(group);
-                          }}>시장에 팔기</button>
+                          }} disabled={isSyncing}>시장에 팔기</button>
                         </div>
                       </div>
                     </div>
@@ -640,8 +869,8 @@ const MyItems = () => {
             </div>
             <div className="myitems-modal-footer">
               <button onClick={handleCloseGiftModal} className="button-secondary">취소</button>
-              <button onClick={handleSendGift} className="button-primary" disabled={isGifting}>
-                {isGifting ? "선물하는 중..." : "선물하기"}
+              <button onClick={handleSendGift} className="button-primary" disabled={isGifting || isSyncing}>
+                {isGifting ? "선물하는 중..." : (isSyncing ? "동기화 중..." : "선물하기")}
               </button>
             </div>
           </div>
@@ -674,7 +903,9 @@ const MyItems = () => {
             </div>
             <div className="myitems-modal-footer">
               <button onClick={handleCloseSellToMarketModal} className="button-secondary">취소</button>
-              <button onClick={handleConfirmSellToMarket} className="button-primary sell-button">판매 등록</button>
+              <button onClick={handleConfirmSellToMarket} className="button-primary sell-button" disabled={isSyncing}>
+                {isSyncing ? '동기화 중...' : '판매 등록'}
+              </button>
             </div>
           </div>
         </div>

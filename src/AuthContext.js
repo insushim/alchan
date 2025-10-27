@@ -892,49 +892,38 @@ export const AuthProvider = ({ children }) => {
   // 🔥 낙관적 업데이트 함수 (Cloud Function 호출 시 즉시 UI 업데이트)
   const optimisticUpdate = useCallback(
     (updates) => {
-      if (!userDoc?.id) {
-        console.warn('[AuthContext] optimisticUpdate: userDoc가 없습니다');
-        return;
-      }
-
-      const updatedUserDoc = { ...userDoc };
-
-      Object.keys(updates).forEach(key => {
-        const value = updates[key];
-
-        // 숫자 증감 처리 (예: cash: -1000, coupons: +5)
-        if (typeof value === 'number') {
-          const currentValue = Number(userDoc[key]) || 0;
-          let newValue = currentValue + value;
-
-          // 쿠폰이나 현금이 음수가 되지 않도록 방지
-          if ((key === 'coupons' || key === 'cash') && newValue < 0) {
-            // 롤백 시 음수가 되는 것을 막기 위해 0으로 설정하거나,
-            // 혹은 이전 값으로 되돌리는 등의 처리를 할 수 있습니다.
-            // 여기서는 0으로 설정합니다.
-            newValue = 0;
-          }
-          
-          updatedUserDoc[key] = newValue;
-        } else {
-          // 직접 값 설정
-          updatedUserDoc[key] = value;
+      setUserDoc(currentUserDoc => {
+        if (!currentUserDoc?.id) {
+          console.warn('[AuthContext] optimisticUpdate: currentUserDoc is not available');
+          return currentUserDoc;
         }
-      });
 
-      // 즉시 상태 업데이트 (Firebase 응답 기다리지 않음)
-      setUserDoc(updatedUserDoc);
+        const updatedUserDoc = { ...currentUserDoc };
 
-      // 캐시도 업데이트
-      userDocCacheRef.current.set(userDoc.id, updatedUserDoc);
+        Object.keys(updates).forEach(key => {
+          const value = updates[key];
 
-      console.log('[AuthContext] 낙관적 업데이트 완료:', {
-        updates,
-        newCash: updatedUserDoc.cash,
-        newCoupons: updatedUserDoc.coupons
+          if (typeof value === 'number') {
+            const currentValue = Number(currentUserDoc[key]) || 0;
+            const newValue = currentValue + value;
+            updatedUserDoc[key] = newValue;
+          } else {
+            updatedUserDoc[key] = value;
+          }
+        });
+
+        userDocCacheRef.current.set(currentUserDoc.id, updatedUserDoc);
+
+        console.log('[AuthContext] 낙관적 업데이트 완료:', {
+          updates,
+          newCash: updatedUserDoc.cash,
+          newCoupons: updatedUserDoc.coupons
+        });
+
+        return updatedUserDoc;
       });
     },
-    [userDoc]
+    []
   );
 
   // Context value를 useMemo로 메모이제이션하여 불필요한 리렌더링 방지
