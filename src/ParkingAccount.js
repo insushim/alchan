@@ -176,7 +176,7 @@ const ICON_MAP = {
 };
 
 const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
-  const isMatured = product.maturityDate && isPast(product.maturityDate);
+  const isMatured = product.maturityDate && new Date() >= product.maturityDate;
   const daysRemaining = product.maturityDate ? Math.max(0, differenceInDays(product.maturityDate, new Date())) : 0;
   const dailyRate = product.rate; // 연이율을 일이율로 변환
 
