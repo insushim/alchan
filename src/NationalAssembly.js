@@ -43,6 +43,10 @@ const NationalAssembly = () => {
   const [localAdminSettings, setLocalAdminSettings] = useState(null);
   const [localGovSettings, setLocalGovSettings] = useState(null);
 
+  // 낙관적 업데이트를 위한 로컬 상태
+  const [optimisticVotes, setOptimisticVotes] = useState({});
+  const [optimisticUserVotes, setOptimisticUserVotes] = useState({});
+
   // 모달 상태 변경 감지를 위한 useEffect
   useEffect(() => {
     console.log("[NationalAssembly] showProposeLawModal 상태 변경:", showProposeLawModal);
@@ -318,6 +322,31 @@ const NationalAssembly = () => {
       alert("투표를 처리할 수 없습니다. (정보 부족)");
       return;
     }
+
+    // 중복 투표 체크 (낙관적 상태 또는 서버 상태)
+    const hasVotedOptimistic = optimisticUserVotes[lawId];
+    const hasVotedServer = userVotes[lawId];
+    if (!isAdmin() && (hasVotedOptimistic || hasVotedServer)) {
+      alert("이미 이 법안에 투표하셨습니다.");
+      return;
+    }
+
+    const law = laws.find(l => l.id === lawId);
+    if (!law) {
+      alert("법안을 찾을 수 없습니다.");
+      return;
+    }
+
+    // 낙관적 업데이트: 즉시 UI 업데이트
+    setOptimisticUserVotes(prev => ({ ...prev, [lawId]: voteType }));
+    setOptimisticVotes(prev => ({
+      ...prev,
+      [lawId]: {
+        approvals: (prev[lawId]?.approvals || law.approvals || 0) + (voteType === "approvals" ? 1 : 0),
+        disapprovals: (prev[lawId]?.disapprovals || law.disapprovals || 0) + (voteType === "disapprovals" ? 1 : 0),
+      }
+    }));
+
     const userVotesDocRefNode = doc(
       db,
       "classes",
@@ -329,7 +358,6 @@ const NationalAssembly = () => {
 
     try {
       await runTransaction(db, async (transaction) => {
-        // 트랜잭션 내에서 법안과 사용자 투표 정보를 모두 가져옵니다.
         const lawDoc = await transaction.get(lawRef);
         const userVotesDoc = await transaction.get(userVotesDocRefNode);
 
@@ -340,7 +368,7 @@ const NationalAssembly = () => {
         const lawData = lawDoc.data();
         const userVotesData = userVotesDoc.exists() ? userVotesDoc.data() : {};
 
-        // 트랜잭션 안에서 사용자가 이미 투표했는지 확인합니다.
+        // 재의결이 아닌 경우 중복 투표 확인
         if (!isAdmin() && userVotesData[lawId] && lawData.status !== "vetoed") {
           throw new Error("이미 이 법안에 투표하셨습니다.");
         }
@@ -364,7 +392,7 @@ const NationalAssembly = () => {
           updates[`voters.${currentUser.id}`] = voteType;
         }
 
-        // 법안 상태에 따라 로직을 적용하고, 투표 불가능한 상태면 에러를 발생시킵니다.
+        // 법안 상태에 따라 로직 적용
         if (lawData.status === "vetoed") {
           if (voteType === "approvals" && newApprovals >= vetoOverrideRequiredCount) {
             updates.status = "veto_overridden";
@@ -379,19 +407,33 @@ const NationalAssembly = () => {
             updates.status = "rejected";
           }
         } else {
-          // 이미 처리된 법안에 대한 투표 시도
           throw new Error("이미 처리되었거나 투표가 불가능한 법안입니다.");
         }
 
-        // 트랜잭션 내에서 업데이트를 실행합니다.
         transaction.update(lawRef, updates);
 
         if (!isAdmin()) {
           transaction.set(userVotesDocRefNode, { [lawId]: voteType }, { merge: true });
         }
       });
+
+      // 트랜잭션 성공 시 낙관적 업데이트 상태 정리 (서버 데이터로 대체됨)
+      // usePolling이 자동으로 최신 데이터를 가져올 것이므로 여기서는 별도 처리 불필요
     } catch (error) {
       console.error("Error voting on law:", error);
+
+      // 롤백: 낙관적 업데이트 취소
+      setOptimisticUserVotes(prev => {
+        const newState = { ...prev };
+        delete newState[lawId];
+        return newState;
+      });
+      setOptimisticVotes(prev => {
+        const newState = { ...prev };
+        delete newState[lawId];
+        return newState;
+      });
+
       alert(`투표 중 오류 발생: ${error.message || error}`);
     }
   };
@@ -411,6 +453,18 @@ const NationalAssembly = () => {
         lawId
       );
       try {
+        // 낙관적 업데이트 상태 초기화
+        setOptimisticVotes(prev => {
+          const newState = { ...prev };
+          delete newState[lawId];
+          return newState;
+        });
+        setOptimisticUserVotes(prev => {
+          const newState = { ...prev };
+          delete newState[lawId];
+          return newState;
+        });
+
         await updateDoc(lawDocRef, {
           approvals: 0,
           disapprovals: 0,
@@ -776,7 +830,7 @@ const NationalAssembly = () => {
                             <div className="vote-type approval">
                               찬성:{" "}
                               <span className="vote-number">
-                                {law.approvals || 0}
+                                {optimisticVotes[law.id]?.approvals ?? law.approvals ?? 0}
                               </span>
                               {/* ✨ 수정된 부분: 필요 투표 수 안내 문구 변경 */}
                               <span className="vote-required">
@@ -786,7 +840,7 @@ const NationalAssembly = () => {
                             <div className="vote-type disapproval">
                               반대:{" "}
                               <span className="vote-number">
-                                {law.disapprovals || 0}
+                                {optimisticVotes[law.id]?.disapprovals ?? law.disapprovals ?? 0}
                               </span>
                               <span className="vote-required">
                                 /{Math.ceil(adminSettings.totalStudents / 2)}{" "}
@@ -804,13 +858,13 @@ const NationalAssembly = () => {
                               <button
                                 onClick={() => handleVote(law.id, "approvals")}
                                 className={`vote-button approve ${
-                                  !isAdmin() && (userVotes[law.id] ||
+                                  !isAdmin() && (optimisticUserVotes[law.id] || userVotes[law.id] ||
                                   (law.voters && law.voters[currentUser?.id]))
                                     ? "voted"
                                     : ""
                                 }`}
                                 disabled={
-                                  !isAdmin() && (userVotes[law.id] ||
+                                  !isAdmin() && (optimisticUserVotes[law.id] || userVotes[law.id] ||
                                   (law.voters && law.voters[currentUser?.id]))
                                 }
                               >
@@ -821,13 +875,13 @@ const NationalAssembly = () => {
                                   handleVote(law.id, "disapprovals")
                                 }
                                 className={`vote-button disapprove ${
-                                  !isAdmin() && (userVotes[law.id] ||
+                                  !isAdmin() && (optimisticUserVotes[law.id] || userVotes[law.id] ||
                                   (law.voters && law.voters[currentUser?.id]))
                                     ? "voted"
                                     : ""
                                 }`}
                                 disabled={
-                                  !isAdmin() && (userVotes[law.id] ||
+                                  !isAdmin() && (optimisticUserVotes[law.id] || userVotes[law.id] ||
                                   (law.voters && law.voters[currentUser?.id]))
                                 }
                               >
@@ -969,7 +1023,7 @@ const NationalAssembly = () => {
                             <div className="vote-type approval">
                               찬성:{" "}
                               <span className="vote-number">
-                                {law.approvals || 0}
+                                {optimisticVotes[law.id]?.approvals ?? law.approvals ?? 0}
                               </span>
                               <span className="vote-required">
                                 /{governmentSettings.vetoOverrideRequired} 필요
@@ -982,14 +1036,16 @@ const NationalAssembly = () => {
                             <button
                               onClick={() => handleVote(law.id, "approvals")}
                               className={`vote-button approve ${
-                                !isAdmin() && (userVotes[law.id] === "approvals" ||
+                                !isAdmin() && (optimisticUserVotes[law.id] === "approvals" ||
+                                userVotes[law.id] === "approvals" ||
                                 (law.voters &&
                                   law.voters[currentUser?.id] === "approvals"))
                                   ? "voted"
                                   : ""
                               }`}
                               disabled={
-                                !isAdmin() && (userVotes[law.id] === "approvals" ||
+                                !isAdmin() && (optimisticUserVotes[law.id] === "approvals" ||
+                                userVotes[law.id] === "approvals" ||
                                 (law.voters &&
                                   law.voters[currentUser?.id] === "approvals"))
                               }
