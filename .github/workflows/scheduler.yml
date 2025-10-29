@@ -25,6 +25,11 @@ jobs:
 
           TASKS_ARRAY="["
 
+          # 시장 상황 업데이트 (5분마다)
+          if [ $(($MINUTE % 5)) -eq 0 ]; then
+            TASKS_ARRAY="${TASKS_ARRAY}\"updateMarketCondition\","
+          fi
+
           # 주식 시장 업데이트 (3분마다 항상 실행)
           TASKS_ARRAY="${TASKS_ARRAY}\"updateCentralStockMarket\",\"autoManageStocks\","
 
