@@ -1,5 +1,5 @@
 // src/Government.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import "./Government.css";
 import "./NationalAssembly.css"; // 법안 카드 스타일 재사용
 import NationalTaxService from "./NationalTaxService";
