@@ -619,6 +619,40 @@ const PoliceStation = () => {
     }
   }, [auth.loading, auth.classmates, classCode, currentUser, polledUsers, pollingUsersLoading]);
 
+  // Jobs polling - for police chief check
+  const jobsQuery = useMemo(() => {
+    if (!classCode) return null;
+    const jobsRef = collection(db, "jobs");
+    return query(jobsRef, where("classCode", "==", classCode));
+  }, [classCode]);
+
+  const { data: jobs, loading: jobsLoading } = usePolling(
+    async () => {
+      if (!jobsQuery) return [];
+      const snapshot = await getDocs(jobsQuery);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+    }
+  );
+
+  // Check if user is police chief
+  const isPoliceChief = useMemo(() => {
+    if (!currentUser?.selectedJobIds || !jobs) return false;
+    const selectedJobs = jobs.filter(job =>
+      currentUser.selectedJobIds.includes(job.id)
+    );
+    return selectedJobs.some(job => job.title === '경찰청장');
+  }, [currentUser?.selectedJobIds, jobs]);
+
+  const hasPoliceAdminRights = isSystemAdmin || isPoliceChief;
+
   // Treasury balance polling
   const treasuryRef = useMemo(() => {
     if (!classCode) return null;
@@ -685,40 +719,6 @@ const PoliceStation = () => {
       deps: [classCode],
     }
   );
-
-  // Jobs polling - for police chief check
-  const jobsQuery = useMemo(() => {
-    if (!classCode) return null;
-    const jobsRef = collection(db, "jobs");
-    return query(jobsRef, where("classCode", "==", classCode));
-  }, [classCode]);
-
-  const { data: jobs, loading: jobsLoading } = usePolling(
-    async () => {
-      if (!jobsQuery) return [];
-      const snapshot = await getDocs(jobsQuery);
-      return snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-    },
-    {
-      interval: 30000,
-      enabled: !!classCode,
-      deps: [classCode],
-    }
-  );
-
-  // Check if user is police chief
-  const isPoliceChief = useMemo(() => {
-    if (!currentUser?.selectedJobIds || !jobs) return false;
-    const selectedJobs = jobs.filter(job =>
-      currentUser.selectedJobIds.includes(job.id)
-    );
-    return selectedJobs.some(job => job.title === '경찰청장');
-  }, [currentUser?.selectedJobIds, jobs]);
-
-  const hasPoliceAdminRights = isSystemAdmin || isPoliceChief;
 
   // Custom report reasons polling
   const customReasonsDocRef = useMemo(() => {
