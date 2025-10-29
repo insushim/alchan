@@ -65,11 +65,10 @@ const batchDataLoader = {
   },
 
   _executeBatchLoad: async function(classCode, userId) {
-    const [stocks, portfolio, news, marketOpen, marketCondition] = await Promise.all([
+    const [stocks, portfolio, news, marketCondition] = await Promise.all([
       this._loadStocks(classCode),
       this._loadPortfolio(userId, classCode),
       this._loadNews(classCode),
-      this._loadMarketStatus(classCode),
       this._loadMarketCondition()
     ]);
 
@@ -77,7 +76,6 @@ const batchDataLoader = {
       stocks: stocks || [],
       portfolio: portfolio || [],
       news: news || [],
-      marketOpen: marketOpen || false,
       marketCondition: marketCondition || null,
       errors: []
     };
@@ -150,25 +148,6 @@ const batchDataLoader = {
     } catch (error) {
       console.error('[batchDataLoader] News load error:', error);
       return [];
-    }
-  },
-
-  _loadMarketStatus: async function(classCode) {
-    try {
-      // 현재 한국 시간 기준으로 요일과 시간 확인
-      const now = new Date();
-      const koreaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-      const day = koreaTime.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
-      const hour = koreaTime.getHours();
-
-      // 월요일(1) ~ 금요일(5), 8시~15시
-      const isWeekday = day >= 1 && day <= 5;
-      const isOpenHour = hour >= 8 && hour < 15;
-
-      return isWeekday && isOpenHour;
-    } catch (error) {
-      console.error('[batchDataLoader] Market status load error:', error);
-      return false;
     }
   },
 
@@ -601,6 +580,24 @@ const StockExchange = () => {
   // 🔥 fetching 상태를 ref로 관리 (무한 루프 방지)
   const isFetchingRef = useRef(false);
 
+  // 시장 개장 상태를 1분마다 확인하여 marketOpen 상태를 안정적으로 업데이트 (자동 폴링 시작 버그 수정)
+  useEffect(() => {
+    const checkMarketStatus = () => {
+      const now = new Date();
+      const koreaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+      const day = koreaTime.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
+      const hour = koreaTime.getHours();
+      const isWeekday = day >= 1 && day <= 5;
+      const isOpenHour = hour >= 8 && hour < 15;
+      setMarketOpen(isWeekday && isOpenHour);
+    };
+
+    checkMarketStatus(); // 초기 로드 시 즉시 확인
+    const interval = setInterval(checkMarketStatus, 60000); // 1분마다 확인
+
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     if (userDoc?.classCode) {
       setClassCode(userDoc.classCode);
@@ -659,7 +656,6 @@ const StockExchange = () => {
       setStocks(batchResult.stocks || []);
       setPortfolio(batchResult.portfolio || []);
       setNewsFeed(batchResult.news || []);
-      setMarketOpen(batchResult.marketOpen || false);
       if (batchResult.marketCondition) {
         setMarketCondition(batchResult.marketCondition);
       }
