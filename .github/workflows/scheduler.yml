@@ -2,8 +2,8 @@ name: Scheduled Tasks
 
 on:
   schedule:
-    # 주식 시장 업데이트 & 뉴스 생성 - 3분마다 (항상 실행)
-    - cron: '*/3 * * * *'
+    # 주식 시장 업데이트 & 뉴스 생성 - 5분마다 (GitHub Actions의 안정적인 최소 간격)
+    - cron: '*/5 * * * *'
 
   # 수동 실행 옵션
   workflow_dispatch:

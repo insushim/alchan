@@ -65,11 +65,12 @@ const batchDataLoader = {
   },
 
   _executeBatchLoad: async function(classCode, userId) {
-    const [stocks, portfolio, news, marketOpen] = await Promise.all([
+    const [stocks, portfolio, news, marketOpen, marketCondition] = await Promise.all([
       this._loadStocks(classCode),
       this._loadPortfolio(userId, classCode),
       this._loadNews(classCode),
-      this._loadMarketStatus(classCode)
+      this._loadMarketStatus(classCode),
+      this._loadMarketCondition()
     ]);
 
     return {
@@ -77,6 +78,7 @@ const batchDataLoader = {
       portfolio: portfolio || [],
       news: news || [],
       marketOpen: marketOpen || false,
+      marketCondition: marketCondition || null,
       errors: []
     };
   },
@@ -167,6 +169,21 @@ const batchDataLoader = {
     } catch (error) {
       console.error('[batchDataLoader] Market status load error:', error);
       return false;
+    }
+  },
+
+  _loadMarketCondition: async function() {
+    try {
+      const marketConditionRef = doc(db, "MarketCondition", "current");
+      const marketConditionDoc = await getDoc(marketConditionRef);
+
+      if (marketConditionDoc.exists()) {
+        return marketConditionDoc.data();
+      }
+      return null;
+    } catch (error) {
+      console.error('[batchDataLoader] Market condition load error:', error);
+      return null;
     }
   }
 };
@@ -643,6 +660,9 @@ const StockExchange = () => {
       setPortfolio(batchResult.portfolio || []);
       setNewsFeed(batchResult.news || []);
       setMarketOpen(batchResult.marketOpen || false);
+      if (batchResult.marketCondition) {
+        setMarketCondition(batchResult.marketCondition);
+      }
 
       lastFetchTimeRef.current.batchLoad = now;
       lastFetchTimeRef.current.stocks = now;
@@ -1110,6 +1130,46 @@ const StockExchange = () => {
                 )}
             </section>
 
+            {/* 시장 전체 상황 표시 */}
+            {marketCondition && marketCondition.name && (
+                <section className="market-condition-section" style={{
+                    background: marketCondition.impact > 0 ? 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)' :
+                                marketCondition.impact < 0 ? 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
+                                '#f5f5f5',
+                    border: `2px solid ${marketCondition.impact > 0 ? '#4caf50' : marketCondition.impact < 0 ? '#f44336' : '#9e9e9e'}`,
+                    borderRadius: '12px',
+                    padding: '16px',
+                    marginBottom: '20px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                }}>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                        <div>
+                            <h3 style={{
+                                margin: 0,
+                                fontSize: '1.2rem',
+                                color: marketCondition.impact > 0 ? '#2e7d32' : marketCondition.impact < 0 ? '#c62828' : '#424242',
+                                fontWeight: 'bold'
+                            }}>
+                                📊 시장 상황: {marketCondition.name}
+                            </h3>
+                            <p style={{margin: '8px 0 0 0', color: '#666', fontSize: '0.9rem'}}>
+                                {marketCondition.description}
+                            </p>
+                        </div>
+                        <div style={{
+                            fontSize: '2rem',
+                            fontWeight: 'bold',
+                            color: marketCondition.impact > 0 ? '#2e7d32' : marketCondition.impact < 0 ? '#c62828' : '#424242'
+                        }}>
+                            {marketCondition.impact > 0 ? '📈' : marketCondition.impact < 0 ? '📉' : '➡️'}
+                            <span style={{fontSize: '1.5rem', marginLeft: '8px'}}>
+                                {marketCondition.impact > 0 ? '+' : ''}{(marketCondition.impact * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                    </div>
+                </section>
+            )}
+
             <section className="news-section">
                 <div className="news-header" onClick={() => setShowNews(!showNews)}>
                     <h3 className="news-title">📰 최신 뉴스</h3>
@@ -1170,7 +1230,6 @@ const StockExchange = () => {
                 <div className="section-header">
                     <h2 className="section-title">📈 투자 시장</h2>
                     <div className="update-indicator">
-                        <span>종합지수: {marketCondition.index} {marketCondition.trend === 'bull' ? '📼' : marketCondition.trend === 'bear' ? '📽' : ''}</span>
                         <button onClick={handleManualRefresh} disabled={isFetching} className="btn btn-secondary" style={{padding: '4px 8px', fontSize: '0.75rem'}}>
                             <RefreshCw size={12} />
                             {isFetching ? '갱신중...' : '새로고침'}

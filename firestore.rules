@@ -191,6 +191,14 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 📊 시장 상황 (MarketCondition)
+    // ========================================================
+    match /MarketCondition/{conditionId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ========================================================
     // 🏪 상점 아이템 (storeItems)
     // ========================================================
     match /storeItems/{itemId} {
