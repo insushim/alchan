@@ -2,30 +2,8 @@ name: Scheduled Tasks
 
 on:
   schedule:
-    # 주식 시장 업데이트 & 뉴스 생성 - 5분마다 (평일 8시-15시 KST = 23시-6시 UTC 전날)
-    - cron: '*/5 23-23 * * 0-4'  # 평일 저녁 (다음날 08시 KST)
-    - cron: '*/5 0-5 * * 1-5'    # 평일 아침 (당일 09-14시 KST)
-
-    # 통계 집계 - 10분마다
-    - cron: '*/10 * * * *'
-
-    # 매일 자정 KST (15시 UTC 전날)
-    - cron: '0 15 * * *'
-
-    # 매주 월요일 8:30 KST (23:30 UTC 일요일)
-    - cron: '30 23 * * 0'
-
-    # 매주 금요일 8:30 KST (23:30 UTC 목요일)
-    - cron: '30 23 * * 4'
-
-    # 매일 아침 8시 KST (23시 UTC 전날)
-    - cron: '0 23 * * *'
-
-    # 시장 개장 - 평일 8시 KST (23시 UTC 전날)
-    - cron: '0 23 * * 0-4'
-
-    # 시장 폐장 - 평일 15시 KST (6시 UTC)
-    - cron: '0 6 * * 1-5'
+    # 주식 시장 업데이트 & 뉴스 생성 - 3분마다 (항상 실행)
+    - cron: '*/3 * * * *'
 
   # 수동 실행 옵션
   workflow_dispatch:
@@ -38,39 +16,23 @@ jobs:
       - name: Determine tasks to run
         id: tasks
         run: |
+          MINUTE=$(date -u +%M)
           HOUR=$(date -u +%H)
           DAY=$(date -u +%u)
-          MINUTE=$(date -u +%M)
 
           # KST 시간 계산 (UTC + 9)
           KST_HOUR=$(( (HOUR + 9) % 24 ))
 
           TASKS_ARRAY="["
 
-          # 주식 시장 업데이트 (평일 8-15시 KST, 5분마다)
-          if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"updateCentralStockMarket\",\"autoManageStocks\","
-          fi
+          # 주식 시장 업데이트 (3분마다 항상 실행)
+          TASKS_ARRAY="${TASKS_ARRAY}\"updateCentralStockMarket\",\"autoManageStocks\","
 
-          # 뉴스 생성 (평일 8-15시 KST, 5분마다)
-          if [ $DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ] && [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"createCentralMarketNews\","
-          fi
+          # 뉴스 생성 (3분마다 항상 실행)
+          TASKS_ARRAY="${TASKS_ARRAY}\"createCentralMarketNews\","
 
-          # 뉴스 정리 (5분마다)
-          if [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredCentralNews\",\"syncCentralNewsToClasses\","
-          fi
-
-          # 클래스 뉴스 정리 (10분마다)
-          if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredClassNews\","
-          fi
-
-          # 통계 집계 (10분마다)
-          if [ $(($MINUTE % 10)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"aggregateActivityStats\","
-          fi
+          # 뉴스 정리 (3분마다 항상 실행)
+          TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredCentralNews\","
 
           # 일일 작업 리셋 (자정 KST)
           if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 10 ]; then
