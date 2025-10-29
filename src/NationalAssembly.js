@@ -326,49 +326,45 @@ const NationalAssembly = () => {
       currentUser.id
     );
     const lawRef = doc(db, "classes", classCode, "nationalAssemblyLaws", lawId);
-    const currentLaw = laws.find((l) => l.id === lawId);
-
-    if (
-      !isAdmin() &&
-      ((currentLaw?.voters &&
-        currentLaw.voters[currentUser.id] &&
-        currentLaw.status !== "vetoed") ||
-        (userVotes[lawId] && currentLaw.status !== "vetoed"))
-    ) {
-      alert("이미 이 법안에 투표하셨습니다.");
-      return;
-    }
 
     try {
       await runTransaction(db, async (transaction) => {
+        // 트랜잭션 내에서 법안과 사용자 투표 정보를 모두 가져옵니다.
         const lawDoc = await transaction.get(lawRef);
+        const userVotesDoc = await transaction.get(userVotesDocRefNode);
+
         if (!lawDoc.exists()) {
           throw new Error("법안이 존재하지 않습니다.");
         }
-        
-        const lawData = lawDoc.data();
-        const totalStudents = adminSettings.totalStudents;
-        const halfStudents = Math.ceil(totalStudents / 2); // 부결 처리를 위해 과반수는 유지
-        const vetoOverrideRequiredCount = governmentSettings.vetoOverrideRequired;
-        
-        // 현재 투표 수에 1을 더해 새로운 투표 수를 미리 계산합니다.
-        const newApprovals = (lawData.approvals || 0) + (voteType === 'approvals' ? 1 : 0);
-        const newDisapprovals = (lawData.disapprovals || 0) + (voteType === 'disapprovals' ? 1 : 0);
 
-        // 업데이트할 데이터를 준비합니다.
-        const updates = { updatedAt: serverTimestamp() };
-        
-        if(voteType === 'approvals') {
-            updates.approvals = increment(1);
-        } else {
-            updates.disapprovals = increment(1);
+        const lawData = lawDoc.data();
+        const userVotesData = userVotesDoc.exists() ? userVotesDoc.data() : {};
+
+        // 트랜잭션 안에서 사용자가 이미 투표했는지 확인합니다.
+        if (!isAdmin() && userVotesData[lawId] && lawData.status !== "vetoed") {
+          throw new Error("이미 이 법안에 투표하셨습니다.");
         }
-        
+
+        const totalStudents = adminSettings.totalStudents;
+        const halfStudents = Math.ceil(totalStudents / 2);
+        const vetoOverrideRequiredCount = governmentSettings.vetoOverrideRequired;
+
+        const newApprovals = (lawData.approvals || 0) + (voteType === "approvals" ? 1 : 0);
+        const newDisapprovals = (lawData.disapprovals || 0) + (voteType === "disapprovals" ? 1 : 0);
+
+        const updates = { updatedAt: serverTimestamp() };
+
+        if (voteType === "approvals") {
+          updates.approvals = increment(1);
+        } else {
+          updates.disapprovals = increment(1);
+        }
+
         if (!isAdmin()) {
           updates[`voters.${currentUser.id}`] = voteType;
         }
 
-        // 법안 상태에 따라 상태 변경 로직을 적용합니다.
+        // 법안 상태에 따라 로직을 적용하고, 투표 불가능한 상태면 에러를 발생시킵니다.
         if (lawData.status === "vetoed") {
           if (voteType === "approvals" && newApprovals >= vetoOverrideRequiredCount) {
             updates.status = "veto_overridden";
@@ -376,27 +372,22 @@ const NationalAssembly = () => {
             updates.finalApprovalDate = serverTimestamp();
           }
         } else if (["pending", "rejected", "auto_rejected"].includes(lawData.status)) {
-          // ✨✨✨ 핵심 수정 부분: 찬성 13표 이상이면 정부로 이송합니다. ✨✨✨
           if (voteType === "approvals" && newApprovals >= 13) {
             updates.status = "pending_government_approval";
             updates.approvalDate = serverTimestamp();
           } else if (voteType === "disapprovals" && newDisapprovals >= halfStudents) {
-            // 반대가 과반수 이상이면 부결 처리
             updates.status = "rejected";
           }
         } else {
-          // 투표가 불가능한 상태이므로 아무 작업도 하지 않고 종료합니다.
-          console.log("이미 처리되었거나 투표가 불가능한 법안입니다.");
-          return;
+          // 이미 처리된 법안에 대한 투표 시도
+          throw new Error("이미 처리되었거나 투표가 불가능한 법안입니다.");
         }
 
-        // 트랜잭션 내에서 법안 문서를 업데이트합니다.
+        // 트랜잭션 내에서 업데이트를 실행합니다.
         transaction.update(lawRef, updates);
 
-        // 관리자가 아닌 경우에만 사용자 투표 이력을 기록합니다.
         if (!isAdmin()) {
-          const userVoteData = { [lawId]: voteType };
-          transaction.set(userVotesDocRefNode, userVoteData, { merge: true });
+          transaction.set(userVotesDocRefNode, { [lawId]: voteType }, { merge: true });
         }
       });
     } catch (error) {
