@@ -28,6 +28,31 @@ import {
 const NationalAssembly = () => {
   const { userDoc: currentUser, loading: authLoading, isAdmin } = useAuth();
 
+  const { data: jobs } = usePolling(
+    async () => {
+      if (!currentUser?.classCode) return [];
+      const jobsRef = collection(db, "jobs");
+      const q = query(jobsRef, where("classCode", "==", currentUser.classCode));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    {
+      interval: 60000,
+      enabled: !!currentUser?.classCode,
+      deps: [currentUser?.classCode],
+    }
+  );
+
+  const canProposeLaw = useCallback(() => {
+    if (isAdmin()) return true;
+    if (!currentUser?.selectedJobIds || !jobs || jobs.length === 0) return false;
+    const selectedJobs = jobs.filter(job => currentUser.selectedJobIds.includes(job.id));
+    return selectedJobs.some(job => job.title === '국회의원');
+  }, [isAdmin, currentUser, jobs]);
+
   const classCode = currentUser?.classCode;
 
   const [activeTab, setActiveTab] = useState("propose");
@@ -777,19 +802,21 @@ const NationalAssembly = () => {
       <div className="assembly-content">
         {activeTab === "propose" && (
           <>
-            <div className="content-actions">
-              <button
-                onClick={() => {
-                  console.log("[NationalAssembly] 새 법안 제안하기 버튼 클릭됨");
-                  console.log("[NationalAssembly] showProposeLawModal:", showProposeLawModal);
-                  setShowProposeLawModal(true);
-                  console.log("[NationalAssembly] setShowProposeLawModal(true) 호출 완료");
-                }}
-                className="action-button propose-button"
-              >
-                새 법안 제안하기
-              </button>
-            </div>
+            {canProposeLaw() && (
+              <div className="content-actions">
+                <button
+                  onClick={() => {
+                    console.log("[NationalAssembly] 새 법안 제안하기 버튼 클릭됨");
+                    console.log("[NationalAssembly] showProposeLawModal:", showProposeLawModal);
+                    setShowProposeLawModal(true);
+                    console.log("[NationalAssembly] setShowProposeLawModal(true) 호출 완료");
+                  }}
+                  className="action-button propose-button"
+                >
+                  새 법안 제안하기
+                </button>
+              </div>
+            )}
             {sortedLaws.length === 0 ? (
               <div className="empty-state">
                 아직 등록되거나 심의중인 법안이 없습니다. 새 법안을

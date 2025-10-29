@@ -38,13 +38,31 @@ const LawManagement = ({ classCode }) => {
   const [laws, setLaws] = useState([]);
   const { isAdmin, userDoc } = useAuth();
 
+  const { data: jobs } = usePolling(
+    async () => {
+      if (!classCode) return [];
+      const jobsRef = collection(db, "jobs");
+      const q = query(jobsRef, where("classCode", "==", classCode));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    {
+      interval: 60000,
+      enabled: !!classCode,
+      deps: [classCode],
+    }
+  );
+
   // 대통령 또는 관리자 권한 확인 함수
-  const canManageLaws = () => {
-    return isAdmin() ||
-           (userDoc && userDoc.job === "대통령") ||
-           (userDoc && userDoc.jobTitle === "대통령") ||
-           (userDoc && userDoc.jobName === "대통령");
-  };
+  const canManageLaws = useCallback(() => {
+    if (isAdmin()) return true;
+    if (!userDoc?.selectedJobIds || !jobs || jobs.length === 0) return false;
+    const selectedJobs = jobs.filter(job => userDoc.selectedJobIds.includes(job.id));
+    return selectedJobs.some(job => job.title === '대통령');
+  }, [isAdmin, userDoc, jobs]);
 
   // 법안 데이터 가져오기 함수
   const fetchLaws = async () => {
