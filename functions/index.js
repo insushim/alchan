@@ -178,8 +178,47 @@ const _updateCentralStockMarket = async () => {
 
 const _autoManageStocks = async () => {
   logger.info("🔄 [스케줄러] 자동 주식 상장/폐지 관리 시작");
-  // 현재는 수동으로 관리하므로 비워둠
-  // 필요시 나중에 구현
+  try {
+    const stocksSnapshot = await db.collection("CentralStocks").where("isListed", "===", true).get();
+
+    if (stocksSnapshot.empty) {
+      logger.info("상장된 주식이 없습니다.");
+      return;
+    }
+
+    const batch = db.batch();
+    let managedCount = 0;
+
+    for (const stockDoc of stocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+      const currentPrice = stockData.price || 0;
+      const minPrice = stockData.minListingPrice || 0;
+      const initialPrice = stockData.initialPrice || stockData.minListingPrice || 1000;
+
+      if (minPrice > 0 && currentPrice <= minPrice) {
+        logger.info(`[자동 관리] ${stockData.name} 주식이 최소 상장가 (${minPrice}원)에 도달하여 재상장합니다. 현재가: ${currentPrice}원`);
+
+        const priceHistory = stockData.priceHistory || [];
+        const updatedHistory = [...priceHistory.slice(-19), initialPrice];
+
+        batch.update(stockDoc.ref, {
+          price: initialPrice,
+          priceHistory: updatedHistory,
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        managedCount++;
+      }
+    }
+
+    if (managedCount > 0) {
+      await batch.commit();
+      logger.info(`✅ ${managedCount}개 주식 자동 재상장 완료`);
+    } else {
+      logger.info("재상장할 주식이 없습니다.");
+    }
+  } catch (error) {
+    logger.error("❌ 자동 주식 상장/폐지 중 오류:", error);
+  }
 };
 
 const _aggregateActivityStats = async () => {
@@ -647,22 +686,7 @@ const _resetDailyTasks = async () => {
   }
 };
 
-exports.scheduledStockUpdate = onSchedule({
-  schedule: "*/5 8-15 * * 1-5",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  await _updateCentralStockMarket();
-});
 
-exports.scheduledNewsUpdate = onSchedule({
-  schedule: "*/3 8-15 * * 1-5",
-  timeZone: "Asia/Seoul",
-  region: "asia-northeast3",
-}, async (event) => {
-  await _createCentralMarketNews();
-  await _cleanupExpiredCentralNews();
-});
 
 exports.runScheduler = onRequest({region: "asia-northeast3"}, async (req, res) => {
   const tasks = req.body.tasks;

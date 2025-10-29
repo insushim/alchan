@@ -2,7 +2,7 @@ name: Scheduled Tasks
 
 on:
   schedule:
-    # 주식 시장 업데이트 & 뉴스 생성 - 5분마다 (GitHub Actions의 안정적인 최소 간격)
+    # 5분마다 실행 (GitHub Actions의 안정적인 최소 간격)
     - cron: '*/5 * * * *'
 
   # 수동 실행 옵션
@@ -18,43 +18,40 @@ jobs:
         run: |
           MINUTE=$(date -u +%M)
           HOUR=$(date -u +%H)
-          DAY=$(date -u +%u)
+          DAY=$(date -u +%u) # 1=Monday, 7=Sunday
 
-          # KST 시간 계산 (UTC + 9)
+          # KST 시간 및 요일 계산 (UTC+9)
           KST_HOUR=$(( (HOUR + 9) % 24 ))
-
-          TASKS_ARRAY="["
-
-          # 시장 상황 업데이트 (5분마다)
-          if [ $(($MINUTE % 5)) -eq 0 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"updateMarketCondition\","
-          fi
-
-          # 주식 시장 업데이트 (3분마다 항상 실행)
-          TASKS_ARRAY="${TASKS_ARRAY}\"updateCentralStockMarket\",\"autoManageStocks\","
-
-          # 뉴스 생성 (3분마다 항상 실행)
-          TASKS_ARRAY="${TASKS_ARRAY}\"createCentralMarketNews\","
-
-          # 뉴스 정리 (3분마다 항상 실행)
-          TASKS_ARRAY="${TASKS_ARRAY}\"cleanupExpiredCentralNews\","
-
-          # 일일 작업 리셋 (자정 KST)
-          if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 10 ]; then
-            TASKS_ARRAY="${TASKS_ARRAY}\"resetDailyTasks\","
-          fi
-
-          # Remove trailing comma and close array
-          if [ "$TASKS_ARRAY" != "[" ]; then
-            TASKS_ARRAY="${TASKS_ARRAY%,}]"
+          if [ $HOUR -ge 15 ]; then
+            KST_DAY=$(( (DAY % 7) + 1 ))
           else
+            KST_DAY=$DAY
+          fi
+
+          TASKS=""
+          IS_MARKET_HOURS=false
+
+          # 평일(월-금, 1-5) 8시-15시 KST 체크
+          if [ $KST_DAY -ge 1 ] && [ $KST_DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ]; then
+            IS_MARKET_HOURS=true
+            TASKS="updateCentralStockMarket","autoManageStocks","createCentralMarketNews","cleanupExpiredCentralNews"
+          fi
+
+          # 일일 작업 리셋 (매일 자정 KST 부근)
+          if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 5 ]; then
+            if [ -n "$TASKS" ]; then TASKS="$TASKS,"; fi
+            TASKS="$TASKS "resetDailyTasks"
+          fi
+
+          TASKS_ARRAY="[${TASKS}]"
+          if [ -z "$TASKS" ]; then
             TASKS_ARRAY="[]"
           fi
 
-          echo "tasks<<EOF" >> $GITHUB_OUTPUT
-          echo "$TASKS_ARRAY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          echo "실행할 작업: $TASKS_ARRAY"
+          echo "tasks=${TASKS_ARRAY}" >> $GITHUB_OUTPUT
+          echo "KST Time: ${KST_HOUR}:${MINUTE} (Day: ${KST_DAY})"
+          echo "Is Market Hours: $IS_MARKET_HOURS"
+          echo "Tasks to run: $TASKS_ARRAY"
 
       - name: Call Firebase Function
         if: steps.tasks.outputs.tasks != '[]'
@@ -66,5 +63,5 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${AUTH_TOKEN}" \
-            -d "{\"tasks\": ${TASKS_JSON}}" \
+            -d "{{\"tasks\": ${TASKS_JSON}}}" \
             "https://asia-northeast3-${PROJECT_ID}.cloudfunctions.net/runScheduler"
