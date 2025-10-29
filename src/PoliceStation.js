@@ -505,8 +505,6 @@ const PoliceStation = () => {
     : auth.isAdmin
     ? auth.isAdmin()
     : currentUser?.isAdmin || false;
-   const isPoliceChief = currentUser?.job === '경찰청장' || currentUser?.jobName === '경찰청장';
-  const hasPoliceAdminRights = isSystemAdmin || isPoliceChief;
 
   const [activeTab, setActiveTab] = useState("submit");
   const [previousTab, setPreviousTab] = useState("submit");
@@ -687,6 +685,40 @@ const PoliceStation = () => {
       deps: [classCode],
     }
   );
+
+  // Jobs polling - for police chief check
+  const jobsQuery = useMemo(() => {
+    if (!classCode) return null;
+    const jobsRef = collection(db, "jobs");
+    return query(jobsRef, where("classCode", "==", classCode));
+  }, [classCode]);
+
+  const { data: jobs, loading: jobsLoading } = usePolling(
+    async () => {
+      if (!jobsQuery) return [];
+      const snapshot = await getDocs(jobsQuery);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+    }
+  );
+
+  // Check if user is police chief
+  const isPoliceChief = useMemo(() => {
+    if (!currentUser?.selectedJobIds || !jobs) return false;
+    const selectedJobs = jobs.filter(job =>
+      currentUser.selectedJobIds.includes(job.id)
+    );
+    return selectedJobs.some(job => job.title === '경찰청장');
+  }, [currentUser?.selectedJobIds, jobs]);
+
+  const hasPoliceAdminRights = isSystemAdmin || isPoliceChief;
 
   // Custom report reasons polling
   const customReasonsDocRef = useMemo(() => {
@@ -1248,6 +1280,7 @@ const PoliceStation = () => {
     (usersLoading ||
       treasuryLoading ||
       lawsLoading ||
+      jobsLoading ||
       reasonsLoading ||
       reportsLoading)
   ) {
@@ -1255,6 +1288,7 @@ const PoliceStation = () => {
     if (usersLoading) loadingMessages.push("학급 사용자");
     if (treasuryLoading) loadingMessages.push("국고");
     if (lawsLoading) loadingMessages.push("법안");
+    if (jobsLoading) loadingMessages.push("직업");
     if (reasonsLoading) loadingMessages.push("신고 사유");
     if (reportsLoading) loadingMessages.push("신고 내역");
     return (
@@ -1415,6 +1449,7 @@ const PoliceStation = () => {
             reportsLoading ||
             treasuryLoading ||
             lawsLoading ||
+            jobsLoading ||
             reasonsLoading))) && (
         <div className="loading-overlay-transparent">데이터 동기화 중...</div>
       )}

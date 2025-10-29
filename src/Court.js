@@ -1,5 +1,5 @@
 // src/Court.js
-import React, { useState, useEffect, useContext } from "react";
+import React, { useState, useEffect, useContext, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
 import {
@@ -445,18 +445,10 @@ const Court = () => {
   const currentUserDoc = auth?.userDoc;
   const currentUserId = currentUserDoc?.id;
   const classCode = currentUserDoc?.classCode;
-  
+
   const isAdmin = auth?.isAdmin
     ? auth.isAdmin()
     : currentUserDoc?.isAdmin || currentUserDoc?.id === "admin1";
-
-  const hasProsecutorPrivileges =
-    isAdmin || currentUserDoc?.jobName === "검찰총장";
-
-  const hasJudgePrivileges = 
-    isAdmin || currentUserDoc?.jobName === "판사";
-  
-  const hasAdminPrivileges = hasJudgePrivileges;
 
   const [activeTab, setActiveTab] = useState("submit");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -532,6 +524,51 @@ const Court = () => {
     },
     { interval: 30000, enabled: !!classCode, deps: [classCode] }
   );
+
+  // Jobs polling - for prosecutor check
+  const jobsQuery = useMemo(() => {
+    if (!classCode) return null;
+    const jobsRef = collection(db, "jobs");
+    return query(jobsRef, where("classCode", "==", classCode));
+  }, [classCode]);
+
+  const { data: jobs, loading: jobsLoading } = usePolling(
+    async () => {
+      if (!jobsQuery) return [];
+      const snapshot = await getDocs(jobsQuery);
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    },
+    {
+      interval: 30000,
+      enabled: !!classCode,
+      deps: [classCode],
+    }
+  );
+
+  // Check if user is prosecutor
+  const isProsecutor = useMemo(() => {
+    if (!currentUserDoc?.selectedJobIds || !jobs) return false;
+    const selectedJobs = jobs.filter(job =>
+      currentUserDoc.selectedJobIds.includes(job.id)
+    );
+    return selectedJobs.some(job => job.title === '검찰총장');
+  }, [currentUserDoc?.selectedJobIds, jobs]);
+
+  // Check if user is judge
+  const isJudge = useMemo(() => {
+    if (!currentUserDoc?.selectedJobIds || !jobs) return false;
+    const selectedJobs = jobs.filter(job =>
+      currentUserDoc.selectedJobIds.includes(job.id)
+    );
+    return selectedJobs.some(job => job.title === '판사');
+  }, [currentUserDoc?.selectedJobIds, jobs]);
+
+  const hasProsecutorPrivileges = isAdmin || isProsecutor;
+  const hasJudgePrivileges = isAdmin || isJudge;
+  const hasAdminPrivileges = hasJudgePrivileges;
 
   const handleAddComplaint = async (newComplaintData) => {
     if (!currentUserId || !classCode) {
@@ -1069,7 +1106,7 @@ const Court = () => {
     }
   };
 
-  if (auth.loading || usersLoading) {
+  if (auth.loading || usersLoading || jobsLoading) {
     return <div className="court-container loading">사용자 정보를 불러오는 중...</div>;
   }
   if (!currentUserDoc) {
