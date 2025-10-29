@@ -160,6 +160,10 @@ async function updateCentralStockMarketLogic() {
       return;
     }
 
+    // 활성 뉴스 가져오기
+    const activeNewsSnapshot = await db.collection("CentralNews").where("isActive", "==", true).get();
+    const activeNews = activeNewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
     const batch = db.batch();
     let updateCount = 0;
 
@@ -192,7 +196,22 @@ async function updateCentralStockMarketLogic() {
       // 랜덤 변동 + 거래량 영향
       const randomChange = (Math.random() - 0.5) * volatility * 2;
       const volumeChange = direction * volumeImpact;
-      const totalChange = randomChange + volumeChange;
+
+      // 뉴스 영향 계산
+      let newsImpact = 0;
+      const relatedNews = activeNews.find(news => news.relatedStocks && news.relatedStocks.includes(stockDoc.id));
+
+      if (relatedNews) {
+        switch (relatedNews.category) {
+          case "strong_bull": newsImpact = 0.03; break; // +3%
+          case "bull": newsImpact = 0.015; break;      // +1.5%
+          case "bear": newsImpact = -0.015; break;     // -1.5%
+          case "strong_bear": newsImpact = -0.03; break; // -3%
+        }
+        logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
+      }
+
+      const totalChange = randomChange + volumeChange + newsImpact;
 
       let newPrice = Math.round(currentPrice * (1 + totalChange));
 
