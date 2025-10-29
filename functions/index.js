@@ -647,6 +647,23 @@ const _resetDailyTasks = async () => {
   }
 };
 
+exports.scheduledStockUpdate = onSchedule({
+  schedule: "*/5 8-15 * * 1-5",
+  timeZone: "Asia/Seoul",
+  region: "asia-northeast3",
+}, async (event) => {
+  await _updateCentralStockMarket();
+});
+
+exports.scheduledNewsUpdate = onSchedule({
+  schedule: "*/3 8-15 * * 1-5",
+  timeZone: "Asia/Seoul",
+  region: "asia-northeast3",
+}, async (event) => {
+  await _createCentralMarketNews();
+  await _cleanupExpiredCentralNews();
+});
+
 exports.runScheduler = onRequest({region: "asia-northeast3"}, async (req, res) => {
   const tasks = req.body.tasks;
   if (!tasks || !Array.isArray(tasks)) {
