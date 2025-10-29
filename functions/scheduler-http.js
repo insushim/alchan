@@ -296,7 +296,89 @@ async function updateCentralStockMarketLogic() {
 
 async function autoManageStocksLogic() {
   logger.info("🔄 [스케줄러] 자동 주식 상장/폐지 관리 시작");
-  // 현재는 수동으로 관리하므로 비워둠
+  try {
+    const now = Date.now();
+    let delistCount = 0;
+    let relistCount = 0;
+
+    // 1. 최소 상장가에 도달한 주식 자동 폐지
+    const listedStocksSnapshot = await db.collection("CentralStocks")
+      .where("isListed", "==", true)
+      .get();
+
+    const batch1 = db.batch();
+
+    for (const stockDoc of listedStocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+
+      // 수동 관리 주식은 건너뜀
+      if (stockData.isManual) {
+        continue;
+      }
+
+      const currentPrice = stockData.price || 0;
+      const minPrice = stockData.minListingPrice || 1000;
+
+      // 최소 상장가 이하로 떨어지면 폐지
+      if (currentPrice <= minPrice) {
+        batch1.update(stockDoc.ref, {
+          isListed: false,
+          delistedAt: admin.firestore.FieldValue.serverTimestamp(),
+          delistedTimestamp: now, // 5분 후 재상장 계산용
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+        delistCount++;
+        logger.info(`[상장 폐지] ${stockData.name} - 현재가: ${currentPrice}, 최소가: ${minPrice}`);
+      }
+    }
+
+    if (delistCount > 0) {
+      await batch1.commit();
+    }
+
+    // 2. 폐지된 지 5분이 지난 주식 재상장
+    const delistedStocksSnapshot = await db.collection("CentralStocks")
+      .where("isListed", "==", false)
+      .get();
+
+    const batch2 = db.batch();
+
+    for (const stockDoc of delistedStocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+
+      // 수동 관리 주식은 건너뜀
+      if (stockData.isManual) {
+        continue;
+      }
+
+      const delistedTimestamp = stockData.delistedTimestamp;
+
+      // 폐지 시간이 없거나 5분이 지났는지 확인
+      if (delistedTimestamp && (now - delistedTimestamp >= 5 * 60 * 1000)) {
+        const initialPrice = stockData.initialListingPrice || stockData.minListingPrice || 1000;
+
+        batch2.update(stockDoc.ref, {
+          isListed: true,
+          price: initialPrice,
+          priceHistory: [initialPrice],
+          relistedAt: admin.firestore.FieldValue.serverTimestamp(),
+          delistedTimestamp: admin.firestore.FieldDelete(), // 필드 삭제
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+        relistCount++;
+        logger.info(`[재상장] ${stockData.name} - 상장가: ${initialPrice}`);
+      }
+    }
+
+    if (relistCount > 0) {
+      await batch2.commit();
+    }
+
+    logger.info(`✅ 자동 관리 완료 - 폐지: ${delistCount}개, 재상장: ${relistCount}개`);
+  } catch (error) {
+    logger.error("❌ 자동 주식 관리 중 오류:", error);
+    throw error;
+  }
 }
 
 async function cleanupWorthlessStocksLogic() {
