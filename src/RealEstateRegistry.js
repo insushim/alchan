@@ -159,6 +159,36 @@ const RealEstateRegistry = () => {
     };
   }, [classCode]);
 
+  // 🔥 Properties 새로고침 함수 (낙관적 업데이트 후 서버 데이터와 동기화)
+  const refreshProperties = React.useCallback(async () => {
+    if (!classCode) return;
+
+    try {
+      const propertiesCollectionRefInstance = collection(
+        db,
+        "classes",
+        classCode,
+        "realEstateProperties"
+      );
+      const q = query(propertiesCollectionRefInstance, firebaseOrderBy("id"));
+      const querySnapshot = await getDocs(q);
+
+      const propsData = querySnapshot.docs.map((doc) => ({
+        firestoreDocId: doc.id,
+        ...doc.data(),
+        lastRentPayment: doc.data().lastRentPayment?.toDate
+          ? doc.data().lastRentPayment.toDate()
+          : null,
+      }));
+      propsData.sort((a, b) => parseInt(a.id) - parseInt(b.id));
+
+      setProperties(propsData);
+      console.log('[RealEstate] Properties refreshed:', propsData.length);
+    } catch (error) {
+      console.error("[RealEstate] Error refreshing properties:", error);
+    }
+  }, [classCode]);
+
   // Properties 로드 Effect (폴링 방식으로 변경 - 무한 루프 방지)
   useEffect(() => {
     if (!classCode) {
@@ -344,6 +374,9 @@ const RealEstateRegistry = () => {
 
       console.log('[RealEstate] 구매 성공:', result.data);
 
+      // 🔥 서버 데이터와 동기화 (낙관적 업데이트 확정)
+      await refreshProperties();
+
       if (refreshUserDocument) refreshUserDocument();
       setShowQuickAction(null);
       setSelectedProperty(null);
@@ -412,6 +445,10 @@ const RealEstateRegistry = () => {
         salePrice: salePrice,
         updatedAt: serverTimestamp(),
       });
+
+      // 🔥 서버 데이터와 동기화
+      await refreshProperties();
+
       setShowQuickAction(null);
       setSelectedProperty(null);
       alert("판매 설정이 완료되었습니다.");
@@ -464,6 +501,10 @@ const RealEstateRegistry = () => {
                 salePrice: salePrice,
                 updatedAt: serverTimestamp(),
             });
+
+            // 🔥 서버 데이터와 동기화
+            await refreshProperties();
+
             setShowQuickAction(null);
             setSelectedProperty(null);
             alert("정부 소유 부동산 판매 설정이 완료되었습니다.");
@@ -511,6 +552,10 @@ const RealEstateRegistry = () => {
                 salePrice: 0,
                 updatedAt: serverTimestamp(),
             });
+
+            // 🔥 서버 데이터와 동기화
+            await refreshProperties();
+
             setShowQuickAction(null);
             setSelectedProperty(null);
             alert("정부 소유 부동산 판매가 취소되었습니다.");
@@ -561,6 +606,10 @@ const RealEstateRegistry = () => {
         salePrice: 0,
         updatedAt: serverTimestamp(),
       });
+
+      // 🔥 서버 데이터와 동기화
+      await refreshProperties();
+
       setShowQuickAction(null);
       setSelectedProperty(null);
       alert("판매가 취소되었습니다.");
