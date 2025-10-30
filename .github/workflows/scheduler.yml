@@ -34,13 +34,13 @@ jobs:
           # 평일(월-금, 1-5) 8시-15시 KST 체크
           if [ $KST_DAY -ge 1 ] && [ $KST_DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ]; then
             IS_MARKET_HOURS=true
-            TASKS="updateCentralStockMarket","autoManageStocks","createCentralMarketNews","cleanupExpiredCentralNews"
+            TASKS="\"updateCentralStockMarket\",\"autoManageStocks\",\"createCentralMarketNews\",\"cleanupExpiredCentralNews\""
           fi
 
           # 일일 작업 리셋 (매일 자정 KST 부근)
           if [ $KST_HOUR -eq 0 ] && [ $MINUTE -lt 5 ]; then
             if [ -n "$TASKS" ]; then TASKS="$TASKS,"; fi
-            TASKS="$TASKS "resetDailyTasks"
+            TASKS="${TASKS}\"resetDailyTasks\""
           fi
 
           TASKS_ARRAY="[${TASKS}]"
@@ -63,5 +63,5 @@ jobs:
           curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${AUTH_TOKEN}" \
-            -d "{{\"tasks\": ${TASKS_JSON}}}" \
+            -d "{\"tasks\": ${TASKS_JSON}}" \
             "https://asia-northeast3-${PROJECT_ID}.cloudfunctions.net/runScheduler"
