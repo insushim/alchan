@@ -1428,6 +1428,68 @@ exports.updateStoreItem = onCall({region: "asia-northeast3"}, async (request) =>
   }
 });
 
+exports.addStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
+  const {newItemData} = request.data;
+
+  if (!newItemData || !newItemData.name || typeof newItemData.price !== 'number') {
+    throw new HttpsError("invalid-argument", "유효한 아이템 데이터가 필요합니다. (name, price는 필수)");
+  }
+
+  try {
+    const itemData = {
+      ...newItemData,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+
+    const docRef = await db.collection("storeItems").add(itemData);
+
+    logger.info(`[addStoreItem] ${uid}님이 새 아이템 추가: ${newItemData.name} (ID: ${docRef.id})`);
+
+    return {
+      success: true,
+      message: "아이템이 성공적으로 추가되었습니다.",
+      itemId: docRef.id,
+    };
+  } catch (error) {
+    logger.error(`[addStoreItem] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 추가에 실패했습니다.");
+  }
+});
+
+exports.deleteStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
+  const {itemId} = request.data;
+
+  if (!itemId) {
+    throw new HttpsError("invalid-argument", "아이템 ID가 필요합니다.");
+  }
+
+  const itemRef = db.collection("storeItems").doc(itemId);
+
+  try {
+    const itemDoc = await itemRef.get();
+
+    if (!itemDoc.exists) {
+      throw new Error("아이템을 찾을 수 없습니다.");
+    }
+
+    const itemData = itemDoc.data();
+    await itemRef.delete();
+
+    logger.info(`[deleteStoreItem] ${uid}님이 아이템 삭제: ${itemData.name} (ID: ${itemId})`);
+
+    return {
+      success: true,
+      message: "아이템이 성공적으로 삭제되었습니다.",
+    };
+  } catch (error) {
+    logger.error(`[deleteStoreItem] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 삭제에 실패했습니다.");
+  }
+});
+
 exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode} = await checkAuthAndGetUserData(request);
   const {itemId, quantity = 1} = request.data;
