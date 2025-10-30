@@ -74,15 +74,16 @@ export const AuthProvider = ({ children }) => {
   const userDocFetchTimeRef = useRef(new Map());
   const currentClassCodeRef = useRef(null);
   const authListenerSetupRef = useRef(false);
+  const visibilityChangeHandlerRef = useRef(null);
 
   // 최적화: 캐시 TTL 설정
   const isMobile = useCallback(() => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
-  const CLASSMATES_CACHE_TTL = 5 * 60 * 1000; // 학급 구성원 캐시 5분으로 단축 (더 자주 업데이트)
-  const USER_DOC_CACHE_TTL = 30 * 60 * 1000;
-  const LASTLOGIN_UPDATE_COOLDOWN = 6 * 60 * 60 * 1000;
+  const CLASSMATES_CACHE_TTL = 30 * 60 * 1000; // 학급 구성원 캐시 30분 (Firebase 읽기 최적화)
+  const USER_DOC_CACHE_TTL = 2 * 60 * 60 * 1000; // 2시간 (30분에서 증가)
+  const LASTLOGIN_UPDATE_COOLDOWN = 24 * 60 * 60 * 1000; // 24시간 (6시간에서 증가)
 
   // Firebase 초기화 확인 (한 번만 실행)
   useEffect(() => {
@@ -381,60 +382,10 @@ export const AuthProvider = ({ children }) => {
               );
             }, 10000); // 10초 후에 실행
 
-            // 🔥 [최적화] 실시간 리스너 대신 주기적 폴링으로 변경 (10분마다)
-            const startUserDocPolling = () => {
-              const pollUserDoc = async () => {
-                try {
-                  const userRef = doc(db, "users", firebaseAuthUser.uid);
-                  const docSnap = await getDoc(userRef);
+            // 🔥 [최적화] 폴링 제거 - 필요할 때만 수동으로 새로고침하도록 변경
+            // Visibility API를 사용하여 브라우저가 백그라운드에 있을 때는 아무것도 하지 않음
 
-                  if (docSnap.exists()) {
-                    const newDocData = { id: docSnap.id, uid: docSnap.id, ...docSnap.data() };
-
-                    // 중요한 필드만 확인하여 불필요한 업데이트 방지
-                    const currentData = userDocCacheRef.current.get(firebaseAuthUser.uid);
-
-                    // 캐시가 없으면 무조건 업데이트 (첫 폴링)
-                    if (!currentData) {
-                      setUserDoc(newDocData);
-                      setCachedUserDoc(firebaseAuthUser.uid, newDocData);
-                      return;
-                    }
-
-                    // 중요 필드 변경 확인
-                    const cashChanged = currentData.cash !== newDocData.cash;
-                    const couponsChanged = currentData.coupons !== newDocData.coupons;
-                    const classCodeChanged = currentData.classCode !== newDocData.classCode;
-                    const isAdminChanged = currentData.isAdmin !== newDocData.isAdmin;
-
-                    if (cashChanged || couponsChanged || classCodeChanged || isAdminChanged) {
-                      // 학급 변경 감지
-                      if (classCodeChanged) {
-                        if (newDocData.classCode && newDocData.classCode !== '미지정') {
-                          // 🔥 [수정] 학급 변경 시만 forceRefresh=true
-                          await fetchClassmatesFromFirestore(newDocData.classCode, firebaseAuthUser.uid, true);
-                        } else {
-                          setUsers([]);
-                          setAllClassMembers([]);
-                          setClassmates([]);
-                        }
-                      }
-
-                      setUserDoc(newDocData);
-                      setCachedUserDoc(firebaseAuthUser.uid, newDocData);
-                    }
-                  }
-                } catch (error) {
-                }
-              };
-
-              // 초기 한 번 실행 후 10분마다 폴링 (5분에서 10분으로 변경 - Firebase 읽기 최적화)
-              const interval = setInterval(pollUserDoc, 600000); // 10분마다 폴링 (5분에서 10분으로 변경)
-
-              firestoreUnsubscribeRef.current = () => clearInterval(interval);
-            };
-
-            startUserDocPolling();
+            firestoreUnsubscribeRef.current = () => {}; // 빈 정리 함수
           }
           
           setLoading(false);

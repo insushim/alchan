@@ -116,7 +116,7 @@ import {
 // 캐시 관리를 위한 전역 객체
 const userDataCache = new Map();
 const cacheTimeouts = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5분 캐시
+const CACHE_DURATION = 30 * 60 * 1000; // 30분 캐시 (5분에서 증가)
 const DEBOUNCE_DELAY = 500; // 500ms 디바운스
 
 // 디바운스 유틸리티 함수
@@ -282,7 +282,7 @@ function UserManagementComponent() {
     hasLoadedFromCacheRef.current = false;
   }, [cacheKey]);
 
-  // 🔥 [최적화] 사용자 데이터 폴링 - 의존성 배열 최적화
+  // 🔥 [최적화] 사용자 데이터 - 폴링 완전 제거, 캐시와 수동 새로고침만 사용
   useEffect(() => {
     if (!firebaseStatus.initialized || (!isSuperAdmin && !adminClassCode)) {
       if (firebaseStatus.checked) setLoading(false);
@@ -298,12 +298,13 @@ function UserManagementComponent() {
     if (!hasLoadedFromCacheRef.current) {
       if (loadCachedUsers()) {
         hasLoadedFromCacheRef.current = true;
+        return; // 캐시가 있으면 로드하지 않음
       } else {
         setLoading(true);
       }
     }
 
-    // 폴링 설정
+    // 초기 로드 (캐시가 없을 때만 한 번 실행)
     const usersCollection = collection(db, "users");
     const usersQuery = isSuperAdmin
       ? query(usersCollection, orderBy("createdAt", "desc"))
@@ -333,22 +334,7 @@ function UserManagementComponent() {
       }
     };
 
-    const pollUsers = async () => {
-      try {
-        const cached = userDataCache.get(cacheKey);
-        if (cached && Date.now() - cached.timestamp < 240000) { // 4분 이내
-          return;
-        }
-        await loadUsers();
-      } catch (error) {
-        console.error("폴링 오류:", error);
-      }
-    };
-
-    // 초기 로드만 실행 (폴링 완전 제거)
     loadUsers();
-
-    // 폴링 제거됨 - 사용자 데이터는 필요할 때만 수동 새로고침하도록 변경
   }, [
     firebaseStatus.initialized,
     firebaseStatus.checked,

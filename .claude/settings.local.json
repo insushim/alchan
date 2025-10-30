@@ -30,7 +30,8 @@
       "Bash(git pull --rebase)",
       "Bash(git stash)",
       "Bash(git stash pop)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []
