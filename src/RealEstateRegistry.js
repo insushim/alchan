@@ -315,10 +315,26 @@ const RealEstateRegistry = () => {
 
     console.log('[RealEstate] 부동산 구매 시작:', { propertyId, purchasePrice });
 
-    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    // 🔥 낙관적 업데이트 1: 현금 차감
     if (optimisticUpdate) {
       optimisticUpdate({ cash: -purchasePrice });
     }
+
+    // 🔥 낙관적 업데이트 2: 부동산 소유자 즉시 변경 (UI 업데이트)
+    const previousPropertyState = { ...property };
+    setProperties(prevProperties =>
+      prevProperties.map(p =>
+        p.id === propertyId
+          ? {
+              ...p,
+              owner: currentUser.id,
+              ownerName: currentUser.name,
+              forSale: false,
+              salePrice: null
+            }
+          : p
+      )
+    );
 
     setOperationLoading(true);
 
@@ -335,10 +351,17 @@ const RealEstateRegistry = () => {
     } catch (error) {
       console.error('[RealEstate] 구매 실패:', error);
 
-      // 실패 시 롤백 (낙관적 업데이트 취소)
+      // 실패 시 롤백 1: 현금 복구
       if (optimisticUpdate) {
         optimisticUpdate({ cash: purchasePrice });
       }
+
+      // 실패 시 롤백 2: 부동산 상태 복구
+      setProperties(prevProperties =>
+        prevProperties.map(p =>
+          p.id === propertyId ? previousPropertyState : p
+        )
+      );
 
       alert(error.message || '부동산 구매 중 오류가 발생했습니다.');
     } finally {
@@ -364,6 +387,17 @@ const RealEstateRegistry = () => {
       alert("유효한 판매 가격을 입력하세요.");
       return;
     }
+
+    // 🔥 낙관적 업데이트: 판매 상태 즉시 변경
+    const previousPropertyState = { ...property };
+    setProperties(prevProperties =>
+      prevProperties.map(p =>
+        p.id === propertyId
+          ? { ...p, forSale: true, salePrice: salePrice }
+          : p
+      )
+    );
+
     setOperationLoading(true);
     const propertyRef = doc(
       db,
@@ -383,6 +417,14 @@ const RealEstateRegistry = () => {
       alert("판매 설정이 완료되었습니다.");
     } catch (error) {
       console.error("판매 설정 오류:", error);
+
+      // 실패 시 롤백
+      setProperties(prevProperties =>
+        prevProperties.map(p =>
+          p.id === propertyId ? previousPropertyState : p
+        )
+      );
+
       alert("판매 설정 중 오류 발생: " + error.message);
     } finally {
       setOperationLoading(false);
@@ -402,6 +444,18 @@ const RealEstateRegistry = () => {
             alert("유효한 판매 가격을 입력하세요.");
             return;
         }
+
+        // 🔥 낙관적 업데이트: 판매 상태 즉시 변경
+        const property = properties.find(p => p.id === propertyId);
+        const previousPropertyState = property ? { ...property } : null;
+        setProperties(prevProperties =>
+          prevProperties.map(p =>
+            p.id === propertyId
+              ? { ...p, forSale: true, salePrice: salePrice }
+              : p
+          )
+        );
+
         setOperationLoading(true);
         const propertyRef = doc(db, "classes", classCode, "realEstateProperties", propertyId);
         try {
@@ -415,6 +469,16 @@ const RealEstateRegistry = () => {
             alert("정부 소유 부동산 판매 설정이 완료되었습니다.");
         } catch (error) {
             console.error("정부 소유 부동산 판매 설정 오류:", error);
+
+            // 실패 시 롤백
+            if (previousPropertyState) {
+              setProperties(prevProperties =>
+                prevProperties.map(p =>
+                  p.id === propertyId ? previousPropertyState : p
+                )
+              );
+            }
+
             alert("처리 중 오류 발생: " + error.message);
         } finally {
             setOperationLoading(false);
@@ -427,6 +491,18 @@ const RealEstateRegistry = () => {
             alert("권한이 없습니다.");
             return;
         }
+
+        // 🔥 낙관적 업데이트: 판매 취소 즉시 반영
+        const property = properties.find(p => p.id === propertyId);
+        const previousPropertyState = property ? { ...property } : null;
+        setProperties(prevProperties =>
+          prevProperties.map(p =>
+            p.id === propertyId
+              ? { ...p, forSale: false, salePrice: null }
+              : p
+          )
+        );
+
         setOperationLoading(true);
         const propertyRef = doc(db, "classes", classCode, "realEstateProperties", propertyId);
         try {
@@ -440,6 +516,16 @@ const RealEstateRegistry = () => {
             alert("정부 소유 부동산 판매가 취소되었습니다.");
         } catch (error) {
             console.error("정부 소유 부동산 판매 취소 오류:", error);
+
+            // 실패 시 롤백
+            if (previousPropertyState) {
+              setProperties(prevProperties =>
+                prevProperties.map(p =>
+                  p.id === propertyId ? previousPropertyState : p
+                )
+              );
+            }
+
             alert("처리 중 오류 발생: " + error.message);
         } finally {
             setOperationLoading(false);
@@ -449,6 +535,18 @@ const RealEstateRegistry = () => {
 
   const handleCancelSale = async (propertyId) => {
     if (!classCode) return;
+
+    // 🔥 낙관적 업데이트: 판매 취소 즉시 반영
+    const property = properties.find(p => p.id === propertyId);
+    const previousPropertyState = property ? { ...property } : null;
+    setProperties(prevProperties =>
+      prevProperties.map(p =>
+        p.id === propertyId
+          ? { ...p, forSale: false, salePrice: null }
+          : p
+      )
+    );
+
     setOperationLoading(true);
     const propertyRef = doc(
       db,
@@ -468,6 +566,16 @@ const RealEstateRegistry = () => {
       alert("판매가 취소되었습니다.");
     } catch (error) {
       console.error("판매 취소 오류:", error);
+
+      // 실패 시 롤백
+      if (previousPropertyState) {
+        setProperties(prevProperties =>
+          prevProperties.map(p =>
+            p.id === propertyId ? previousPropertyState : p
+          )
+        );
+      }
+
       alert("판매 취소 중 오류 발생: " + error.message);
     } finally {
       setOperationLoading(false);
