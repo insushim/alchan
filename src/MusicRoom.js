@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
 import { doc, getDoc, collection, query, orderBy, deleteDoc, getDocs } from 'firebase/firestore';
 import YouTube from 'react-youtube';
-import { QRCodeSVG } from 'qrcode.react';
 import { usePolling } from './hooks/usePolling';
 import './MusicRoom.css';
 
@@ -109,10 +108,6 @@ const MusicRoom = ({ user }) => {
             }
         }
     };
-    
-    const getRoomUrl = () => {
-        return `${window.location.origin}/student-request/${roomId}`;
-    };
 
     const opts = {
         height: '100%',
@@ -147,14 +142,6 @@ const MusicRoom = ({ user }) => {
                 </div>
             </div>
             <div className="sidebar-content">
-                <div className="share-info-panel">
-                    <h4>음악 신청 QR</h4>
-                    <div className="qr-code-container-room">
-                        <QRCodeSVG value={getRoomUrl()} size={120} />
-                    </div>
-                    <p className="room-link-title">공유 링크</p>
-                    <p className="room-link-box">{getRoomUrl()}</p>
-                </div>
                 <div className="playlist-panel">
                     <h3>재생 목록 ({playlist.length}곡)</h3>
                     {playlist.length > 0 ? (
@@ -169,7 +156,6 @@ const MusicRoom = ({ user }) => {
                     ) : (
                         <div className="no-playlist-message">
                             <p>아직 신청된 곡이 없습니다.</p>
-                            <p>학생들에게 QR 코드를 공유해주세요!</p>
                         </div>
                     )}
                 </div>

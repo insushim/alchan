@@ -1,6 +1,6 @@
 .music-room-container-grid {
     display: grid;
-    grid-template-columns: 1fr 380px; /* Main content takes remaining space, sidebar is 380px */
+    grid-template-columns: 1fr 280px; /* 유튜브 최대한 크게, 재생목록 좁게 280px */
     gap: 20px;
     padding: 20px;
     max-width: 1920px;
@@ -116,12 +116,9 @@
     min-height: 0; /* Fix for flexbox overflow */
 }
 
+/* QR 패널 제거 - 더 이상 사용하지 않음 */
 .share-info-panel {
-    background-color: #fff;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-    padding: 1rem;
-    flex-shrink: 0;
+    display: none;
 }
 
 .playlist-panel {
@@ -133,6 +130,7 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    height: 100%; /* 전체 높이 사용 */
 }
 
 .share-info-panel h4 {
@@ -244,7 +242,7 @@
 /* 반응형 디자인 - 태블릿 */
 @media (max-width: 1200px) {
     .music-room-container-grid {
-        grid-template-columns: 1fr 320px;
+        grid-template-columns: 1fr 260px; /* 태블릿에서도 재생목록 좁게 */
     }
 }
 
@@ -257,10 +255,5 @@
 
     .sidebar-content {
         gap: 15px;
-    }
-
-    .qr-code-container-room svg {
-        width: 100px !important;
-        height: 100px !important;
     }
 }
