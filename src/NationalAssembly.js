@@ -73,6 +73,7 @@ const NationalAssembly = () => {
   const [optimisticUserVotes, setOptimisticUserVotes] = useState({});
   const [optimisticDeletedLaws, setOptimisticDeletedLaws] = useState(new Set());
   const [optimisticEditedLaws, setOptimisticEditedLaws] = useState({});
+  const [optimisticNewLaws, setOptimisticNewLaws] = useState([]);
 
   // 모달 상태 변경 감지를 위한 useEffect
   useEffect(() => {
@@ -251,7 +252,7 @@ const NationalAssembly = () => {
     }
   );
 
-  // --- 🔥 [수정] 새 법안 제안 함수 ---
+  // --- 🔥 [수정] 새 법안 제안 함수 (낙관적 업데이트 적용) ---
   const handleProposeLaw = async () => {
     console.log("[NationalAssembly] handleProposeLaw 시작");
     console.log("[NationalAssembly] classCode:", classCode);
@@ -269,11 +270,34 @@ const NationalAssembly = () => {
       return;
     }
 
+    // 임시 ID 생성 (낙관적 업데이트용)
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // 낙관적 업데이트: 즉시 UI에 새 법안 추가
+    const optimisticLaw = {
+      id: tempId,
+      ...newLaw,
+      proposerId: currentUser.id,
+      proposerName: currentUser.name || "익명",
+      approvals: 0,
+      disapprovals: 0,
+      status: "pending",
+      timestamp: new Date().toISOString(),
+      classCode: classCode,
+      voters: {},
+      isOptimistic: true, // 낙관적 업데이트 플래그
+    };
+
+    setOptimisticNewLaws(prev => [optimisticLaw, ...prev]);
+    setShowProposeLawModal(false);
+    const savedNewLaw = { ...newLaw };
+    setNewLaw({ title: "", purpose: "", description: "", fine: "" });
+
     // 🔥 collection 함수의 올바른 사용법: db 인스턴스와 전체 경로를 인자로 전달합니다.
     const lawsCollectionRef = collection(db, "classes", classCode, "nationalAssemblyLaws");
 
     const newLawData = {
-      ...newLaw,
+      ...savedNewLaw,
       proposerId: currentUser.id,
       proposerName: currentUser.name || "익명",
       approvals: 0,
@@ -286,12 +310,17 @@ const NationalAssembly = () => {
 
     try {
       // 🔥 수정된 collection 참조를 사용하여 문서를 추가합니다.
-      await addDoc(lawsCollectionRef, newLawData);
+      const docRef = await addDoc(lawsCollectionRef, newLawData);
       console.log("새 법안이 성공적으로 제안되었습니다:", newLawData.title);
-      setShowProposeLawModal(false);
-      setNewLaw({ title: "", purpose: "", description: "", fine: "" });
+
+      // 성공 시: 임시 법안 제거 (usePolling이 실제 데이터를 가져올 것)
+      setOptimisticNewLaws(prev => prev.filter(law => law.id !== tempId));
     } catch (error) {
       console.error("Error proposing new law:", error);
+
+      // 롤백: 낙관적으로 추가된 법안 제거
+      setOptimisticNewLaws(prev => prev.filter(law => law.id !== tempId));
+
       alert("법안 제안 중 오류가 발생했습니다.");
     }
   };
@@ -642,8 +671,14 @@ const NationalAssembly = () => {
         }
         return law;
       });
+
+    // 낙관적으로 추가된 새 법안을 맨 앞에 추가
+    if (optimisticNewLaws.length > 0) {
+      result = [...optimisticNewLaws, ...result];
+    }
+
     return result;
-  }, [laws, optimisticDeletedLaws, optimisticEditedLaws]);
+  }, [laws, optimisticDeletedLaws, optimisticEditedLaws, optimisticNewLaws]);
 
   const approvedLaws = displayLaws.filter(
     (law) =>
