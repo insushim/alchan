@@ -179,7 +179,7 @@ const NationalAssembly = () => {
   );
 
   // 법안 데이터 로드
-  const { data: laws, loading: lawsLoading } = usePolling(
+  const { data: laws, loading: lawsLoading, refetch: refetchLaws } = usePolling(
     async () => {
       if (!classCode) return [];
 
@@ -313,7 +313,10 @@ const NationalAssembly = () => {
       const docRef = await addDoc(lawsCollectionRef, newLawData);
       console.log("새 법안이 성공적으로 제안되었습니다:", newLawData.title);
 
-      // 성공 시: 임시 법안 제거 (usePolling이 실제 데이터를 가져올 것)
+      // 성공 시: 즉시 서버에서 최신 법안 목록을 가져옴
+      await refetchLaws();
+
+      // refetch 완료 후 임시 법안 제거
       setOptimisticNewLaws(prev => prev.filter(law => law.id !== tempId));
     } catch (error) {
       console.error("Error proposing new law:", error);
@@ -374,7 +377,16 @@ const NationalAssembly = () => {
         ...dataToUpdate,
         updatedAt: serverTimestamp(),
       });
-      // 성공 시에는 usePolling이 자동으로 최신 데이터를 가져옴
+
+      // 성공 시: 즉시 서버에서 최신 법안 목록을 가져옴
+      await refetchLaws();
+
+      // refetch 완료 후 낙관적 수정 상태 제거
+      setOptimisticEditedLaws(prev => {
+        const newState = { ...prev };
+        delete newState[previousEditingLaw.id];
+        return newState;
+      });
     } catch (error) {
       console.error("Error saving edited law:", error);
 
@@ -583,7 +595,16 @@ const NationalAssembly = () => {
       );
       try {
         await deleteDoc(lawDocRef);
-        // 성공 시에는 usePolling이 자동으로 최신 데이터를 가져옴
+
+        // 성공 시: 즉시 서버에서 최신 법안 목록을 가져옴
+        await refetchLaws();
+
+        // refetch 완료 후 낙관적 삭제 상태 제거
+        setOptimisticDeletedLaws(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
       } catch (error) {
         console.error("Error deleting law:", error);
 
