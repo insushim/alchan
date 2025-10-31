@@ -16,6 +16,7 @@ import {
   getDocs,
   getDoc,
   onSnapshot,
+  setDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./firebase";
@@ -203,17 +204,47 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
   const handleJoinRoom = async () => {
     try {
       const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
-      await updateDoc(roomRef, {
-        participants: arrayUnion(currentUser.id),
-        lastActivity: serverTimestamp(),
-      });
+      
+      // Get the latest room data to check for available roles
+      const roomSnap = await getDoc(roomRef);
+      if (!roomSnap.exists()) {
+          console.error("Trial room not found!");
+          return;
+      }
+      const currentRoomData = roomSnap.data();
+      let updateData = {
+          participants: arrayUnion(currentUser.id),
+          lastActivity: serverTimestamp(),
+      };
+      let assignedRole = '';
+
+      // Automatic role assignment based on job
+      if (currentUser.job === '판사' && !currentRoomData.judgeId) {
+          updateData.judgeId = currentUser.id;
+          updateData.judgeName = currentUser.name || currentUser.displayName;
+          assignedRole = '판사';
+      } else if (currentUser.job === '검사' && !currentRoomData.prosecutorId) {
+          updateData.prosecutorId = currentUser.id;
+          updateData.prosecutorName = currentUser.name || currentUser.displayName;
+          assignedRole = '검사';
+      } else if (currentUser.job === '변호사' && !currentRoomData.lawyerId) {
+          updateData.lawyerId = currentUser.id;
+          updateData.lawyerName = currentUser.name || currentUser.displayName;
+          assignedRole = '변호사';
+      }
+
+      await updateDoc(roomRef, updateData);
       
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
+      const joinMessage = `${currentUser.name || currentUser.displayName}님이 입장했습니다.`;
+      const roleMessage = assignedRole ? ` ${assignedRole} 역할을 자동으로 배정받았습니다.` : '';
+      
       await addDoc(messagesRef, {
         type: "system",
-        text: `${currentUser.name || currentUser.displayName}님이 입장했습니다.`,
+        text: joinMessage + roleMessage,
         timestamp: serverTimestamp(),
       });
+
     } catch (error) {
       console.error("Error joining room:", error);
     }
@@ -392,7 +423,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     
     try {
       const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
-      await updateDoc(votingRef, {
+      await setDoc(votingRef, {
         question: question,
         isAnonymous: isAnonymous,
         isActive: true,
@@ -502,7 +533,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
       await addDoc(resultsRef, {
         roomId: roomId,
         caseNumber: roomData.caseNumber,
-        caseTitle: roomData.caseTitle,
+        caseTitle: roomData.caseTitle || '제목 없음',
         judgeId: roomData.judgeId,
         judgeName: roomData.judgeName,
         complainantId: roomData.complainantId,
@@ -510,7 +541,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
         verdict: verdict,
         verdictReason: reason,
         verdictDate: serverTimestamp(),
-        votingResult: votingData,
+        votingResult: votingData || null,
         participants: roomData.participants || [],
       });
 
