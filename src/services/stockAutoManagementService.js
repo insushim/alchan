@@ -17,23 +17,25 @@ import { db } from '../firebase';
 const shouldDelist = (stock) => {
   if (!stock || stock.isManual) return false; // 수동 주식은 폐지 안 함
 
-  const initialPrice = stock.initialPrice || stock.price;
-  const currentPrice = stock.price;
+  const currentPrice = stock.price || 0;
+  const minPrice = stock.minListingPrice || 1000;
 
-  // 최소 상장가(초기가의 10%)에 도달하면 상장 폐지
-  const minListingPrice = initialPrice * 0.1;
-  return currentPrice <= minListingPrice;
+  // 최소 상장가 이하로 떨어지면 상장 폐지
+  return currentPrice <= minPrice;
 };
 
-// 자동 재상장 조건 확인 (초기 가격으로 회복)
+// 자동 재상장 조건 확인 (폐지 후 5분 경과)
 const shouldAutoList = (stock) => {
   if (!stock || stock.isManual || stock.isListed) return false;
 
-  const initialPrice = stock.initialPrice || stock.price;
-  const currentPrice = stock.price;
+  const delistedTimestamp = stock.delistedTimestamp;
+  if (!delistedTimestamp) return false;
 
-  // 초기 가격 이상으로 회복하면 재상장하고 가격을 초기가로 리셋
-  return currentPrice >= initialPrice;
+  const now = Date.now();
+  const fiveMinutes = 5 * 60 * 1000;
+
+  // 폐지 후 5분이 지나면 재상장
+  return (now - delistedTimestamp >= fiveMinutes);
 };
 
 // 상장 폐지 처리
@@ -47,6 +49,7 @@ export const delistInactiveStocks = async () => {
 
     const batch = writeBatch(db);
     const delistedStocks = [];
+    const now = Date.now();
 
     for (const docSnap of snapshot.docs) {
       const stock = { id: docSnap.id, ...docSnap.data() };
@@ -56,7 +59,8 @@ export const delistInactiveStocks = async () => {
         batch.update(stockRef, {
           isListed: false,
           delistedAt: serverTimestamp(),
-          delistReason: '가격 급락 (초기가의 10% 미만)',
+          delistedTimestamp: now, // 5분 후 재상장 계산용
+          delistReason: '가격 급락 (최소 상장가 도달)',
         });
         delistedStocks.push(stock);
       }
@@ -83,7 +87,7 @@ export const delistInactiveStocks = async () => {
   }
 };
 
-// 자동 재상장 처리 (가격을 초기가로 리셋)
+// 자동 재상장 처리 (폐지 후 5분 경과 시 초기가로 리셋)
 export const autoListStocks = async () => {
   try {
     console.log('[Stock Auto] 재상장 검사 시작');
@@ -100,14 +104,16 @@ export const autoListStocks = async () => {
 
       if (shouldAutoList(stock)) {
         const stockRef = doc(db, 'CentralStocks', stock.id);
-        const initialPrice = stock.initialPrice || stock.price;
+        const initialPrice = stock.initialPrice || stock.minListingPrice || 1000;
 
-        // 재상장 시 가격을 초기가로 리셋
+        // 재상장 시 가격을 초기가로 리셋하고 폐지 관련 필드 삭제
         batch.update(stockRef, {
           isListed: true,
           price: initialPrice,
+          priceHistory: [initialPrice],
           relistedAt: serverTimestamp(),
           delistedAt: null,
+          delistedTimestamp: null,
           delistReason: null,
         });
         relistedStocks.push(stock);
@@ -116,7 +122,7 @@ export const autoListStocks = async () => {
 
     if (relistedStocks.length > 0) {
       await batch.commit();
-      console.log(`[Stock Auto] ${relistedStocks.length}개 주식 재상장 완료 (가격 초기화):`,
+      console.log(`[Stock Auto] ${relistedStocks.length}개 주식 재상장 완료 (초기 가격으로 리셋):`,
         relistedStocks.map(s => s.name));
     } else {
       console.log('[Stock Auto] 재상장 대상 없음');

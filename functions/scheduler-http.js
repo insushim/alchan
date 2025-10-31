@@ -325,18 +325,20 @@ async function autoManageStocksLogic() {
           isListed: false,
           delistedAt: admin.firestore.FieldValue.serverTimestamp(),
           delistedTimestamp: now, // 5분 후 재상장 계산용
+          delistReason: '가격 급락 (최소 상장가 도달)',
           lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
         delistCount++;
-        logger.info(`[상장 폐지] ${stockData.name} - 현재가: ${currentPrice}, 최소가: ${minPrice}`);
+        logger.info(`[상장 폐지] ${stockData.name} - 현재가: ${currentPrice}원, 최소가: ${minPrice}원`);
       }
     }
 
     if (delistCount > 0) {
       await batch1.commit();
+      logger.info(`📉 ${delistCount}개 주식 상장 폐지 완료`);
     }
 
-    // 2. 폐지된 지 5분이 지난 주식 재상장
+    // 2. 폐지된 지 5분이 지난 주식 재상장 (초기 가격으로 리셋)
     const delistedStocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", false)
       .get();
@@ -355,23 +357,27 @@ async function autoManageStocksLogic() {
 
       // 폐지 시간이 없거나 5분이 지났는지 확인
       if (delistedTimestamp && (now - delistedTimestamp >= 5 * 60 * 1000)) {
-        const initialPrice = stockData.initialListingPrice || stockData.minListingPrice || 1000;
+        // initialPrice 필드명 통일 (initialPrice 우선, 없으면 minListingPrice 사용)
+        const initialPrice = stockData.initialPrice || stockData.minListingPrice || 1000;
 
         batch2.update(stockDoc.ref, {
           isListed: true,
           price: initialPrice,
           priceHistory: [initialPrice],
           relistedAt: admin.firestore.FieldValue.serverTimestamp(),
-          delistedTimestamp: admin.firestore.FieldDelete(), // 필드 삭제
+          delistedAt: admin.firestore.FieldDelete(), // 폐지 시간 필드 삭제
+          delistedTimestamp: admin.firestore.FieldDelete(), // 폐지 타임스탬프 필드 삭제
+          delistReason: admin.firestore.FieldDelete(), // 폐지 사유 필드 삭제
           lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
         relistCount++;
-        logger.info(`[재상장] ${stockData.name} - 상장가: ${initialPrice}`);
+        logger.info(`[재상장] ${stockData.name} - 초기가로 리셋: ${initialPrice}원`);
       }
     }
 
     if (relistCount > 0) {
       await batch2.commit();
+      logger.info(`📈 ${relistCount}개 주식 재상장 완료 (초기 가격으로 리셋)`);
     }
 
     logger.info(`✅ 자동 관리 완료 - 폐지: ${delistCount}개, 재상장: ${relistCount}개`);

@@ -179,43 +179,90 @@ const _updateCentralStockMarket = async () => {
 const _autoManageStocks = async () => {
   logger.info("🔄 [스케줄러] 자동 주식 상장/폐지 관리 시작");
   try {
-    const stocksSnapshot = await db.collection("CentralStocks").where("isListed", "===", true).get();
+    const now = Date.now();
+    let delistCount = 0;
+    let relistCount = 0;
 
-    if (stocksSnapshot.empty) {
-      logger.info("상장된 주식이 없습니다.");
-      return;
-    }
+    // 1. 최소 상장가에 도달한 주식 자동 폐지
+    const listedStocksSnapshot = await db.collection("CentralStocks")
+      .where("isListed", "==", true)
+      .get();
 
-    const batch = db.batch();
-    let managedCount = 0;
+    const batch1 = db.batch();
 
-    for (const stockDoc of stocksSnapshot.docs) {
+    for (const stockDoc of listedStocksSnapshot.docs) {
       const stockData = stockDoc.data();
+
+      // 수동 관리 주식은 건너뜀
+      if (stockData.isManual) {
+        continue;
+      }
+
       const currentPrice = stockData.price || 0;
-      const minPrice = stockData.minListingPrice || 0;
-      const initialPrice = stockData.initialPrice || stockData.minListingPrice || 1000;
+      const minPrice = stockData.minListingPrice || 1000;
 
-      if (minPrice > 0 && currentPrice <= minPrice) {
-        logger.info(`[자동 관리] ${stockData.name} 주식이 최소 상장가 (${minPrice}원)에 도달하여 재상장합니다. 현재가: ${currentPrice}원`);
-
-        const priceHistory = stockData.priceHistory || [];
-        const updatedHistory = [...priceHistory.slice(-19), initialPrice];
-
-        batch.update(stockDoc.ref, {
-          price: initialPrice,
-          priceHistory: updatedHistory,
-          lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      // 최소 상장가 이하로 떨어지면 폐지
+      if (currentPrice <= minPrice) {
+        batch1.update(stockDoc.ref, {
+          isListed: false,
+          delistedAt: admin.firestore.FieldValue.serverTimestamp(),
+          delistedTimestamp: now, // 5분 후 재상장 계산용
+          delistReason: '가격 급락 (최소 상장가 도달)',
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
-        managedCount++;
+        delistCount++;
+        logger.info(`[상장 폐지] ${stockData.name} - 현재가: ${currentPrice}원, 최소가: ${minPrice}원`);
       }
     }
 
-    if (managedCount > 0) {
-      await batch.commit();
-      logger.info(`✅ ${managedCount}개 주식 자동 재상장 완료`);
-    } else {
-      logger.info("재상장할 주식이 없습니다.");
+    if (delistCount > 0) {
+      await batch1.commit();
+      logger.info(`📉 ${delistCount}개 주식 상장 폐지 완료`);
     }
+
+    // 2. 폐지된 지 5분이 지난 주식 재상장 (초기 가격으로 리셋)
+    const delistedStocksSnapshot = await db.collection("CentralStocks")
+      .where("isListed", "==", false)
+      .get();
+
+    const batch2 = db.batch();
+
+    for (const stockDoc of delistedStocksSnapshot.docs) {
+      const stockData = stockDoc.data();
+
+      // 수동 관리 주식은 건너뜀
+      if (stockData.isManual) {
+        continue;
+      }
+
+      const delistedTimestamp = stockData.delistedTimestamp;
+
+      // 폐지 시간이 없거나 5분이 지났는지 확인
+      if (delistedTimestamp && (now - delistedTimestamp >= 5 * 60 * 1000)) {
+        // initialPrice 필드명 통일 (initialPrice 우선, 없으면 minListingPrice 사용)
+        const initialPrice = stockData.initialPrice || stockData.minListingPrice || 1000;
+
+        batch2.update(stockDoc.ref, {
+          isListed: true,
+          price: initialPrice,
+          priceHistory: [initialPrice],
+          relistedAt: admin.firestore.FieldValue.serverTimestamp(),
+          delistedAt: admin.firestore.FieldDelete(), // 폐지 시간 필드 삭제
+          delistedTimestamp: admin.firestore.FieldDelete(), // 폐지 타임스탬프 필드 삭제
+          delistReason: admin.firestore.FieldDelete(), // 폐지 사유 필드 삭제
+          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+        });
+        relistCount++;
+        logger.info(`[재상장] ${stockData.name} - 초기가로 리셋: ${initialPrice}원`);
+      }
+    }
+
+    if (relistCount > 0) {
+      await batch2.commit();
+      logger.info(`📈 ${relistCount}개 주식 재상장 완료 (초기 가격으로 리셋)`);
+    }
+
+    logger.info(`✅ 자동 관리 완료 - 폐지: ${delistCount}개, 재상장: ${relistCount}개`);
   } catch (error) {
     logger.error("❌ 자동 주식 상장/폐지 중 오류:", error);
   }
