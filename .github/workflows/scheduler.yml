@@ -57,11 +57,21 @@ jobs:
         if: steps.tasks.outputs.tasks != '[]'
         env:
           TASKS_JSON: ${{ steps.tasks.outputs.tasks }}
-          PROJECT_ID: inconomysu-class
           AUTH_TOKEN: ${{ secrets.SCHEDULER_AUTH_TOKEN }}
         run: |
-          curl -X POST \
+          echo "Calling runScheduler with tasks: ${TASKS_JSON}"
+          RESPONSE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer ${AUTH_TOKEN}" \
             -d "{\"tasks\": ${TASKS_JSON}}" \
-            "https://asia-northeast3-${PROJECT_ID}.cloudfunctions.net/runScheduler"
+            -w "\nHTTP_STATUS:%{http_code}" \
+            "https://runscheduler-j7kazbsvxq-du.a.run.app")
+
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d':' -f2)
+          echo "HTTP Status: $HTTP_STATUS"
+          echo "Response: $(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Error: Scheduler call failed with status $HTTP_STATUS"
+            exit 1
+          fi
