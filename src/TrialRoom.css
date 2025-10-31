@@ -718,7 +718,6 @@
   
   .courtroom-view {
     min-height: 500px; /* 최소 높이를 보장하여 법정이 너무 작아지는 것 방지 */
-    overflow-y: hidden; /* 법정 뷰 자체 스크롤은 비활성화 */
   }
   
   .trial-sidebar {
