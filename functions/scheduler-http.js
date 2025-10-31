@@ -516,9 +516,73 @@ async function cleanupExpiredClassNewsLogic() {
   // 현재는 중앙 뉴스만 사용하므로 비워둠
 }
 
+async function resetTasksForClass(classCode) {
+  if (!classCode) {
+    logger.error("resetTasksForClass: 학급 코드가 제공되지 않았습니다.");
+    return { userCount: 0, jobCount: 0 };
+  }
+  try {
+    const batch = db.batch();
+    let userCount = 0;
+    let jobCount = 0;
+
+    const usersQuery = db.collection("users").where("classCode", "==", classCode);
+    const usersSnapshot = await usersQuery.get();
+    if (!usersSnapshot.empty) {
+      usersSnapshot.forEach((userDoc) => {
+        batch.update(userDoc.ref, { completedTasks: {} });
+        userCount++;
+      });
+    }
+
+    const jobsQuery = db.collection("jobs").where("classCode", "==", classCode);
+    const jobsSnapshot = await jobsQuery.get();
+    if (!jobsSnapshot.empty) {
+      jobsSnapshot.forEach((jobDoc) => {
+        const jobData = jobDoc.data();
+        if (jobData.tasks && jobData.tasks.some(t => (t.clicks || 0) > 0)) {
+          const updatedTasks = jobData.tasks.map(t => ({ ...t, clicks: 0 }));
+          batch.update(jobDoc.ref, { tasks: updatedTasks });
+          jobCount++;
+        }
+      });
+    }
+    
+    await batch.commit();
+    logger.info(`[${classCode}] 리셋 완료: ${userCount}명 학생, ${jobCount}개 직업.`);
+    return { userCount, jobCount };
+  } catch (error) {
+    logger.error(`[${classCode}] 할일 리셋 중 심각한 오류:`, error);
+    throw error;
+  }
+}
+
 async function resetDailyTasksLogic() {
   logger.info("🔄 [스케줄러] 일일 작업 리셋 시작");
-  // 필요시 나중에 구현
+  try {
+    const classCodesDoc = await db.collection("settings").doc("classCodes").get();
+    if (!classCodesDoc.exists) {
+      logger.warn("'settings/classCodes' 문서가 없어 클래스 목록을 가져올 수 없습니다.");
+      return;
+    }
+    const classCodes = classCodesDoc.data().validCodes;
+    if (!classCodes || classCodes.length === 0) {
+      logger.info("리셋할 클래스가 없습니다.");
+      return;
+    }
+    const resetPromises = classCodes.map((classCode) => resetTasksForClass(classCode));
+    const results = await Promise.all(resetPromises);
+    let totalUserCount = 0;
+    let totalJobCount = 0;
+    results.forEach(result => {
+      totalUserCount += result.userCount;
+      totalJobCount += result.jobCount;
+    });
+    logger.info(`✅ 일일 할일 리셋 완료: ${classCodes.length}개 클래스, 총 ${totalUserCount}명 학생 및 ${totalJobCount}개 직업 리셋`);
+  } catch (error) {
+    logger.error("🚨 일일 할일 리셋 중 오류 발생:", error);
+    throw error; // re-throw to be caught by the main handler
+  }
 }
 
 async function payWeeklySalariesLogic() {
