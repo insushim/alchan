@@ -1,5 +1,5 @@
 // src/NationalAssembly.js
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import "./NationalAssembly.css";
 import { useAuth } from "./AuthContext";
 import { db } from "./firebase";
@@ -71,6 +71,8 @@ const NationalAssembly = () => {
   // 낙관적 업데이트를 위한 로컬 상태
   const [optimisticVotes, setOptimisticVotes] = useState({});
   const [optimisticUserVotes, setOptimisticUserVotes] = useState({});
+  const [optimisticDeletedLaws, setOptimisticDeletedLaws] = useState(new Set());
+  const [optimisticEditedLaws, setOptimisticEditedLaws] = useState({});
 
   // 모달 상태 변경 감지를 위한 useEffect
   useEffect(() => {
@@ -313,12 +315,21 @@ const NationalAssembly = () => {
       return;
     }
 
+    // 낙관적 업데이트: 즉시 UI에 반영
+    setOptimisticEditedLaws(prev => ({
+      ...prev,
+      [editingLaw.id]: editingLaw
+    }));
+    setShowEditLawModal(false);
+    const previousEditingLaw = editingLaw;
+    setEditingLaw(null);
+
     const lawDocRef = doc(
       db,
       "classes",
       classCode,
       "nationalAssemblyLaws",
-      editingLaw.id
+      previousEditingLaw.id
     );
     try {
       const {
@@ -329,15 +340,22 @@ const NationalAssembly = () => {
         proposerId,
         proposerName,
         ...dataToUpdate
-      } = editingLaw;
+      } = previousEditingLaw;
       await updateDoc(lawDocRef, {
         ...dataToUpdate,
         updatedAt: serverTimestamp(),
       });
-      setShowEditLawModal(false);
-      setEditingLaw(null);
+      // 성공 시에는 usePolling이 자동으로 최신 데이터를 가져옴
     } catch (error) {
       console.error("Error saving edited law:", error);
+
+      // 롤백: 수정 취소
+      setOptimisticEditedLaws(prev => {
+        const newState = { ...prev };
+        delete newState[previousEditingLaw.id];
+        return newState;
+      });
+
       alert("법안 저장 중 오류가 발생했습니다.");
     }
   };
@@ -524,6 +542,9 @@ const NationalAssembly = () => {
       return;
     }
     if (window.confirm("정말로 이 법안을 삭제하시겠습니까?")) {
+      // 낙관적 업데이트: 즉시 UI에서 제거
+      setOptimisticDeletedLaws(prev => new Set([...prev, id]));
+
       const lawDocRef = doc(
         db,
         "classes",
@@ -533,9 +554,17 @@ const NationalAssembly = () => {
       );
       try {
         await deleteDoc(lawDocRef);
-        alert("법안이 삭제되었습니다.");
+        // 성공 시에는 usePolling이 자동으로 최신 데이터를 가져옴
       } catch (error) {
         console.error("Error deleting law:", error);
+
+        // 롤백: 삭제 취소
+        setOptimisticDeletedLaws(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(id);
+          return newSet;
+        });
+
         alert("법안 삭제 중 오류가 발생했습니다.");
       }
     }
@@ -601,20 +630,35 @@ const NationalAssembly = () => {
     }
   };
 
-  const approvedLaws = (laws || []).filter(
+  // 낙관적 업데이트를 laws 배열에 반영
+  const displayLaws = useMemo(() => {
+    let result = (laws || [])
+      // 낙관적으로 삭제된 법안 제외
+      .filter(law => !optimisticDeletedLaws.has(law.id))
+      // 낙관적으로 수정된 법안 반영
+      .map(law => {
+        if (optimisticEditedLaws[law.id]) {
+          return { ...law, ...optimisticEditedLaws[law.id] };
+        }
+        return law;
+      });
+    return result;
+  }, [laws, optimisticDeletedLaws, optimisticEditedLaws]);
+
+  const approvedLaws = displayLaws.filter(
     (law) =>
       law.status === "veto_overridden" ||
       law.finalStatus === "final_approved"
   );
   // ✨ 수정된 부분: pendingLaws 필터에 'pending_government_approval' 추가
-  const pendingLaws = (laws || []).filter(
+  const pendingLaws = displayLaws.filter(
     (law) =>
       law.status === "pending" ||
       law.status === "rejected" ||
       law.status === "auto_rejected" ||
       law.status === "pending_government_approval"
   );
-  const vetoedLaws = (laws || []).filter((law) => law.status === "vetoed");
+  const vetoedLaws = displayLaws.filter((law) => law.status === "vetoed");
 
   let displayedLaws;
   if (activeTab === "approved") {
