@@ -882,3 +882,95 @@
     min-height: 44px; /* iOS 터치 타겟 최소 크기 */
   }
 }
+/* ===== 추가 모바일 최적화 ===== */
+@media (max-width: 768px) {
+  .trial-room-header h2 {
+    font-size: 1.2rem;
+  }
+
+  .close-room-btn {
+    padding: 6px 16px;
+    font-size: 0.8rem;
+  }
+
+  .trial-sidebar {
+    width: 100%;
+    max-height: none; /* 세로로 쌓일 때 높이 제한 해제 */
+  }
+
+  .courtroom-view {
+    padding: 15px;
+  }
+
+  .judge-bench {
+    min-height: 100px;
+    margin-bottom: 15px;
+  }
+
+  .judge-bench::before {
+    font-size: 0.8rem;
+    left: 15px;
+  }
+
+  .court-floor {
+    padding: 10px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .trial-room-layout {
+    padding: 10px;
+    gap: 10px;
+  }
+
+  .avatar {
+    width: 50px;
+    height: 70px;
+    animation: none; /* 모바일에서 플로팅 애니메이션 제거하여 성능 향상 */
+  }
+
+  .avatar-circle {
+    width: 40px;
+    height: 40px;
+  }
+
+  .avatar-icon {
+    font-size: 18px;
+  }
+
+  .avatar-name {
+    font-size: 0.65rem;
+  }
+  
+  .avatar-role {
+      font-size: 0.6rem;
+  }
+
+  .jury-seats {
+    grid-template-columns: repeat(3, 1fr); /* 3열 고정으로 변경 */
+    gap: 5px;
+  }
+
+  .jury-position {
+      min-height: 70px;
+  }
+
+  .take-role-btn, .take-jury-btn {
+    font-size: 0.75rem;
+    padding: 6px 12px;
+  }
+
+  .chat-section {
+    min-height: 300px;
+  }
+
+  .message-input {
+    padding: 6px 10px;
+    font-size: 0.8rem;
+  }
+
+  .send-btn {
+    padding: 6px 16px;
+    font-size: 0.8rem;
+  }
+}
