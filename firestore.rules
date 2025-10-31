@@ -607,6 +607,14 @@ service cloud.firestore {
           allow delete: if isAdmin();
         }
       }
+
+      // ⚖️ 재판 결과 서브컬렉션 (classes/{classCode}/trialResults/{resultId})
+      match /trialResults/{resultId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isOwner(request.resource.data.judgeId);
+        allow update: if isAdmin();
+        allow delete: if isAdmin();
+      }
     }
 
     // ========================================================
