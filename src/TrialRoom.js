@@ -15,10 +15,10 @@ import {
   writeBatch,
   getDocs,
   getDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./firebase";
-import { usePolling } from "./hooks/usePolling";
 import "./TrialRoom.css";
 
 // 개선된 아바타 컴포넌트
@@ -112,51 +112,45 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     scrollToBottom();
   }, [messages]);
 
-  // 재판방 데이터 실시간 구독
-  const { data: polledRoomData } = usePolling(
-    async () => {
-      if (!roomId || !classCode) return null;
-      const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
-      const docSnap = await getDoc(roomRef);
-      if (docSnap.exists()) {
-        return { id: docSnap.id, ...docSnap.data() };
-      }
-      return null;
-    },
-    { interval: 30000, enabled: !!(roomId && classCode), deps: [roomId, classCode] }
-  );
-
+  // 재판방 데이터 실시간 구독 (onSnapshot 사용)
   useEffect(() => {
-    if (polledRoomData) {
-      const data = polledRoomData;
-      setRoomData(data);
+    if (!roomId || !classCode) return;
 
-      let currentRole = "spectator";
-      if (data.judgeId === currentUser.id) {
-        currentRole = "judge";
-      } else if (data.complainantId === currentUser.id) {
-        currentRole = "complainant";
-      } else if (data.defendantId === currentUser.id) {
-        currentRole = "defendant";
-      } else if (data.prosecutorId === currentUser.id) {
-        currentRole = "prosecutor";
-      } else if (data.lawyerId === currentUser.id) {
-        currentRole = "lawyer";
-      } else if (data.juryIds?.includes(currentUser.id)) {
-        currentRole = "jury";
-      }
-      setUserRole(currentRole);
+    const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
+    const unsubscribe = onSnapshot(roomRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = { id: docSnap.id, ...docSnap.data() };
+        setRoomData(data);
 
-      // 침묵 패널티 확인
-      if (data.silencedUsers?.includes(currentUser.id)) {
-        setIsSilenced(true);
+        let currentRole = "spectator";
+        if (data.judgeId === currentUser.id) {
+          currentRole = "judge";
+        } else if (data.complainantId === currentUser.id) {
+          currentRole = "complainant";
+        } else if (data.defendantId === currentUser.id) {
+          currentRole = "defendant";
+        } else if (data.prosecutorId === currentUser.id) {
+          currentRole = "prosecutor";
+        } else if (data.lawyerId === currentUser.id) {
+          currentRole = "lawyer";
+        } else if (data.juryIds?.includes(currentUser.id)) {
+          currentRole = "jury";
+        }
+        setUserRole(currentRole);
+
+        if (data.silencedUsers?.includes(currentUser.id)) {
+          setIsSilenced(true);
+        } else {
+          setIsSilenced(false);
+        }
+        setLoading(false);
       } else {
-        setIsSilenced(false);
+        setLoading(false);
       }
+    });
 
-      setLoading(false);
-    }
-  }, [polledRoomData, currentUser.id]);
+    return () => unsubscribe();
+  }, [roomId, classCode, currentUser.id]);
 
   useEffect(() => {
     if (!roomId || !classCode) return;
@@ -166,70 +160,45 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     };
   }, [roomId, classCode]);
 
-  // 채팅 메시지 실시간 구독
-  const { data: polledMessages } = usePolling(
-    async () => {
-      if (!roomId || !classCode) return [];
-      const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
-      const q = query(messagesRef, orderBy("timestamp", "asc"), limit(100));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    },
-    { interval: 30000, enabled: !!(roomId && classCode), deps: [roomId, classCode] }
-  );
-
+  // 채팅 메시지, 증거, 투표 데이터 실시간 구독
   useEffect(() => {
-    if (polledMessages) {
-      setMessages(polledMessages);
-    }
-  }, [polledMessages]);
+    if (!roomId || !classCode) return;
 
-  // 증거 자료 실시간 구독
-  const { data: polledEvidence } = usePolling(
-    async () => {
-      if (!roomId || !classCode) return [];
-      const evidenceRef = collection(db, "classes", classCode, "trialRooms", roomId, "evidence");
-      const q = query(evidenceRef, orderBy("uploadedAt", "desc"));
-      const snapshot = await getDocs(q);
-      return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-    },
-    { interval: 30000, enabled: !!(roomId && classCode), deps: [roomId, classCode] }
-  );
+    // Messages
+    const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
+    const messagesQuery = query(messagesRef, orderBy("timestamp", "asc"), limit(100));
+    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-  useEffect(() => {
-    if (polledEvidence) {
-      setEvidence(polledEvidence);
-    }
-  }, [polledEvidence]);
+    // Evidence
+    const evidenceRef = collection(db, "classes", classCode, "trialRooms", roomId, "evidence");
+    const evidenceQuery = query(evidenceRef, orderBy("uploadedAt", "desc"));
+    const unsubscribeEvidence = onSnapshot(evidenceQuery, (snapshot) => {
+      setEvidence(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-  // 투표 데이터 실시간 구독
-  const { data: polledVotingData } = usePolling(
-    async () => {
-      if (!roomId || !classCode) return null;
-      const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
-      const docSnap = await getDoc(votingRef);
+    // Voting
+    const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
+    const unsubscribeVoting = onSnapshot(votingRef, (docSnap) => {
       if (docSnap.exists()) {
-        return docSnap.data();
-      }
-      return null;
-    },
-    { interval: 30000, enabled: !!(roomId && classCode), deps: [roomId, classCode] }
-  );
-
-  useEffect(() => {
-    if (polledVotingData !== undefined) {
-      if (polledVotingData) {
-        setVotingData(polledVotingData);
-        // 투표가 종료되면 myVote 상태 초기화
-        if (!polledVotingData.isActive) {
+        const votingData = docSnap.data();
+        setVotingData(votingData);
+        if (!votingData.isActive) {
           setMyVote(null);
         }
       } else {
         setVotingData(null);
         setMyVote(null);
       }
-    }
-  }, [polledVotingData]);
+    });
+
+    return () => {
+      unsubscribeMessages();
+      unsubscribeEvidence();
+      unsubscribeVoting();
+    };
+  }, [roomId, classCode]);
 
   const handleJoinRoom = async () => {
     try {
