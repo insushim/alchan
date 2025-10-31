@@ -76,7 +76,7 @@ const Avatar = ({ role, name, isActive, userId, onAvatarClick, showSpeechBubble,
       {/* 말풍선 - 호버 또는 특정 상태에서 표시 */}
       {(isHovered || showSpeechBubble) && (
         <div className={`speech-bubble ${showSpeechBubble ? 'show' : ''}`}>
-          {canGrantPermission && userId ? "클릭하여 발언권 관리" : name}
+          {showSpeechBubble ? "⚠️ 침묵 중" : canGrantPermission && userId ? "클릭하여 침묵 패널티 관리" : name}
         </div>
       )}
       
@@ -97,7 +97,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [evidence, setEvidence] = useState([]);
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
-  const [hasSpokenPermission, setHasSpokenPermission] = useState(false);
+  const [isSilenced, setIsSilenced] = useState(false); // 발언권 대신 침묵 패널티 사용
   const [votingData, setVotingData] = useState(null);
   const [myVote, setMyVote] = useState(null);
   const messagesEndRef = useRef(null);
@@ -147,11 +147,11 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
       }
       setUserRole(currentRole);
 
-      // 발언권 확인
-      if (currentRole === "judge" || data.speakingPermissions?.includes(currentUser.id)) {
-        setHasSpokenPermission(true);
+      // 침묵 패널티 확인
+      if (data.silencedUsers?.includes(currentUser.id)) {
+        setIsSilenced(true);
       } else {
-        setHasSpokenPermission(false);
+        setIsSilenced(false);
       }
 
       setLoading(false);
@@ -312,12 +312,13 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !roomData) return;
-    
-    if (!hasSpokenPermission) {
-      alert("발언권이 없습니다. 판사에게 발언권을 요청하세요.");
+
+    // 침묵 패널티가 있으면 발언 불가
+    if (isSilenced) {
+      alert("침묵 패널티가 적용되어 발언할 수 없습니다.");
       return;
     }
-    
+
     try {
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
       await addDoc(messagesRef, {
@@ -334,43 +335,45 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     }
   };
 
-  const handleGrantSpeakingPermission = async (userId) => {
+  // 침묵 패널티 적용
+  const handleApplySilence = async (userId) => {
     if (userRole !== "judge" || !userId) return;
-    
+
     try {
       const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
       await updateDoc(roomRef, {
-        speakingPermissions: arrayUnion(userId),
+        silencedUsers: arrayUnion(userId),
       });
-      
+
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
       await addDoc(messagesRef, {
         type: "system",
-        text: `판사가 ${getUserName(userId)}님에게 발언권을 부여했습니다.`,
+        text: `⚠️ 판사가 ${getUserName(userId)}님에게 침묵 패널티를 적용했습니다.`,
         timestamp: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Error granting permission:", error);
+      console.error("Error applying silence:", error);
     }
   };
 
-  const handleRevokeSpeakingPermission = async (userId) => {
+  // 침묵 패널티 해제
+  const handleRemoveSilence = async (userId) => {
     if (userRole !== "judge" || !userId) return;
-    
+
     try {
       const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
       await updateDoc(roomRef, {
-        speakingPermissions: arrayRemove(userId),
+        silencedUsers: arrayRemove(userId),
       });
-      
+
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
       await addDoc(messagesRef, {
         type: "system",
-        text: `판사가 ${getUserName(userId)}님의 발언권을 회수했습니다.`,
+        text: `✅ 판사가 ${getUserName(userId)}님의 침묵 패널티를 해제했습니다.`,
         timestamp: serverTimestamp(),
       });
     } catch (error) {
-      console.error("Error revoking permission:", error);
+      console.error("Error removing silence:", error);
     }
   };
   
@@ -499,37 +502,72 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     }
   };
 
-  // 아바타 클릭 핸들러 추가
+  // 아바타 클릭 핸들러 - 침묵 패널티 적용/해제
   const handleAvatarClick = async (clickedUserId) => {
     if (userRole !== "judge" || !clickedUserId || clickedUserId === currentUser.id) return;
-    
-    if (roomData?.speakingPermissions?.includes(clickedUserId)) {
-      if (window.confirm(`${getUserName(clickedUserId)}님의 발언권을 회수하시겠습니까?`)) {
-        await handleRevokeSpeakingPermission(clickedUserId);
+
+    if (roomData?.silencedUsers?.includes(clickedUserId)) {
+      if (window.confirm(`${getUserName(clickedUserId)}님의 침묵 패널티를 해제하시겠습니까?`)) {
+        await handleRemoveSilence(clickedUserId);
       }
     } else {
-      if (window.confirm(`${getUserName(clickedUserId)}님에게 발언권을 부여하시겠습니까?`)) {
-        await handleGrantSpeakingPermission(clickedUserId);
+      if (window.confirm(`${getUserName(clickedUserId)}님에게 침묵 패널티를 적용하시겠습니까?`)) {
+        await handleApplySilence(clickedUserId);
       }
     }
   };
 
-  // 발언권 요청 기능 (참가자용)
-  const requestSpeakingPermission = async () => {
-    if (userRole === "judge" || hasSpokenPermission) return;
-    
+  // 판결하기 기능
+  const handleMakeVerdict = async () => {
+    if (userRole !== "judge") return;
+
+    const verdict = window.prompt("판결을 입력하세요 (예: 유죄, 무죄, 벌금 10,000원):");
+    if (!verdict || !verdict.trim()) return;
+
+    const reason = window.prompt("판결 이유를 입력하세요:");
+    if (!reason || !reason.trim()) return;
+
     try {
+      // 재판 결과 저장
+      const resultsRef = collection(db, "classes", classCode, "trialResults");
+      await addDoc(resultsRef, {
+        roomId: roomId,
+        caseNumber: roomData.caseNumber,
+        caseTitle: roomData.caseTitle,
+        judgeId: roomData.judgeId,
+        judgeName: roomData.judgeName,
+        complainantId: roomData.complainantId,
+        defendantId: roomData.defendantId,
+        verdict: verdict,
+        verdictReason: reason,
+        verdictDate: serverTimestamp(),
+        votingResult: votingData,
+        participants: roomData.participants || [],
+      });
+
+      // 재판방 상태를 "완료"로 업데이트
+      const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
+      await updateDoc(roomRef, {
+        status: "completed",
+        verdict: verdict,
+        verdictDate: serverTimestamp(),
+      });
+
+      // 시스템 메시지 추가
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
       await addDoc(messagesRef, {
         type: "system",
-        text: `🙋 ${currentUser.name || currentUser.displayName}님이 발언권을 요청했습니다.`,
+        text: `⚖️ 판결이 내려졌습니다: ${verdict}\n사유: ${reason}`,
         timestamp: serverTimestamp(),
-        requestType: "speakingPermission",
-        requesterId: currentUser.id
       });
-      alert("발언권을 요청했습니다. 판사의 승인을 기다려주세요.");
+
+      alert("판결이 완료되었습니다. 재판 결과 탭에서 확인할 수 있습니다.");
+
+      // 재판방 닫기
+      if (onClose) onClose();
     } catch (error) {
-      console.error("Error requesting permission:", error);
+      console.error("Error making verdict:", error);
+      alert("판결 처리 중 오류가 발생했습니다.");
     }
   };
 
@@ -577,14 +615,14 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
             <div className="left-side">
               <div className="role-position">
                 {roomData.prosecutorId ? (
-                  <Avatar 
-                    role="prosecutor" 
+                  <Avatar
+                    role="prosecutor"
                     name={roomData.prosecutorName}
                     isActive={roomData.participants?.includes(roomData.prosecutorId)}
                     userId={roomData.prosecutorId}
                     onAvatarClick={handleAvatarClick}
                     canGrantPermission={userRole === "judge"}
-                    showSpeechBubble={roomData.speakingPermissions?.includes(roomData.prosecutorId)}
+                    showSpeechBubble={roomData.silencedUsers?.includes(roomData.prosecutorId)}
                   />
                 ) : (
                   <div className="empty-role">
@@ -593,29 +631,29 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
                 )}
               </div>
               <div className="role-position">
-                <Avatar 
-                  role="complainant" 
+                <Avatar
+                  role="complainant"
                   name={getUserName(roomData.complainantId)}
                   isActive={roomData.participants?.includes(roomData.complainantId)}
                   userId={roomData.complainantId}
                   onAvatarClick={handleAvatarClick}
                   canGrantPermission={userRole === "judge"}
-                  showSpeechBubble={roomData.speakingPermissions?.includes(roomData.complainantId)}
+                  showSpeechBubble={roomData.silencedUsers?.includes(roomData.complainantId)}
                 />
               </div>
             </div>
-            
+
             <div className="right-side">
               <div className="role-position">
                 {roomData.lawyerId ? (
-                  <Avatar 
-                    role="lawyer" 
+                  <Avatar
+                    role="lawyer"
                     name={roomData.lawyerName}
                     isActive={roomData.participants?.includes(roomData.lawyerId)}
                     userId={roomData.lawyerId}
                     onAvatarClick={handleAvatarClick}
                     canGrantPermission={userRole === "judge"}
-                    showSpeechBubble={roomData.speakingPermissions?.includes(roomData.lawyerId)}
+                    showSpeechBubble={roomData.silencedUsers?.includes(roomData.lawyerId)}
                   />
                 ) : (
                   <div className="empty-role">
@@ -624,14 +662,14 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
                 )}
               </div>
               <div className="role-position">
-                <Avatar 
-                  role="defendant" 
+                <Avatar
+                  role="defendant"
                   name={getUserName(roomData.defendantId)}
                   isActive={roomData.participants?.includes(roomData.defendantId)}
                   userId={roomData.defendantId}
                   onAvatarClick={handleAvatarClick}
                   canGrantPermission={userRole === "judge"}
-                  showSpeechBubble={roomData.speakingPermissions?.includes(roomData.defendantId)}
+                  showSpeechBubble={roomData.silencedUsers?.includes(roomData.defendantId)}
                 />
               </div>
             </div>
@@ -643,14 +681,14 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
               {[...Array(6)].map((_, index) => (
                 <div key={index} className="jury-position">
                   {roomData.juryIds?.[index] ? (
-                    <Avatar 
-                      role="jury" 
+                    <Avatar
+                      role="jury"
                       name={getUserName(roomData.juryIds[index])}
                       isActive={roomData.participants?.includes(roomData.juryIds[index])}
                       userId={roomData.juryIds[index]}
                       onAvatarClick={handleAvatarClick}
                       canGrantPermission={userRole === "judge"}
-                      showSpeechBubble={roomData.speakingPermissions?.includes(roomData.juryIds[index])}
+                      showSpeechBubble={roomData.silencedUsers?.includes(roomData.juryIds[index])}
                     />
                   ) : (
                     <button onClick={() => handleTakeRole("jury")} className="take-jury-btn" disabled={userRole !== "spectator"}>배심원 되기</button>
@@ -666,15 +704,13 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
             <h3>내 정보</h3>
             <div className="my-role" style={{ color: getRoleColor(userRole) }}>{getRoleDisplay(userRole)}</div>
             <div className="my-name">{currentUser.name || currentUser.displayName}</div>
-            {hasSpokenPermission ? (
-              <div className="permission-badge">발언권 있음</div>
-            ) : userRole !== "judge" && (
-              <button onClick={requestSpeakingPermission} className="request-permission-btn" style={{
-                marginTop: '10px', background: '#667eea', color: 'white', border: 'none',
-                padding: '6px 12px', borderRadius: '15px', fontSize: '0.85rem', cursor: 'pointer'
+            {isSilenced && (
+              <div className="silence-badge" style={{
+                marginTop: '10px', background: '#dc3545', color: 'white',
+                padding: '6px 12px', borderRadius: '15px', fontSize: '0.85rem'
               }}>
-                🙋 발언권 요청
-              </button>
+                ⚠️ 침묵 패널티 적용 중
+              </div>
             )}
           </div>
           
@@ -701,9 +737,9 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
               <input type="text" value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                placeholder={hasSpokenPermission ? "메시지 입력..." : "발언권이 필요합니다"}
-                disabled={!hasSpokenPermission} className="message-input" />
-              <button onClick={handleSendMessage} className="send-btn">전송</button>
+                placeholder={isSilenced ? "침묵 패널티가 적용되었습니다" : "메시지 입력..."}
+                disabled={isSilenced} className="message-input" />
+              <button onClick={handleSendMessage} className="send-btn" disabled={isSilenced}>전송</button>
             </div>
           </div>
           
@@ -731,28 +767,32 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
           {userRole === "judge" && (
             <div className="judge-controls">
               <h3>판사 권한</h3>
-              {messages.filter(msg => msg.requestType === "speakingPermission" && !roomData.speakingPermissions?.includes(msg.requesterId)).slice(-3).map((req, i) => (
-                <div key={i} style={{
-                  background: 'rgba(102, 126, 234, 0.2)', padding: '8px', borderRadius: '5px',
-                  marginBottom: '8px', fontSize: '0.85rem'
-                }}>
-                  <span>{getUserName(req.requesterId)} 발언권 요청</span>
-                  <button onClick={() => handleAvatarClick(req.requesterId)} style={{
-                    marginLeft: '10px', padding: '2px 8px', background: '#48bb78', color: 'white',
-                    border: 'none', borderRadius: '3px', fontSize: '0.8rem', cursor: 'pointer'
-                  }}>승인</button>
-                </div>
-              ))}
+              <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '10px' }}>
+                아바타 클릭으로 침묵 패널티 적용/해제
+              </p>
               <button className="judge-action-btn" onClick={() => {
                 const q = window.prompt("투표 질문을 입력하세요:");
                 if (q) {
                   const isAnon = window.confirm("익명 투표로 진행하시겠습니까?");
                   handleStartVoting(q, isAnon);
                 }
-              }}>투표 시작</button>
-              {votingData?.isActive && <button className="judge-action-btn" onClick={handleEndVoting}>투표 종료</button>}
-              <button className="judge-action-btn">정숙 요청</button>
-              <button className="judge-action-btn">휴정 선언</button>
+              }}>📊 투표 시작</button>
+              {votingData?.isActive && (
+                <button className="judge-action-btn" onClick={handleEndVoting}>
+                  ✅ 투표 종료
+                </button>
+              )}
+              <button
+                className="judge-action-btn"
+                onClick={handleMakeVerdict}
+                style={{
+                  background: '#6f42c1',
+                  fontWeight: 'bold',
+                  marginTop: '10px'
+                }}
+              >
+                ⚖️ 판결하기
+              </button>
             </div>
           )}
           
