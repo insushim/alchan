@@ -112,6 +112,8 @@ export default function TaskItem({
 
   if (!task) return null;
 
+  const isMobile = window.innerWidth <= 768;
+
   const taskItemStyle = {
     backgroundColor: isCompleted ? "#e0e7ff" : "#ffffff",
     borderRadius: "8px",
@@ -119,13 +121,15 @@ export default function TaskItem({
     transition: "all 0.2s ease",
     border: `1px solid ${isCompleted ? "#c7d2fe" : "#e5e7eb"}`,
     display: "flex",
-    alignItems: "center",
+    flexDirection: isMobile ? "column" : "row",
+    alignItems: isMobile ? "stretch" : "center",
     justifyContent: "space-between",
     position: "relative",
     opacity: isCompleted ? 0.6 : 1,
-    padding: "12px",
+    padding: isMobile ? "10px" : "12px",
     marginBottom: "8px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    gap: isMobile ? "8px" : "0",
   };
 
   const taskInfoStyle = {
@@ -139,7 +143,7 @@ export default function TaskItem({
   const taskNameStyle = {
     color: "#374151",
     fontWeight: "600",
-    fontSize: "16px",
+    fontSize: isMobile ? "14px" : "16px",
     wordBreak: "break-word",
     lineHeight: "1.4",
   };
@@ -147,16 +151,18 @@ export default function TaskItem({
   const taskActionsStyle = {
     display: "flex",
     alignItems: "center",
-    gap: "8px",
+    gap: isMobile ? "6px" : "8px",
     flexShrink: 0,
+    flexWrap: "wrap",
+    justifyContent: isMobile ? "flex-start" : "flex-end",
   };
 
   const couponStyle = {
     backgroundColor: isJobTask ? "#4f46e5" : "#10b981",
     color: "white",
-    padding: "4px 10px",
+    padding: isMobile ? "4px 8px" : "4px 10px",
     borderRadius: "12px",
-    fontSize: "13px",
+    fontSize: isMobile ? "12px" : "13px",
     fontWeight: "500",
     whiteSpace: "nowrap",
   };
@@ -164,17 +170,67 @@ export default function TaskItem({
   const renderCardModal = () => {
     if (!showCardModal || !rewardData) return null;
 
+    const mobileModalContentStyle = {
+      ...modalContentStyle,
+      padding: isMobile ? "20px" : "40px",
+      width: isMobile ? "95%" : "90%",
+    };
+
+    const mobileModalTitleStyle = {
+      ...modalTitleStyle,
+      fontSize: isMobile ? "20px" : "28px",
+      marginBottom: isMobile ? "8px" : "10px",
+    };
+
+    const mobileModalSubtitleStyle = {
+      ...modalSubtitleStyle,
+      fontSize: isMobile ? "13px" : "16px",
+      marginBottom: isMobile ? "20px" : "30px",
+    };
+
+    const mobileCardsContainerStyle = {
+      ...cardsContainerStyle,
+      gap: isMobile ? "15px" : "20px",
+    };
+
+    const mobileCardStyle = {
+      ...cardStyle,
+      width: isMobile ? "140px" : "200px",
+      height: isMobile ? "200px" : "280px",
+    };
+
+    const mobileCardIconStyle = {
+      ...cardIconStyle,
+      fontSize: isMobile ? "50px" : "80px",
+      marginBottom: isMobile ? "10px" : "20px",
+    };
+
+    const mobileCardTextStyle = {
+      ...cardTextStyle,
+      fontSize: isMobile ? "18px" : "24px",
+    };
+
+    const mobileRewardAmountStyle = {
+      ...rewardAmountStyle,
+      fontSize: isMobile ? "24px" : "36px",
+    };
+
+    const mobileRewardLabelStyle = {
+      ...rewardLabelStyle,
+      fontSize: isMobile ? "14px" : "18px",
+    };
+
     return (
       <div style={modalOverlayStyle} onClick={() => setShowCardModal(false)}>
-        <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
-          <h3 style={modalTitleStyle}>🎁 보상 선택</h3>
-          <p style={modalSubtitleStyle}>두 개의 카드 중 하나를 선택하세요!</p>
+        <div style={mobileModalContentStyle} onClick={(e) => e.stopPropagation()}>
+          <h3 style={mobileModalTitleStyle}>🎁 보상 선택</h3>
+          <p style={mobileModalSubtitleStyle}>두 개의 카드 중 하나를 선택하세요!</p>
 
-          <div style={cardsContainerStyle}>
+          <div style={mobileCardsContainerStyle}>
             {/* 현금 카드 */}
             <div
               style={{
-                ...cardStyle,
+                ...mobileCardStyle,
                 ...(selectedCard === "cash" && selectedCardStyle),
               }}
               onClick={() => !selectedCard && handleCardSelect("cash")}
@@ -184,12 +240,12 @@ export default function TaskItem({
                 transform: selectedCard === "cash" ? "rotateY(180deg)" : "rotateY(0deg)",
               }}>
                 <div style={cardFrontStyle}>
-                  <div style={cardIconStyle}>💰</div>
-                  <div style={cardTextStyle}>현금</div>
+                  <div style={mobileCardIconStyle}>💰</div>
+                  <div style={mobileCardTextStyle}>현금</div>
                 </div>
                 <div style={{...cardBackStyle, ...(selectedCard === "cash" && cardBackVisibleStyle)}}>
-                  <div style={rewardAmountStyle}>{rewardData.cash.toLocaleString()}원</div>
-                  <div style={rewardLabelStyle}>💰 현금 획득!</div>
+                  <div style={mobileRewardAmountStyle}>{rewardData.cash.toLocaleString()}원</div>
+                  <div style={mobileRewardLabelStyle}>💰 현금 획득!</div>
                 </div>
               </div>
             </div>
@@ -197,7 +253,7 @@ export default function TaskItem({
             {/* 쿠폰 카드 */}
             <div
               style={{
-                ...cardStyle,
+                ...mobileCardStyle,
                 ...(selectedCard === "coupon" && selectedCardStyle),
               }}
               onClick={() => !selectedCard && handleCardSelect("coupon")}
@@ -207,12 +263,12 @@ export default function TaskItem({
                 transform: selectedCard === "coupon" ? "rotateY(180deg)" : "rotateY(0deg)",
               }}>
                 <div style={cardFrontStyle}>
-                  <div style={cardIconStyle}>🎫</div>
-                  <div style={cardTextStyle}>쿠폰</div>
+                  <div style={mobileCardIconStyle}>🎫</div>
+                  <div style={mobileCardTextStyle}>쿠폰</div>
                 </div>
                 <div style={{...cardBackStyle, ...(selectedCard === "coupon" && cardBackVisibleStyle)}}>
-                  <div style={rewardAmountStyle}>{rewardData.coupon}개</div>
-                  <div style={rewardLabelStyle}>🎫 쿠폰 획득!</div>
+                  <div style={mobileRewardAmountStyle}>{rewardData.coupon}개</div>
+                  <div style={mobileRewardLabelStyle}>🎫 쿠폰 획득!</div>
                 </div>
               </div>
             </div>

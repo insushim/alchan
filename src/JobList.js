@@ -18,6 +18,8 @@ export default function JobList({
     return null;
   }
 
+  const isMobile = window.innerWidth <= 768;
+
   return (
     <div
       key={job.id} // 상위에서 map을 사용하므로 여기서 key는 필수 X, 식별용으로 유지
@@ -38,14 +40,14 @@ export default function JobList({
         style={{
           backgroundColor: "#4f46e5",
           color: "white",
-          padding: "10px 12px",
+          padding: isMobile ? "8px 10px" : "10px 12px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           borderBottom: "1px solid #e5e7eb",
         }}
       >
-        <div style={{ fontWeight: "600", fontSize: "16px" }}>{job.title}</div>
+        <div style={{ fontWeight: "600", fontSize: isMobile ? "14px" : "16px" }}>{job.title}</div>
         {/* 관리자 모드에서 직업 수정/삭제 버튼 */}
         {isAdmin && (
           <div>
@@ -81,7 +83,7 @@ export default function JobList({
       </div>
 
       {/* 직업 할일 목록 (flex-grow로 남은 공간 채우기) */}
-      <div style={{ padding: "10px", flexGrow: 1, overflowY: "auto" }}>
+      <div style={{ padding: isMobile ? "8px" : "10px", flexGrow: 1, overflowY: "auto" }}>
         {job.tasks && job.tasks.length > 0 ? (
           job.tasks.map((task) => (
             <TaskItem
@@ -113,20 +115,20 @@ export default function JobList({
 
       {/* 관리자 모드에서 할일 추가 버튼 (하단 고정 영역) */}
       {isAdmin && (
-        <div style={{ padding: "10px", borderTop: "1px solid #e5e7eb" }}>
+        <div style={{ padding: isMobile ? "8px" : "10px", borderTop: "1px solid #e5e7eb" }}>
           <button
             onClick={onAddTask} // Dashboard에서 job.id 포함하여 생성된 핸들러 전달
             // --- 인라인 스타일 대신 전달받은 스타일 적용 ---
             style={
               addJobTaskButtonStyle || {
                 /* 기본 스타일 (선택 사항) */ width: "100%",
-                padding: "8px",
+                padding: isMobile ? "6px" : "8px",
                 backgroundColor: "#eef2ff",
                 border: "1px solid #c7d2fe",
                 color: "#4f46e5",
                 borderRadius: "6px",
                 cursor: "pointer",
-                fontSize: "13px",
+                fontSize: isMobile ? "12px" : "13px",
                 fontWeight: "500",
                 marginTop: "0", // 위쪽 마진 제거
               }

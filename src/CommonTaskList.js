@@ -79,9 +79,8 @@ const styles = {
   },
   listContainer: {
     padding: "10px",
-    display: "grid",
-    // gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", // 반응형 그리드 (선택 사항)
-    gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", // 반응형 그리드 (선택 사항)
+    display: "flex",
+    flexDirection: "column",
     gap: "12px",
   },
 };
