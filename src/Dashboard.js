@@ -1559,8 +1559,8 @@ function Dashboard({ adminTabMode }) {
                       onEditJob={() => handleEditJob(job)}
                       onDeleteJob={() => handleDeleteJob(job.id)}
                       onAddTask={() => handleAddTaskClick(job.id, true)}
-                      onEarnCoupon={(taskId) =>
-                        handleTaskEarnCoupon(taskId, job.id, true)
+                      onEarnCoupon={(taskId, jobId, isJobTask, cardType, rewardAmount) =>
+                        handleTaskEarnCoupon(taskId, jobId, isJobTask, cardType, rewardAmount)
                       }
                       onEditTask={(task) => handleEditTask(task, job.id)}
                       onDeleteTask={(taskId) =>

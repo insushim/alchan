@@ -2270,9 +2270,23 @@ exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) 
 
     // 관리자 또는 경찰청장만 합의금 처리 가능
     const isAdmin = userData.isAdmin || userData.isSuperAdmin;
-    const isPoliceChief = userData.jobName === "경찰청장";
 
-    logger.info(`[processSettlement] 권한 확인: uid=${uid}, isAdmin=${isAdmin}, isPoliceChief=${isPoliceChief}, jobName=${userData.jobName}, jobTitle=${userData.jobTitle}`);
+    // jobName 또는 jobTitle 필드를 확인
+    // 또는 selectedJobIds에서 경찰청장 직업이 있는지 확인
+    let isPoliceChief = false;
+    if (userData.jobName === "경찰청장" || userData.jobTitle === "경찰청장") {
+      isPoliceChief = true;
+    } else if (userData.selectedJobIds && Array.isArray(userData.selectedJobIds)) {
+      // selectedJobIds에서 경찰청장 직업 확인
+      const jobsSnapshot = await db.collection("jobs")
+        .where("classCode", "==", classCode)
+        .where(admin.firestore.FieldPath.documentId(), "in", userData.selectedJobIds.slice(0, 10))
+        .get();
+
+      isPoliceChief = jobsSnapshot.docs.some(doc => doc.data().title === "경찰청장");
+    }
+
+    logger.info(`[processSettlement] 권한 확인: uid=${uid}, isAdmin=${isAdmin}, isPoliceChief=${isPoliceChief}, jobName=${userData.jobName}, jobTitle=${userData.jobTitle}, selectedJobIds=${JSON.stringify(userData.selectedJobIds)}`);
 
     if (!isAdmin && !isPoliceChief) {
       throw new HttpsError("permission-denied", "관리자 또는 경찰청장만 합의금을 처리할 수 있습니다.");
