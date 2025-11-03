@@ -141,8 +141,8 @@ const TypingPracticeGame = ({ onClose }) => {
       return;
     }
 
-    // 랜덤 보상 생성
-    const rewards = generateRandomReward();
+    // 랜덤 보상 생성 (난이도별 차등 + 정답 개수 비례)
+    const rewards = generateRandomReward(difficulty, correctCount);
     setRewardData(rewards);
     setSelectedCard(null);
     setIsFlipping(false);

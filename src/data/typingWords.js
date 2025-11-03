@@ -330,49 +330,123 @@ export const difficultyConfig = {
   }
 };
 
-// 가중치 기반 랜덤 보상 생성
-export const generateRandomReward = () => {
-  // 현금 보상 (100원 ~ 100,000원)
-  const cashRewards = [
-    { amount: 100000, weight: 0.1 },
-    { amount: 50000, weight: 0.5 },
-    { amount: 30000, weight: 1 },
-    { amount: 10000, weight: 3 },
-    { amount: 5000, weight: 8 },
-    { amount: 3000, weight: 12 },
-    { amount: 1000, weight: 20 },
-    { amount: 500, weight: 25 },
-    { amount: 100, weight: 30.4 }
-  ];
+// 가중치 기반 랜덤 보상 생성 (난이도별 차등 + 정답 개수 비례)
+export const generateRandomReward = (difficulty = "normal", correctCount = 0) => {
+  // 난이도별 현금 보상 가중치
+  const cashRewardsByDifficulty = {
+    easy: [
+      { amount: 100000, weight: 0.01 },  // 매우 낮은 확률
+      { amount: 50000, weight: 0.05 },
+      { amount: 30000, weight: 0.1 },
+      { amount: 10000, weight: 0.5 },
+      { amount: 5000, weight: 2 },
+      { amount: 3000, weight: 8 },
+      { amount: 1000, weight: 20 },
+      { amount: 500, weight: 35 },
+      { amount: 100, weight: 50 }  // 가장 높은 확률
+    ],
+    normal: [
+      { amount: 100000, weight: 0.1 },
+      { amount: 50000, weight: 0.5 },
+      { amount: 30000, weight: 1 },
+      { amount: 10000, weight: 3 },
+      { amount: 5000, weight: 8 },
+      { amount: 3000, weight: 12 },
+      { amount: 1000, weight: 20 },
+      { amount: 500, weight: 25 },
+      { amount: 100, weight: 30.4 }
+    ],
+    hard: [
+      { amount: 100000, weight: 5 },  // 높은 확률
+      { amount: 50000, weight: 10 },
+      { amount: 30000, weight: 15 },
+      { amount: 10000, weight: 20 },
+      { amount: 5000, weight: 20 },
+      { amount: 3000, weight: 15 },
+      { amount: 1000, weight: 10 },
+      { amount: 500, weight: 4 },
+      { amount: 100, weight: 1 }  // 낮은 확률
+    ]
+  };
 
-  // 쿠폰 보상 (1개 ~ 10개)
-  const couponRewards = [
-    { amount: 10, weight: 1 },
-    { amount: 8, weight: 2 },
-    { amount: 5, weight: 5 },
-    { amount: 3, weight: 12 },
-    { amount: 2, weight: 30 },
-    { amount: 1, weight: 50 }
-  ];
+  // 난이도별 쿠폰 보상 가중치
+  const couponRewardsByDifficulty = {
+    easy: [
+      { amount: 10, weight: 0.05 },  // 매우 낮은 확률
+      { amount: 8, weight: 0.1 },
+      { amount: 5, weight: 0.5 },
+      { amount: 3, weight: 5 },
+      { amount: 2, weight: 30 },
+      { amount: 1, weight: 64.35 }  // 가장 높은 확률
+    ],
+    normal: [
+      { amount: 10, weight: 1 },
+      { amount: 8, weight: 2 },
+      { amount: 5, weight: 5 },
+      { amount: 3, weight: 12 },
+      { amount: 2, weight: 30 },
+      { amount: 1, weight: 50 }
+    ],
+    hard: [
+      { amount: 10, weight: 25 },  // 높은 확률
+      { amount: 8, weight: 20 },
+      { amount: 5, weight: 20 },
+      { amount: 3, weight: 18 },
+      { amount: 2, weight: 12 },
+      { amount: 1, weight: 5 }  // 낮은 확률
+    ]
+  };
 
-  // 가중치 기반 랜덤 선택 함수
-  const weightedRandom = (items) => {
-    const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+  // 정답 개수에 따른 보상 배율 계산
+  // 정답이 많을수록 높은 보상이 나올 확률이 높아짐
+  const calculateBonusMultiplier = (correctCount) => {
+    if (correctCount === 0) return 0.1; // 0개 정답: 거의 최저 보상
+    if (correctCount <= 2) return 0.3;   // 1-2개: 낮은 보상
+    if (correctCount <= 4) return 0.6;   // 3-4개: 중간 보상
+    if (correctCount <= 6) return 1.0;   // 5-6개: 기본 보상
+    if (correctCount <= 8) return 1.5;   // 7-8개: 높은 보상
+    return 2.5; // 9개 이상: 매우 높은 보상
+  };
+
+  const bonusMultiplier = calculateBonusMultiplier(correctCount);
+
+  // 가중치 기반 랜덤 선택 함수 (정답 개수에 따라 고액 가중치 증가)
+  const weightedRandom = (items, isHigherBetter = true) => {
+    const adjustedItems = items.map((item, index) => {
+      let adjustedWeight = item.weight;
+
+      if (isHigherBetter) {
+        // 고액일수록 가중치 증가 (정답이 많을수록 효과 증가)
+        const positionMultiplier = index / items.length; // 0 ~ 1
+        adjustedWeight = item.weight * (1 + positionMultiplier * bonusMultiplier);
+      } else {
+        // 저액일수록 가중치 감소 (정답이 많을수록 효과 증가)
+        const positionMultiplier = 1 - (index / items.length); // 1 ~ 0
+        adjustedWeight = item.weight * (0.5 + positionMultiplier * bonusMultiplier);
+      }
+
+      return { ...item, adjustedWeight };
+    });
+
+    const totalWeight = adjustedItems.reduce((sum, item) => sum + item.adjustedWeight, 0);
     let random = Math.random() * totalWeight;
 
-    for (const item of items) {
-      random -= item.weight;
+    for (const item of adjustedItems) {
+      random -= item.adjustedWeight;
       if (random <= 0) {
         return item.amount;
       }
     }
 
-    return items[items.length - 1].amount;
+    return adjustedItems[adjustedItems.length - 1].amount;
   };
 
+  const cashRewards = cashRewardsByDifficulty[difficulty];
+  const couponRewards = couponRewardsByDifficulty[difficulty];
+
   return {
-    cash: weightedRandom(cashRewards),
-    coupon: weightedRandom(couponRewards)
+    cash: weightedRandom(cashRewards, true),  // 고액이 좋음
+    coupon: weightedRandom(couponRewards, true)  // 많은 개수가 좋음
   };
 };
 
