@@ -1,121 +1,153 @@
 // src/data/typingWords.js
-// 타자연습 게임용 영어-한글 단어 데이터
+// 타자연습 게임용 한글 문장 데이터
 
 export const typingWords = {
   easy: [
-    // 쉬움 난이도 - 기초 단어 (3-5글자)
-    { english: "cat", korean: "고양이", distractors: ["강아지", "토끼", "새"] },
-    { english: "dog", korean: "강아지", distractors: ["고양이", "말", "소"] },
-    { english: "book", korean: "책", distractors: ["펜", "종이", "가방"] },
-    { english: "home", korean: "집", distractors: ["학교", "병원", "공원"] },
-    { english: "water", korean: "물", distractors: ["우유", "주스", "차"] },
-    { english: "apple", korean: "사과", distractors: ["바나나", "오렌지", "포도"] },
-    { english: "happy", korean: "행복한", distractors: ["슬픈", "화난", "평온한"] },
-    { english: "love", korean: "사랑", distractors: ["미움", "우정", "가족"] },
-    { english: "time", korean: "시간", distractors: ["공간", "돈", "사람"] },
-    { english: "school", korean: "학교", distractors: ["집", "병원", "상점"] },
-    { english: "friend", korean: "친구", distractors: ["가족", "선생님", "학생"] },
-    { english: "food", korean: "음식", distractors: ["물", "옷", "집"] },
-    { english: "car", korean: "자동차", distractors: ["자전거", "버스", "기차"] },
-    { english: "music", korean: "음악", distractors: ["영화", "책", "그림"] },
-    { english: "sun", korean: "태양", distractors: ["달", "별", "구름"] },
-    { english: "moon", korean: "달", distractors: ["태양", "별", "하늘"] },
-    { english: "tree", korean: "나무", distractors: ["꽃", "풀", "잎"] },
-    { english: "blue", korean: "파란색", distractors: ["빨간색", "노란색", "초록색"] },
-    { english: "red", korean: "빨간색", distractors: ["파란색", "노란색", "보라색"] },
-    { english: "good", korean: "좋은", distractors: ["나쁜", "보통", "특별한"] }
+    // 쉬움 난이도 - 짧은 문장 (10-15자)
+    { text: "안녕하세요" },
+    { text: "감사합니다" },
+    { text: "사랑해요" },
+    { text: "오늘 날씨가 좋아요" },
+    { text: "책을 읽어요" },
+    { text: "물을 마셔요" },
+    { text: "학교에 가요" },
+    { text: "친구를 만나요" },
+    { text: "음악을 들어요" },
+    { text: "밥을 먹어요" },
+    { text: "공부를 해요" },
+    { text: "운동을 해요" },
+    { text: "잠을 자요" },
+    { text: "영화를 봐요" },
+    { text: "게임을 해요" },
+    { text: "그림을 그려요" },
+    { text: "노래를 불러요" },
+    { text: "춤을 춰요" },
+    { text: "청소를 해요" },
+    { text: "요리를 해요" }
   ],
 
   normal: [
-    // 보통 난이도 - 중급 단어 (5-8글자)
-    { english: "computer", korean: "컴퓨터", distractors: ["키보드", "마우스", "모니터"] },
-    { english: "language", korean: "언어", distractors: ["문화", "역사", "과학"] },
-    { english: "education", korean: "교육", distractors: ["학습", "훈련", "지도"] },
-    { english: "important", korean: "중요한", distractors: ["특별한", "필요한", "유용한"] },
-    { english: "beautiful", korean: "아름다운", distractors: ["예쁜", "멋진", "훌륭한"] },
-    { english: "challenge", korean: "도전", distractors: ["기회", "위험", "선택"] },
-    { english: "different", korean: "다른", distractors: ["같은", "비슷한", "특별한"] },
-    { english: "creative", korean: "창의적인", distractors: ["논리적인", "실용적인", "감정적인"] },
-    { english: "problem", korean: "문제", distractors: ["해답", "질문", "상황"] },
-    { english: "solution", korean: "해결책", distractors: ["문제", "원인", "결과"] },
-    { english: "knowledge", korean: "지식", distractors: ["경험", "기술", "능력"] },
-    { english: "development", korean: "개발", distractors: ["연구", "제작", "설계"] },
-    { english: "technology", korean: "기술", distractors: ["과학", "공학", "정보"] },
-    { english: "environment", korean: "환경", distractors: ["자연", "생태", "기후"] },
-    { english: "university", korean: "대학교", distractors: ["고등학교", "중학교", "대학원"] },
-    { english: "interesting", korean: "흥미로운", distractors: ["지루한", "재미있는", "놀라운"] },
-    { english: "opportunity", korean: "기회", distractors: ["위기", "도전", "선택"] },
-    { english: "experience", korean: "경험", distractors: ["지식", "기억", "학습"] },
-    { english: "communication", korean: "의사소통", distractors: ["정보전달", "대화", "교류"] },
-    { english: "successful", korean: "성공적인", distractors: ["실패한", "완전한", "효과적인"] }
+    // 보통 난이도 - 중간 길이 문장 (20-30자)
+    { text: "오늘은 날씨가 정말 좋습니다" },
+    { text: "도서관에서 책을 빌렸어요" },
+    { text: "친구와 함께 영화를 봤습니다" },
+    { text: "학교에서 수학을 공부했어요" },
+    { text: "컴퓨터로 게임을 하고 있어요" },
+    { text: "주말에는 가족과 여행을 갑니다" },
+    { text: "음악을 들으며 산책을 했어요" },
+    { text: "숙제를 다 끝내고 쉬고 있어요" },
+    { text: "맛있는 음식을 먹고 싶어요" },
+    { text: "내일은 체육 시간이 있습니다" },
+    { text: "새로운 친구를 사귀었어요" },
+    { text: "열심히 노력하면 잘할 수 있어요" },
+    { text: "꿈을 이루기 위해 공부합니다" },
+    { text: "부모님께 감사 인사를 드렸어요" },
+    { text: "건강을 위해 운동을 시작했어요" },
+    { text: "재미있는 이야기를 들었습니다" },
+    { text: "아름다운 풍경을 보고 왔어요" },
+    { text: "선생님께서 칭찬을 해주셨어요" },
+    { text: "도전하는 것이 중요합니다" },
+    { text: "매일 조금씩 성장하고 있어요" }
   ],
 
   hard: [
-    // 어려움 난이도 - 고급 단어 (8글자 이상)
-    { english: "responsibility", korean: "책임", distractors: ["의무", "권리", "역할"] },
-    { english: "understanding", korean: "이해", distractors: ["인식", "파악", "깨달음"] },
-    { english: "extraordinary", korean: "특별한", distractors: ["평범한", "일반적인", "독특한"] },
-    { english: "accomplishment", korean: "성취", distractors: ["목표", "결과", "업적"] },
-    { english: "determination", korean: "결심", distractors: ["의지", "노력", "계획"] },
-    { english: "independence", korean: "독립", distractors: ["자유", "자율", "해방"] },
-    { english: "contemporary", korean: "현대의", distractors: ["과거의", "미래의", "전통적인"] },
-    { english: "sophisticated", korean: "정교한", distractors: ["단순한", "복잡한", "섬세한"] },
-    { english: "philosophical", korean: "철학적인", distractors: ["과학적인", "논리적인", "종교적인"] },
-    { english: "psychological", korean: "심리적인", distractors: ["생리적인", "정신적인", "감정적인"] },
-    { english: "international", korean: "국제적인", distractors: ["국내의", "지역의", "세계적인"] },
-    { english: "characteristic", korean: "특성", distractors: ["성격", "특징", "성질"] },
-    { english: "revolutionary", korean: "혁명적인", distractors: ["진보적인", "보수적인", "변화하는"] },
-    { english: "entrepreneurship", korean: "기업가정신", distractors: ["리더십", "창업", "경영"] },
-    { english: "transformation", korean: "변화", distractors: ["개선", "발전", "진화"] },
-    { english: "collaboration", korean: "협력", distractors: ["경쟁", "협조", "팀워크"] },
-    { english: "administration", korean: "관리", distractors: ["운영", "경영", "지도"] },
-    { english: "investigation", korean: "조사", distractors: ["연구", "분석", "탐구"] },
-    { english: "establishment", korean: "설립", distractors: ["창설", "건설", "구축"] },
-    { english: "comprehensive", korean: "포괄적인", distractors: ["전체적인", "완전한", "광범위한"] }
+    // 어려움 난이도 - 긴 문장 (35-50자)
+    { text: "열심히 노력하면 언젠가는 반드시 좋은 결과를 얻을 수 있습니다" },
+    { text: "친구들과 함께 즐거운 시간을 보내는 것이 행복의 비결입니다" },
+    { text: "책을 많이 읽으면 지식이 쌓이고 생각의 폭이 넓어집니다" },
+    { text: "꾸준한 연습과 노력이 성공으로 가는 가장 빠른 길입니다" },
+    { text: "어려운 문제를 풀었을 때의 성취감은 정말 대단합니다" },
+    { text: "긍정적인 마음가짐을 가지면 어떤 일도 해낼 수 있어요" },
+    { text: "새로운 것을 배우는 과정에서 실수는 자연스러운 것입니다" },
+    { text: "서로 존중하고 배려하는 마음이 좋은 관계를 만듭니다" },
+    { text: "목표를 세우고 계획적으로 실천하는 것이 중요합니다" },
+    { text: "창의적인 생각은 고정관념을 깨는 것에서 시작됩니다" },
+    { text: "건강한 몸과 마음을 위해 규칙적인 생활습관이 필요해요" },
+    { text: "작은 실천이 모여 큰 변화를 만들어낼 수 있습니다" },
+    { text: "다양한 경험을 통해 우리는 더 넓은 세상을 알게 됩니다" },
+    { text: "협력과 소통은 팀워크의 가장 중요한 요소입니다" },
+    { text: "실패를 두려워하지 말고 도전하는 용기를 가지세요" },
+    { text: "감사하는 마음을 가지면 일상이 더욱 행복해집니다" },
+    { text: "자신만의 속도로 천천히 성장하는 것도 멋진 일이에요" },
+    { text: "어제보다 나은 오늘을 만들기 위해 노력하고 있습니다" },
+    { text: "좋은 습관을 만드는 것은 미래를 위한 최고의 투자예요" },
+    { text: "서로 다른 생각을 존중하며 함께 성장할 수 있습니다" }
   ]
 };
 
-// 난이도별 스테이지 설정
-export const stageConfig = {
+// 난이도별 설정 (30초 통일)
+export const difficultyConfig = {
   easy: {
-    wordsPerStage: 5,
-    rewardPerStage: 1,
-    totalStages: 4, // 20개 단어를 4스테이지로 분할
-    name: "쉬움"
+    name: "쉬움",
+    sentencesPerGame: 10,
+    timeLimit: 30, // 30초 통일
   },
   normal: {
-    wordsPerStage: 5,
-    rewardPerStage: 2,
-    totalStages: 4, // 20개 단어를 4스테이지로 분할
-    name: "보통"
+    name: "보통",
+    sentencesPerGame: 8,
+    timeLimit: 30, // 30초 통일
   },
   hard: {
-    wordsPerStage: 5,
-    rewardPerStage: 3,
-    totalStages: 4, // 20개 단어를 4스테이지로 분할
-    name: "어려움"
+    name: "어려움",
+    sentencesPerGame: 6,
+    timeLimit: 30, // 30초 통일
   }
 };
 
-// 스테이지별 단어 가져오기 함수
-export const getWordsForStage = (difficulty, stage) => {
-  const words = typingWords[difficulty];
-  const config = stageConfig[difficulty];
-  const startIndex = (stage - 1) * config.wordsPerStage;
-  const endIndex = startIndex + config.wordsPerStage;
+// 가중치 기반 랜덤 보상 생성
+export const generateRandomReward = () => {
+  // 현금 보상 (100원 ~ 100,000원)
+  const cashRewards = [
+    { amount: 100000, weight: 0.1 },
+    { amount: 50000, weight: 0.5 },
+    { amount: 30000, weight: 1 },
+    { amount: 10000, weight: 3 },
+    { amount: 5000, weight: 8 },
+    { amount: 3000, weight: 12 },
+    { amount: 1000, weight: 20 },
+    { amount: 500, weight: 25 },
+    { amount: 100, weight: 30.4 }
+  ];
 
-  return words.slice(startIndex, endIndex);
+  // 쿠폰 보상 (1개 ~ 10개)
+  const couponRewards = [
+    { amount: 10, weight: 1 },
+    { amount: 8, weight: 2 },
+    { amount: 5, weight: 5 },
+    { amount: 3, weight: 12 },
+    { amount: 2, weight: 30 },
+    { amount: 1, weight: 50 }
+  ];
+
+  // 가중치 기반 랜덤 선택 함수
+  const weightedRandom = (items) => {
+    const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+    let random = Math.random() * totalWeight;
+
+    for (const item of items) {
+      random -= item.weight;
+      if (random <= 0) {
+        return item.amount;
+      }
+    }
+
+    return items[items.length - 1].amount;
+  };
+
+  return {
+    cash: weightedRandom(cashRewards),
+    coupon: weightedRandom(couponRewards)
+  };
 };
 
-// 랜덤 선택지 생성 함수 (정답 + 오답들)
-export const generateChoices = (correctAnswer, distractors) => {
-  const choices = [correctAnswer, ...distractors];
+// 난이도별 랜덤 문장 가져오기 함수
+export const getRandomSentences = (difficulty) => {
+  const sentences = typingWords[difficulty];
+  const config = difficultyConfig[difficulty];
+  const count = config.sentencesPerGame;
 
   // 배열 섞기 (Fisher-Yates 알고리즘)
-  for (let i = choices.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [choices[i], choices[j]] = [choices[j], choices[i]];
-  }
+  const shuffled = [...sentences].sort(() => Math.random() - 0.5);
 
-  return choices;
+  return shuffled.slice(0, count);
 };

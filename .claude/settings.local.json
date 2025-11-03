@@ -33,7 +33,11 @@
       "Bash(curl:*)",
       "Bash(git log:*)",
       "Bash(npx firebase-tools deploy --only hosting)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(claude --version:*)",
+      "Bash(npm i:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(gh workflow run:*)"
     ],
     "deny": [],
     "ask": []

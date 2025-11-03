@@ -1,102 +1,89 @@
 // src/TypingPracticeGame.js
-// 최적화된 타자연습 게임 컴포넌트
+// 한글 타자연습 미니게임
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "./AuthContext";
-import { httpsCallable } from "firebase/functions";
-import { functions } from "./firebase";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { db } from "./firebase";
+import { difficultyConfig, getRandomSentences, generateRandomReward } from "./data/typingWords";
 import "./TypingPracticeGame.css";
 
 const TypingPracticeGame = ({ onClose }) => {
   const { user, userDoc, updateUser } = useAuth();
-  const userNickname = userDoc?.nickname || userDoc?.name || "사용자";
 
   // 게임 상태
-  const [gameState, setGameState] = useState("menu"); // menu, playing, completed, loading
+  const [gameState, setGameState] = useState("menu"); // menu, playing, completed, cardSelection, reward
   const [difficulty, setDifficulty] = useState("easy");
-  const [currentStage, setCurrentStage] = useState(1);
-  const [stageData, setStageData] = useState(null);
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [sentences, setSentences] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
-  const [score, setScore] = useState(0);
-  const [correctAnswers, setCorrectAnswers] = useState(0);
-  const [wrongAnswers, setWrongAnswers] = useState(0);
-  const [gameProgress, setGameProgress] = useState(null);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [wrongCount, setWrongCount] = useState(0);
+  const [totalTyped, setTotalTyped] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [timeLeft, setTimeLeft] = useState(60); // 60초 제한
+  const [timeLeft, setTimeLeft] = useState(30);
   const [gameStartTime, setGameStartTime] = useState(null);
+  const [dailyPlayCount, setDailyPlayCount] = useState(0);
+
+  // 카드 선택 관련
+  const [rewardData, setRewardData] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [isFlipping, setIsFlipping] = useState(false);
 
   // Refs
   const inputRef = useRef(null);
   const timerRef = useRef(null);
 
-  // Firebase Functions
-  const getTypingGameStage = httpsCallable(functions, "getTypingGameStage");
-  const completeTypingGameStage = httpsCallable(functions, "completeTypingGameStage");
-  const getTypingGameProgress = httpsCallable(functions, "getTypingGameProgress");
-
-  // 난이도 설정
-  const difficultyConfig = {
-    easy: { name: "쉬움", reward: 1, color: "#4ade80", timeLimit: 60 },
-    normal: { name: "보통", reward: 2, color: "#fbbf24", timeLimit: 45 },
-    hard: { name: "어려움", reward: 3, color: "#f87171", timeLimit: 30 },
-  };
-
-  // 진행 상황 로드
-  const loadProgress = useCallback(async () => {
+  // 일일 플레이 횟수 확인
+  const checkDailyPlayCount = useCallback(async () => {
     try {
-      const result = await getTypingGameProgress();
-      if (result.data.success) {
-        setGameProgress(result.data.data);
+      const userRef = doc(db, "users", user.uid);
+      const userSnap = await getDoc(userRef);
+
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+        const today = new Date().toDateString();
+        const lastPlayDate = data.typingGameLastPlayDate?.toDate?.().toDateString() || "";
+
+        if (lastPlayDate === today) {
+          setDailyPlayCount(data.typingGameDailyCount || 0);
+        } else {
+          // 날짜가 바뀌면 초기화
+          setDailyPlayCount(0);
+          await updateDoc(userRef, {
+            typingGameDailyCount: 0,
+            typingGameLastPlayDate: serverTimestamp()
+          });
+        }
       }
     } catch (error) {
-      console.error("진행 상황 로드 오류:", error);
+      console.error("일일 플레이 횟수 확인 오류:", error);
     }
-  }, [getTypingGameProgress]);
-
-  // 스테이지 데이터 로드
-  const loadStageData = useCallback(async (diff, stage) => {
-    setLoading(true);
-    setError("");
-    try {
-      const result = await getTypingGameStage({ difficulty: diff, stage });
-      if (result.data.success) {
-        setStageData(result.data.data);
-        setCurrentWordIndex(0);
-        setUserInput("");
-        setScore(0);
-        setCorrectAnswers(0);
-        setWrongAnswers(0);
-        setTimeLeft(difficultyConfig[diff].timeLimit);
-        setGameStartTime(Date.now());
-      } else {
-        setError("스테이지 데이터를 불러올 수 없습니다.");
-      }
-    } catch (error) {
-      console.error("스테이지 로드 오류:", error);
-      setError("스테이지 로드 중 오류가 발생했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, [getTypingGameStage]);
+  }, [user]);
 
   // 게임 시작
-  const startGame = useCallback(async (diff, stage) => {
+  const startGame = useCallback((diff) => {
     setDifficulty(diff);
-    setCurrentStage(stage);
-    await loadStageData(diff, stage);
+    const randomSentences = getRandomSentences(diff);
+    setSentences(randomSentences);
+    setCurrentIndex(0);
+    setUserInput("");
+    setCorrectCount(0);
+    setWrongCount(0);
+    setTotalTyped(0);
+    setTimeLeft(30);
+    setGameStartTime(Date.now());
     setGameState("playing");
-  }, [loadStageData]);
+  }, []);
 
-  // 타이머 시작
+  // 타이머
   useEffect(() => {
     if (gameState === "playing" && timeLeft > 0) {
       timerRef.current = setTimeout(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
     } else if (gameState === "playing" && timeLeft === 0) {
-      // 시간 종료
       handleGameEnd();
     }
 
@@ -107,73 +94,34 @@ const TypingPracticeGame = ({ onClose }) => {
     };
   }, [gameState, timeLeft]);
 
-  // 게임 종료 처리
-  const handleGameEnd = useCallback(async () => {
-    if (!stageData) return;
-
-    const timeSpent = Math.floor((Date.now() - gameStartTime) / 1000);
-    const totalQuestions = stageData.words.length;
-    const finalScore = Math.floor((correctAnswers / totalQuestions) * 100);
-
-    setLoading(true);
-    try {
-      const result = await completeTypingGameStage({
-        difficulty,
-        stage: currentStage,
-        score: finalScore,
-        correctAnswers,
-        totalQuestions,
-        timeSpent,
-      });
-
-      if (result.data.success) {
-        setGameState("completed");
-
-        // 쿠폰 업데이트
-        if (result.data.passed) {
-          await updateUser({
-            coupons: (userDoc?.coupons || 0) + result.data.reward,
-          });
-        }
-
-        // 진행 상황 새로고침
-        await loadProgress();
-      } else {
-        setError(result.data.message || "게임 완료 처리 실패");
-        setGameState("completed");
-      }
-    } catch (error) {
-      console.error("게임 완료 오류:", error);
-      setError("게임 완료 처리 중 오류가 발생했습니다.");
-      setGameState("completed");
-    } finally {
-      setLoading(false);
-    }
-  }, [stageData, gameStartTime, correctAnswers, difficulty, currentStage, completeTypingGameStage, updateUser, userDoc, loadProgress]);
+  // 게임 종료
+  const handleGameEnd = useCallback(() => {
+    setGameState("completed");
+  }, []);
 
   // 답안 확인
   const checkAnswer = useCallback(() => {
-    if (!stageData || currentWordIndex >= stageData.words.length) return;
+    if (!sentences[currentIndex]) return;
 
-    const currentWord = stageData.words[currentWordIndex];
-    const isCorrect = userInput.trim() === currentWord.korean;
+    const currentSentence = sentences[currentIndex].text;
+    const isCorrect = userInput.trim() === currentSentence;
 
     if (isCorrect) {
-      setCorrectAnswers(prev => prev + 1);
-      setScore(prev => prev + 10);
+      setCorrectCount(prev => prev + 1);
     } else {
-      setWrongAnswers(prev => prev + 1);
+      setWrongCount(prev => prev + 1);
     }
 
-    // 다음 단어로 이동
-    if (currentWordIndex + 1 < stageData.words.length) {
-      setCurrentWordIndex(prev => prev + 1);
+    setTotalTyped(prev => prev + userInput.length);
+
+    // 다음 문장으로
+    if (currentIndex + 1 < sentences.length) {
+      setCurrentIndex(prev => prev + 1);
       setUserInput("");
     } else {
-      // 모든 단어 완료
       handleGameEnd();
     }
-  }, [stageData, currentWordIndex, handleGameEnd, userInput]);
+  }, [sentences, currentIndex, userInput, handleGameEnd]);
 
   // 입력 처리
   const handleInputChange = useCallback((e) => {
@@ -186,119 +134,196 @@ const TypingPracticeGame = ({ onClose }) => {
     }
   };
 
-  // 초기 진행 상황 로드
+  // 카드 선택으로 이동
+  const handleProceedToCardSelection = () => {
+    if (dailyPlayCount >= 3) {
+      setGameState("menu");
+      return;
+    }
+
+    // 랜덤 보상 생성
+    const rewards = generateRandomReward();
+    setRewardData(rewards);
+    setSelectedCard(null);
+    setIsFlipping(false);
+    setGameState("cardSelection");
+  };
+
+  // 카드 선택
+  const handleCardSelect = async (cardType) => {
+    if (isFlipping || selectedCard) return;
+
+    setSelectedCard(cardType);
+    setIsFlipping(true);
+
+    // 카드 뒤집기 애니메이션 후 보상 적용
+    setTimeout(async () => {
+      setLoading(true);
+      try {
+        const userRef = doc(db, "users", user.uid);
+        const rewardAmount = cardType === "cash" ? rewardData.cash : rewardData.coupon;
+
+        const updates = {
+          typingGameDailyCount: dailyPlayCount + 1,
+          typingGameLastPlayDate: serverTimestamp()
+        };
+
+        if (cardType === "cash") {
+          updates.cash = (userDoc?.cash || 0) + rewardAmount;
+        } else {
+          updates.coupons = (userDoc?.coupons || 0) + rewardAmount;
+        }
+
+        await updateDoc(userRef, updates);
+        await updateUser(updates);
+
+        setDailyPlayCount(prev => prev + 1);
+
+        // 보상 화면으로 이동
+        setTimeout(() => {
+          setGameState("reward");
+          setLoading(false);
+        }, 1000);
+      } catch (error) {
+        console.error("보상 처리 오류:", error);
+        setError("보상 처리 중 오류가 발생했습니다.");
+        setLoading(false);
+      }
+    }, 800);
+  };
+
+  // 초기 로드
   useEffect(() => {
-    loadProgress();
-  }, [loadProgress]);
+    checkDailyPlayCount();
+  }, [checkDailyPlayCount]);
 
   // 입력 포커스
   useEffect(() => {
     if (gameState === "playing" && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [gameState, currentWordIndex]);
+  }, [gameState, currentIndex]);
 
   // 메뉴 화면
-  const renderMenu = () => (
-    <div className="typing-game-menu">
-      <div className="game-header">
-        <h2>🎯 타자연습 게임</h2>
-        <p>영어 단어의 올바른 한글 뜻을 입력하세요!</p>
-        {onClose && <button className="close-btn" onClick={onClose}>✕</button>}
-      </div>
+  const renderMenu = () => {
+    const canPlayForReward = dailyPlayCount < 3;
 
-      <div className="difficulty-selection">
-        <h3>난이도 선택</h3>
-        <div className="difficulty-cards">
-          {Object.entries(difficultyConfig).map(([key, config]) => {
-            const progressData = gameProgress?.difficulties?.find(d => d.difficulty === key);
-            const maxCompleted = progressData?.progress?.maxStageCompleted || 0;
-            const totalRewards = progressData?.progress?.totalRewardsEarned || 0;
+    return (
+      <div className="typing-game-menu minigame">
+        <div className="game-header minigame-header">
+          <div>
+            <h2>⌨️ 한글 타자연습</h2>
+            <p className="subtitle">빠르고 정확하게 입력하세요!</p>
+          </div>
+          {onClose && <button className="close-btn" onClick={onClose}>✕</button>}
+        </div>
 
-            return (
-              <div key={key} className="difficulty-card" style={{ borderColor: config.color }}>
-                <div className="difficulty-header">
-                  <h4 style={{ color: config.color }}>{config.name}</h4>
-                  <span className="reward-badge">스테이지당 {config.reward}🎫</span>
+        <div className="daily-info minigame-info">
+          <div className="info-badge">
+            <span className="badge-label">오늘의 보상 게임</span>
+            <span className="badge-value">{dailyPlayCount}/3</span>
+          </div>
+          {!canPlayForReward && (
+            <div className="warning-box">
+              <p>오늘은 더 이상 보상을 받을 수 없습니다</p>
+              <p className="sub">연습은 언제든지 가능합니다!</p>
+            </div>
+          )}
+          {canPlayForReward && (
+            <div className="reward-preview">
+              <p>🎁 카드를 선택하여 랜덤 보상을 받으세요!</p>
+              <div className="reward-range">
+                <span>💰 100원 ~ 100,000원</span>
+                <span>🎫 1개 ~ 10개</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="difficulty-selection minigame-cards">
+          {Object.entries(difficultyConfig).map(([key, config]) => (
+            <div key={key} className="difficulty-card minigame-card">
+              <div className="card-header">
+                <h3>{config.name}</h3>
+                <div className="difficulty-badge">{config.name}</div>
+              </div>
+              <div className="card-content">
+                <div className="stat-row">
+                  <span className="stat-icon">⏱️</span>
+                  <span className="stat-label">시간</span>
+                  <span className="stat-value">{config.timeLimit}초</span>
                 </div>
-
-                <div className="difficulty-info">
-                  <p>시간 제한: {config.timeLimit}초</p>
-                  <p>통과 조건: 70% 이상 정답</p>
-                  <p>완료 스테이지: {maxCompleted}/4</p>
-                  <p>획득 쿠폰: {totalRewards}🎫</p>
-                </div>
-
-                <div className="stage-buttons">
-                  {[1, 2, 3, 4].map(stage => {
-                    const isUnlocked = stage === 1 || stage <= maxCompleted + 1;
-                    const isCompleted = stage <= maxCompleted;
-
-                    return (
-                      <button
-                        key={stage}
-                        className={`stage-btn ${isCompleted ? "completed" : ""} ${!isUnlocked ? "locked" : ""}`}
-                        disabled={!isUnlocked || loading}
-                        onClick={() => startGame(key, stage)}
-                      >
-                        {isCompleted ? "✓" : ""} {stage}
-                      </button>
-                    );
-                  })}
+                <div className="stat-row">
+                  <span className="stat-icon">📝</span>
+                  <span className="stat-label">문장 수</span>
+                  <span className="stat-value">{config.sentencesPerGame}개</span>
                 </div>
               </div>
-            );
-          })}
+              <button
+                className="start-btn minigame-btn"
+                onClick={() => startGame(key)}
+                disabled={loading}
+              >
+                시작하기
+              </button>
+            </div>
+          ))}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   // 게임 화면
   const renderGame = () => {
-    if (!stageData || currentWordIndex >= stageData.words.length) {
+    if (!sentences[currentIndex]) {
       return <div className="loading">게임 로딩 중...</div>;
     }
 
-    const currentWord = stageData.words[currentWordIndex];
-    const progress = ((currentWordIndex) / stageData.words.length) * 100;
+    const currentSentence = sentences[currentIndex].text;
+    const progress = ((currentIndex) / sentences.length) * 100;
 
     return (
-      <div className="typing-game-play">
-        <div className="game-header">
+      <div className="typing-game-play minigame-play">
+        <div className="game-header minigame-header">
           <div className="game-info">
-            <span>{difficultyConfig[difficulty].name} - 스테이지 {currentStage}</span>
-            <span>⏱️ {timeLeft}초</span>
-            <span>📊 {correctAnswers}/{stageData.words.length}</span>
+            <span className="info-chip">{difficultyConfig[difficulty].name}</span>
+            <span className="info-chip timer">⏱️ {timeLeft}초</span>
+            <span className="info-chip">📊 {currentIndex}/{sentences.length}</span>
           </div>
-          <button className="close-btn" onClick={() => setGameState("menu")}>← 메뉴</button>
+          <button className="menu-btn-small" onClick={() => setGameState("menu")}>← 메뉴</button>
         </div>
 
-        <div className="progress-bar">
+        <div className="progress-bar minigame-progress">
           <div className="progress-fill" style={{ width: `${progress}%` }}></div>
         </div>
 
-        <div className="word-display">
-          <div className="english-word">{currentWord.english}</div>
-          <div className="word-counter">{currentWordIndex + 1} / {stageData.words.length}</div>
+        <div className="sentence-display minigame-sentence">
+          <div className="sentence-text">{currentSentence}</div>
+          <div className="sentence-counter">{currentIndex + 1} / {sentences.length}</div>
         </div>
 
-        <div className="input-section">
+        <div className="input-section minigame-input">
           <input
             ref={inputRef}
             type="text"
             value={userInput}
             onChange={handleInputChange}
             onKeyPress={handleKeyPress}
-            placeholder="한글 뜻을 입력하고 Enter를 누르세요"
-            className="word-input"
+            placeholder="문장을 입력하고 Enter를 누르세요"
+            className="sentence-input"
           />
+          <button className="submit-btn" onClick={checkAnswer}>확인</button>
         </div>
 
-        <div className="score-display">
-          <div className="score-item correct">✓ {correctAnswers}</div>
-          <div className="score-item wrong">✗ {wrongAnswers}</div>
-          <div className="score-item total">점수: {score}</div>
+        <div className="score-display minigame-score">
+          <div className="score-item correct">
+            <span className="score-icon">✓</span>
+            <span className="score-count">{correctCount}</span>
+          </div>
+          <div className="score-item wrong">
+            <span className="score-icon">✗</span>
+            <span className="score-count">{wrongCount}</span>
+          </div>
         </div>
       </div>
     );
@@ -306,71 +331,161 @@ const TypingPracticeGame = ({ onClose }) => {
 
   // 완료 화면
   const renderCompleted = () => {
-    const totalQuestions = stageData?.words.length || 0;
-    const accuracy = totalQuestions > 0 ? ((correctAnswers / totalQuestions) * 100).toFixed(1) : 0;
-    const passed = correctAnswers / totalQuestions >= 0.7;
+    const totalQuestions = sentences.length;
+    const accuracy = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : 0;
+    const timeSpent = 30 - timeLeft;
+    const wpm = timeSpent > 0 ? Math.floor((totalTyped / 5) / (timeSpent / 60)) : 0;
+    const canGetReward = dailyPlayCount < 3;
 
     return (
-      <div className="typing-game-completed">
-        <div className="completion-header">
-          <h2>{passed ? "🎉 스테이지 완료!" : "😅 아쉬워요!"}</h2>
-          <p>{difficultyConfig[difficulty].name} 난이도 - 스테이지 {currentStage}</p>
+      <div className="typing-game-completed minigame-completed">
+        <div className="completion-header minigame-header">
+          <h2>🎉 게임 완료!</h2>
+          <p className="subtitle">{difficultyConfig[difficulty].name} 난이도</p>
         </div>
 
-        <div className="results">
-          <div className="result-card">
-            <h3>결과</h3>
-            <div className="result-stats">
-              <div className="stat">
-                <span className="label">정답률:</span>
-                <span className="value">{accuracy}%</span>
-              </div>
-              <div className="stat">
-                <span className="label">정답 수:</span>
-                <span className="value">{correctAnswers}/{totalQuestions}</span>
-              </div>
-              <div className="stat">
-                <span className="label">점수:</span>
-                <span className="value">{score}점</span>
-              </div>
-              {passed && (
-                <div className="stat reward">
-                  <span className="label">획득 쿠폰:</span>
-                  <span className="value">{difficultyConfig[difficulty].reward}🎫</span>
-                </div>
-              )}
+        <div className="results minigame-results">
+          <div className="result-grid">
+            <div className="result-item">
+              <span className="result-label">정확도</span>
+              <span className="result-value">{accuracy}%</span>
+            </div>
+            <div className="result-item">
+              <span className="result-label">정답</span>
+              <span className="result-value">{correctCount}/{totalQuestions}</span>
+            </div>
+            <div className="result-item">
+              <span className="result-label">타수</span>
+              <span className="result-value">{wpm} WPM</span>
+            </div>
+            <div className="result-item">
+              <span className="result-label">소요 시간</span>
+              <span className="result-value">{timeSpent}초</span>
             </div>
           </div>
-
-          {!passed && (
-            <div className="retry-message">
-              <p>통과하려면 70% 이상의 정답률이 필요합니다.</p>
-              <p>다시 도전해보세요!</p>
-            </div>
-          )}
         </div>
 
         <div className="completion-actions">
-          <button
-            className="menu-btn"
-            onClick={() => setGameState("menu")}
+          {canGetReward ? (
+            <button className="reward-proceed-btn" onClick={handleProceedToCardSelection}>
+              🎁 보상 받기
+            </button>
+          ) : (
+            <div className="no-reward-message">
+              <p>오늘은 더 이상 보상을 받을 수 없습니다</p>
+              <p className="sub">내일 다시 도전해보세요!</p>
+            </div>
+          )}
+          <div className="action-buttons">
+            <button className="menu-btn" onClick={() => setGameState("menu")}>
+              메뉴로
+            </button>
+            <button className="retry-btn" onClick={() => startGame(difficulty)}>
+              다시 도전
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // 카드 선택 화면
+  const renderCardSelection = () => {
+    return (
+      <div className="card-selection-screen">
+        <div className="card-selection-header">
+          <h2>🎁 보상 카드를 선택하세요!</h2>
+          <p>하나의 카드를 선택하면 랜덤 보상이 공개됩니다</p>
+        </div>
+
+        <div className="reward-cards">
+          <div
+            className={`reward-card ${selectedCard === 'cash' ? 'flipped' : ''} ${selectedCard && selectedCard !== 'cash' ? 'disabled' : ''}`}
+            onClick={() => handleCardSelect('cash')}
           >
+            <div className="card-inner">
+              <div className="card-front">
+                <div className="card-icon">💰</div>
+                <div className="card-title">현금</div>
+                <div className="card-hint">100원 ~ 100,000원</div>
+              </div>
+              <div className="card-back">
+                <div className="reward-reveal">
+                  <div className="reward-icon">💰</div>
+                  <div className="reward-amount">{rewardData?.cash?.toLocaleString()}원</div>
+                  <div className="reward-label">현금 획득!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={`reward-card ${selectedCard === 'coupon' ? 'flipped' : ''} ${selectedCard && selectedCard !== 'coupon' ? 'disabled' : ''}`}
+            onClick={() => handleCardSelect('coupon')}
+          >
+            <div className="card-inner">
+              <div className="card-front">
+                <div className="card-icon">🎫</div>
+                <div className="card-title">쿠폰</div>
+                <div className="card-hint">1개 ~ 10개</div>
+              </div>
+              <div className="card-back">
+                <div className="reward-reveal">
+                  <div className="reward-icon">🎫</div>
+                  <div className="reward-amount">{rewardData?.coupon}개</div>
+                  <div className="reward-label">쿠폰 획득!</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {loading && (
+          <div className="processing-overlay">
+            <div className="loading-spinner"></div>
+            <p>보상 처리 중...</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 보상 화면
+  const renderReward = () => {
+    const rewardType = selectedCard;
+    const rewardAmount = rewardType === 'cash' ? rewardData?.cash : rewardData?.coupon;
+
+    return (
+      <div className="typing-game-reward minigame-reward">
+        <div className="reward-header">
+          <h2>🎉 축하합니다!</h2>
+          <p className="subtitle">보상을 획득했습니다</p>
+        </div>
+
+        <div className="reward-content">
+          <div className="reward-display">
+            <div className="reward-icon-large">
+              {rewardType === 'cash' ? '💰' : '🎫'}
+            </div>
+            <div className="reward-text">
+              {rewardType === 'cash'
+                ? `${rewardAmount?.toLocaleString()}원`
+                : `${rewardAmount}개`}
+            </div>
+            <div className="reward-type">
+              {rewardType === 'cash' ? '현금' : '쿠폰'}
+            </div>
+          </div>
+          <p className="remaining-count">남은 보상 기회: {3 - dailyPlayCount}/3</p>
+        </div>
+
+        <div className="reward-actions">
+          <button className="menu-btn" onClick={() => setGameState("menu")}>
             메뉴로 돌아가기
           </button>
-
-          <button
-            className="retry-btn"
-            onClick={() => startGame(difficulty, currentStage)}
-          >
-            다시 도전
-          </button>
-
-          {passed && currentStage < 4 && (
-            <button
-              className="next-btn"
-              onClick={() => startGame(difficulty, currentStage + 1)}
-            >
-              다음 스테이지
+          {dailyPlayCount < 3 && (
+            <button className="retry-btn" onClick={() => startGame(difficulty)}>
+              다시 도전
             </button>
           )}
         </div>
@@ -379,12 +494,12 @@ const TypingPracticeGame = ({ onClose }) => {
   };
 
   // 로딩 화면
-  if (loading) {
+  if (loading && gameState !== "cardSelection") {
     return (
       <div className="typing-game-container">
         <div className="loading-screen">
           <div className="loading-spinner"></div>
-          <p>로딩 중...</p>
+          <p>처리 중...</p>
         </div>
       </div>
     );
@@ -409,10 +524,12 @@ const TypingPracticeGame = ({ onClose }) => {
   }
 
   return (
-    <div className="typing-game-container">
+    <div className="typing-game-container minigame-container">
       {gameState === "menu" && renderMenu()}
       {gameState === "playing" && renderGame()}
       {gameState === "completed" && renderCompleted()}
+      {gameState === "cardSelection" && renderCardSelection()}
+      {gameState === "reward" && renderReward()}
     </div>
   );
 };

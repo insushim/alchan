@@ -72,6 +72,7 @@ import RecoverDonations from "./RecoverDonations"; // 기부 복구 도구 impor
 import GonuGame from "./GonuGame";
 import OmokGame from "./OmokGame";
 import ChessGame from "./ChessGame";
+import TypingPracticeGame from "./TypingPracticeGame";
 
 // 스타일 파일 임포트
 import "./styles.css";
@@ -1206,6 +1207,7 @@ function AppLayoutContent() {
             />
             
             <Route path="/learning-games/omok" element={<ProtectedRoute><OmokGame /></ProtectedRoute>} />
+            <Route path="/learning-games/typing" element={<ProtectedRoute><TypingPracticeGame /></ProtectedRoute>} />
             <Route path="/learning-games/science" element={<ProtectedRoute><ChessGame /></ProtectedRoute>} />
             
             <Route
