@@ -20,11 +20,12 @@ export default function TaskItem({
   const [isFlipping, setIsFlipping] = useState(false);
 
   const handleInternalClick = () => {
+    // 직업 할일은 reward가 없을 수 있으므로 검증에서 제외
     if (
       !task ||
       typeof task.clicks !== "number" ||
       typeof task.maxClicks !== "number" ||
-      typeof task.reward !== "number"
+      (!isJobTask && typeof task.reward !== "number")
     ) {
       console.error("Invalid task prop:", task);
       return;

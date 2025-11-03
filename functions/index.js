@@ -2262,9 +2262,9 @@ exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) 
   try {
     const { uid, classCode, userData } = await checkAuthAndGetUserData(request, false); // no admin check yet
 
-    const { reportId, amount, offenderId, victimId } = request.data;
+    const { reportId, amount, senderId, recipientId } = request.data;
 
-    if (!reportId || !amount || !offenderId || !victimId || !classCode) {
+    if (!reportId || !amount || !senderId || !recipientId || !classCode) {
       throw new HttpsError("invalid-argument", "필수 파라미터가 누락되었습니다.");
     }
 
@@ -2282,32 +2282,32 @@ exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) 
     }
 
     const reportRef = db.collection("policeReports").doc(reportId);
-    const offenderRef = db.collection("users").doc(offenderId);
-    const victimRef = db.collection("users").doc(victimId);
+    const senderRef = db.collection("users").doc(senderId);
+    const recipientRef = db.collection("users").doc(recipientId);
 
     await db.runTransaction(async (transaction) => {
-      const [reportDoc, offenderDoc, victimDoc] = await transaction.getAll(reportRef, offenderRef, victimRef);
+      const [reportDoc, senderDoc, recipientDoc] = await transaction.getAll(reportRef, senderRef, recipientRef);
 
       if (!reportDoc.exists) throw new Error("신고 정보를 찾을 수 없습니다.");
-      if (!offenderDoc.exists) throw new Error("가해자 정보를 찾을 수 없습니다.");
-      if (!victimDoc.exists) throw new Error("피해자 정보를 찾을 수 없습니다.");
+      if (!senderDoc.exists) throw new Error("가해자 정보를 찾을 수 없습니다.");
+      if (!recipientDoc.exists) throw new Error("피해자 정보를 찾을 수 없습니다.");
 
-      const offenderData = offenderDoc.data();
-      if ((offenderData.cash || 0) < settlementAmount) {
+      const senderData = senderDoc.data();
+      if ((senderData.cash || 0) < settlementAmount) {
         throw new Error("가해자의 현금이 부족하여 합의금을 처리할 수 없습니다.");
       }
 
-      transaction.update(offenderRef, { cash: admin.firestore.FieldValue.increment(-settlementAmount) });
-      transaction.update(victimRef, { cash: admin.firestore.FieldValue.increment(settlementAmount) });
+      transaction.update(senderRef, { cash: admin.firestore.FieldValue.increment(-settlementAmount) });
+      transaction.update(recipientRef, { cash: admin.firestore.FieldValue.increment(settlementAmount) });
       transaction.update(reportRef, {
         status: "settled",
         settlementAmount: settlementAmount,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      const victimData = victimDoc.data();
-      logActivity(transaction, offenderId, LOG_TYPES.CASH_EXPENSE, `경찰서 합의금으로 ${victimData.name}에게 ${settlementAmount}원 지급`, { reportId, victimName: victimData.name });
-      logActivity(transaction, victimId, LOG_TYPES.CASH_INCOME, `경찰서 합의금으로 ${offenderData.name}에게서 ${settlementAmount}원 수령`, { reportId, offenderName: offenderData.name });
+      const recipientData = recipientDoc.data();
+      logActivity(transaction, senderId, LOG_TYPES.CASH_EXPENSE, `경찰서 합의금으로 ${recipientData.name}에게 ${settlementAmount}원 지급`, { reportId, victimName: recipientData.name });
+      logActivity(transaction, recipientId, LOG_TYPES.CASH_INCOME, `경찰서 합의금으로 ${senderData.name}에게서 ${settlementAmount}원 수령`, { reportId, offenderName: senderData.name });
     });
 
     logger.info(`Settlement processed successfully for report ${reportId} by admin ${uid}`);
