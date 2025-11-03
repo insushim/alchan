@@ -2297,7 +2297,7 @@ exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) 
       throw new HttpsError("invalid-argument", "합의금은 0보다 커야 합니다.");
     }
 
-    const reportRef = db.collection("policeReports").doc(reportId);
+    const reportRef = db.collection("classes").doc(classCode).collection("policeReports").doc(reportId);
     const senderRef = db.collection("users").doc(senderId);
     const recipientRef = db.collection("users").doc(recipientId);
 
