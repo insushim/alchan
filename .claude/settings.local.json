@@ -37,7 +37,8 @@
       "Bash(claude --version:*)",
       "Bash(npm i:*)",
       "Bash(npm uninstall:*)",
-      "Bash(gh workflow run:*)"
+      "Bash(gh workflow run:*)",
+      "Bash(npx firebase-tools deploy)"
     ],
     "deny": [],
     "ask": []

@@ -369,31 +369,49 @@ export const generateRandomReward = (difficulty = "normal", correctCount = 0) =>
     ]
   };
 
-  // 난이도별 쿠폰 보상 가중치
+  // 난이도별 쿠폰 보상 가중치 (1개 ~ 50개)
   const couponRewardsByDifficulty = {
     easy: [
-      { amount: 10, weight: 0.05 },  // 매우 낮은 확률
-      { amount: 8, weight: 0.1 },
-      { amount: 5, weight: 0.5 },
-      { amount: 3, weight: 5 },
+      { amount: 50, weight: 0.01 },  // 매우 낮은 확률
+      { amount: 40, weight: 0.05 },
+      { amount: 30, weight: 0.1 },
+      { amount: 25, weight: 0.2 },
+      { amount: 20, weight: 0.5 },
+      { amount: 15, weight: 1 },
+      { amount: 10, weight: 3 },
+      { amount: 8, weight: 8 },
+      { amount: 5, weight: 15 },
+      { amount: 3, weight: 25 },
       { amount: 2, weight: 30 },
-      { amount: 1, weight: 64.35 }  // 가장 높은 확률
+      { amount: 1, weight: 40 }  // 가장 높은 확률
     ],
     normal: [
-      { amount: 10, weight: 1 },
-      { amount: 8, weight: 2 },
-      { amount: 5, weight: 5 },
-      { amount: 3, weight: 12 },
+      { amount: 50, weight: 0.1 },
+      { amount: 40, weight: 0.5 },
+      { amount: 30, weight: 1 },
+      { amount: 25, weight: 2 },
+      { amount: 20, weight: 4 },
+      { amount: 15, weight: 6 },
+      { amount: 10, weight: 10 },
+      { amount: 8, weight: 15 },
+      { amount: 5, weight: 20 },
+      { amount: 3, weight: 25 },
       { amount: 2, weight: 30 },
-      { amount: 1, weight: 50 }
+      { amount: 1, weight: 35 }
     ],
     hard: [
-      { amount: 10, weight: 25 },  // 높은 확률
-      { amount: 8, weight: 20 },
-      { amount: 5, weight: 20 },
-      { amount: 3, weight: 18 },
-      { amount: 2, weight: 12 },
-      { amount: 1, weight: 5 }  // 낮은 확률
+      { amount: 50, weight: 20 },  // 높은 확률
+      { amount: 40, weight: 15 },
+      { amount: 30, weight: 15 },
+      { amount: 25, weight: 12 },
+      { amount: 20, weight: 12 },
+      { amount: 15, weight: 10 },
+      { amount: 10, weight: 8 },
+      { amount: 8, weight: 5 },
+      { amount: 5, weight: 4 },
+      { amount: 3, weight: 3 },
+      { amount: 2, weight: 2 },
+      { amount: 1, weight: 1 }  // 낮은 확률
     ]
   };
 

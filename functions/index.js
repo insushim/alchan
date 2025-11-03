@@ -683,16 +683,15 @@ const resetTasksForClass = async (classCode) => {
       });
     }
 
-    const jobsSnapshot = await db.collection("jobs").get();
+    const jobsQuery = db.collection("jobs").where("classCode", "==", classCode);
+    const jobsSnapshot = await jobsQuery.get();
     if (!jobsSnapshot.empty) {
-      jobsSnapshot.docs.forEach((jobDoc) => {
-        if (jobDoc.data().classCode === classCode) {
-          const jobData = jobDoc.data();
-          if (jobData.tasks && jobData.tasks.some(t => (t.clicks || 0) > 0)) {
-            const updatedTasks = jobData.tasks.map(t => ({ ...t, clicks: 0 }));
-            batch.update(jobDoc.ref, { tasks: updatedTasks });
-            jobCount++;
-          }
+      jobsSnapshot.forEach((jobDoc) => {
+        const jobData = jobDoc.data();
+        if (jobData.tasks && jobData.tasks.some(t => (t.clicks || 0) > 0)) {
+          const updatedTasks = jobData.tasks.map(t => ({ ...t, clicks: 0 }));
+          batch.update(jobDoc.ref, { tasks: updatedTasks });
+          jobCount++;
         }
       });
     }
