@@ -41,7 +41,8 @@ export default function CommonTaskList({
           <TaskItem
             key={task.id}
             task={task}
-            onEarnCoupon={() => onEarnCoupon(task.id)} // task.id 전달
+            taskId={task.id}
+            onEarnCoupon={onEarnCoupon}
             onEditTask={() => onEditTask(task.id)} // task.id 전달
             onDeleteTask={() => onDeleteTask(task.id)} // task.id 전달
             isAdmin={isAdmin}

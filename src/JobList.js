@@ -87,8 +87,10 @@ export default function JobList({
             <TaskItem
               key={task.id}
               task={task}
+              taskId={task.id}
+              jobId={job.id}
               // 핸들러에 task.id 전달 확인
-              onEarnCoupon={() => onEarnCoupon(task.id, job.id, true)} // Dashboard 핸들러 형식에 맞게 job.id, isJobTask 전달
+              onEarnCoupon={onEarnCoupon}
               onEditTask={() => onEditTask(task.id, job.id)} // Dashboard 핸들러 형식에 맞게 job.id 전달
               onDeleteTask={() => onDeleteTask(task.id, job.id)} // Dashboard 핸들러 형식에 맞게 job.id 전달
               isAdmin={isAdmin}

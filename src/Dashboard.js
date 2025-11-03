@@ -1073,7 +1073,7 @@ function Dashboard({ adminTabMode }) {
   }, []);
 
   const handleTaskEarnCoupon = useCallback(
-    async (taskId, jobId = null, isJobTask = false) => {
+    async (taskId, jobId = null, isJobTask = false, cardType = null, rewardAmount = null) => {
       if (isHandlingTask) return;
       if (!userDoc?.id) {
         alert("사용자 정보가 로드되지 않았습니다.");
@@ -1081,11 +1081,11 @@ function Dashboard({ adminTabMode }) {
       }
 
       setIsHandlingTask(true);
-      console.log("[Dashboard] 할일 완료 처리 시작:", { taskId, jobId, isJobTask });
+      console.log("[Dashboard] 할일 완료 처리 시작:", { taskId, jobId, isJobTask, cardType, rewardAmount });
 
       try {
         const completeTaskFunction = httpsCallable(functions, "completeTask");
-        const result = await completeTaskFunction({ taskId, jobId, isJobTask });
+        const result = await completeTaskFunction({ taskId, jobId, isJobTask, cardType, rewardAmount });
 
         const resultData = result.data;
         console.log("✅ [디버그] 서버로부터 받은 결과:", resultData);

@@ -798,7 +798,7 @@ exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (req
 
 exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
-  const { taskId, jobId = null, isJobTask = false } = request.data;
+  const { taskId, jobId = null, isJobTask = false, cardType = null, rewardAmount = null } = request.data;
   if (!taskId) {
     throw new HttpsError("invalid-argument", "할일 ID가 필요합니다.");
   }
@@ -806,6 +806,9 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   try {
     let taskReward = 0;
     let taskName = "";
+    let cashReward = 0;
+    let couponReward = 0;
+
     if (isJobTask && jobId) {
       const jobRef = db.collection("jobs").doc(jobId);
       await db.runTransaction(async (transaction) => {
@@ -817,7 +820,6 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
         if (taskIndex === -1) throw new Error("직업 할일을 찾을 수 없습니다.");
         const task = jobTasks[taskIndex];
         taskName = task.name;
-        taskReward = task.reward || 0;
         const currentClicks = task.clicks || 0;
         if (currentClicks >= task.maxClicks) {
           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
@@ -825,10 +827,20 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
         const updatedTasks = [...jobTasks];
         updatedTasks[taskIndex] = { ...task, clicks: currentClicks + 1 };
         transaction.update(jobRef, { tasks: updatedTasks });
-        if (taskReward > 0) {
-          transaction.update(userRef, {
-            coupons: admin.firestore.FieldValue.increment(taskReward),
-          });
+
+        // 카드 선택 보상 적용
+        if (cardType && rewardAmount) {
+          if (cardType === "cash") {
+            cashReward = rewardAmount;
+            transaction.update(userRef, {
+              cash: admin.firestore.FieldValue.increment(cashReward),
+            });
+          } else if (cardType === "coupon") {
+            couponReward = rewardAmount;
+            transaction.update(userRef, {
+              coupons: admin.firestore.FieldValue.increment(couponReward),
+            });
+          }
         }
       });
     } else {
@@ -856,6 +868,7 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
         transaction.update(userRef, updateData);
       });
     }
+    // 활동 로그 기록
     if (taskReward > 0) {
       try {
         await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`, { taskName, reward: taskReward, taskId, isJobTask, jobId: jobId || null });
@@ -863,13 +876,36 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
         logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
       }
     }
+    if (cashReward > 0) {
+      try {
+        await logActivity(null, uid, LOG_TYPES.CASH_INCOME, `'${taskName}' 할일 완료로 ${cashReward}원을 획득했습니다.`, { taskName, reward: cashReward, taskId, isJobTask, jobId: jobId || null });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+      }
+    }
+    if (couponReward > 0) {
+      try {
+        await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${couponReward}개를 획득했습니다.`, { taskName, reward: couponReward, taskId, isJobTask, jobId: jobId || null });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+      }
+    }
+
     const updatedUserDoc = await userRef.get();
     const updatedUserData = updatedUserDoc.data();
+
+    let message = `'${taskName}' 완료!`;
+    if (taskReward > 0) message += ` +${taskReward} 쿠폰!`;
+    if (cashReward > 0) message += ` +${cashReward}원!`;
+    if (couponReward > 0) message += ` +${couponReward} 쿠폰!`;
+
     return {
       success: true,
-      message: `'${taskName}' 완료! ${taskReward > 0 ? `+${taskReward} 쿠폰!` : ""}`,
+      message,
       taskName: taskName,
-      reward: taskReward,
+      reward: taskReward + couponReward,
+      cashReward,
+      couponReward,
       updatedCash: updatedUserData.cash || 0,
       updatedCoupons: updatedUserData.coupons || 0,
     };
