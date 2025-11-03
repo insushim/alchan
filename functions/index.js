@@ -2221,3 +2221,67 @@ exports.purchaseRealEstate = onCall({region: "asia-northeast3", cors: true}, asy
     throw new HttpsError("aborted", error.message || "부동산 구매에 실패했습니다.");
   }
 });
+
+exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
+  try {
+    const { uid, classCode, userData } = await checkAuthAndGetUserData(request, false); // no admin check yet
+
+    const { reportId, amount, offenderId, victimId } = request.data;
+
+    if (!reportId || !amount || !offenderId || !victimId || !classCode) {
+      throw new HttpsError("invalid-argument", "필수 파라미터가 누락되었습니다.");
+    }
+
+    // 관리자 또는 경찰청장만 합의금 처리 가능
+    const isAdmin = userData.isAdmin || userData.isSuperAdmin;
+    const isPoliceChief = userData.jobName === "경찰청장";
+
+    if (!isAdmin && !isPoliceChief) {
+      throw new HttpsError("permission-denied", "관리자 또는 경찰청장만 합의금을 처리할 수 있습니다.");
+    }
+
+    const settlementAmount = parseInt(amount, 10);
+    if (isNaN(settlementAmount) || settlementAmount <= 0) {
+      throw new HttpsError("invalid-argument", "합의금은 0보다 커야 합니다.");
+    }
+
+    const reportRef = db.collection("policeReports").doc(reportId);
+    const offenderRef = db.collection("users").doc(offenderId);
+    const victimRef = db.collection("users").doc(victimId);
+
+    await db.runTransaction(async (transaction) => {
+      const [reportDoc, offenderDoc, victimDoc] = await transaction.getAll(reportRef, offenderRef, victimRef);
+
+      if (!reportDoc.exists) throw new Error("신고 정보를 찾을 수 없습니다.");
+      if (!offenderDoc.exists) throw new Error("가해자 정보를 찾을 수 없습니다.");
+      if (!victimDoc.exists) throw new Error("피해자 정보를 찾을 수 없습니다.");
+
+      const offenderData = offenderDoc.data();
+      if ((offenderData.cash || 0) < settlementAmount) {
+        throw new Error("가해자의 현금이 부족하여 합의금을 처리할 수 없습니다.");
+      }
+
+      transaction.update(offenderRef, { cash: admin.firestore.FieldValue.increment(-settlementAmount) });
+      transaction.update(victimRef, { cash: admin.firestore.FieldValue.increment(settlementAmount) });
+      transaction.update(reportRef, {
+        status: "settled",
+        settlementAmount: settlementAmount,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const victimData = victimDoc.data();
+      logActivity(transaction, offenderId, LOG_TYPES.CASH_EXPENSE, `경찰서 합의금으로 ${victimData.name}에게 ${settlementAmount}원 지급`, { reportId, victimName: victimData.name });
+      logActivity(transaction, victimId, LOG_TYPES.CASH_INCOME, `경찰서 합의금으로 ${offenderData.name}에게서 ${settlementAmount}원 수령`, { reportId, offenderName: offenderData.name });
+    });
+
+    logger.info(`Settlement processed successfully for report ${reportId} by admin ${uid}`);
+    return { success: true, message: "합의금이 성공적으로 처리되었습니다." };
+
+  } catch (error) {
+    logger.error(`[processSettlement] Error for user ${request.auth?.uid}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", error.message || "합의금 처리 중 내부 오류가 발생했습니다.");
+  }
+});
