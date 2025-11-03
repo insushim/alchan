@@ -1083,6 +1083,53 @@ function Dashboard({ adminTabMode }) {
       setIsHandlingTask(true);
       console.log("[Dashboard] 할일 완료 처리 시작:", { taskId, jobId, isJobTask, cardType, rewardAmount });
 
+      // 낙관적 업데이트: 예상 보상 계산
+      let expectedCashReward = 0;
+      let expectedCouponReward = 0;
+
+      if (isJobTask && cardType && rewardAmount) {
+        // 직업 할일: 카드 선택 보상
+        if (cardType === "cash") {
+          expectedCashReward = rewardAmount;
+        } else if (cardType === "coupon") {
+          expectedCouponReward = rewardAmount;
+        }
+      } else if (!isJobTask) {
+        // 공통 할일: 고정 쿠폰 보상
+        const commonTask = commonTasks?.find(t => t.id === taskId);
+        if (commonTask) {
+          expectedCouponReward = commonTask.reward || 0;
+        }
+      }
+
+      const prevUserDoc = { ...userDoc };
+      const prevJobs = [...jobs];
+
+      // 낙관적 UI 업데이트
+      const optimisticCash = userDoc.cash + expectedCashReward;
+      const optimisticCoupons = userDoc.coupons + expectedCouponReward;
+
+      if (isJobTask && jobId) {
+        setUserDoc(prevDoc => ({ ...prevDoc, cash: optimisticCash, coupons: optimisticCoupons }));
+        setJobs(prevJobs =>
+          prevJobs.map(j =>
+            j.id === jobId
+              ? { ...j, tasks: j.tasks.map(t => t.id === taskId ? { ...t, clicks: (t.clicks || 0) + 1 } : t) }
+              : j
+          )
+        );
+      } else {
+        setUserDoc(prevDoc => ({
+          ...prevDoc,
+          cash: optimisticCash,
+          coupons: optimisticCoupons,
+          completedTasks: {
+            ...(prevDoc.completedTasks || {}),
+            [taskId]: (prevDoc.completedTasks?.[taskId] || 0) + 1,
+          }
+        }));
+      }
+
       try {
         const completeTaskFunction = httpsCallable(functions, "completeTask");
         const result = await completeTaskFunction({ taskId, jobId, isJobTask, cardType, rewardAmount });
@@ -1091,31 +1138,14 @@ function Dashboard({ adminTabMode }) {
         console.log("✅ [디버그] 서버로부터 받은 결과:", resultData);
 
         if (resultData.success) {
-          const newCash = typeof resultData.updatedCash === 'number' ? resultData.updatedCash : userDoc.cash;
-          const newCoupons = typeof resultData.updatedCoupons === 'number' ? resultData.updatedCoupons : userDoc.coupons;
+          // 서버에서 반환한 정확한 값으로 재조정
+          const newCash = typeof resultData.updatedCash === 'number' ? resultData.updatedCash : optimisticCash;
+          const newCoupons = typeof resultData.updatedCoupons === 'number' ? resultData.updatedCoupons : optimisticCoupons;
 
-          console.log(`✅ [디버그] 쿠폰 상태 업데이트 전: 현재 ${userDoc.coupons}, 서버가 반환한 새 값 ${resultData.updatedCoupons}, 최종 적용될 값 ${newCoupons}`);
+          console.log(`✅ [디버그] 낙관적 업데이트: 현금 ${optimisticCash}원, 쿠폰 ${optimisticCoupons}개 → 서버 확정: 현금 ${newCash}원, 쿠폰 ${newCoupons}개`);
 
-          if (isJobTask && jobId) {
-            setUserDoc(prevDoc => ({ ...prevDoc, cash: newCash, coupons: newCoupons }));
-            setJobs(prevJobs =>
-              prevJobs.map(j =>
-                j.id === jobId
-                  ? { ...j, tasks: j.tasks.map(t => t.id === taskId ? { ...t, clicks: (t.clicks || 0) + 1 } : t) }
-                  : j
-              )
-            );
-          } else {
-            setUserDoc(prevDoc => ({
-              ...prevDoc,
-              cash: newCash,
-              coupons: newCoupons,
-              completedTasks: {
-                ...(prevDoc.completedTasks || {}),
-                [taskId]: (prevDoc.completedTasks?.[taskId] || 0) + 1,
-              }
-            }));
-          }
+          setUserDoc(prevDoc => ({ ...prevDoc, cash: newCash, coupons: newCoupons }));
+
           alert(resultData.message);
         } else {
           throw new Error(resultData.message || "알 수 없는 서버 오류");
@@ -1123,12 +1153,17 @@ function Dashboard({ adminTabMode }) {
       } catch (error) {
         console.error("[Dashboard] 할일 완료 처리 중 심각한 오류:", error);
         alert(`할일 완료에 실패했습니다: ${error.message}`);
-        refreshUserDocument(); 
+
+        // 롤백: 이전 상태로 복원
+        setUserDoc(prevUserDoc);
+        if (isJobTask && jobId) {
+          setJobs(prevJobs);
+        }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [isHandlingTask, userDoc, setUserDoc, setJobs, refreshUserDocument]
+    [isHandlingTask, userDoc, commonTasks, jobs, setUserDoc, setJobs]
   );
 
   // Admin settings handlers

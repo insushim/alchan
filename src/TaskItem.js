@@ -57,7 +57,7 @@ export default function TaskItem({
       setShowBubble(true);
 
       if (typeof onEarnCoupon === "function") {
-        onEarnCoupon();
+        onEarnCoupon(taskId || task.id, null, false);
       } else {
         console.warn("onEarnCoupon prop is not a function in TaskItem");
       }
