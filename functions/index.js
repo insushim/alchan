@@ -2272,6 +2272,8 @@ exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) 
     const isAdmin = userData.isAdmin || userData.isSuperAdmin;
     const isPoliceChief = userData.jobName === "경찰청장";
 
+    logger.info(`[processSettlement] 권한 확인: uid=${uid}, isAdmin=${isAdmin}, isPoliceChief=${isPoliceChief}, jobName=${userData.jobName}, jobTitle=${userData.jobTitle}`);
+
     if (!isAdmin && !isPoliceChief) {
       throw new HttpsError("permission-denied", "관리자 또는 경찰청장만 합의금을 처리할 수 있습니다.");
     }

@@ -20,6 +20,8 @@ export default function TaskItem({
   const [isFlipping, setIsFlipping] = useState(false);
 
   const handleInternalClick = () => {
+    console.log("[TaskItem] handleInternalClick 호출됨:", { taskName: task?.name, isJobTask, taskId, jobId });
+
     // 직업 할일은 reward가 없을 수 있으므로 검증에서 제외
     if (
       !task ||
@@ -36,12 +38,14 @@ export default function TaskItem({
 
     // 직업 할일인 경우 카드 선택 모달 표시
     if (isJobTask) {
+      console.log("[TaskItem] 직업 할일 - 카드 모달 열기");
       const rewards = generateJobTaskReward();
       setRewardData(rewards);
       setSelectedCard(null);
       setIsFlipping(false);
       setShowCardModal(true);
     } else {
+      console.log("[TaskItem] 공통 할일 - 즉시 처리");
       // 공통 할일은 기존 방식 유지
       const currentClicks = task.clicks;
       const maxClicks = task.maxClicks > 0 ? task.maxClicks : 1;
@@ -68,6 +72,8 @@ export default function TaskItem({
   const handleCardSelect = (cardType) => {
     if (isFlipping || selectedCard) return;
 
+    console.log("[TaskItem] 카드 선택:", { cardType, taskId, jobId, isJobTask });
+
     setSelectedCard(cardType);
     setIsFlipping(true);
 
@@ -75,6 +81,8 @@ export default function TaskItem({
     setTimeout(() => {
       const reward = cardType === "cash" ? rewardData.cash : rewardData.coupon;
       const rewardText = cardType === "cash" ? `${reward.toLocaleString()}원` : `${reward}개`;
+
+      console.log("[TaskItem] onEarnCoupon 호출 준비:", { taskId, jobId, isJobTask, cardType, reward });
 
       // onEarnCoupon 호출 - taskId, jobId, isJobTask, cardType, reward 전달
       if (typeof onEarnCoupon === "function") {
