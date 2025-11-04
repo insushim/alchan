@@ -343,6 +343,23 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // ♟️ 체스 게임 (chessGames)
+    // ========================================================
+    match /chessGames/{gameId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() &&
+                       (resource.data.player1 == request.auth.uid ||
+                        resource.data.player2 == request.auth.uid ||
+                        resource.data.aiMode == true ||
+                        isAdmin());
+      allow delete: if isSignedIn() &&
+                       (resource.data.player1 == request.auth.uid ||
+                        resource.data.player2 == request.auth.uid ||
+                        isAdmin());
+    }
+
+    // ========================================================
     // 📊 통계 (system_stats)
     // ========================================================
     match /system_stats/{statId} {

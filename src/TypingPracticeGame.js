@@ -136,7 +136,7 @@ const TypingPracticeGame = ({ onClose }) => {
 
   // 카드 선택으로 이동
   const handleProceedToCardSelection = () => {
-    if (dailyPlayCount >= 3) {
+    if (dailyPlayCount >= 5) {
       setGameState("menu");
       return;
     }
@@ -206,7 +206,7 @@ const TypingPracticeGame = ({ onClose }) => {
 
   // 메뉴 화면
   const renderMenu = () => {
-    const canPlayForReward = dailyPlayCount < 3;
+    const canPlayForReward = dailyPlayCount < 5;
 
     return (
       <div className="typing-game-menu minigame">
@@ -221,7 +221,7 @@ const TypingPracticeGame = ({ onClose }) => {
         <div className="daily-info minigame-info">
           <div className="info-badge">
             <span className="badge-label">오늘의 보상 게임</span>
-            <span className="badge-value">{dailyPlayCount}/3</span>
+            <span className="badge-value">{dailyPlayCount}/5</span>
           </div>
           {!canPlayForReward && (
             <div className="warning-box">
@@ -335,7 +335,7 @@ const TypingPracticeGame = ({ onClose }) => {
     const accuracy = totalQuestions > 0 ? ((correctCount / totalQuestions) * 100).toFixed(1) : 0;
     const timeSpent = 30 - timeLeft;
     const wpm = timeSpent > 0 ? Math.floor((totalTyped / 5) / (timeSpent / 60)) : 0;
-    const canGetReward = dailyPlayCount < 3;
+    const canGetReward = dailyPlayCount < 5;
 
     return (
       <div className="typing-game-completed minigame-completed">
@@ -476,14 +476,14 @@ const TypingPracticeGame = ({ onClose }) => {
               {rewardType === 'cash' ? '현금' : '쿠폰'}
             </div>
           </div>
-          <p className="remaining-count">남은 보상 기회: {3 - dailyPlayCount}/3</p>
+          <p className="remaining-count">남은 보상 기회: {5 - dailyPlayCount}/5</p>
         </div>
 
         <div className="reward-actions">
           <button className="menu-btn" onClick={() => setGameState("menu")}>
             메뉴로 돌아가기
           </button>
-          {dailyPlayCount < 3 && (
+          {dailyPlayCount < 5 && (
             <button className="retry-btn" onClick={() => startGame(difficulty)}>
               다시 도전
             </button>
