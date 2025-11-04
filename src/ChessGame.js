@@ -455,36 +455,6 @@ const ChessGame = () => {
         loadDailyPlayCount();
     }, [user]);
 
-    // AI 턴 처리
-    useEffect(() => {
-        const makeAiMove = async () => {
-            if (!gameData || !gameId || gameData.status !== 'active') return;
-            if (!gameData.aiMode) return;
-
-            const aiColor = gameData.aiColor;
-            if (gameData.turn !== aiColor) return;
-            if (isAiThinking) return;
-
-            setIsAiThinking(true);
-
-            // AI 사고 시간 시뮬레이션 (500ms ~ 1500ms)
-            const thinkingTime = 500 + Math.random() * 1000;
-
-            setTimeout(async () => {
-                const bestMove = findBestMove(gameData.board, aiColor, aiDifficulty, getValidMoves);
-
-                if (bestMove) {
-                    const { from, to } = bestMove;
-                    await executeMove(from[0], from[1], to[0], to[1], bestMove.piece);
-                }
-
-                setIsAiThinking(false);
-            }, thinkingTime);
-        };
-
-        makeAiMove();
-    }, [gameData, gameId, aiDifficulty, isAiThinking, getValidMoves]);
-
     useEffect(() => {
         if (feedback.message) {
             const timer = setTimeout(() => setFeedback({ message: '', type: '' }), 3000);
@@ -1032,13 +1002,43 @@ const ChessGame = () => {
                 console.error("Error deleting room:", error);
             }
         }
-        
+
         setGameId(null);
         setGameData(null);
         setShowCreateRoom(true);
         setSelectedPiece(null);
         setPossibleMoves([]);
     };
+
+    // AI 턴 처리 (모든 함수가 정의된 후 실행)
+    useEffect(() => {
+        const makeAiMove = async () => {
+            if (!gameData || !gameId || gameData.status !== 'active') return;
+            if (!gameData.aiMode) return;
+
+            const aiColor = gameData.aiColor;
+            if (gameData.turn !== aiColor) return;
+            if (isAiThinking) return;
+
+            setIsAiThinking(true);
+
+            // AI 사고 시간 시뮬레이션 (500ms ~ 1500ms)
+            const thinkingTime = 500 + Math.random() * 1000;
+
+            setTimeout(async () => {
+                const bestMove = findBestMove(gameData.board, aiColor, aiDifficulty, getValidMoves);
+
+                if (bestMove) {
+                    const { from, to } = bestMove;
+                    await executeMove(from[0], from[1], to[0], to[1], bestMove.piece);
+                }
+
+                setIsAiThinking(false);
+            }, thinkingTime);
+        };
+
+        makeAiMove();
+    }, [gameData, gameId, aiDifficulty, isAiThinking, getValidMoves, executeMove]);
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
