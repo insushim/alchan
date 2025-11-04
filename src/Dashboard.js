@@ -660,6 +660,31 @@ function Dashboard({ adminTabMode }) {
     return fetchPromise.current;
   }, [userDoc?.classCode, currentGoalId, isSuperAdmin, setupPolling, loadCachedData]);
 
+  // 클라이언트 측 할일 상태 새로고침 (서버에서 리셋 후 UI 업데이트)
+  const refreshTasksAfterReset = useCallback(async () => {
+    console.log("[Dashboard] 서버 리셋 감지 - 클라이언트 상태 새로고침");
+
+    try {
+      // 사용자 문서 새로고침
+      if (refreshUserDocument) {
+        await refreshUserDocument();
+      }
+
+      // 할일 데이터 새로고침
+      if (loadTasksData) {
+        await loadTasksData(true); // force refresh
+      }
+
+      // localStorage에 마지막 체크 날짜 저장
+      const today = new Date().toDateString();
+      localStorage.setItem('lastTaskResetDate', today);
+
+      console.log("[Dashboard] 클라이언트 상태 새로고침 완료");
+    } catch (error) {
+      console.error("[Dashboard] 상태 새로고침 오류:", error);
+    }
+  }, [refreshUserDocument, loadTasksData]);
+
   // Effect for data loading
   useEffect(() => {
     if (authLoading) {
@@ -688,69 +713,44 @@ function Dashboard({ adminTabMode }) {
     };
   }, [authLoading, user, userDoc?.id, userDoc?.classCode, loadTasksData]);
 
-  // 자정 자동 리셋 타이머 설정
+  // 날짜 변경 감지 및 UI 새로고침 (서버는 GitHub Actions 스케줄러로 자동 리셋)
   useEffect(() => {
-    if (!userDoc?.classCode || !handleAutoTaskReset) {
+    if (!userDoc?.classCode || !refreshTasksAfterReset) {
       return;
     }
 
     // 페이지 로드 시 날짜 변경 확인
-    const checkAndResetIfNeeded = () => {
+    const checkDateAndRefresh = () => {
       const today = new Date().toDateString();
       const lastResetDate = localStorage.getItem('lastTaskResetDate');
 
       console.log('[Dashboard] 날짜 체크:', { today, lastResetDate });
 
       if (lastResetDate !== today) {
-        console.log('[Dashboard] 날짜가 변경되었습니다. 자동 리셋 실행...');
-        handleAutoTaskReset();
+        console.log('[Dashboard] 날짜가 변경되었습니다. 서버에서 리셋했을 것으로 예상, UI 새로고침...');
+        // 서버(GitHub Actions)가 자정에 자동으로 리셋했을 것으로 가정
+        // 클라이언트는 UI만 새로고침
+        refreshTasksAfterReset();
       } else {
-        console.log('[Dashboard] 오늘 이미 리셋되었습니다.');
+        console.log('[Dashboard] 오늘 이미 체크되었습니다.');
       }
     };
 
     // 즉시 날짜 체크
-    checkAndResetIfNeeded();
+    checkDateAndRefresh();
 
-    // 자정까지 남은 시간 계산 함수
-    const getMillisecondsUntilMidnight = () => {
-      const now = new Date();
-      const midnight = new Date();
-      midnight.setHours(24, 0, 0, 0);
-      return midnight.getTime() - now.getTime();
-    };
-
-    // 자정 타이머 설정
-    const scheduleNextReset = () => {
-      const msUntilMidnight = getMillisecondsUntilMidnight();
-      console.log(`[Dashboard] 다음 자동 리셋까지: ${Math.floor(msUntilMidnight / 1000 / 60)}분`);
-
-      return setTimeout(() => {
-        console.log('[Dashboard] 자정이 되었습니다. 자동 리셋 실행...');
-        handleAutoTaskReset();
-
-        // 다음 자정을 위해 타이머 재설정
-        scheduleNextReset();
-      }, msUntilMidnight);
-    };
-
-    const midnightTimer = scheduleNextReset();
-
-    // 1분마다 날짜 체크 (브라우저가 슬립 모드에서 깨어났을 때를 대비)
+    // 5분마다 날짜 체크 (서버 리셋 후 브라우저가 켜져있을 때 감지)
     const dateCheckInterval = setInterval(() => {
-      checkAndResetIfNeeded();
-    }, 60000); // 1분
+      checkDateAndRefresh();
+    }, 5 * 60 * 1000); // 5분
 
     // 클린업
     return () => {
-      if (midnightTimer) {
-        clearTimeout(midnightTimer);
-      }
       if (dateCheckInterval) {
         clearInterval(dateCheckInterval);
       }
     };
-  }, [userDoc?.classCode, handleAutoTaskReset]);
+  }, [userDoc?.classCode, refreshTasksAfterReset]);
 
   // Job management handlers
   const handleSaveJob = useCallback(async () => {
@@ -1476,47 +1476,6 @@ function Dashboard({ adminTabMode }) {
     // 데이터 강제 로드
     loadTasksData(true);
   }, [loadTasksData, userDoc?.classCode, setupPolling]);
-
-  // 자동 할일 리셋 함수 (조용히 실행, 알림 없음)
-  const handleAutoTaskReset = useCallback(async () => {
-    console.log("[Dashboard] 자동 할일 리셋 시작");
-    if (!userDoc?.classCode) {
-      console.error("[Dashboard] 학급 코드 정보가 없어 자동 리셋을 중단합니다.");
-      return;
-    }
-
-    console.log(`[Dashboard] ${userDoc.classCode} 클래스 자동 리셋 실행...`);
-    try {
-      const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
-      const result = await manualResetClassTasks({ classCode: userDoc.classCode });
-      console.log("[Dashboard] 자동 리셋 결과:", result.data);
-
-      if (result.data.success) {
-        // 클라이언트 상태 초기화
-        setUserDoc(prevDoc => ({
-          ...prevDoc,
-          completedTasks: {},
-        }));
-
-        setJobs(prevJobs =>
-          prevJobs.map(job => ({
-            ...job,
-            tasks: job.tasks.map(task => ({ ...task, clicks: 0 }))
-          }))
-        );
-
-        // localStorage에 마지막 리셋 날짜 저장
-        const today = new Date().toDateString();
-        localStorage.setItem('lastTaskResetDate', today);
-
-        console.log(`[Dashboard] 자동 리셋 성공: ${result.data.message}`);
-      } else {
-        console.error("[Dashboard] 자동 리셋 실패:", result.data.message);
-      }
-    } catch (error) {
-      console.error("[Dashboard] 자동 할일 리셋 오류:", error);
-    }
-  }, [userDoc?.classCode, setUserDoc, setJobs]);
 
   const handleManualTaskReset = useCallback(async () => {
     console.log("[Dashboard] 수동 할일 리셋 시작");
