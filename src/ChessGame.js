@@ -275,6 +275,8 @@ const ChessGame = () => {
     const [moveHistory, setMoveHistory] = useState([]);
     const intervalRef = useRef(null);
     const refetchRef = useRef(null);
+    const aiTimeoutRef = useRef(null);
+    const lastAiMoveCountRef = useRef(0);
 
     // AI 모드 관련 state
     const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
@@ -288,7 +290,11 @@ const ChessGame = () => {
     // 일일 플레이 횟수
     const [dailyPlayCount, setDailyPlayCount] = useState(0);
 
-    const myColor = gameData && user && (gameData.players.white === user.uid ? 'w' : 'b');
+    const myColor = gameData && user && (
+        gameData.aiMode
+            ? gameData.playerColor
+            : (gameData.players.white === user.uid ? 'w' : 'b')
+    );
     const isMyTurn = gameData && gameData.turn === myColor;
 
     const { rank: userRank, nextRank, pointsForNextRank } = getRankInfo(userDoc?.chessRating);
@@ -726,10 +732,16 @@ const ChessGame = () => {
             return;
         }
 
-        // AI 모드일 때 일일 플레이 횟수 체크
-        if (gameMode === 'ai' && dailyPlayCount >= 3) {
-            setFeedback({ message: '오늘의 AI 대전 횟수를 모두 사용했습니다. (3/3)', type: 'error' });
-            return;
+        // AI 모드일 때 일일 플레이 횟수 체크 (localStorage에서 직접 확인)
+        if (gameMode === 'ai') {
+            const today = new Date().toDateString();
+            const storageKey = `chessPlayCount_${user.uid}_${today}`;
+            const currentCount = parseInt(localStorage.getItem(storageKey) || '0', 10);
+
+            if (currentCount >= 3) {
+                setFeedback({ message: '오늘의 AI 대전 횟수를 모두 사용했습니다. (3/3)', type: 'error' });
+                return;
+            }
         }
 
         const newGameId = Math.random().toString(36).substring(2, 8);
@@ -1017,6 +1029,16 @@ const ChessGame = () => {
 
     // AI 턴 처리 (모든 함수가 정의된 후 실행)
     useEffect(() => {
+        // Cleanup 이전 timeout
+        return () => {
+            if (aiTimeoutRef.current) {
+                clearTimeout(aiTimeoutRef.current);
+                aiTimeoutRef.current = null;
+            }
+        };
+    }, []);
+
+    useEffect(() => {
         const makeAiMove = async () => {
             if (!gameData || !gameId || gameData.status !== 'active') return;
             if (!gameData.aiMode) return;
@@ -1025,12 +1047,19 @@ const ChessGame = () => {
             const aiColor = gameData.aiColor;
             if (gameData.turn !== aiColor) return;
 
+            // 같은 턴에 이미 처리했는지 확인 (moveHistory 길이로 체크)
+            const currentMoveCount = gameData.moveHistory?.length || 0;
+            if (currentMoveCount === lastAiMoveCountRef.current && currentMoveCount > 0) {
+                return;
+            }
+
             setIsAiThinking(true);
+            lastAiMoveCountRef.current = currentMoveCount + 1; // 다음 수를 예상
 
             // AI 사고 시간 시뮬레이션 (500ms ~ 1500ms)
             const thinkingTime = 500 + Math.random() * 1000;
 
-            setTimeout(async () => {
+            aiTimeoutRef.current = setTimeout(async () => {
                 try {
                     // 최신 게임 데이터를 다시 가져옴
                     const gameRef = doc(db, 'chessGames', gameId);
@@ -1058,14 +1087,16 @@ const ChessGame = () => {
                     }
                 } catch (error) {
                     console.error("AI move error:", error);
+                    setIsAiThinking(false);
                 }
 
                 setIsAiThinking(false);
+                aiTimeoutRef.current = null;
             }, thinkingTime);
         };
 
         makeAiMove();
-    }, [gameData?.turn, gameData?.status, gameId, aiDifficulty]);
+    }, [gameData?.turn, gameData?.status, gameData?.moveHistory?.length, gameId, aiDifficulty]);
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
