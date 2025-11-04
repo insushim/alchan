@@ -89,6 +89,174 @@ const deserializeBoard = (serializedBoard) => {
     return board;
 };
 
+// ===== AI 엔진 =====
+const PIECE_VALUES = {
+    'P': 100,
+    'N': 320,
+    'B': 330,
+    'R': 500,
+    'Q': 900,
+    'K': 20000
+};
+
+// 위치 가중치 테이블 (폰의 중앙 진출 선호)
+const PAWN_POSITION_BONUS = [
+    [0, 0, 0, 0, 0, 0, 0, 0],
+    [50, 50, 50, 50, 50, 50, 50, 50],
+    [10, 10, 20, 30, 30, 20, 10, 10],
+    [5, 5, 10, 25, 25, 10, 5, 5],
+    [0, 0, 0, 20, 20, 0, 0, 0],
+    [5, -5, -10, 0, 0, -10, -5, 5],
+    [5, 10, 10, -20, -20, 10, 10, 5],
+    [0, 0, 0, 0, 0, 0, 0, 0]
+];
+
+const KNIGHT_POSITION_BONUS = [
+    [-50, -40, -30, -30, -30, -30, -40, -50],
+    [-40, -20, 0, 0, 0, 0, -20, -40],
+    [-30, 0, 10, 15, 15, 10, 0, -30],
+    [-30, 5, 15, 20, 20, 15, 5, -30],
+    [-30, 0, 15, 20, 20, 15, 0, -30],
+    [-30, 5, 10, 15, 15, 10, 5, -30],
+    [-40, -20, 0, 5, 5, 0, -20, -40],
+    [-50, -40, -30, -30, -30, -30, -40, -50]
+];
+
+// 보드 평가 함수
+const evaluateBoard = (board, color) => {
+    let score = 0;
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (!piece) continue;
+
+            const pieceColor = piece[0];
+            const pieceType = piece[1];
+            const pieceValue = PIECE_VALUES[pieceType] || 0;
+
+            let positionBonus = 0;
+            if (pieceType === 'P') {
+                const row = pieceColor === 'w' ? r : 7 - r;
+                positionBonus = PAWN_POSITION_BONUS[row][c];
+            } else if (pieceType === 'N') {
+                positionBonus = KNIGHT_POSITION_BONUS[r][c];
+            }
+
+            const totalValue = pieceValue + positionBonus;
+
+            if (pieceColor === color) {
+                score += totalValue;
+            } else {
+                score -= totalValue;
+            }
+        }
+    }
+
+    return score;
+};
+
+// Minimax 알고리즘
+const minimax = (board, depth, isMaximizing, alpha, beta, color, getValidMovesFunc) => {
+    if (depth === 0) {
+        return evaluateBoard(board, color);
+    }
+
+    const currentColor = isMaximizing ? color : (color === 'w' ? 'b' : 'w');
+
+    // 모든 가능한 수 찾기
+    const allMoves = [];
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && piece[0] === currentColor) {
+                const moves = getValidMovesFunc(board, r, c, piece, true);
+                moves.forEach(([toR, toC]) => {
+                    allMoves.push({ from: [r, c], to: [toR, toC], piece });
+                });
+            }
+        }
+    }
+
+    if (allMoves.length === 0) {
+        return isMaximizing ? -999999 : 999999;
+    }
+
+    if (isMaximizing) {
+        let maxEval = -Infinity;
+        for (const move of allMoves) {
+            const newBoard = board.map(row => [...row]);
+            newBoard[move.to[0]][move.to[1]] = move.piece;
+            newBoard[move.from[0]][move.from[1]] = null;
+
+            const evaluation = minimax(newBoard, depth - 1, false, alpha, beta, color, getValidMovesFunc);
+            maxEval = Math.max(maxEval, evaluation);
+            alpha = Math.max(alpha, evaluation);
+            if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = Infinity;
+        for (const move of allMoves) {
+            const newBoard = board.map(row => [...row]);
+            newBoard[move.to[0]][move.to[1]] = move.piece;
+            newBoard[move.from[0]][move.from[1]] = null;
+
+            const evaluation = minimax(newBoard, depth - 1, true, alpha, beta, color, getValidMovesFunc);
+            minEval = Math.min(minEval, evaluation);
+            beta = Math.min(beta, evaluation);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
+};
+
+// AI가 최적의 수 찾기
+const findBestMove = (board, color, difficulty, getValidMovesFunc) => {
+    const allMoves = [];
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && piece[0] === color) {
+                const moves = getValidMovesFunc(board, r, c, piece, true);
+                moves.forEach(([toR, toC]) => {
+                    allMoves.push({ from: [r, c], to: [toR, toC], piece });
+                });
+            }
+        }
+    }
+
+    if (allMoves.length === 0) return null;
+
+    // 초급: 랜덤 선택
+    if (difficulty === 'beginner') {
+        return allMoves[Math.floor(Math.random() * allMoves.length)];
+    }
+
+    // 중급: Depth 2
+    // 고급: Depth 3
+    const depth = difficulty === 'intermediate' ? 2 : 3;
+
+    let bestMove = null;
+    let bestValue = -Infinity;
+
+    for (const move of allMoves) {
+        const newBoard = board.map(row => [...row]);
+        newBoard[move.to[0]][move.to[1]] = move.piece;
+        newBoard[move.from[0]][move.from[1]] = null;
+
+        const moveValue = minimax(newBoard, depth - 1, false, -Infinity, Infinity, color, getValidMovesFunc);
+
+        if (moveValue > bestValue) {
+            bestValue = moveValue;
+            bestMove = move;
+        }
+    }
+
+    return bestMove;
+};
+
 
 const ChessGame = () => {
     const { user, userDoc } = useAuth();
@@ -107,6 +275,18 @@ const ChessGame = () => {
     const [moveHistory, setMoveHistory] = useState([]);
     const intervalRef = useRef(null);
     const refetchRef = useRef(null);
+
+    // AI 모드 관련 state
+    const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
+    const [aiDifficulty, setAiDifficulty] = useState('intermediate'); // 'beginner', 'intermediate', 'advanced'
+    const [isAiThinking, setIsAiThinking] = useState(false);
+
+    // 보상 관련 state
+    const [showRewardSelection, setShowRewardSelection] = useState(false);
+    const [rewardCards, setRewardCards] = useState([]);
+
+    // 일일 플레이 횟수
+    const [dailyPlayCount, setDailyPlayCount] = useState(0);
 
     const myColor = gameData && user && (gameData.players.white === user.uid ? 'w' : 'b');
     const isMyTurn = gameData && gameData.turn === myColor;
@@ -260,6 +440,50 @@ const ChessGame = () => {
     useEffect(() => {
         refetchRef.current = refetch;
     }, [refetch]);
+
+    // 일일 플레이 횟수 로드
+    useEffect(() => {
+        const loadDailyPlayCount = () => {
+            if (!user) return;
+
+            const today = new Date().toDateString();
+            const storageKey = `chessPlayCount_${user.uid}_${today}`;
+            const count = parseInt(localStorage.getItem(storageKey) || '0', 10);
+            setDailyPlayCount(count);
+        };
+
+        loadDailyPlayCount();
+    }, [user]);
+
+    // AI 턴 처리
+    useEffect(() => {
+        const makeAiMove = async () => {
+            if (!gameData || !gameId || gameData.status !== 'active') return;
+            if (!gameData.aiMode) return;
+
+            const aiColor = gameData.aiColor;
+            if (gameData.turn !== aiColor) return;
+            if (isAiThinking) return;
+
+            setIsAiThinking(true);
+
+            // AI 사고 시간 시뮬레이션 (500ms ~ 1500ms)
+            const thinkingTime = 500 + Math.random() * 1000;
+
+            setTimeout(async () => {
+                const bestMove = findBestMove(gameData.board, aiColor, aiDifficulty, getValidMoves);
+
+                if (bestMove) {
+                    const { from, to } = bestMove;
+                    await executeMove(from[0], from[1], to[0], to[1], bestMove.piece);
+                }
+
+                setIsAiThinking(false);
+            }, thinkingTime);
+        };
+
+        makeAiMove();
+    }, [gameData, gameId, aiDifficulty, isAiThinking, getValidMoves]);
 
     useEffect(() => {
         if (feedback.message) {
@@ -435,24 +659,140 @@ const ChessGame = () => {
         }
     }, [getValidMoves, isInCheck]);
 
+    // 보상 카드 생성
+    const generateRewardCards = () => {
+        const cashRewards = [
+            { amount: 50000, weight: 5 },
+            { amount: 30000, weight: 10 },
+            { amount: 20000, weight: 15 },
+            { amount: 10000, weight: 20 },
+            { amount: 5000, weight: 18 },
+            { amount: 3000, weight: 12 },
+            { amount: 1000, weight: 10 },
+            { amount: 500, weight: 7 },
+            { amount: 100, weight: 3 }
+        ];
+
+        const couponRewards = [
+            { amount: 20, weight: 10 },
+            { amount: 10, weight: 20 },
+            { amount: 5, weight: 20 },
+            { amount: 3, weight: 20 },
+            { amount: 1, weight: 30 }
+        ];
+
+        const weightedRandom = (items) => {
+            const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
+            let random = Math.random() * totalWeight;
+
+            for (const item of items) {
+                random -= item.weight;
+                if (random <= 0) {
+                    return item.amount;
+                }
+            }
+
+            return items[items.length - 1].amount;
+        };
+
+        return [
+            { type: 'cash', amount: weightedRandom(cashRewards) },
+            { type: 'coupon', amount: weightedRandom(couponRewards) }
+        ];
+    };
+
+    // 보상 선택 처리
+    const handleRewardSelection = async (selectedCard) => {
+        if (!user || !gameId) return;
+
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            const today = new Date().toDateString();
+            const storageKey = `chessPlayCount_${user.uid}_${today}`;
+
+            await runTransaction(db, async (transaction) => {
+                const userDocSnap = await transaction.get(userRef);
+                if (!userDocSnap.exists()) return;
+
+                const updateData = {};
+
+                if (selectedCard.type === 'cash') {
+                    updateData.balance = increment(selectedCard.amount);
+                } else if (selectedCard.type === 'coupon') {
+                    updateData.couponBalance = increment(selectedCard.amount);
+                }
+
+                transaction.update(userRef, updateData);
+            });
+
+            // 일일 플레이 횟수 증가
+            const newCount = dailyPlayCount + 1;
+            localStorage.setItem(storageKey, newCount.toString());
+            setDailyPlayCount(newCount);
+
+            setShowRewardSelection(false);
+            setFeedback({
+                message: selectedCard.type === 'cash'
+                    ? `현금 ${selectedCard.amount.toLocaleString()}원을 획득했습니다!`
+                    : `쿠폰 ${selectedCard.amount}개를 획득했습니다!`,
+                type: 'success'
+            });
+
+            // 게임 나가기
+            setTimeout(() => {
+                handleLeaveGame();
+            }, 2000);
+
+        } catch (error) {
+            console.error("Error applying reward:", error);
+            setFeedback({ message: '보상 지급에 실패했습니다.', type: 'error' });
+        }
+    };
+
 
     const handleCreateRoom = async () => {
         if (!user) {
             setFeedback({ message: '로그인이 필요합니다.', type: 'error' });
             return;
         }
-        
+
+        // AI 모드일 때 일일 플레이 횟수 체크
+        if (gameMode === 'ai' && dailyPlayCount >= 3) {
+            setFeedback({ message: '오늘의 AI 대전 횟수를 모두 사용했습니다. (3/3)', type: 'error' });
+            return;
+        }
+
         const newGameId = Math.random().toString(36).substring(2, 8);
         const gameRef = doc(db, 'chessGames', newGameId);
-        
+
+        const isAiMode = gameMode === 'ai';
+        const playerColor = Math.random() > 0.5 ? 'w' : 'b'; // AI 모드에서 랜덤 색상
+        const aiColor = playerColor === 'w' ? 'b' : 'w';
+
         const initialGameData = {
             board: serializeBoard(getInitialBoard()),
-            players: { white: user.uid, black: null },
-            playerNames: { white: userDoc.name, black: null },
-            playerRanks: { white: userRank, black: 'Unranked' },
-            playerRatings: { white: userDoc.chessRating || 0, black: null },
+            players: isAiMode
+                ? (playerColor === 'w'
+                    ? { white: user.uid, black: 'AI' }
+                    : { white: 'AI', black: user.uid })
+                : { white: user.uid, black: null },
+            playerNames: isAiMode
+                ? (playerColor === 'w'
+                    ? { white: userDoc.name, black: `AI (${aiDifficulty === 'beginner' ? '초급' : aiDifficulty === 'intermediate' ? '중급' : '고급'})` }
+                    : { white: `AI (${aiDifficulty === 'beginner' ? '초급' : aiDifficulty === 'intermediate' ? '중급' : '고급'})`, black: userDoc.name })
+                : { white: userDoc.name, black: null },
+            playerRanks: isAiMode
+                ? (playerColor === 'w'
+                    ? { white: userRank, black: 'AI' }
+                    : { white: 'AI', black: userRank })
+                : { white: userRank, black: 'Unranked' },
+            playerRatings: isAiMode
+                ? (playerColor === 'w'
+                    ? { white: userDoc.chessRating || 0, black: 0 }
+                    : { white: 0, black: userDoc.chessRating || 0 })
+                : { white: userDoc.chessRating || 0, black: null },
             turn: 'w',
-            status: 'waiting',
+            status: isAiMode ? 'active' : 'waiting',
             winner: null,
             timeControl: timeControl,
             whiteTime: timeControl,
@@ -462,12 +802,16 @@ const ChessGame = () => {
             moveHistory: [],
             createdAt: serverTimestamp(),
             ratingChange: null,
+            aiMode: isAiMode,
+            aiDifficulty: isAiMode ? aiDifficulty : null,
+            aiColor: isAiMode ? aiColor : null,
+            playerColor: isAiMode ? playerColor : null,
         };
 
         try {
             await setDoc(gameRef, initialGameData);
             setGameId(newGameId);
-            setFeedback({ message: `체스 방 생성 완료! 코드: ${newGameId}`, type: 'success' });
+            setFeedback({ message: isAiMode ? `AI 대전 시작!` : `체스 방 생성 완료! 코드: ${newGameId}`, type: 'success' });
             if (refetchRef.current) await refetchRef.current();
         } catch (error) {
             console.error("Error creating room:", error);
@@ -642,15 +986,20 @@ const ChessGame = () => {
                 if (newStatus === 'finished' && newWinner !== 'draw') {
                     const winnerId = currentData.players[newWinner === 'w' ? 'white' : 'black'];
                     const loserId = currentData.players[newWinner === 'w' ? 'black' : 'white'];
-                    
+
                     newRatingChange = {
                         [newWinner === 'w' ? 'white' : 'black']: RATING_CHANGE.WIN,
                         [newWinner === 'w' ? 'black' : 'white']: RATING_CHANGE.LOSS,
                     };
 
-                    // ✨ updateUserChessResult 함수 호출을 여기서 제거했습니다.
+                    // AI 모드에서 플레이어가 승리한 경우 보상 카드 생성
+                    if (currentData.aiMode && winnerId === user.uid) {
+                        const cards = generateRewardCards();
+                        setRewardCards(cards);
+                        setShowRewardSelection(true);
+                    }
                 }
-                
+
                 const updateData = {
                     board: serializeBoard(newBoard),
                     turn: nextTurn,
@@ -662,10 +1011,10 @@ const ChessGame = () => {
                     endReason: endReason,
                     ratingChange: newRatingChange,
                 };
-                
+
                 transaction.update(gameRef, updateData);
             });
-            
+
             setSelectedPiece(null);
             setPossibleMoves([]);
 
@@ -698,12 +1047,14 @@ const ChessGame = () => {
     };
 
     if (showCreateRoom) {
+        const canPlayAi = dailyPlayCount < 3;
+
         return (
             <div className="chess-container">
                 <div className="room-creation">
                     <h2>♚ 체스 게임 ♔</h2>
                     <p>전략적 사고력을 기르는 최고의 두뇌 게임!</p>
-                    
+
                     <div className="user-rank-info">
                         <p>내 등급: <strong>{userRank}</strong> ({userDoc?.chessRating || 0}점)</p>
                         {nextRank && (
@@ -712,11 +1063,57 @@ const ChessGame = () => {
                             </p>
                         )}
                     </div>
-                    
+
+                    {/* 게임 모드 선택 */}
+                    <div className="game-mode-selector">
+                        <h3>게임 모드 선택</h3>
+                        <div className="mode-options">
+                            <button
+                                className={gameMode === 'player' ? 'selected' : ''}
+                                onClick={() => setGameMode('player')}
+                            >
+                                👥 플레이어 대전
+                            </button>
+                            <button
+                                className={gameMode === 'ai' ? 'selected' : ''}
+                                onClick={() => setGameMode('ai')}
+                            >
+                                🤖 AI 대전 ({dailyPlayCount}/3)
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* AI 난이도 선택 (AI 모드일 때만 표시) */}
+                    {gameMode === 'ai' && (
+                        <div className="ai-difficulty-selector">
+                            <h3>AI 난이도</h3>
+                            <div className="difficulty-options">
+                                <button
+                                    className={aiDifficulty === 'beginner' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('beginner')}
+                                >
+                                    😊 초급
+                                </button>
+                                <button
+                                    className={aiDifficulty === 'intermediate' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('intermediate')}
+                                >
+                                    🤔 중급
+                                </button>
+                                <button
+                                    className={aiDifficulty === 'advanced' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('advanced')}
+                                >
+                                    🔥 고급
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {feedback.message && (
                         <div className={`feedback ${feedback.type}`}>{feedback.message}</div>
                     )}
-                    
+
                     <div className="time-control-selector">
                         <h3>시간 제한 선택</h3>
                         <div className="time-options">
@@ -734,19 +1131,22 @@ const ChessGame = () => {
                     
                     <div className="room-actions">
                         <button onClick={handleCreateRoom} className="create-room-btn">
-                            새로운 방 만들기
+                            {gameMode === 'ai' ? '🤖 AI 대전 시작' : '새로운 방 만들기'}
                         </button>
-                        
-                        <div className="join-room">
-                            <input
-                                type="text"
-                                value={newRoomId}
-                                onChange={(e) => setNewRoomId(e.target.value)}
-                                placeholder="방 코드 입력"
-                                maxLength="6"
-                            />
-                            <button onClick={() => handleJoinRoom()}>코드로 참가</button>
-                        </div>
+
+                        {/* 플레이어 대전 모드일 때만 방 참가 기능 표시 */}
+                        {gameMode === 'player' && (
+                            <div className="join-room">
+                                <input
+                                    type="text"
+                                    value={newRoomId}
+                                    onChange={(e) => setNewRoomId(e.target.value)}
+                                    placeholder="방 코드 입력"
+                                    maxLength="6"
+                                />
+                                <button onClick={() => handleJoinRoom()}>코드로 참가</button>
+                            </div>
+                        )}
                     </div>
                     
                     {availableRooms.length > 0 && (
@@ -789,7 +1189,8 @@ const ChessGame = () => {
                         <ul>
                             <li>백(White)이 먼저 시작합니다.</li>
                             <li>상대방의 킹을 체크메이트하면 승리합니다.</li>
-                            <li>승리 시 <strong>점수(+15)</strong>와 쿠폰 3개를, 패배 시 <strong>점수(-10)</strong>가 변동됩니다.</li>
+                            <li>플레이어 대전: 승리 시 <strong>점수(+15)</strong>와 쿠폰 3개, 패배 시 <strong>점수(-10)</strong></li>
+                            <li>AI 대전: 승리 시 <strong>카드 보상</strong> 선택 (현금 또는 쿠폰), 하루 3회 제한</li>
                         </ul>
                     </div>
                 </div>
@@ -884,6 +1285,47 @@ const ChessGame = () => {
                                     >
                                         {PIECES[myColor + type]}
                                     </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* AI 사고 중 표시 */}
+                {isAiThinking && (
+                    <div className="ai-thinking">
+                        <div className="thinking-content">
+                            <div className="spinner"></div>
+                            <p>AI가 수를 고민하는 중...</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* 보상 카드 선택 모달 */}
+                {showRewardSelection && rewardCards.length === 2 && (
+                    <div className="reward-modal">
+                        <div className="reward-content">
+                            <h3>🎉 승리 보상!</h3>
+                            <p>하나의 카드를 선택하세요</p>
+                            <div className="reward-cards">
+                                {rewardCards.map((card, index) => (
+                                    <div
+                                        key={index}
+                                        className="reward-card"
+                                        onClick={() => handleRewardSelection(card)}
+                                    >
+                                        <div className="card-icon">
+                                            {card.type === 'cash' ? '💵' : '🎫'}
+                                        </div>
+                                        <div className="card-title">
+                                            {card.type === 'cash' ? '현금' : '쿠폰'}
+                                        </div>
+                                        <div className="card-amount">
+                                            {card.type === 'cash'
+                                                ? `${card.amount.toLocaleString()}원`
+                                                : `${card.amount}개`}
+                                        </div>
+                                    </div>
                                 ))}
                             </div>
                         </div>
