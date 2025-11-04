@@ -688,6 +688,70 @@ function Dashboard({ adminTabMode }) {
     };
   }, [authLoading, user, userDoc?.id, userDoc?.classCode, loadTasksData]);
 
+  // 자정 자동 리셋 타이머 설정
+  useEffect(() => {
+    if (!userDoc?.classCode || !handleAutoTaskReset) {
+      return;
+    }
+
+    // 페이지 로드 시 날짜 변경 확인
+    const checkAndResetIfNeeded = () => {
+      const today = new Date().toDateString();
+      const lastResetDate = localStorage.getItem('lastTaskResetDate');
+
+      console.log('[Dashboard] 날짜 체크:', { today, lastResetDate });
+
+      if (lastResetDate !== today) {
+        console.log('[Dashboard] 날짜가 변경되었습니다. 자동 리셋 실행...');
+        handleAutoTaskReset();
+      } else {
+        console.log('[Dashboard] 오늘 이미 리셋되었습니다.');
+      }
+    };
+
+    // 즉시 날짜 체크
+    checkAndResetIfNeeded();
+
+    // 자정까지 남은 시간 계산 함수
+    const getMillisecondsUntilMidnight = () => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0);
+      return midnight.getTime() - now.getTime();
+    };
+
+    // 자정 타이머 설정
+    const scheduleNextReset = () => {
+      const msUntilMidnight = getMillisecondsUntilMidnight();
+      console.log(`[Dashboard] 다음 자동 리셋까지: ${Math.floor(msUntilMidnight / 1000 / 60)}분`);
+
+      return setTimeout(() => {
+        console.log('[Dashboard] 자정이 되었습니다. 자동 리셋 실행...');
+        handleAutoTaskReset();
+
+        // 다음 자정을 위해 타이머 재설정
+        scheduleNextReset();
+      }, msUntilMidnight);
+    };
+
+    const midnightTimer = scheduleNextReset();
+
+    // 1분마다 날짜 체크 (브라우저가 슬립 모드에서 깨어났을 때를 대비)
+    const dateCheckInterval = setInterval(() => {
+      checkAndResetIfNeeded();
+    }, 60000); // 1분
+
+    // 클린업
+    return () => {
+      if (midnightTimer) {
+        clearTimeout(midnightTimer);
+      }
+      if (dateCheckInterval) {
+        clearInterval(dateCheckInterval);
+      }
+    };
+  }, [userDoc?.classCode, handleAutoTaskReset]);
+
   // Job management handlers
   const handleSaveJob = useCallback(async () => {
     if (!db || !userDoc?.classCode) {
@@ -1413,6 +1477,47 @@ function Dashboard({ adminTabMode }) {
     loadTasksData(true);
   }, [loadTasksData, userDoc?.classCode, setupPolling]);
 
+  // 자동 할일 리셋 함수 (조용히 실행, 알림 없음)
+  const handleAutoTaskReset = useCallback(async () => {
+    console.log("[Dashboard] 자동 할일 리셋 시작");
+    if (!userDoc?.classCode) {
+      console.error("[Dashboard] 학급 코드 정보가 없어 자동 리셋을 중단합니다.");
+      return;
+    }
+
+    console.log(`[Dashboard] ${userDoc.classCode} 클래스 자동 리셋 실행...`);
+    try {
+      const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
+      const result = await manualResetClassTasks({ classCode: userDoc.classCode });
+      console.log("[Dashboard] 자동 리셋 결과:", result.data);
+
+      if (result.data.success) {
+        // 클라이언트 상태 초기화
+        setUserDoc(prevDoc => ({
+          ...prevDoc,
+          completedTasks: {},
+        }));
+
+        setJobs(prevJobs =>
+          prevJobs.map(job => ({
+            ...job,
+            tasks: job.tasks.map(task => ({ ...task, clicks: 0 }))
+          }))
+        );
+
+        // localStorage에 마지막 리셋 날짜 저장
+        const today = new Date().toDateString();
+        localStorage.setItem('lastTaskResetDate', today);
+
+        console.log(`[Dashboard] 자동 리셋 성공: ${result.data.message}`);
+      } else {
+        console.error("[Dashboard] 자동 리셋 실패:", result.data.message);
+      }
+    } catch (error) {
+      console.error("[Dashboard] 자동 할일 리셋 오류:", error);
+    }
+  }, [userDoc?.classCode, setUserDoc, setJobs]);
+
   const handleManualTaskReset = useCallback(async () => {
     console.log("[Dashboard] 수동 할일 리셋 시작");
     if (!userDoc?.classCode) {
@@ -1432,10 +1537,10 @@ function Dashboard({ adminTabMode }) {
       const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
       const result = await manualResetClassTasks({ classCode: userDoc.classCode });
       console.log("[Dashboard] 클라우드 함수 결과 수신:", result.data);
-      
+
       if (result.data.success) {
         // 성공 시, 새로고침 대신 클라이언트 상태를 직접 초기화하여 즉시 UI에 반영
-        
+
         // 1. 공통 할일 상태 초기화
         setUserDoc(prevDoc => ({
           ...prevDoc,
@@ -1443,12 +1548,16 @@ function Dashboard({ adminTabMode }) {
         }));
 
         // 2. 직업 할일 상태 초기화
-        setJobs(prevJobs => 
+        setJobs(prevJobs =>
           prevJobs.map(job => ({
             ...job,
             tasks: job.tasks.map(task => ({ ...task, clicks: 0 }))
           }))
         );
+
+        // localStorage에 마지막 리셋 날짜 저장
+        const today = new Date().toDateString();
+        localStorage.setItem('lastTaskResetDate', today);
 
         alert(`리셋 성공!\n${result.data.message}`);
         console.log(`[Dashboard] 리셋 성공: ${result.data.message}`);
