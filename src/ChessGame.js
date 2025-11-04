@@ -282,7 +282,6 @@ const ChessGame = () => {
     const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
     const [aiDifficulty, setAiDifficulty] = useState('intermediate'); // 'beginner', 'intermediate', 'advanced'
     const [isAiThinking, setIsAiThinking] = useState(false);
-    const [isMoving, setIsMoving] = useState(false);
 
     // 보상 관련 state
     const [showRewardSelection, setShowRewardSelection] = useState(false);
@@ -857,7 +856,7 @@ const ChessGame = () => {
     };
 
     const handlePieceClick = (row, col) => {
-        if (!isMyTurn || gameData.status !== 'active' || isMoving) return;
+        if (!isMyTurn || gameData.status !== 'active') return;
         
         const piece = gameData.board[row][col];
         
@@ -896,29 +895,19 @@ const ChessGame = () => {
     };
 
     const executeMove = async (fromRow, fromCol, toRow, toCol, piece, promotionPiece = null) => {
-        if (!gameId || isMoving) return;
-        setIsMoving(true);
+        if (!gameId) return;
         const gameRef = doc(db, 'chessGames', gameId);
 
         try {
-            const result = await runTransaction(db, async (transaction) => {
+            await runTransaction(db, async (transaction) => {
                 const gameDoc = await transaction.get(gameRef);
-                if (!gameDoc.exists()) {
-                    throw new Error("게임을 찾을 수 없습니다.");
-                }
-
+                if (!gameDoc.exists()) throw new Error("Game not found");
+                
                 const currentData = gameDoc.data();
-                if (currentData.status !== 'active') {
-                    return { status: currentData.status, winner: currentData.winner, aiMode: currentData.aiMode, playerColor: piece[0] };
-                }
-
-                const color = piece[0];
-                if (currentData.turn !== color) {
-                    // 턴이 맞지 않으면 오류를 발생시켜 재시도 방지
-                    throw new Error("상대방의 턴입니다.");
-                }
+                if (currentData.status !== 'active') return;
                 
                 const board = deserializeBoard(currentData.board);
+                const color = piece[0];
 
                 let newBoard = board.map(r => [...r]);
                 newBoard[fromRow][fromCol] = null;
@@ -977,10 +966,20 @@ const ChessGame = () => {
                 }
                 
                 if (newStatus === 'finished' && newWinner !== 'draw') {
+                    const winnerId = currentData.players[newWinner === 'w' ? 'white' : 'black'];
+                    const loserId = currentData.players[newWinner === 'w' ? 'black' : 'white'];
+
                     newRatingChange = {
                         [newWinner === 'w' ? 'white' : 'black']: RATING_CHANGE.WIN,
                         [newWinner === 'w' ? 'black' : 'white']: RATING_CHANGE.LOSS,
                     };
+
+                    // AI 모드에서 플레이어가 승리한 경우 보상 카드 생성
+                    if (currentData.aiMode && winnerId === user.uid) {
+                        const cards = generateRewardCards();
+                        setRewardCards(cards);
+                        setShowRewardSelection(true);
+                    }
                 }
 
                 const updateData = {
@@ -996,39 +995,12 @@ const ChessGame = () => {
                 };
 
                 transaction.update(gameRef, updateData);
-
-                return {
-                    status: newStatus,
-                    winner: newWinner,
-                    aiMode: currentData.aiMode,
-                };
             });
-
-            if (result.status === 'finished' && result.aiMode) {
-                const playerIsWinner = result.winner === myColor;
-                const isDraw = result.winner === 'draw';
-
-                if (playerIsWinner || (isDraw && Math.random() < 0.5)) {
-                    const cards = generateRewardCards();
-                    setRewardCards(cards);
-                    setShowRewardSelection(true);
-                } else {
-                    const today = new Date().toDateString();
-                    const storageKey = `chessPlayCount_${user.uid}_${today}`;
-                    const newCount = dailyPlayCount + 1;
-                    localStorage.setItem(storageKey, newCount.toString());
-                    setDailyPlayCount(newCount);
-                    
-                    if (isDraw) {
-                        setFeedback({ message: '무승부! 아쉽지만 보상은 다음 기회에!', type: 'info' });
-                    }
-                    setTimeout(() => handleLeaveGame(), 2000);
-                }
-            }
 
             setSelectedPiece(null);
             setPossibleMoves([]);
 
+            // 수가 성공적으로 업데이트되면 게임 데이터 갱신
             if (refetchRef.current) {
                 await refetchRef.current();
             }
@@ -1036,11 +1008,6 @@ const ChessGame = () => {
         } catch (error) {
             console.error("Error making move: ", error);
             setFeedback({ message: `이동 중 오류 발생: ${error.message}`, type: 'error' });
-            if (refetchRef.current) {
-                await refetchRef.current();
-            }
-        } finally {
-            setIsMoving(false);
         }
     };
 
@@ -1075,7 +1042,7 @@ const ChessGame = () => {
         const makeAiMove = async () => {
             if (!gameData || !gameId || gameData.status !== 'active') return;
             if (!gameData.aiMode) return;
-            if (isAiThinking || isMoving) return;
+            if (isAiThinking) return;
 
             const aiColor = gameData.aiColor;
             if (gameData.turn !== aiColor) return;
