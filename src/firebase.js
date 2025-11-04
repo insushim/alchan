@@ -63,7 +63,7 @@ const app = initializeApp(firebaseConfig);
 
 // ⭐️ [수정] Firestore 초기화 방식 변경 (경고 해결)
 const db = initializeFirestore(app, {
-  localCache: persistentLocalCache(/*{ tabManager: 'primary' }*/)
+  localCache: persistentLocalCache({ synchronizeTabs: true })
 });
 
 // Firestore 로그 레벨 설정 (WebChannel 오류 숨기기)

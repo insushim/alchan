@@ -346,8 +346,7 @@ service cloud.firestore {
     // ♟️ 체스 게임 (chessGames)
     // ========================================================
     match /chessGames/{gameId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read, create: if isSignedIn();
       allow update: if isSignedIn() &&
                        (resource.data.player1 == request.auth.uid ||
                         resource.data.player2 == request.auth.uid ||
@@ -357,6 +356,15 @@ service cloud.firestore {
                        (resource.data.player1 == request.auth.uid ||
                         resource.data.player2 == request.auth.uid ||
                         isAdmin());
+    }
+
+    // ========================================================
+    // ⚫️ 오목 게임 (omokGames)
+    // ========================================================
+    match /omokGames/{gameId} {
+      allow read, create: if isSignedIn();
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.players.keys() || isAdmin());
+      allow delete: if isSignedIn() && (resource.data.host == request.auth.uid || isAdmin());
     }
 
     // ========================================================
