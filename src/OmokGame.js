@@ -1,5 +1,4 @@
 // src/OmokGame.js - 랭킹 포인트 시스템 수정 및 UI 개선 (재대결 기능 추가)
-import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
     collection,
     doc,
@@ -12,7 +11,8 @@ import {
     query,
     where,
     getDocs,
-    orderBy
+    orderBy,
+    increment,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
@@ -34,6 +34,101 @@ const RANKS = [
 const RP_ON_WIN = 15;
 const RP_ON_LOSS = 8;
 const BASE_RP = 1000;
+
+const BOARD_SIZE = 19;
+
+// ===== 오목 AI 엔진 =====
+const getIndex = (row, col) => row * BOARD_SIZE + col;
+const getBoardValue = (board, row, col) => {
+    if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return undefined;
+    return board[getIndex(row, col)];
+};
+
+const evaluateLine = (line) => {
+    const counts = { black: 0, white: 0 };
+    line.forEach(cell => {
+        if (cell) counts[cell]++;
+    });
+
+    if (counts.black > 0 && counts.white > 0) return 0; // Mixed line
+
+    const player = counts.black > 0 ? 'black' : 'white';
+    const count = counts[player];
+
+    if (count === 5) return 100000;
+    if (count === 4) return 10000;
+    if (count === 3) return 100;
+    if (count === 2) return 10;
+    if (count === 1) return 1;
+    return 0;
+};
+
+const evaluateBoard = (board) => {
+    let score = 0;
+    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+
+    for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+            directions.forEach(([dr, dc]) => {
+                if (r + dr * 4 < BOARD_SIZE && c + dc * 4 < BOARD_SIZE && c + dc * 4 >= 0) {
+                    const line = [];
+                    for (let i = 0; i < 5; i++) {
+                        line.push(getBoardValue(board, r + i * dr, c + i * dc));
+                    }
+                    score += evaluateLine(line);
+                }
+            });
+        }
+    }
+    return score;
+};
+
+const findBestMove = (board, aiColor, difficulty) => {
+    const possibleMoves = [];
+    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+        if (!board[i]) {
+            const r = Math.floor(i / BOARD_SIZE);
+            const c = i % BOARD_SIZE;
+            possibleMoves.push({ r, c });
+        }
+    }
+
+    if (possibleMoves.length === 0) return null;
+
+    let bestMove = null;
+    let bestScore = -Infinity;
+
+    const searchDepth = { '하급': 1, '중급': 2, '상급': 2 }[difficulty] || 1; // 상급은 더 똑똑한 평가 로직 필요
+
+    for (const move of possibleMoves) {
+        const newBoard = [...board];
+        newBoard[getIndex(move.r, move.c)] = aiColor;
+        
+        let score = evaluateBoard(newBoard);
+        
+        // 상대방의 최선의 수를 고려 (Minimax의 1-ply)
+        if (searchDepth > 1) {
+            let opponentBestResponseScore = -Infinity;
+            const opponentColor = aiColor === 'black' ? 'white' : 'black';
+            for (const opponentMove of possibleMoves) {
+                if (opponentMove.r === move.r && opponentMove.c === move.c) continue;
+                const boardAfterOpponent = [...newBoard];
+                boardAfterOpponent[getIndex(opponentMove.r, opponentMove.c)] = opponentColor;
+                opponentBestResponseScore = Math.max(opponentBestResponseScore, evaluateBoard(boardAfterOpponent));
+            }
+            score -= opponentBestResponseScore;
+        }
+
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = move;
+        }
+    }
+
+    return bestMove;
+};
+// =======================
+
 
 // [랭크 시스템] RP 기반으로 랭크 정보를 계산하는 헬퍼 함수
 const getOmokRankDetails = (omokStats) => {
@@ -67,6 +162,7 @@ const getOmokRankDetails = (omokStats) => {
 
 // [랭크 시스템] 사용자 오목 기록 업데이트 함수 (RP 포함)
 const updateUserOmokRecord = async (userId, result) => {
+    if (!userId || userId === 'AI') return;
     try {
         const userDocRef = doc(db, 'users', userId);
         await runTransaction(db, async (transaction) => {
@@ -166,9 +262,14 @@ const OmokGame = () => {
     const [selectedCell, setSelectedCell] = useState(null);
     const [gameResult, setGameResult] = useState(null);
     const refetchGameDataRef = useRef(null);
+    const [feedback, setFeedback] = useState({ message: '', type: '' });
+    const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
+    const [aiDifficulty, setAiDifficulty] = useState('중급'); // '하급', '중급', '상급'
+    const [dailyPlayCount, setDailyPlayCount] = useState(0);
+    const [showRewardSelection, setShowRewardSelection] = useState(false);
+    const [rewardCards, setRewardCards] = useState([]);
+    const [isAiThinking, setIsAiThinking] = useState(false);
 
-    const TURN_TIME_LIMIT = 30;
-    const BOARD_SIZE = 19;
 
     const gameIdRef = useRef(gameId);
     useEffect(() => { gameIdRef.current = gameId; }, [gameId]);
@@ -198,13 +299,6 @@ const OmokGame = () => {
         };
     }, []);
 
-    const getIndex = (row, col) => row * BOARD_SIZE + col;
-    const getBoardValue = (board, row, col) => {
-        if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
-            return undefined;
-        }
-        return board[getIndex(row, col)];
-    };
     const createEmptyBoard = () => new Array(BOARD_SIZE * BOARD_SIZE).fill(null);
 
     const fetchAvailableGames = useCallback(async () => {
@@ -251,16 +345,28 @@ const OmokGame = () => {
             setError('사용자 정보가 로딩 중입니다. 잠시 후 다시 시도해주세요.');
             return;
         }
+
+        if (gameMode === 'ai') {
+            if (dailyPlayCount >= 5) {
+                setError('하루에 5번만 AI 대전을 할 수 있습니다.');
+                return;
+            }
+        }
+
         setLoading(true);
         const myName = userDoc.name || userDoc.nickname || user.displayName || '익명';
         const myClass = userDoc.classCode || '미설정';
         const myRankDetails = getOmokRankDetails(userDoc.omok);
 
+        const isAiMode = gameMode === 'ai';
+        const playerColor = 'black';
+        const aiColor = 'white';
+
         try {
             const newGame = {
                 board: createEmptyBoard(),
-                players: { [user.uid]: 'black' },
-                playerNames: { [user.uid]: myName },
+                players: isAiMode ? { [user.uid]: playerColor, 'AI': aiColor } : { [user.uid]: 'black' },
+                playerNames: isAiMode ? { [user.uid]: myName, 'AI': `AI (${aiDifficulty})` } : { [user.uid]: myName },
                 playerClasses: { [user.uid]: myClass },
                 playerRanks: { [user.uid]: myRankDetails },
                 currentPlayer: user.uid,
@@ -272,14 +378,18 @@ const OmokGame = () => {
                 hostRank: myRankDetails.currentRank,
                 turnStartTime: serverTimestamp(),
                 history: [],
-                gameStatus: 'waiting',
+                gameStatus: isAiMode ? 'playing' : 'waiting',
                 statsUpdated: false,
-                rematch: {}, 
+                rematch: {},
+                aiMode: isAiMode,
+                aiDifficulty: isAiMode ? aiDifficulty : null,
             };
 
             const gameDocRef = await addDoc(collection(db, 'omokGames'), newGame);
             setGameId(gameDocRef.id);
-            setCreatedGameId(gameDocRef.id);
+            if (!isAiMode) {
+                setCreatedGameId(gameDocRef.id);
+            }
             setError('');
             if (refetchGameDataRef.current) refetchGameDataRef.current();
         } catch (err) {
@@ -336,17 +446,21 @@ const OmokGame = () => {
             } else if (game.gameStatus === 'playing' && game.players[user.uid] && !game.winner) {
                 const opponentId = Object.keys(game.players).find(p => p !== user.uid);
                 if (opponentId) {
-                    const gameStartTime = game.createdAt?.toDate().getTime();
-                    const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
-                    
-                    const finalUpdate = { winner: opponentId, gameStatus: 'finished', statsUpdated: true };
-                    if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
-                    await updateDoc(gameDocRef, finalUpdate);
-                    
-                    await updateUserOmokRecord(user.uid, 'loss');
-                    await updateUserOmokRecord(opponentId, 'win');
+                    if (game.aiMode) {
+                        await updateDoc(gameDocRef, { winner: 'AI', gameStatus: 'finished', statsUpdated: true });
+                    } else {
+                        const gameStartTime = game.createdAt?.toDate().getTime();
+                        const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
+                        
+                        const finalUpdate = { winner: opponentId, gameStatus: 'finished', statsUpdated: true };
+                        if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
+                        await updateDoc(gameDocRef, finalUpdate);
+                        
+                        await updateUserOmokRecord(user.uid, 'loss');
+                        await updateUserOmokRecord(opponentId, 'win');
 
-                    if (shouldAwardCoupon && addCouponsToUserById) await addCouponsToUserById(opponentId, 1);
+                        if (shouldAwardCoupon && addCouponsToUserById) await addCouponsToUserById(opponentId, 1);
+                    }
                 }
             }
         } catch (error) {
@@ -354,6 +468,7 @@ const OmokGame = () => {
         } finally {
             setGameId(null); setGame(null); setError(''); setCreatedGameId(null);
             setShowWinAnimation(false); setSelectedCell(null); setGameResult(null);
+            setShowRewardSelection(false);
             fetchAvailableGames();
         }
     }, [game, gameId, user, fetchAvailableGames, addCouponsToUserById]);
@@ -389,10 +504,9 @@ const OmokGame = () => {
                 gameStatus: winner ? 'finished' : 'playing'
             };
 
-            let shouldAwardCoupon = false;
-            if (winner) {
+            if (winner && !game.aiMode) {
                 const gameStartTime = game.createdAt?.toDate().getTime();
-                if (gameStartTime) shouldAwardCoupon = (Date.now() - gameStartTime > 15000);
+                const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
                 if (shouldAwardCoupon) updateData.couponAwardedTo = user.uid;
             }
             
@@ -401,8 +515,16 @@ const OmokGame = () => {
             setError('');
 
             if (winner) {
-                setShowWinAnimation(true);
-                if (shouldAwardCoupon && addCouponsToUserById) await addCouponsToUserById(user.uid, 1);
+                if (game.aiMode) {
+                    const cards = generateRewardCards(game.aiDifficulty);
+                    setRewardCards(cards);
+                    setShowRewardSelection(true);
+                } else {
+                    setShowWinAnimation(true);
+                    if (updateData.couponAwardedTo && addCouponsToUserById) {
+                        await addCouponsToUserById(user.uid, 1);
+                    }
+                }
             }
         } catch (err) {
             console.error('움직임 처리 오류:', err);
@@ -437,7 +559,7 @@ const OmokGame = () => {
                 if (getBoardValue(board, row - i * dir.y, col - i * dir.x) !== player) break;
                 count++;
             }
-            if (count === 5) return player;
+            if (count >= 5) return player; // 5개 이상이면 승리
         }
         return null;
     };
@@ -564,13 +686,114 @@ const OmokGame = () => {
     }, [game, gameId]);
 
     useEffect(() => {
-        if (game && game.gameStatus === 'finished' && game.rematch && user?.uid === game.host) {
+        if (game && game.gameStatus === 'finished' && game.rematch && user?.uid === game.host && !game.aiMode) {
             const playerIds = Object.keys(game.players);
             if (playerIds.length === 2 && game.rematch[playerIds[0]] && game.rematch[playerIds[1]]) {
                 resetGameForRematch();
             }
         }
     }, [game, user, resetGameForRematch]);
+
+    // AI 턴 처리
+    useEffect(() => {
+        const makeAiMove = async () => {
+            if (!game || !game.aiMode || game.currentPlayer !== 'AI' || game.winner) return;
+
+            setIsAiThinking(true);
+            const thinkingTime = 500 + Math.random() * 1000;
+
+            setTimeout(async () => {
+                const aiColor = game.players['AI'];
+                const bestMove = findBestMove(game.board, aiColor, game.aiDifficulty);
+
+                if (bestMove) {
+                    const { r, c } = bestMove;
+                    const boardWithNewStone = [...game.board];
+                    boardWithNewStone[getIndex(r, c)] = aiColor;
+
+                    const winner = checkWinner(boardWithNewStone, r, c, aiColor);
+                    const nextPlayer = Object.keys(game.players).find((p) => p !== 'AI');
+                    const moveData = { row: r, col: c, player: aiColor, timestamp: new Date() };
+                    const newHistory = [...(game.history || []), moveData];
+
+                    try {
+                        const gameDocRef = doc(db, 'omokGames', gameId);
+                        await updateDoc(gameDocRef, {
+                            board: boardWithNewStone,
+                            currentPlayer: winner ? null : nextPlayer,
+                            winner: winner ? 'AI' : null,
+                            history: newHistory,
+                            turnStartTime: serverTimestamp(),
+                            gameStatus: winner ? 'finished' : 'playing'
+                        });
+                        setLastMove({ row: r, col: c });
+                    } catch (err) {
+                        console.error('AI 움직임 처리 오류:', err);
+                    }
+                }
+                setIsAiThinking(false);
+            }, thinkingTime);
+        };
+
+        makeAiMove();
+    }, [game, gameId]);
+
+    // 보상 카드 생성
+    const generateRewardCards = (difficulty) => {
+        const baseCash = { '하급': 1000, '중급': 3000, '상급': 5000 };
+        const cashDifficultyBonus = { '하급': 1000, '중급': 2000, '상급': 4000 };
+        const couponDifficultyBonus = { '하급': 1, '중급': 2, '상급': 3 };
+
+        const cashAmount = baseCash[difficulty] + Math.floor(Math.random() * cashDifficultyBonus[difficulty]);
+        const couponAmount = 1 + Math.floor(Math.random() * couponDifficultyBonus[difficulty]);
+
+        return [
+            { type: 'cash', amount: cashAmount },
+            { type: 'coupon', amount: couponAmount }
+        ].sort(() => Math.random() - 0.5); // 카드를 랜덤으로 섞음
+    };
+
+    // 보상 선택 처리
+    const handleRewardSelection = async (selectedCard) => {
+        if (!user || !gameId) return;
+
+        try {
+            const userRef = doc(db, 'users', user.uid);
+            const today = new Date().toDateString();
+            const storageKey = `omokPlayCount_${user.uid}_${today}`;
+
+            await runTransaction(db, async (transaction) => {
+                const userDocSnap = await transaction.get(userRef);
+                if (!userDocSnap.exists()) return;
+
+                const updateData = {};
+                if (selectedCard.type === 'cash') {
+                    updateData.cash = increment(selectedCard.amount);
+                } else if (selectedCard.type === 'coupon') {
+                    updateData.coupons = increment(selectedCard.amount);
+                }
+                transaction.update(userRef, updateData);
+            });
+
+            const newCount = dailyPlayCount + 1;
+            localStorage.setItem(storageKey, newCount.toString());
+            setDailyPlayCount(newCount);
+
+            setShowRewardSelection(false);
+            setFeedback({
+                message: selectedCard.type === 'cash'
+                    ? `현금 ${selectedCard.amount.toLocaleString()}원을 획득했습니다!`
+                    : `쿠폰 ${selectedCard.amount}개를 획득했습니다!`,
+                type: 'success'
+            });
+
+            setTimeout(() => leaveGame(), 2000);
+
+        } catch (error) {
+            console.error("Error applying reward:", error);
+            setFeedback({ message: '보상 지급에 실패했습니다.', type: 'error' });
+        }
+    };
 
     const renderBoard = () => {
         const isMyTurn = game.currentPlayer === user.uid;
@@ -598,12 +821,25 @@ const OmokGame = () => {
         return cells;
     };
 
+    useEffect(() => {
+        const loadDailyPlayCount = () => {
+            if (!user) return;
+
+            const today = new Date().toDateString();
+            const storageKey = `omokPlayCount_${user.uid}_${today}`;
+            const count = parseInt(localStorage.getItem(storageKey) || '0', 10);
+            setDailyPlayCount(count);
+        };
+
+        loadDailyPlayCount();
+    }, [user]);
+
     if (!gameId || !game) {
         const myRankDetails = getOmokRankDetails(userDoc?.omok);
         return (
             <div className="game-page-container">
                 <div className="omok-header">
-                    <h2>🌍 글로벌 오목 게임</h2>
+                    <h2>글로벌 오목 게임</h2>
                     <p>전 세계 모든 플레이어와 함께 두뇌 대결을 펼치고 쿠폰을 획득하세요!</p>
                     <div className="my-profile">
                         <RankDisplay rankDetails={myRankDetails} showProgress={true} />
@@ -616,13 +852,57 @@ const OmokGame = () => {
                 </div>
 
                 <div className="omok-lobby">
+                    <div className="game-mode-selector">
+                        <h3>게임 모드 선택</h3>
+                        <div className="mode-options">
+                            <button
+                                className={`omok-button ${gameMode === 'player' ? 'primary' : ''}`}
+                                onClick={() => setGameMode('player')}
+                            >
+                                👥 플레이어 대전
+                            </button>
+                            <button
+                                className={`omok-button ${gameMode === 'ai' ? 'primary' : ''}`}
+                                onClick={() => setGameMode('ai')}
+                            >
+                                🤖 AI 대전 ({dailyPlayCount}/5)
+                            </button>
+                        </div>
+                    </div>
+
+                    {gameMode === 'ai' && (
+                        <div className="ai-difficulty-selector">
+                            <h3>AI 난이도</h3>
+                            <div className="difficulty-options">
+                                <button
+                                    className={aiDifficulty === '하급' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('하급')}
+                                >
+                                    😊 하급
+                                </button>
+                                <button
+                                    className={aiDifficulty === '중급' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('중급')}
+                                >
+                                    🤔 중급
+                                </button>
+                                <button
+                                    className={aiDifficulty === '상급' ? 'selected' : ''}
+                                    onClick={() => setAiDifficulty('상급')}
+                                >
+                                    🔥 상급
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="lobby-section">
                         <h3>게임 참여하기</h3>
                         <div className="lobby-actions">
                             <button onClick={createGame} className="omok-button primary" disabled={loading}>
-                                {loading ? '생성 중...' : '새 게임 만들기'}
+                                {loading ? '생성 중...' : (gameMode === 'ai' ? 'AI 대전 시작' : '새 게임 만들기')}
                             </button>
-                            {createdGameId && !error && (
+                            {createdGameId && !error && gameMode === 'player' && (
                                 <div className="omok-success">
                                     게임방이 생성되었습니다! <strong>게임 ID: {createdGameId.slice(-6)}</strong><br />
                                     다른 플레이어가 참가하기를 기다리고 있습니다.
@@ -631,65 +911,64 @@ const OmokGame = () => {
                         </div>
                     </div>
 
-                    <div className="lobby-section">
-                        <div className="section-header">
-                            <h3>🌍 전체 공개방({availableGames.length})</h3>
-                            <button onClick={fetchAvailableGames} className="omok-button small" disabled={loading}>
-                                {loading ? '...' : '새로고침'}
-                            </button>
-                        </div>
-                        {availableGames.length > 0 ? (
-                            <div className="game-rooms">
-                                {availableGames.map((gameRoom) => {
-                                    const hostRankDetails = getOmokRankDetails({ 
-                                        wins: gameRoom.hostRank?.wins || 0, 
-                                        losses: gameRoom.hostRank?.losses || 0,
-                                        totalRP: gameRoom.hostRank?.currentRP || BASE_RP
-                                    });
-                                    return (
-                                        <div key={gameRoom.id} className="game-room-card" onClick={() => joinGame(gameRoom.id)}>
-                                            {isAdmin() && <button className="admin-delete-btn" onClick={(e) => deleteGameRoom(gameRoom.id, e)} title="게임방 삭제">✕</button>}
-                                            <div className="room-header">
-                                                <div className="room-host">
-                                                    <RankDisplay rankDetails={hostRankDetails} size="small" />
-                                                    <span className="host-name">{gameRoom.hostName}님의 방</span>
-                                                    <span className="host-class">({gameRoom.hostClass || '미설정'})</span>
+                    {gameMode === 'player' && (
+                        <div className="lobby-section">
+                            <div className="section-header">
+                                <h3>🌍 전체 공개방({availableGames.length})</h3>
+                                <button onClick={fetchAvailableGames} className="omok-button small" disabled={loading}>
+                                    {loading ? '...' : '새로고침'}
+                                </button>
+                            </div>
+                            {availableGames.length > 0 ? (
+                                <div className="game-rooms">
+                                    {availableGames.map((gameRoom) => {
+                                        const hostRankDetails = getOmokRankDetails({ 
+                                            wins: gameRoom.hostRank?.wins || 0, 
+                                            losses: gameRoom.hostRank?.losses || 0,
+                                            totalRP: gameRoom.hostRank?.currentRP || BASE_RP
+                                        });
+                                        return (
+                                            <div key={gameRoom.id} className="game-room-card" onClick={() => joinGame(gameRoom.id)}>
+                                                {isAdmin() && <button className="admin-delete-btn" onClick={(e) => deleteGameRoom(gameRoom.id, e)} title="게임방 삭제">✕</button>}
+                                                <div className="room-header">
+                                                    <div className="room-host">
+                                                        <RankDisplay rankDetails={hostRankDetails} size="small" />
+                                                        <span className="host-name">{gameRoom.hostName}님의 방</span>
+                                                        <span className="host-class">({gameRoom.hostClass || '미설정'})</span>
+                                                    </div>
+                                                    <div className="room-id">#{gameRoom.id.slice(-6)}</div>
                                                 </div>
-                                                <div className="room-id">#{gameRoom.id.slice(-6)}</div>
+                                                <div className="room-info">
+                                                    <span className="player-count">👥{Object.keys(gameRoom.players).length}/2</span>
+                                                    <span className="room-status global-status">대기중</span>
+                                                </div>
+                                                <div className="room-time">
+                                                    {gameRoom.createdAt?.toDate ? gameRoom.createdAt.toDate().toLocaleTimeString('ko-KR') : '방금 전'}
+                                                </div>
                                             </div>
-                                            <div className="room-info">
-                                                <span className="player-count">👥{Object.keys(gameRoom.players).length}/2</span>
-                                                <span className="room-status global-status">대기중</span>
-                                            </div>
-                                            <div className="room-time">
-                                                {gameRoom.createdAt?.toDate ? gameRoom.createdAt.toDate().toLocaleTimeString('ko-KR') : '방금 전'}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="no-games">
-                                {loading ? '게임 목록을 불러오는 중...' : '현재 참가 가능한 게임이 없습니다. 새 게임을 만들어보세요!'}
-                            </div>
-                        )}
-                    </div>
+                                        );
+                                    })}
+                                </div>
+                            ) : (
+                                <div className="no-games">
+                                    {loading ? '게임 목록을 불러오는 중...' : '현재 참가 가능한 게임이 없습니다. 새 게임을 만들어보세요!'}
+                                </div>
+                            )}
+                        </div>
+                    )}
                     {error && <div className="omok-error">{error}</div>}
+                    {feedback.message && <div className={`feedback ${feedback.type}`}>{feedback.message}</div>}
                 </div>
             </div>
         );
     }
-
     const myColor = game.players[user.uid];
     const opponentId = Object.keys(game.players).find(p => p !== user.uid);
     const opponentColor = opponentId ? game.players[opponentId] : null;
     const opponentName = opponentId ? (game.playerNames?.[opponentId] || '상대') : '대기 중...';
-
     const myRankDetails = game.playerRanks?.[user.uid];
-    const opponentRankDetails = opponentId ? game.playerRanks?.[opponentId] : null;
-
+    const opponentRankDetails = opponentId === 'AI' ? null : (opponentId ? game.playerRanks?.[opponentId] : null);
     const isMyTurn = game.currentPlayer === user.uid;
-
     const iRequestedRematch = game.rematch && game.rematch[user.uid];
     const opponentRequestedRematch = opponentId && game.rematch && game.rematch[opponentId];
 
@@ -697,12 +976,42 @@ const OmokGame = () => {
         <div className="omok-container">
             {showWinAnimation && <div className="win-animation">승리!</div>}
 
+            {showRewardSelection && (
+                 <div className="reward-modal">
+                    <div className="reward-content">
+                        <h3>🎉 승리 보상!</h3>
+                        <p>하나의 카드를 선택하세요</p>
+                        <div className="reward-cards">
+                            {rewardCards.map((card, index) => (
+                                <div
+                                    key={index}
+                                    className="reward-card"
+                                    onClick={() => handleRewardSelection(card)}
+                                >
+                                    <div className="card-icon">
+                                        {card.type === 'cash' ? '💵' : '🎫'}
+                                    </div>
+                                    <div className="card-title">
+                                        {card.type === 'cash' ? '현금' : '쿠폰'}
+                                    </div>
+                                    <div className="card-amount">
+                                        {card.type === 'cash'
+                                            ? `${card.amount.toLocaleString()}원`
+                                            : `${card.amount}개`}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="omok-header">
-                <h2>🌍 글로벌 오목 게임</h2>
+                <h2>{game.aiMode ? '🤖 AI 대전' : '🌍 글로벌 오목 게임'}</h2>
                 <div className="game-info">
                     <span className="game-id">ID: {gameId.slice(-6)}</span>
                     <span className="game-rules">규칙: 렌주룰</span>
-                    <span className="global-match">전세계 매칭</span>
+                    {game.aiMode ? <span className="global-match">난이도: {game.aiDifficulty}</span> : <span className="global-match">전세계 매칭</span>}
                 </div>
             </div>
 
@@ -717,7 +1026,7 @@ const OmokGame = () => {
                         <div className="timer">
                             <span className="time-left">{timeLeft}s</span>
                             <div className="timer-bar">
-                                <div className="timer-fill" style={{ width: `${(timeLeft / TURN_TIME_LIMIT) * 100}%` }}></div>
+                                <div className="timer-fill" style={{ width: `${(timeLeft / 30) * 100}%` }}></div>
                             </div>
                         </div>
                     )}
@@ -725,11 +1034,11 @@ const OmokGame = () => {
 
                 <div className={`player-card ${opponentColor || ''} ${!isMyTurn && !game.winner && opponentId ? 'active' : ''}`}>
                     <div className="player-info">
-                        <RankDisplay rankDetails={opponentRankDetails} size="small" />
+                        {opponentRankDetails && <RankDisplay rankDetails={opponentRankDetails} size="small" />}
                         <span className="player-name">{opponentName}</span>
                         {opponentColor && <div className={`stone-indicator ${opponentColor}`}></div>}
                     </div>
-                    {!isMyTurn && opponentId && !game.winner && <div className="opponent-thinking">생각 중...</div>}
+                    {((!isMyTurn && opponentId) || isAiThinking) && !game.winner && <div className="opponent-thinking">생각 중...</div>}
                 </div>
             </div>
 
@@ -740,26 +1049,27 @@ const OmokGame = () => {
             <div className="omok-status">
                 {game.winner ? (
                     <div className="winner-announcement">
-                        {game.playerNames?.[game.winner] || '승자'} 님의 승리!
+                        {game.winner === 'AI' ? 'AI의 승리!' : (game.playerNames?.[game.winner] || '승자') + ' 님의 승리!'}
                         {gameResult && <span className={`rp-change ${gameResult.outcome}`}>({gameResult.rpChange > 0 ? '+' : ''}{gameResult.rpChange} RP)</span>}
                         <br />
-                        {game.winner === user.uid && game.couponAwardedTo === user.uid && '🎉 쿠폰 1개를 획득했습니다!'}
-                        {game.winner === user.uid && game.couponAwardedTo !== user.uid && '(게임 시간이 15초 미만이라 쿠폰이 지급되지 않았습니다.)'}
+                        {!game.aiMode && game.winner === user.uid && game.couponAwardedTo === user.uid && '🎉 쿠폰 1개를 획득했습니다!'}
+                        {!game.aiMode && game.winner === user.uid && game.couponAwardedTo !== user.uid && '(게임 시간이 15초 미만이라 쿠폰이 지급되지 않았습니다.)'}
                     </div>
                 ) : (
                     <div className="turn-info">
                         현재 차례: {isMyTurn ? '당신' : (game.playerNames?.[game.currentPlayer] || '상대')}
-                        {Object.keys(game.players).length < 2 && <div className="waiting-player">상대방을 기다리고 있습니다...</div>}
+                        {Object.keys(game.players).length < 2 && !game.aiMode && <div className="waiting-player">상대방을 기다리고 있습니다...</div>}
                     </div>
                 )}
             </div>
 
             {error && <div className="omok-error">{error}</div>}
+            {feedback.message && <div className={`feedback ${feedback.type}`}>{feedback.message}</div>}
 
             <div className="game-controls">
                 {game.gameStatus === 'finished' ? (
                     <>
-                        {!iRequestedRematch && <button onClick={handleRematchRequest} className="omok-button primary">다시 하기</button>}
+                        {!game.aiMode && !iRequestedRematch && <button onClick={handleRematchRequest} className="omok-button primary">다시 하기</button>}
                         <button onClick={leaveGame} className="omok-button secondary">로비로 돌아가기</button>
                     </> 
                 ) : (
@@ -767,7 +1077,7 @@ const OmokGame = () => {
                 )}
             </div>
             
-            {game.gameStatus === 'finished' && (
+            {!game.aiMode && game.gameStatus === 'finished' && (
                 <div className="rematch-info" style={{ textAlign: 'center', marginTop: '1rem', color: 'white', fontWeight: 600 }}>
                     {iRequestedRematch && !opponentRequestedRematch && <p>재대결을 요청했습니다. 상대방을 기다립니다...</p>}
                     {opponentRequestedRematch && !iRequestedRematch && <p>상대방이 재대결을 원합니다!</p>}
