@@ -415,33 +415,69 @@ export const generateRandomReward = (difficulty = "normal", correctCount = 0) =>
     ]
   };
 
-  // 정답 개수에 따른 보상 배율 계산
-  // 정답이 많을수록 높은 보상이 나올 확률이 높아짐
-  const calculateBonusMultiplier = (correctCount) => {
-    if (correctCount === 0) return 0.1; // 0개 정답: 거의 최저 보상
-    if (correctCount <= 2) return 0.3;   // 1-2개: 낮은 보상
-    if (correctCount <= 4) return 0.6;   // 3-4개: 중간 보상
-    if (correctCount <= 6) return 1.0;   // 5-6개: 기본 보상
-    if (correctCount <= 8) return 1.5;   // 7-8개: 높은 보상
-    return 2.5; // 9개 이상: 매우 높은 보상
+  // 정답 개수에 따른 보상 범위 제한
+  // 정답이 적으면 낮은 보상만, 정답이 많으면 높은 보상도 가능
+  const getFilteredRewards = (rewards, correctCount, totalQuestions) => {
+    const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) : 0;
+
+    // 정확도에 따른 최대 보상 인덱스 결정
+    let maxIndex;
+    if (accuracy >= 0.9) {
+      // 90% 이상: 모든 보상 가능
+      maxIndex = rewards.length;
+    } else if (accuracy >= 0.7) {
+      // 70-90%: 상위 80% 보상까지
+      maxIndex = Math.ceil(rewards.length * 0.8);
+    } else if (accuracy >= 0.5) {
+      // 50-70%: 상위 60% 보상까지
+      maxIndex = Math.ceil(rewards.length * 0.6);
+    } else if (accuracy >= 0.3) {
+      // 30-50%: 상위 40% 보상까지
+      maxIndex = Math.ceil(rewards.length * 0.4);
+    } else {
+      // 30% 미만: 하위 20% 보상만
+      maxIndex = Math.ceil(rewards.length * 0.2);
+    }
+
+    // 최소 2개 이상의 옵션 보장
+    maxIndex = Math.max(maxIndex, 2);
+
+    return rewards.slice(-maxIndex);
   };
 
-  const bonusMultiplier = calculateBonusMultiplier(correctCount);
+  // 난이도별 총 문제 수
+  const totalQuestionsByDifficulty = {
+    easy: 10,
+    normal: 8,
+    hard: 6
+  };
+
+  const totalQuestions = totalQuestionsByDifficulty[difficulty];
+
+  // 정답 개수에 따라 보상 범위 필터링
+  const filteredCashRewards = getFilteredRewards(cashRewardsByDifficulty[difficulty], correctCount, totalQuestions);
+  const filteredCouponRewards = getFilteredRewards(couponRewardsByDifficulty[difficulty], correctCount, totalQuestions);
+
+  // 정답 개수에 따른 보상 배율 계산
+  const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) : 0;
+
+  // 정확도 기반 배율 (더 강력하게)
+  const calculateBonusMultiplier = (accuracy) => {
+    if (accuracy >= 0.9) return 5.0;      // 90% 이상: 매우 높은 보상
+    if (accuracy >= 0.7) return 3.0;      // 70-90%: 높은 보상
+    if (accuracy >= 0.5) return 1.5;      // 50-70%: 중간 보상
+    if (accuracy >= 0.3) return 0.5;      // 30-50%: 낮은 보상
+    return 0.1;                            // 30% 미만: 최저 보상
+  };
+
+  const bonusMultiplier = calculateBonusMultiplier(accuracy);
 
   // 가중치 기반 랜덤 선택 함수 (정답 개수에 따라 고액 가중치 증가)
-  const weightedRandom = (items, isHigherBetter = true) => {
+  const weightedRandom = (items) => {
     const adjustedItems = items.map((item, index) => {
-      let adjustedWeight = item.weight;
-
-      if (isHigherBetter) {
-        // 고액일수록 가중치 증가 (정답이 많을수록 효과 증가)
-        const positionMultiplier = index / items.length; // 0 ~ 1
-        adjustedWeight = item.weight * (1 + positionMultiplier * bonusMultiplier);
-      } else {
-        // 저액일수록 가중치 감소 (정답이 많을수록 효과 증가)
-        const positionMultiplier = 1 - (index / items.length); // 1 ~ 0
-        adjustedWeight = item.weight * (0.5 + positionMultiplier * bonusMultiplier);
-      }
+      // 높은 보상일수록 가중치 증가 (정답이 많을수록 효과 증가)
+      const positionMultiplier = index / items.length; // 0 ~ 1
+      const adjustedWeight = item.weight * (0.2 + positionMultiplier * bonusMultiplier);
 
       return { ...item, adjustedWeight };
     });
@@ -459,12 +495,9 @@ export const generateRandomReward = (difficulty = "normal", correctCount = 0) =>
     return adjustedItems[adjustedItems.length - 1].amount;
   };
 
-  const cashRewards = cashRewardsByDifficulty[difficulty];
-  const couponRewards = couponRewardsByDifficulty[difficulty];
-
   return {
-    cash: weightedRandom(cashRewards, true),  // 고액이 좋음
-    coupon: weightedRandom(couponRewards, true)  // 많은 개수가 좋음
+    cash: weightedRandom(filteredCashRewards),
+    coupon: weightedRandom(filteredCouponRewards)
   };
 };
 
