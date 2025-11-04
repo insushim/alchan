@@ -92,6 +92,39 @@ const checkAuthAndGetUserData = async (request, checkAdmin = false) => {
 // 🔥 스케줄러 함수 구현
 // ===================================================================================
 
+// 시장 상황 업데이트 (5분마다 랜덤 생성)
+const _updateMarketCondition = async () => {
+  logger.info("📊 [스케줄러] 시장 상황 업데이트 시작");
+  try {
+    const marketConditions = [
+      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다" },
+      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다" },
+      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다" },
+      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다" },
+      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다" },
+      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다" }
+    ];
+
+    // 랜덤으로 시장 상황 선택
+    const randomCondition = marketConditions[Math.floor(Math.random() * marketConditions.length)];
+
+    // Firestore에 저장
+    const marketConditionRef = db.collection("MarketCondition").doc("current");
+    await marketConditionRef.set({
+      type: randomCondition.type,
+      name: randomCondition.name,
+      impact: randomCondition.impact,
+      description: randomCondition.description,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 5 * 60 * 1000) // 5분 후 만료
+    });
+
+    logger.info(`✅ 시장 상황 업데이트 완료: ${randomCondition.name} (${randomCondition.impact * 100}%)`);
+  } catch (error) {
+    logger.error("❌ 시장 상황 업데이트 중 오류:", error);
+  }
+};
+
 const _updateCentralStockMarket = async () => {
   logger.info("📈 [스케줄러] 주식 시장 가격 업데이트 시작");
   try {
@@ -100,6 +133,18 @@ const _updateCentralStockMarket = async () => {
     if (stocksSnapshot.empty) {
       logger.info("상장된 주식이 없습니다.");
       return;
+    }
+
+    // 현재 시장 상황 가져오기
+    const marketConditionDoc = await db.collection("MarketCondition").doc("current").get();
+    let marketImpact = 0;
+    let marketConditionName = "보통";
+
+    if (marketConditionDoc.exists) {
+      const marketData = marketConditionDoc.data();
+      marketImpact = marketData.impact || 0;
+      marketConditionName = marketData.name || "보통";
+      logger.info(`[시장 상황] ${marketConditionName} (${marketImpact * 100}%) - 모든 주식에 영향 적용`);
     }
 
     // 활성 뉴스 가져오기
@@ -148,7 +193,8 @@ const _updateCentralStockMarket = async () => {
         logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
       }
 
-      const totalChange = randomChange + volumeChange + newsImpact;
+      // 전체 변동 = 랜덤 + 거래량 + 개별 뉴스 + 시장 상황
+      const totalChange = randomChange + volumeChange + newsImpact + marketImpact;
       let newPrice = Math.round(currentPrice * (1 + totalChange));
 
       if (newPrice < minPrice) {
@@ -170,7 +216,7 @@ const _updateCentralStockMarket = async () => {
     }
 
     await batch.commit();
-    logger.info(`✅ ${updateCount}개 주식 가격 업데이트 완료`);
+    logger.info(`✅ ${updateCount}개 주식 가격 업데이트 완료 (시장 상황: ${marketConditionName})`);
   } catch (error) {
     logger.error("❌ 주식 가격 업데이트 중 오류:", error);
   }
@@ -742,6 +788,9 @@ exports.runScheduler = onRequest({region: "asia-northeast3"}, async (req, res) =
   for (const task of tasks) {
     try {
       switch (task) {
+        case "updateMarketCondition":
+          await _updateMarketCondition();
+          break;
         case "updateCentralStockMarket":
           await _updateCentralStockMarket();
           break;

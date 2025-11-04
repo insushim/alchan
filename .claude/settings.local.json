@@ -39,7 +39,13 @@
       "Bash(npm uninstall:*)",
       "Bash(gh workflow run:*)",
       "Bash(npx firebase-tools deploy)",
-      "Bash(npx firebase-tools:*)"
+      "Bash(npx firebase-tools:*)",
+      "Bash(gh workflow:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(timeout /t 30 /nobreak)",
+      "Bash(nul)",
+      "Bash(.gitignore)"
     ],
     "deny": [],
     "ask": []

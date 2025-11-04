@@ -34,7 +34,7 @@ jobs:
           # 평일(월-금, 1-5) 8시-15시 KST 체크
           if [ $KST_DAY -ge 1 ] && [ $KST_DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ]; then
             IS_MARKET_HOURS=true
-            TASKS="\"updateCentralStockMarket\",\"autoManageStocks\",\"createCentralMarketNews\",\"cleanupExpiredCentralNews\""
+            TASKS="\"updateMarketCondition\",\"updateCentralStockMarket\",\"autoManageStocks\",\"createCentralMarketNews\",\"cleanupExpiredCentralNews\""
           fi
 
           # 일일 작업 리셋 (매일 자정 KST 부근)
