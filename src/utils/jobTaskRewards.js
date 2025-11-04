@@ -15,18 +15,13 @@ export const generateJobTaskReward = () => {
     { amount: 100, weight: 3 }        // 100원: 확률 대폭 감소
   ];
 
-  // 쿠폰 보상 (1개 ~ 20개) - 높은 보상 확률 증가
+  // 쿠폰 보상 (1개, 3개, 5개, 10개, 20개만)
   const couponRewards = [
-    { amount: 20, weight: 15 },       // 20개: 확률 증가
-    { amount: 18, weight: 15 },       // 18개: 확률 증가
-    { amount: 15, weight: 18 },       // 15개: 확률 증가
-    { amount: 12, weight: 15 },       // 12개: 확률 증가
-    { amount: 10, weight: 12 },       // 10개: 확률 증가
-    { amount: 8, weight: 10 },        // 8개
-    { amount: 5, weight: 8 },         // 5개: 확률 감소
-    { amount: 3, weight: 5 },         // 3개: 확률 감소
-    { amount: 2, weight: 3 },         // 2개: 확률 감소
-    { amount: 1, weight: 2 }          // 1개: 확률 대폭 감소
+    { amount: 20, weight: 10 },       // 20개: 10%
+    { amount: 10, weight: 20 },       // 10개: 20%
+    { amount: 5, weight: 20 },        // 5개: 20%
+    { amount: 3, weight: 20 },        // 3개: 20%
+    { amount: 1, weight: 30 }         // 1개: 30%
   ];
 
   // 가중치 기반 랜덤 선택 함수
