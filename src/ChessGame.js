@@ -988,6 +988,11 @@ const ChessGame = () => {
             setSelectedPiece(null);
             setPossibleMoves([]);
 
+            // 수가 성공적으로 업데이트되면 게임 데이터 갱신
+            if (refetchRef.current) {
+                await refetchRef.current();
+            }
+
         } catch (error) {
             console.error("Error making move: ", error);
             setFeedback({ message: `이동 중 오류 발생: ${error.message}`, type: 'error' });
@@ -1015,10 +1020,10 @@ const ChessGame = () => {
         const makeAiMove = async () => {
             if (!gameData || !gameId || gameData.status !== 'active') return;
             if (!gameData.aiMode) return;
+            if (isAiThinking) return;
 
             const aiColor = gameData.aiColor;
             if (gameData.turn !== aiColor) return;
-            if (isAiThinking) return;
 
             setIsAiThinking(true);
 
@@ -1026,11 +1031,33 @@ const ChessGame = () => {
             const thinkingTime = 500 + Math.random() * 1000;
 
             setTimeout(async () => {
-                const bestMove = findBestMove(gameData.board, aiColor, aiDifficulty, getValidMoves);
+                try {
+                    // 최신 게임 데이터를 다시 가져옴
+                    const gameRef = doc(db, 'chessGames', gameId);
+                    const gameSnap = await getDoc(gameRef);
 
-                if (bestMove) {
-                    const { from, to } = bestMove;
-                    await executeMove(from[0], from[1], to[0], to[1], bestMove.piece);
+                    if (!gameSnap.exists()) {
+                        setIsAiThinking(false);
+                        return;
+                    }
+
+                    const currentGameData = gameSnap.data();
+
+                    // 여전히 AI 턴인지 확인
+                    if (currentGameData.status !== 'active' || currentGameData.turn !== aiColor) {
+                        setIsAiThinking(false);
+                        return;
+                    }
+
+                    const currentBoard = deserializeBoard(currentGameData.board);
+                    const bestMove = findBestMove(currentBoard, aiColor, aiDifficulty, getValidMoves);
+
+                    if (bestMove) {
+                        const { from, to, piece } = bestMove;
+                        await executeMove(from[0], from[1], to[0], to[1], piece);
+                    }
+                } catch (error) {
+                    console.error("AI move error:", error);
                 }
 
                 setIsAiThinking(false);
@@ -1038,7 +1065,7 @@ const ChessGame = () => {
         };
 
         makeAiMove();
-    }, [gameData, gameId, aiDifficulty, isAiThinking, getValidMoves, executeMove]);
+    }, [gameData?.turn, gameData?.status, gameId, aiDifficulty]);
 
     const formatTime = (seconds) => {
         const mins = Math.floor(seconds / 60);
