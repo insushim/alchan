@@ -178,13 +178,30 @@ export const ItemProvider = ({ children }) => {
     }
 
     // 재고 낙관적 업데이트 (stock이 있는 경우에만)
+    let willBeOutOfStock = false;
     if (itemToPurchase.stock !== undefined) {
+      const newStock = itemToPurchase.stock - quantity;
+      willBeOutOfStock = newStock === 0;
+
       setItems(prevItems =>
-        prevItems.map(item =>
-          item.id === itemId
-            ? { ...item, stock: Math.max(0, item.stock - quantity) }
-            : item
-        )
+        prevItems.map(item => {
+          if (item.id === itemId) {
+            // 품절되면 자동으로 재고 보충 및 가격 인상
+            if (newStock === 0) {
+              const initialStock = item.initialStock || 10;
+              const priceIncreasePercentage = item.priceIncreasePercentage || 10;
+              const newPrice = Math.round(item.price * (1 + priceIncreasePercentage / 100));
+
+              return {
+                ...item,
+                stock: initialStock,
+                price: newPrice
+              };
+            }
+            return { ...item, stock: Math.max(0, newStock) };
+          }
+          return item;
+        })
       );
     }
 
@@ -201,11 +218,16 @@ export const ItemProvider = ({ children }) => {
         }
         if (itemToPurchase.stock !== undefined) {
           setItems(prevItems =>
-            prevItems.map(item =>
-              item.id === itemId
-                ? { ...item, stock: item.stock + quantity }
-                : item
-            )
+            prevItems.map(item => {
+              if (item.id === itemId) {
+                // 품절 후 재고 보충을 롤백
+                if (willBeOutOfStock) {
+                  return { ...item, stock: 0, price: itemToPurchase.price };
+                }
+                return { ...item, stock: item.stock + quantity };
+              }
+              return item;
+            })
           );
         }
         throw new Error(result.data.message || "구매에 실패했습니다.");
@@ -217,11 +239,16 @@ export const ItemProvider = ({ children }) => {
       }
       if (itemToPurchase.stock !== undefined) {
         setItems(prevItems =>
-          prevItems.map(item =>
-            item.id === itemId
-              ? { ...item, stock: item.stock + quantity }
-              : item
-          )
+          prevItems.map(item => {
+            if (item.id === itemId) {
+              // 품절 후 재고 보충을 롤백
+              if (willBeOutOfStock) {
+                return { ...item, stock: 0, price: itemToPurchase.price };
+              }
+              return { ...item, stock: item.stock + quantity };
+            }
+            return item;
+          })
         );
       }
       if (error.code === 'not-found') {

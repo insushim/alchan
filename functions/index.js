@@ -1697,6 +1697,7 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
     });
 
     // 재고 차감 (stock 필드가 있는 경우에만)
+    const newStock = currentStock - quantity;
     if (itemData.stock !== undefined) {
       batch.update(itemRef, {
         stock: admin.firestore.FieldValue.increment(-quantity),
@@ -1728,6 +1729,22 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
     }
 
     await batch.commit();
+
+    // 🔥 품절 시 자동 재고 보충 및 가격 인상
+    if (itemData.stock !== undefined && newStock === 0) {
+      const initialStock = itemData.initialStock || 10; // 기본값 10개
+      const priceIncreasePercentage = itemData.priceIncreasePercentage || 10; // 기본값 10%
+      const currentPrice = itemData.price || 0;
+      const newPrice = Math.round(currentPrice * (1 + priceIncreasePercentage / 100));
+
+      await itemRef.update({
+        stock: initialStock,
+        price: newPrice,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      logger.info(`[purchaseStoreItem] ${itemData.name} 품절 -> 재고 ${initialStock}개 보충, 가격 ${currentPrice}원 -> ${newPrice}원 (${priceIncreasePercentage}% 인상)`);
+    }
 
     const result = {
       itemName: itemData.name,
