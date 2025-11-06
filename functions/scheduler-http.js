@@ -763,3 +763,13 @@ async function aggregateActivityLogsLogic() {
   logger.info("📊 [스케줄러] 활동 로그 집계 시작");
   // 필요시 나중에 구현
 }
+
+// ===================================================================================
+// 외부에서 사용할 수 있도록 로직 함수들 export
+// ===================================================================================
+module.exports.updateCentralStockMarketLogic = updateCentralStockMarketLogic;
+module.exports.createCentralMarketNewsLogic = createCentralMarketNewsLogic;
+module.exports.autoManageStocksLogic = autoManageStocksLogic;
+module.exports.cleanupExpiredCentralNewsLogic = cleanupExpiredCentralNewsLogic;
+module.exports.resetDailyTasksLogic = resetDailyTasksLogic;
+module.exports.updateMarketConditionLogic = updateMarketConditionLogic;
