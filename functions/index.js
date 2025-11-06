@@ -863,34 +863,45 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
       await db.runTransaction(async (transaction) => {
         const jobDoc = await transaction.get(jobRef);
         if (!jobDoc.exists) throw new Error("직업을 찾을 수 없습니다.");
+
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
         const jobData = jobDoc.data();
         const jobTasks = jobData.tasks || [];
         const taskIndex = jobTasks.findIndex((t) => t.id === taskId);
         if (taskIndex === -1) throw new Error("직업 할일을 찾을 수 없습니다.");
+
         const task = jobTasks[taskIndex];
         taskName = task.name;
-        const currentClicks = task.clicks || 0;
+
+        // 사용자별 진행 상황 확인 (개인별 클릭 횟수)
+        const userData = userDoc.data();
+        const completedJobTasks = userData.completedJobTasks || {};
+        const jobTaskKey = `${jobId}_${taskId}`;
+        const currentClicks = completedJobTasks[jobTaskKey] || 0;
+
         if (currentClicks >= task.maxClicks) {
           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
         }
-        const updatedTasks = [...jobTasks];
-        updatedTasks[taskIndex] = { ...task, clicks: currentClicks + 1 };
-        transaction.update(jobRef, { tasks: updatedTasks });
+
+        // 사용자 문서 업데이트 (개인별 클릭 횟수)
+        const updateData = {
+          [`completedJobTasks.${jobTaskKey}`]: admin.firestore.FieldValue.increment(1),
+        };
 
         // 카드 선택 보상 적용
         if (cardType && rewardAmount) {
           if (cardType === "cash") {
             cashReward = rewardAmount;
-            transaction.update(userRef, {
-              cash: admin.firestore.FieldValue.increment(cashReward),
-            });
+            updateData.cash = admin.firestore.FieldValue.increment(cashReward);
           } else if (cardType === "coupon") {
             couponReward = rewardAmount;
-            transaction.update(userRef, {
-              coupons: admin.firestore.FieldValue.increment(couponReward),
-            });
+            updateData.coupons = admin.firestore.FieldValue.increment(couponReward);
           }
         }
+
+        transaction.update(userRef, updateData);
       });
     } else {
       const commonTaskRef = db.collection("commonTasks").doc(taskId);

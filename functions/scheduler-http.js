@@ -524,33 +524,23 @@ async function resetTasksForClass(classCode) {
   try {
     const batch = db.batch();
     let userCount = 0;
-    let jobCount = 0;
 
+    // 사용자별 할일 진행 상황 리셋 (공통 할일 + 직업 할일)
     const usersQuery = db.collection("users").where("classCode", "==", classCode);
     const usersSnapshot = await usersQuery.get();
     if (!usersSnapshot.empty) {
       usersSnapshot.forEach((userDoc) => {
-        batch.update(userDoc.ref, { completedTasks: {} });
+        batch.update(userDoc.ref, {
+          completedTasks: {},        // 공통 할일 리셋
+          completedJobTasks: {}      // 직업 할일 리셋 (개인별)
+        });
         userCount++;
       });
     }
 
-    const jobsQuery = db.collection("jobs").where("classCode", "==", classCode);
-    const jobsSnapshot = await jobsQuery.get();
-    if (!jobsSnapshot.empty) {
-      jobsSnapshot.forEach((jobDoc) => {
-        const jobData = jobDoc.data();
-        if (jobData.tasks && jobData.tasks.some(t => (t.clicks || 0) > 0)) {
-          const updatedTasks = jobData.tasks.map(t => ({ ...t, clicks: 0 }));
-          batch.update(jobDoc.ref, { tasks: updatedTasks });
-          jobCount++;
-        }
-      });
-    }
-    
     await batch.commit();
-    logger.info(`[${classCode}] 리셋 완료: ${userCount}명 학생, ${jobCount}개 직업.`);
-    return { userCount, jobCount };
+    logger.info(`[${classCode}] 리셋 완료: ${userCount}명 학생.`);
+    return { userCount, jobCount: 0 };
   } catch (error) {
     logger.error(`[${classCode}] 할일 리셋 중 심각한 오류:`, error);
     throw error;

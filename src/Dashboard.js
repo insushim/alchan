@@ -418,14 +418,24 @@ function Dashboard({ adminTabMode }) {
   }, [userDoc]);
 
   const jobsToShow = useMemo(() => {
+    const completedJobTasks = userDoc?.completedJobTasks || {};
+
     return Array.isArray(jobs)
-      ? jobs.filter(
-          (job) =>
-            currentSelectedJobIdsFromUserDoc.includes(job.id) &&
-            job.active !== false
-        )
+      ? jobs
+          .filter(
+            (job) =>
+              currentSelectedJobIdsFromUserDoc.includes(job.id) &&
+              job.active !== false
+          )
+          .map((job) => ({
+            ...job,
+            tasks: (job.tasks || []).map((task) => ({
+              ...task,
+              clicks: completedJobTasks[`${job.id}_${task.id}`] || 0, // 개인별 클릭 횟수
+            })),
+          }))
       : [];
-  }, [jobs, currentSelectedJobIdsFromUserDoc]);
+  }, [jobs, currentSelectedJobIdsFromUserDoc, userDoc]);
 
   const commonTasksWithUserProgress = useMemo(() => {
     if (!commonTasks || !userDoc) {
@@ -468,7 +478,7 @@ function Dashboard({ adminTabMode }) {
           tasks: (d.data().tasks || []).map((task) => ({
             ...task,
             reward: task.reward || 0,
-            clicks: task.clicks || 0,
+            clicks: 0, // 개인별 진행 상황은 useMemo에서 설정
             maxClicks: task.maxClicks || 5,
           })),
           active: d.data().active !== false,
@@ -1167,21 +1177,21 @@ function Dashboard({ adminTabMode }) {
       }
 
       const prevUserDoc = { ...userDoc };
-      const prevJobs = [...jobs];
 
       // 낙관적 UI 업데이트
       const optimisticCash = userDoc.cash + expectedCashReward;
       const optimisticCoupons = userDoc.coupons + expectedCouponReward;
 
       if (isJobTask && jobId) {
-        setUserDoc(prevDoc => ({ ...prevDoc, cash: optimisticCash, coupons: optimisticCoupons }));
-        setJobs(prevJobs =>
-          prevJobs.map(j =>
-            j.id === jobId
-              ? { ...j, tasks: j.tasks.map(t => t.id === taskId ? { ...t, clicks: (t.clicks || 0) + 1 } : t) }
-              : j
-          )
-        );
+        setUserDoc(prevDoc => ({
+          ...prevDoc,
+          cash: optimisticCash,
+          coupons: optimisticCoupons,
+          completedJobTasks: {
+            ...(prevDoc.completedJobTasks || {}),
+            [`${jobId}_${taskId}`]: ((prevDoc.completedJobTasks || {})[`${jobId}_${taskId}`] || 0) + 1,
+          }
+        }));
       } else {
         setUserDoc(prevDoc => ({
           ...prevDoc,
@@ -1220,14 +1230,11 @@ function Dashboard({ adminTabMode }) {
 
         // 롤백: 이전 상태로 복원
         setUserDoc(prevUserDoc);
-        if (isJobTask && jobId) {
-          setJobs(prevJobs);
-        }
       } finally {
         setIsHandlingTask(false);
       }
     },
-    [isHandlingTask, userDoc, commonTasks, jobs, setUserDoc, setJobs]
+    [isHandlingTask, userDoc, commonTasks, setUserDoc]
   );
 
   // Admin settings handlers
@@ -1500,19 +1507,12 @@ function Dashboard({ adminTabMode }) {
       if (result.data.success) {
         // 성공 시, 새로고침 대신 클라이언트 상태를 직접 초기화하여 즉시 UI에 반영
 
-        // 1. 공통 할일 상태 초기화
+        // 공통 할일 및 직업 할일 상태 초기화
         setUserDoc(prevDoc => ({
           ...prevDoc,
-          completedTasks: {},
+          completedTasks: {},      // 공통 할일 리셋
+          completedJobTasks: {},   // 직업 할일 리셋
         }));
-
-        // 2. 직업 할일 상태 초기화
-        setJobs(prevJobs =>
-          prevJobs.map(job => ({
-            ...job,
-            tasks: job.tasks.map(task => ({ ...task, clicks: 0 }))
-          }))
-        );
 
         // localStorage에 마지막 리셋 날짜 저장
         const today = new Date().toDateString();
