@@ -216,12 +216,16 @@ async function updateCentralStockMarketLogic() {
 
     const batch = db.batch();
     let updateCount = 0;
+    let skippedCount = 0;
+    const totalStocks = stocksSnapshot.docs.length;
 
     for (const stockDoc of stocksSnapshot.docs) {
       const stockData = stockDoc.data();
 
       // 수동 관리 주식은 건너뜀
       if (stockData.isManual) {
+        logger.info(`[주가 업데이트] ${stockData.name} - 수동 관리 주식으로 건너뜀`);
+        skippedCount++;
         continue;
       }
 
@@ -233,10 +237,10 @@ async function updateCentralStockMarketLogic() {
       const sellVolume = stockData.recentSellVolume || 0;
       const netVolume = buyVolume - sellVolume;
 
-      // 기본 변동성
-      let volatility = stockData.volatility || 0.02; // 2%
+      // 기본 변동성 증가 (더 활발한 시장을 위해)
+      let volatility = stockData.volatility || 0.04; // 4% (기존 2%에서 증가)
       if (stockData.productType === "bond") {
-        volatility = 0.005; // 채권은 변동성 낮음 (0.5%)
+        volatility = 0.01; // 채권은 변동성 낮음 (1%, 기존 0.5%에서 증가)
       }
 
       // 거래량에 따른 변동성 조정
@@ -275,6 +279,9 @@ async function updateCentralStockMarketLogic() {
       const priceHistory = stockData.priceHistory || [currentPrice];
       const updatedHistory = [...priceHistory.slice(-19), newPrice]; // 최근 20개만 유지
 
+      const changePercent = ((newPrice - currentPrice) / currentPrice) * 100;
+      logger.info(`[주가 업데이트] ${stockData.name}: ${currentPrice.toLocaleString()}원 → ${newPrice.toLocaleString()}원 (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`);
+
       batch.update(stockDoc.ref, {
         price: newPrice,
         priceHistory: updatedHistory,
@@ -287,7 +294,7 @@ async function updateCentralStockMarketLogic() {
     }
 
     await batch.commit();
-    logger.info(`✅ ${updateCount}개 주식 가격 업데이트 완료 (시장 상황: ${marketConditionName})`);
+    logger.info(`✅ 주식 가격 업데이트 완료 - 총 ${totalStocks}개 중 ${updateCount}개 업데이트, ${skippedCount}개 건너뜀 (시장 상황: ${marketConditionName})`);
   } catch (error) {
     logger.error("❌ 주식 가격 업데이트 중 오류:", error);
     throw error;
@@ -418,8 +425,8 @@ async function createCentralMarketNewsLogic() {
       const previousPrice = priceHistory[priceHistory.length - 2];
       const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
 
-      // 5% 이상 변동 시 뉴스 생성
-      if (Math.abs(changePercent) >= 5) {
+      // 3% 이상 변동 시 뉴스 생성 (기존 5%에서 완화)
+      if (Math.abs(changePercent) >= 3) {
         const isRise = changePercent > 0;
         const newsTemplates = isRise ? [
           `${stockData.name} 주가 급등! ${changePercent.toFixed(1)}% 상승`,
@@ -445,8 +452,8 @@ async function createCentralMarketNewsLogic() {
       }
     }
 
-    // 랜덤 일반 뉴스도 추가
-    if (Math.random() > 0.5) {
+    // 랜덤 일반 뉴스도 추가 (확률 증가: 50% → 80%)
+    if (Math.random() > 0.2) {
       const generalNews = [
         "오늘의 시장 전망: 투자자들의 신중한 접근 필요",
         "글로벌 경제 동향이 국내 증시에 영향",
@@ -472,8 +479,15 @@ async function createCentralMarketNewsLogic() {
       batch.set(newsRef, news);
     }
 
-    await batch.commit();
-    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
+    if (newsItems.length > 0) {
+      await batch.commit();
+      logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
+      newsItems.forEach(news => {
+        logger.info(`  - ${news.title}`);
+      });
+    } else {
+      logger.info("📰 생성된 뉴스 없음 (주가 변동이 3% 미만)");
+    }
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
