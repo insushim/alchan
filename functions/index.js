@@ -330,25 +330,25 @@ const _aggregateActivityStats = async () => {
 // 13개 섹터별 × 4가지 상태별 뉴스 템플릿 (총 52개)
 const SECTOR_NEWS_TEMPLATES = {
   TECH: {
-    strong_bull: [ // 강세 (3% 이상 상승)
-      "IT 대기업 주가 급등, 신제품 기대감 고조",
-      "반도체 업계 실적 개선 전망, 강세 지속",
-      "기술주 대표기업 투자심리 회복, 상승폭 확대"
+    strong_bull: [
+      "IT 업계, 신기술 개발 소식에 투자 심리 급등",
+      "기술주 전반에 걸친 강세장 전망",
+      "클라우드 및 AI 산업 성장세 가속화",
     ],
-    bull: [ // 강보합 (1% ~ 3% 상승)
-      "전자기기 제조사 안정적 상승세 유지",
-      "IT 업계 긍정적 전망, 완만한 상승",
-      "기술주 매수세 유입, 상승 마감 전망"
+    bull: [
+      "기술 기업들의 실적 개선 기대감 확산",
+      "디지털 전환 가속화로 IT 업계 수혜 전망",
+      "소프트웨어 산업 성장세 지속",
     ],
-    bear: [ // 약보합 (-3% ~ -1% 하락)
-      "반도체 수요 둔화 우려, 소폭 조정",
-      "IT 대기업 차익실현 매물 출회",
-      "기술주 단기 조정 국면, 관망세 지속"
+    bear: [
+      "기술주 투자 심리 위축, 조정 국면 진입",
+      "IT 업계 규제 강화 우려 확산",
+      "기술 기업 실적 부진 우려",
     ],
-    strong_bear: [ // 약세 (-3% 이하 하락)
-      "전자기기 업계 실적 우려, 급락세",
-      "IT 섹터 투자심리 악화, 하락폭 확대",
-      "반도체 업계 수급 불안, 약세 지속"
+    strong_bear: [
+      "기술주 급락, 투자자 이탈 현상 심화",
+      "IT 산업 전반 침체 우려 확대",
+      "디지털 기업들의 수익성 악화 전망",
     ]
   },
   FINANCE: {
@@ -618,7 +618,7 @@ const SECTOR_NEWS_TEMPLATES = {
 };
 
 const _createCentralMarketNews = async () => {
-  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작");
+  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (무조건 2개 생성, 영향력 3분)");
   try {
     const stocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", true)
@@ -629,82 +629,58 @@ const _createCentralMarketNews = async () => {
       return;
     }
 
-    const newsItems = [];
-    const now = admin.firestore.Timestamp.now();
-
-    // 가격 변동이 큰 주식 찾기
+    // 섹터별로 주식 그룹화
+    const stocksBySector = {};
     for (const stockDoc of stocksSnapshot.docs) {
       const stockData = stockDoc.data();
-      const priceHistory = stockData.priceHistory || [];
-
-      if (priceHistory.length < 2) continue;
-
-      const currentPrice = priceHistory[priceHistory.length - 1];
-      const previousPrice = priceHistory[priceHistory.length - 2];
-      const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
-
-      // 3% 이상 변동 시 뉴스 생성 (기존 5%에서 완화)
-      if (Math.abs(changePercent) >= 3) {
-        const isRise = changePercent > 0;
-        const newsTemplates = isRise ? [
-          `${stockData.name} 주가 급등! ${changePercent.toFixed(1)}% 상승`,
-          `${stockData.name}, 투자자들의 관심 집중으로 ${changePercent.toFixed(1)}% 급등세`,
-          `${stockData.name} 강세장 진입, ${changePercent.toFixed(1)}% 상승 기록`,
-        ] : [
-          `${stockData.name} 주가 급락, ${Math.abs(changePercent).toFixed(1)}% 하락`,
-          `${stockData.name} 투자 심리 악화로 ${Math.abs(changePercent).toFixed(1)}% 급락`,
-          `${stockData.name} 약세장 진입, ${Math.abs(changePercent).toFixed(1)}% 하락 기록`,
-        ];
-
-        const randomTemplate = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
-
-        newsItems.push({
-          title: randomTemplate,
-          content: `현재가: ${currentPrice.toLocaleString()}원`,
-          relatedStocks: [stockDoc.id],
-          isActive: true,
-          timestamp: now,
-          expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 후 만료
-          createdAt: now,
-        });
+      const sector = stockData.sector || "TECH";
+      if (!stocksBySector[sector]) {
+        stocksBySector[sector] = [];
       }
+      stocksBySector[sector].push(stockDoc.id);
     }
 
-    // 랜덤 일반 뉴스도 추가 (확률 증가: 50% → 80%)
-    if (Math.random() > 0.2) {
-      const generalNews = [
-        "오늘의 시장 전망: 투자자들의 신중한 접근 필요",
-        "글로벌 경제 동향이 국내 증시에 영향",
-        "전문가들 \"장기 투자 관점에서 접근해야\"",
-        "시장 변동성 확대, 분산 투자 권장",
-      ];
+    const newsItems = [];
+    const now = admin.firestore.Timestamp.now();
+    const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
+    const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
+
+    // 무조건 2개의 뉴스 생성
+    for (let i = 0; i < 2; i++) {
+      const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
+      const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
+      const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
+      const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+
+      const relatedStockIds = stocksBySector[randomSector] || [];
+
+      logger.info(`[뉴스 생성] 뉴스 ${i + 1}: ${randomSector} 섹터 (${randomCategory}) - ${randomTemplate}`);
 
       newsItems.push({
-        title: generalNews[Math.floor(Math.random() * generalNews.length)],
-        content: "자세한 내용은 경제 전문가와 상담하세요.",
-        relatedStocks: [],
+        title: randomTemplate,
+        content: "투자 판단 시 신중한 분석이 필요합니다.",
+        relatedStocks: relatedStockIds,
+        sector: randomSector,
+        category: randomCategory, // 주가 영향용 카테고리
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 60 * 60 * 1000), // 1시간 후 만료
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 3 * 60 * 1000), // 3분 후 만료
         createdAt: now,
       });
     }
 
     // Firestore에 뉴스 추가
-    if (newsItems.length > 0) {
-      const batch = db.batch();
-      for (const news of newsItems) {
-        const newsRef = db.collection("CentralNews").doc();
-        batch.set(newsRef, news);
-      }
-      await batch.commit();
-      logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
-      newsItems.forEach(news => {
-        logger.info(`  - ${news.title}`);
-      });
-    } else {
-      logger.info("📰 생성된 뉴스 없음 (주가 변동이 3% 미만)");
+    const batch = db.batch();
+    for (const news of newsItems) {
+      const newsRef = db.collection("CentralNews").doc();
+      batch.set(newsRef, news);
     }
+    await batch.commit();
+
+    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 3분)`);
+    newsItems.forEach(news => {
+      logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
+    });
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
   }

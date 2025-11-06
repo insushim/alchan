@@ -18,6 +18,142 @@ const db = admin.firestore();
 // 보안: 간단한 인증 토큰 체크 (GitHub Actions에서만 호출 가능)
 const AUTH_TOKEN = process.env.SCHEDULER_AUTH_TOKEN || "github-actions-scheduler-2024";
 
+// 섹터별 뉴스 템플릿 (주식 이름 없이 힌트만 제공)
+const SECTOR_NEWS_TEMPLATES = {
+  TECH: {
+    strong_bull: [
+      "IT 업계, 신기술 개발 소식에 투자 심리 급등",
+      "기술주 전반에 걸친 강세장 전망",
+      "클라우드 및 AI 산업 성장세 가속화",
+    ],
+    bull: [
+      "기술 기업들의 실적 개선 기대감 확산",
+      "디지털 전환 가속화로 IT 업계 수혜 전망",
+      "소프트웨어 산업 성장세 지속",
+    ],
+    bear: [
+      "기술주 투자 심리 위축, 조정 국면 진입",
+      "IT 업계 규제 강화 우려 확산",
+      "기술 기업 실적 부진 우려",
+    ],
+    strong_bear: [
+      "기술주 급락, 투자자 이탈 현상 심화",
+      "IT 산업 전반 침체 우려 확대",
+      "디지털 기업들의 수익성 악화 전망",
+    ]
+  },
+  FINANCE: {
+    strong_bull: [
+      "금융권 규제 완화 전망에 투자 심리 개선",
+      "은행 및 증권사 실적 호조 기대",
+      "금융 산업 수익성 개선 신호 포착",
+    ],
+    bull: [
+      "금융주 상승세, 이자 마진 개선 기대",
+      "자산 관리 산업 성장세 지속",
+      "금융권 디지털 전환 성과 가시화",
+    ],
+    bear: [
+      "금융주 약세, 대출 수요 감소 우려",
+      "금융권 건전성 지표 악화 조짐",
+      "은행 및 증권사 수익성 압박",
+    ],
+    strong_bear: [
+      "금융 산업 전반 급락, 시스템 리스크 우려",
+      "금융권 부실 우려 확산",
+      "은행주 투자 심리 급격히 냉각",
+    ]
+  },
+  BIO: {
+    strong_bull: [
+      "제약·바이오 산업 신약 개발 성공 소식",
+      "헬스케어 기업들의 임상 결과 호조",
+      "바이오 산업 투자 확대 전망",
+    ],
+    bull: [
+      "제약 업계 실적 개선 기대감",
+      "바이오 기업들의 연구개발 성과 가시화",
+      "헬스케어 시장 성장세 지속",
+    ],
+    bear: [
+      "제약·바이오주 조정, 임상 결과 불확실성",
+      "바이오 기업 투자 심리 위축",
+      "헬스케어 산업 규제 강화 우려",
+    ],
+    strong_bear: [
+      "제약·바이오 산업 급락, 신약 개발 실패 소식",
+      "바이오 기업들의 자금 압박 심화",
+      "헬스케어 투자 심리 급격히 악화",
+    ]
+  },
+  ENERGY: {
+    strong_bull: [
+      "에너지 산업 수요 급증, 가격 상승 전망",
+      "친환경 에너지 투자 확대 기대",
+      "전력 및 신재생 에너지 산업 호황",
+    ],
+    bull: [
+      "에너지 기업 실적 개선 기대",
+      "전력 수요 증가세 지속",
+      "신재생 에너지 산업 성장 가속화",
+    ],
+    bear: [
+      "에너지 가격 하락, 업계 수익성 압박",
+      "전력 산업 투자 심리 위축",
+      "에너지 기업 실적 부진 우려",
+    ],
+    strong_bear: [
+      "에너지 산업 급락, 수요 감소 우려 확산",
+      "전력 기업 수익성 악화 전망",
+      "에너지주 투자 심리 급격히 냉각",
+    ]
+  },
+  CONSUMER: {
+    strong_bull: [
+      "소비재 산업 판매 급증, 실적 호조 전망",
+      "유통 업계 매출 신장세 지속",
+      "소비 심리 개선으로 유통주 강세",
+    ],
+    bull: [
+      "소비재 기업 실적 개선 기대",
+      "유통 산업 성장세 지속",
+      "온라인 쇼핑 확대로 유통업 수혜",
+    ],
+    bear: [
+      "소비 심리 위축, 유통업 매출 감소 우려",
+      "소비재 기업 수익성 압박",
+      "유통주 투자 심리 냉각",
+    ],
+    strong_bear: [
+      "소비재 산업 급락, 소비 심리 급격히 악화",
+      "유통 업계 실적 부진 우려 확산",
+      "소비재주 투자 이탈 현상 심화",
+    ]
+  },
+  INDUSTRIAL: {
+    strong_bull: [
+      "제조업 경기 회복 조짐, 산업재 강세",
+      "건설 및 중공업 수주 증가 전망",
+      "산업재 기업들의 실적 개선 기대",
+    ],
+    bull: [
+      "제조업 지표 개선, 산업재주 상승세",
+      "건설 경기 회복 기대감",
+      "중공업 수주 증가세 지속",
+    ],
+    bear: [
+      "제조업 경기 둔화, 산업재 약세",
+      "건설 업계 수주 감소 우려",
+      "중공업 기업 수익성 압박",
+    ],
+    strong_bear: [
+      "산업재 급락, 제조업 침체 우려 확산",
+      "건설 및 중공업 업황 악화 전망",
+      "산업재주 투자 심리 급격히 냉각",
+    ]
+  }
+};
+
 function verifyAuth(req) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (token !== AUTH_TOKEN) {
@@ -400,7 +536,7 @@ async function cleanupWorthlessStocksLogic() {
 }
 
 async function createCentralMarketNewsLogic() {
-  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작");
+  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (무조건 2개 생성, 영향력 3분)");
   try {
     const stocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", true)
@@ -411,63 +547,42 @@ async function createCentralMarketNewsLogic() {
       return;
     }
 
-    const newsItems = [];
-    const now = admin.firestore.Timestamp.now();
-
-    // 가격 변동이 큰 주식 찾기
+    // 섹터별로 주식 그룹화
+    const stocksBySector = {};
     for (const stockDoc of stocksSnapshot.docs) {
       const stockData = stockDoc.data();
-      const priceHistory = stockData.priceHistory || [];
-
-      if (priceHistory.length < 2) continue;
-
-      const currentPrice = priceHistory[priceHistory.length - 1];
-      const previousPrice = priceHistory[priceHistory.length - 2];
-      const changePercent = ((currentPrice - previousPrice) / previousPrice) * 100;
-
-      // 3% 이상 변동 시 뉴스 생성 (기존 5%에서 완화)
-      if (Math.abs(changePercent) >= 3) {
-        const isRise = changePercent > 0;
-        const newsTemplates = isRise ? [
-          `${stockData.name} 주가 급등! ${changePercent.toFixed(1)}% 상승`,
-          `${stockData.name}, 투자자들의 관심 집중으로 ${changePercent.toFixed(1)}% 급등세`,
-          `${stockData.name} 강세장 진입, ${changePercent.toFixed(1)}% 상승 기록`,
-        ] : [
-          `${stockData.name} 주가 급락, ${Math.abs(changePercent).toFixed(1)}% 하락`,
-          `${stockData.name} 투자 심리 악화로 ${Math.abs(changePercent).toFixed(1)}% 급락`,
-          `${stockData.name} 약세장 진입, ${Math.abs(changePercent).toFixed(1)}% 하락 기록`,
-        ];
-
-        const randomTemplate = newsTemplates[Math.floor(Math.random() * newsTemplates.length)];
-
-        newsItems.push({
-          title: randomTemplate,
-          content: `현재가: ${currentPrice.toLocaleString()}원`,
-          relatedStocks: [stockDoc.id],
-          isActive: true,
-          timestamp: now,
-          expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 후 만료
-          createdAt: now,
-        });
+      const sector = stockData.sector || "TECH";
+      if (!stocksBySector[sector]) {
+        stocksBySector[sector] = [];
       }
+      stocksBySector[sector].push(stockDoc.id);
     }
 
-    // 랜덤 일반 뉴스도 추가 (확률 증가: 50% → 80%)
-    if (Math.random() > 0.2) {
-      const generalNews = [
-        "오늘의 시장 전망: 투자자들의 신중한 접근 필요",
-        "글로벌 경제 동향이 국내 증시에 영향",
-        "전문가들 \"장기 투자 관점에서 접근해야\"",
-        "시장 변동성 확대, 분산 투자 권장",
-      ];
+    const newsItems = [];
+    const now = admin.firestore.Timestamp.now();
+    const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
+    const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
+
+    // 무조건 2개의 뉴스 생성
+    for (let i = 0; i < 2; i++) {
+      const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
+      const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
+      const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
+      const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+
+      const relatedStockIds = stocksBySector[randomSector] || [];
+
+      logger.info(`[뉴스 생성] 뉴스 ${i + 1}: ${randomSector} 섹터 (${randomCategory}) - ${randomTemplate}`);
 
       newsItems.push({
-        title: generalNews[Math.floor(Math.random() * generalNews.length)],
-        content: "자세한 내용은 경제 전문가와 상담하세요.",
-        relatedStocks: [],
+        title: randomTemplate,
+        content: "투자 판단 시 신중한 분석이 필요합니다.",
+        relatedStocks: relatedStockIds,
+        sector: randomSector,
+        category: randomCategory, // 주가 영향용 카테고리
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 60 * 60 * 1000), // 1시간 후 만료
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 3 * 60 * 1000), // 3분 후 만료
         createdAt: now,
       });
     }
@@ -478,16 +593,12 @@ async function createCentralMarketNewsLogic() {
       const newsRef = db.collection("CentralNews").doc();
       batch.set(newsRef, news);
     }
+    await batch.commit();
 
-    if (newsItems.length > 0) {
-      await batch.commit();
-      logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료`);
-      newsItems.forEach(news => {
-        logger.info(`  - ${news.title}`);
-      });
-    } else {
-      logger.info("📰 생성된 뉴스 없음 (주가 변동이 3% 미만)");
-    }
+    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 3분)`);
+    newsItems.forEach(news => {
+      logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
+    });
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
