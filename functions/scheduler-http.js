@@ -4,16 +4,13 @@
  * 기존 onSchedule 함수들의 로직을 HTTP 호출 가능하게 변환
  */
 
-const {onRequest} = require("firebase-functions/v2/https");
-const {logger} = require("firebase-functions/v2");
-const admin = require("firebase-admin");
-
-// Admin이 이미 초기화되어 있지 않으면 초기화
-if (admin.apps.length === 0) {
-  admin.initializeApp();
-}
-
-const db = admin.firestore();
+const {onRequest, onCall, HttpsError} = require("firebase-functions/v2/https");
+const {
+    checkAuthAndGetUserData,
+    db,
+    admin,
+    logger
+} = require("./utils");
 
 // 보안: 간단한 인증 토큰 체크 (GitHub Actions에서만 호출 가능)
 const AUTH_TOKEN = process.env.SCHEDULER_AUTH_TOKEN || "github-actions-scheduler-2024";
@@ -286,6 +283,26 @@ exports.runScheduler = onRequest({
   }
 });
 
+// 🔥 수동 테스트용 엔드포인트 (관리자 전용)
+exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("📈 [수동 실행] 주식 시장 업데이트 시작");
+
+  try {
+    await updateCentralStockMarketLogic();
+    await createCentralMarketNewsLogic();
+
+    return {
+      success: true,
+      message: "주식 가격 업데이트 및 뉴스 생성 완료"
+    };
+  } catch (error) {
+    logger.error("❌ [수동 실행] 오류:", error);
+    throw new HttpsError("internal", error.message || "업데이트 실패");
+  }
+});
+
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
@@ -325,6 +342,7 @@ async function updateMarketConditionLogic() {
 }
 
 async function updateCentralStockMarketLogic() {
+  logger.info("<<<<< AUTOMATIC STOCK UPDATE CHECK - THIS IS A TEST LOG >>>>>");
   logger.info("📈 [스케줄러] 주식 시장 가격 업데이트 시작");
   try {
     const stocksSnapshot = await db.collection("CentralStocks").where("isListed", "==", true).get();
@@ -536,6 +554,7 @@ async function cleanupWorthlessStocksLogic() {
 }
 
 async function createCentralMarketNewsLogic() {
+  logger.info("<<<<< AUTOMATIC NEWS CREATION CHECK - THIS IS A TEST LOG >>>>>");
   logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (무조건 2개 생성, 영향력 3분)");
   try {
     const stocksSnapshot = await db.collection("CentralStocks")
