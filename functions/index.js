@@ -1676,9 +1676,15 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
 
     const totalCost = itemData.price * quantity;
     const currentCash = userData.cash || 0;
+    const currentStock = itemData.stock !== undefined ? itemData.stock : Infinity;
 
     if (currentCash < totalCost) {
       throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
+    }
+
+    // 재고 확인 (stock 필드가 있는 경우에만)
+    if (itemData.stock !== undefined && currentStock < quantity) {
+      throw new Error(`재고가 부족합니다. 요청: ${quantity}개, 재고: ${currentStock}개`);
     }
 
     // Batch write로 원자적 처리
@@ -1689,6 +1695,14 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
       cash: admin.firestore.FieldValue.increment(-totalCost),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // 재고 차감 (stock 필드가 있는 경우에만)
+    if (itemData.stock !== undefined) {
+      batch.update(itemRef, {
+        stock: admin.firestore.FieldValue.increment(-quantity),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
 
     // 사용자 아이템에 추가
     if (userItemDoc.exists) {

@@ -172,28 +172,57 @@ export const ItemProvider = ({ children }) => {
 
     const totalPrice = itemToPurchase.price * quantity;
 
-    // 🔥 즉시 UI 업데이트 (낙관적 업데이트)
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트 - 현금 & 재고)
     if (optimisticUpdate) {
       optimisticUpdate({ cash: -totalPrice });
+    }
+
+    // 재고 낙관적 업데이트 (stock이 있는 경우에만)
+    if (itemToPurchase.stock !== undefined) {
+      setItems(prevItems =>
+        prevItems.map(item =>
+          item.id === itemId
+            ? { ...item, stock: Math.max(0, item.stock - quantity) }
+            : item
+        )
+      );
     }
 
     try {
       const result = await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
       if (result.data.success) {
-        // Cloud Function 성공 - 서버에서 이미 현금 차감됨
-        refreshData(); // Keep this to update item stock/availability
+        // Cloud Function 성공 - 서버에서 이미 현금 & 재고 차감됨
+        refreshData(); // 정확한 서버 데이터로 동기화
         return { success: true };
       } else {
-        // Cloud Function 실패 - 롤백
+        // Cloud Function 실패 - 현금 & 재고 롤백
         if (optimisticUpdate) {
           optimisticUpdate({ cash: totalPrice });
+        }
+        if (itemToPurchase.stock !== undefined) {
+          setItems(prevItems =>
+            prevItems.map(item =>
+              item.id === itemId
+                ? { ...item, stock: item.stock + quantity }
+                : item
+            )
+          );
         }
         throw new Error(result.data.message || "구매에 실패했습니다.");
       }
     } catch (error) {
-      // 에러 발생 - 롤백
+      // 에러 발생 - 현금 & 재고 롤백
       if (optimisticUpdate) {
         optimisticUpdate({ cash: totalPrice });
+      }
+      if (itemToPurchase.stock !== undefined) {
+        setItems(prevItems =>
+          prevItems.map(item =>
+            item.id === itemId
+              ? { ...item, stock: item.stock + quantity }
+              : item
+          )
+        );
       }
       if (error.code === 'not-found') {
         return { success: false, message: "아이템 구매 함수(purchaseStoreItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
