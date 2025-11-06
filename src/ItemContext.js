@@ -172,85 +172,65 @@ export const ItemProvider = ({ children }) => {
 
     const totalPrice = itemToPurchase.price * quantity;
 
-    // 🔥 즉시 UI 업데이트 (낙관적 업데이트 - 현금 & 재고)
+    // 🔥 즉시 UI 업데이트 (낙관적 업데이트 - 현금만 먼저 차감)
     if (optimisticUpdate) {
       optimisticUpdate({ cash: -totalPrice });
     }
 
-    // 재고 낙관적 업데이트 (stock이 있는 경우에만)
-    let willBeOutOfStock = false;
-    if (itemToPurchase.stock !== undefined) {
-      const newStock = itemToPurchase.stock - quantity;
-      willBeOutOfStock = newStock === 0;
-
-      setItems(prevItems =>
-        prevItems.map(item => {
-          if (item.id === itemId) {
-            // 품절되면 자동으로 재고 보충 및 가격 인상
-            if (newStock === 0) {
-              const initialStock = item.initialStock || 10;
-              const priceIncreasePercentage = item.priceIncreasePercentage || 10;
-              const newPrice = Math.round(item.price * (1 + priceIncreasePercentage / 100));
-
-              return {
-                ...item,
-                stock: initialStock,
-                price: newPrice
-              };
-            }
-            return { ...item, stock: Math.max(0, newStock) };
-          }
-          return item;
-        })
-      );
-    }
+    // 재고는 서버 응답을 기다렸다가 업데이트 (깜빡거림 방지)
+    const originalStock = itemToPurchase.stock;
+    const originalPrice = itemToPurchase.price;
 
     try {
       const result = await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
       if (result.data.success) {
-        // Cloud Function 성공 - 서버에서 이미 현금 & 재고 차감됨
-        refreshData(); // 정확한 서버 데이터로 동기화
-        return { success: true };
-      } else {
-        // Cloud Function 실패 - 현금 & 재고 롤백
-        if (optimisticUpdate) {
-          optimisticUpdate({ cash: totalPrice });
-        }
+        // 🎯 서버 응답에서 재고 보충 정보를 받아서 즉시 로컬 상태 업데이트
+        const { restocked, newStock, newPrice } = result.data;
+
+        console.log('[ItemContext] 구매 성공:', {
+          itemId,
+          quantity,
+          restocked,
+          newStock,
+          newPrice,
+          oldPrice: originalPrice,
+          oldStock: originalStock
+        });
+
         if (itemToPurchase.stock !== undefined) {
           setItems(prevItems =>
             prevItems.map(item => {
               if (item.id === itemId) {
-                // 품절 후 재고 보충을 롤백
-                if (willBeOutOfStock) {
-                  return { ...item, stock: 0, price: itemToPurchase.price };
-                }
-                return { ...item, stock: item.stock + quantity };
+                return {
+                  ...item,
+                  stock: newStock,
+                  price: newPrice
+                };
               }
               return item;
             })
           );
         }
+
+        // refreshData는 호출하지 않음 - 로컬 상태가 이미 정확함
+        return { success: true, restocked, newStock, newPrice };
+      } else {
+        // Cloud Function 실패 - 현금 롤백
+        if (optimisticUpdate) {
+          optimisticUpdate({ cash: totalPrice });
+        }
         throw new Error(result.data.message || "구매에 실패했습니다.");
       }
     } catch (error) {
-      // 에러 발생 - 현금 & 재고 롤백
+      // 에러 발생 - 현금 롤백
       if (optimisticUpdate) {
         optimisticUpdate({ cash: totalPrice });
       }
-      if (itemToPurchase.stock !== undefined) {
-        setItems(prevItems =>
-          prevItems.map(item => {
-            if (item.id === itemId) {
-              // 품절 후 재고 보충을 롤백
-              if (willBeOutOfStock) {
-                return { ...item, stock: 0, price: itemToPurchase.price };
-              }
-              return { ...item, stock: item.stock + quantity };
-            }
-            return item;
-          })
-        );
-      }
+      console.error('[ItemContext] 구매 실패:', error);
+
+      // 에러 시에만 refreshData로 동기화
+      refreshData();
+
       if (error.code === 'not-found') {
         return { success: false, message: "아이템 구매 함수(purchaseStoreItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
       }

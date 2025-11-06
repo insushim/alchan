@@ -861,103 +861,113 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
   const userItemRef = userRef.collection("inventory").doc(itemId);
 
   try {
-    // 먼저 데이터를 읽어서 검증
-    const [userDoc, itemDoc, userItemDoc] = await Promise.all([
-      userRef.get(),
-      itemRef.get(),
-      userItemRef.get(),
-    ]);
+    // 🔥 Transaction으로 변경하여 원자적 처리 및 재고 보충 정보 포함
+    const result = await db.runTransaction(async (transaction) => {
+      // 모든 읽기 작업을 먼저 수행
+      const [userDoc, itemDoc, userItemDoc] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(itemRef),
+        transaction.get(userItemRef),
+      ]);
 
-    if (!userDoc.exists) {
-      throw new Error("사용자 정보를 찾을 수 없습니다.");
-    }
+      if (!userDoc.exists) {
+        throw new Error("사용자 정보를 찾을 수 없습니다.");
+      }
 
-    if (!itemDoc.exists) {
-      throw new Error("아이템을 찾을 수 없습니다.");
-    }
+      if (!itemDoc.exists) {
+        throw new Error("아이템을 찾을 수 없습니다.");
+      }
 
-    const userData = userDoc.data();
-    const itemData = itemDoc.data();
+      const userData = userDoc.data();
+      const itemData = itemDoc.data();
 
-    const totalCost = itemData.price * quantity;
-    const currentCash = userData.cash || 0;
-    const currentStock = itemData.stock !== undefined ? itemData.stock : Infinity;
+      const totalCost = itemData.price * quantity;
+      const currentCash = userData.cash || 0;
+      const currentStock = itemData.stock !== undefined ? itemData.stock : Infinity;
 
-    if (currentCash < totalCost) {
-      throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
-    }
+      if (currentCash < totalCost) {
+        throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
+      }
 
-    // 재고 확인 (stock 필드가 있는 경우에만)
-    if (itemData.stock !== undefined && currentStock < quantity) {
-      throw new Error(`재고가 부족합니다. 요청: ${quantity}개, 재고: ${currentStock}개`);
-    }
+      // 재고 확인 (stock 필드가 있는 경우에만)
+      if (itemData.stock !== undefined && currentStock < quantity) {
+        throw new Error(`재고가 부족합니다. 요청: ${quantity}개, 재고: ${currentStock}개`);
+      }
 
-    // Batch write로 원자적 처리
-    const batch = db.batch();
+      const newStock = currentStock - quantity;
 
-    // 현금 차감
-    batch.update(userRef, {
-      cash: admin.firestore.FieldValue.increment(-totalCost),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      // 품절 시 재고 보충 및 가격 인상 계산
+      let restocked = false;
+      let finalStock = newStock;
+      let finalPrice = itemData.price;
+
+      if (itemData.stock !== undefined && newStock === 0) {
+        restocked = true;
+        const initialStock = itemData.initialStock || 10;
+        const priceIncreasePercentage = itemData.priceIncreasePercentage || 10;
+        finalStock = initialStock;
+        finalPrice = Math.round(itemData.price * (1 + priceIncreasePercentage / 100));
+
+        logger.info(`[purchaseStoreItem] ${itemData.name} 품절 -> 재고 ${initialStock}개 보충, 가격 ${itemData.price}원 -> ${finalPrice}원 (${priceIncreasePercentage}% 인상)`);
+      }
+
+      // 모든 쓰기 작업 수행
+      // 현금 차감
+      transaction.update(userRef, {
+        cash: admin.firestore.FieldValue.increment(-totalCost),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 재고 업데이트 (stock 필드가 있는 경우에만)
+      if (itemData.stock !== undefined) {
+        const stockUpdate = {
+          stock: finalStock,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // 재고 보충 시 가격도 업데이트
+        if (restocked) {
+          stockUpdate.price = finalPrice;
+        }
+
+        transaction.update(itemRef, stockUpdate);
+      }
+
+      // 사용자 아이템에 추가
+      if (userItemDoc.exists) {
+        transaction.update(userItemRef, {
+          quantity: admin.firestore.FieldValue.increment(quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        const newItemData = {
+          itemId: itemId,
+          name: itemData.name || "",
+          quantity: quantity,
+          acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // optional 필드들만 추가
+        if (itemData.category) newItemData.category = itemData.category;
+        if (itemData.description) newItemData.description = itemData.description;
+        if (itemData.effect) newItemData.effect = itemData.effect;
+
+        transaction.set(userItemRef, newItemData);
+      }
+
+      // 트랜잭션 결과 반환
+      return {
+        itemName: itemData.name,
+        quantity: quantity,
+        totalCost: totalCost,
+        restocked: restocked,
+        newStock: finalStock,
+        newPrice: finalPrice,
+      };
     });
 
-    // 재고 차감 (stock 필드가 있는 경우에만)
-    const newStock = currentStock - quantity;
-    if (itemData.stock !== undefined) {
-      batch.update(itemRef, {
-        stock: admin.firestore.FieldValue.increment(-quantity),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    }
-
-    // 사용자 아이템에 추가
-    if (userItemDoc.exists) {
-      batch.update(userItemRef, {
-        quantity: admin.firestore.FieldValue.increment(quantity),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-    } else {
-      const newItemData = {
-        itemId: itemId,
-        name: itemData.name || "",
-        quantity: quantity,
-        acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      };
-
-      // optional 필드들만 추가
-      if (itemData.category) newItemData.category = itemData.category;
-      if (itemData.description) newItemData.description = itemData.description;
-      if (itemData.effect) newItemData.effect = itemData.effect;
-
-      batch.set(userItemRef, newItemData);
-    }
-
-    await batch.commit();
-
-    // 🔥 품절 시 자동 재고 보충 및 가격 인상
-    if (itemData.stock !== undefined && newStock === 0) {
-      const initialStock = itemData.initialStock || 10; // 기본값 10개
-      const priceIncreasePercentage = itemData.priceIncreasePercentage || 10; // 기본값 10%
-      const currentPrice = itemData.price || 0;
-      const newPrice = Math.round(currentPrice * (1 + priceIncreasePercentage / 100));
-
-      await itemRef.update({
-        stock: initialStock,
-        price: newPrice,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      logger.info(`[purchaseStoreItem] ${itemData.name} 품절 -> 재고 ${initialStock}개 보충, 가격 ${currentPrice}원 -> ${newPrice}원 (${priceIncreasePercentage}% 인상)`);
-    }
-
-    const result = {
-      itemName: itemData.name,
-      quantity: quantity,
-      totalCost: totalCost,
-    };
-
-    logger.info(`[purchaseStoreItem] ${uid}님이 ${result.itemName} ${result.quantity}개 구매 (${result.totalCost}원)`);
+    logger.info(`[purchaseStoreItem] ${uid}님이 ${result.itemName} ${result.quantity}개 구매 (${result.totalCost}원)${result.restocked ? ' [재고 자동 보충됨]' : ''}`);
 
     return {
       success: true,
