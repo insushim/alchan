@@ -27,11 +27,11 @@ exports.runScheduler = scheduler.runScheduler;
 exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket;
 
 // 5분마다 주식 가격 업데이트
-exports.updateCentralStockMarket = onSchedule({
-  region: "asia-northeast3",
-  schedule: "every 5 minutes",
-  timeoutSeconds: 540,
-}, updateCentralStockMarketLogic);
+// exports.updateCentralStockMarket = onSchedule({
+//   region: "asia-northeast3",
+//   schedule: "every 5 minutes",
+//   timeoutSeconds: 540,
+// }, updateCentralStockMarketLogic);
 
 // 3분마다 뉴스 생성
 // exports.createCentralMarketNews = onSchedule({
@@ -41,11 +41,11 @@ exports.updateCentralStockMarket = onSchedule({
 // }, createCentralMarketNewsLogic);
 
 // 10분마다 자동 상장/폐지
-exports.autoManageStocks = onSchedule({
-  region: "asia-northeast3",
-  schedule: "every 10 minutes",
-  timeoutSeconds: 540,
-}, autoManageStocksLogic);
+// exports.autoManageStocks = onSchedule({
+//   region: "asia-northeast3",
+//   schedule: "every 10 minutes",
+//   timeoutSeconds: 540,
+// }, autoManageStocksLogic);
 
 // 3분마다 만료된 뉴스 정리
 // exports.cleanupExpiredCentralNews = onSchedule({
@@ -55,12 +55,12 @@ exports.autoManageStocks = onSchedule({
 // }, cleanupExpiredCentralNewsLogic);
 
 // 매일 자정 작업 리셋
-exports.resetDailyTasks = onSchedule({
-  region: "asia-northeast3",
-  schedule: "0 0 * * *",
-  timezone: "Asia/Seoul",
-  timeoutSeconds: 540,
-}, resetDailyTasksLogic);
+// exports.resetDailyTasks = onSchedule({
+//   region: "asia-northeast3",
+//   schedule: "0 0 * * *",
+//   timezone: "Asia/Seoul",
+//   timeoutSeconds: 540,
+// }, resetDailyTasksLogic);
 
 exports.seedStocks = onCall({region: "asia-northeast3"}, async (request) => {
   await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
