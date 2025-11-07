@@ -225,7 +225,7 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 10, // 10 seconds (자동 업데이트 빠른 반영)
+  BATCH_DATA: 1000 * 30, // 30 seconds (자동 업데이트 빠른 반영)
   STOCKS: 1000 * 60 * 5, // 5 minutes
   PORTFOLIO: 1000 * 30, // 30 seconds
   NEWS: 1000 * 60 * 2, // 2 minutes
