@@ -19,6 +19,7 @@ const {
   cleanupExpiredCentralNewsLogic,
   resetDailyTasksLogic,
 } = require("./scheduler-http");
+const { initialStocks } = require("./initialStocks");
 
 // HTTP 호출을 위한 스케줄러 로직 (GitHub Actions 등 외부에서 호출 가능)
 const scheduler = require("./scheduler-http");
@@ -60,6 +61,53 @@ exports.resetDailyTasks = onSchedule({
   timezone: "Asia/Seoul",
   timeoutSeconds: 540,
 }, resetDailyTasksLogic);
+
+exports.seedStocks = onCall({region: "asia-northeast3"}, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("🌱 [데이터 시딩] 초기 주식 데이터 추가 시작");
+
+  try {
+    const stocksCollection = db.collection("CentralStocks");
+    const snapshot = await stocksCollection.limit(1).get();
+
+    // 데이터가 이미 있는 경우 실행 중단
+    if (!snapshot.empty) {
+      const message = "초기 주식 데이터가 이미 존재합니다. 중복 추가를 방지하기 위해 작업을 중단합니다.";
+      logger.warn(`[데이터 시딩] ${message}`);
+      return { success: false, message };
+    }
+
+    const batch = db.batch();
+    let count = 0;
+
+    initialStocks.forEach(stock => {
+      const docRef = stocksCollection.doc(); // 자동 ID 생성
+      const stockData = {
+        ...stock,
+        holderCount: 0,
+        tradingVolume: 1000,
+        buyVolume: 0,
+        sellVolume: 0,
+        recentBuyVolume: 0,
+        recentSellVolume: 0,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      };
+      batch.set(docRef, stockData);
+      count++;
+    });
+
+    await batch.commit();
+    const message = `총 ${count}개의 초기 주식 데이터 추가 완료.`;
+    logger.info(`✅ [데이터 시딩] ${message}`);
+    return { success: true, message };
+
+  } catch (error) {
+    logger.error("❌ [데이터 시딩] 초기 주식 데이터 추가 중 오류:", error);
+    throw new HttpsError("internal", "초기 주식 데이터 추가에 실패했습니다.");
+  }
+});
 
 exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
