@@ -57,7 +57,7 @@ const batchDataLoader = {
     
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 30 * 1000); // 30초 (자동 업데이트 빠른 반영)
+      globalCache.set(batchKey, result, 2 * 60 * 1000); // 2분 (읽기 비용 절감을 위해 30초 → 2분으로 증가)
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -117,13 +117,13 @@ const batchDataLoader = {
     try {
       const allNews = [];
 
-      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거)
+      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 읽기 비용 절감을 위해 limit 10으로 감소
       try {
         const centralNewsRef = collection(db, "CentralNews");
         const centralActiveQuery = query(
           centralNewsRef,
           where("isActive", "==", true),
-          limit(50)
+          limit(10)
         );
         const centralSnapshot = await getDocs(centralActiveQuery);
 
@@ -225,9 +225,9 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 30, // 30 seconds (자동 업데이트 빠른 반영)
+  BATCH_DATA: 1000 * 60 * 2, // 2 minutes (읽기 비용 절감을 위해 30초 → 2분으로 증가)
   STOCKS: 1000 * 60 * 5, // 5 minutes
-  PORTFOLIO: 1000 * 30, // 30 seconds
+  PORTFOLIO: 1000 * 60 * 2, // 2 minutes (읽기 비용 절감을 위해 30초 → 2분으로 증가)
   NEWS: 1000 * 60 * 2, // 2 minutes
   MARKET_STATUS: 1000 * 60 * 10, // 10 minutes
 };
@@ -698,7 +698,7 @@ const StockExchange = () => {
         if (isPageVisible && marketOpen) {
           fetchAllData(false);
         }
-      }, 5 * 60 * 1000); // 5분 간격
+      }, 10 * 60 * 1000); // 10분 간격 (읽기 비용 절감을 위해 5분 → 10분으로 증가)
     };
 
     const stopPolling = () => {

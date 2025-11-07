@@ -1,0 +1,31 @@
+name: Stock Management (상장/폐지)
+
+on:
+  # 10분마다 자동 상장/폐지 관리
+  schedule:
+    - cron: '*/10 * * * *'  # 10분마다 실행
+
+  # 수동 실행 가능
+  workflow_dispatch:
+
+jobs:
+  manage-stocks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Auto Manage Stocks (List/Delist)
+        run: |
+          echo "🔄 주식 자동 상장/폐지 관리 시작"
+
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${{ secrets.SCHEDULER_AUTH_TOKEN }}" \
+            -d '{"tasks": ["manageStocks"]}' \
+            https://asia-northeast3-inconomysu-class.cloudfunctions.net/runScheduler \
+            || echo "⚠️ 스케줄러 호출 실패"
+
+      - name: Log completion
+        if: always()
+        run: |
+          echo "✅ 주식 관리 완료"
+          echo "실행 시간: $(date)"
