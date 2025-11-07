@@ -449,6 +449,7 @@ async function updateCentralStockMarketLogic() {
 
     await batch.commit();
     logger.info(`✅ 주식 가격 업데이트 완료 - 총 ${totalStocks}개 중 ${updateCount}개 업데이트, ${skippedCount}개 건너뜀 (시장 상황: ${marketConditionName})`);
+    logger.info(`[주식 업데이트 통계] 읽기: ${totalStocks + (marketConditionDoc.exists ? 1 : 0) + activeNews.length}개, 쓰기: ${updateCount}개`);
   } catch (error) {
     logger.error("❌ 주식 가격 업데이트 중 오류:", error);
     throw error;
@@ -542,6 +543,7 @@ async function autoManageStocksLogic() {
     }
 
     logger.info(`✅ 자동 관리 완료 - 폐지: ${delistCount}개, 재상장: ${relistCount}개`);
+    logger.info(`[자동 관리 통계] 읽기: ${listedStocksSnapshot.docs.length + delistedStocksSnapshot.docs.length}개, 쓰기: ${delistCount + relistCount}개`);
   } catch (error) {
     logger.error("❌ 자동 주식 관리 중 오류:", error);
     throw error;
@@ -618,6 +620,7 @@ async function createCentralMarketNewsLogic() {
     newsItems.forEach(news => {
       logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
     });
+    logger.info(`[뉴스 생성 통계] 읽기: ${stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length}개`);
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
