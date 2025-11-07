@@ -57,7 +57,7 @@ jobs:
         if: steps.tasks.outputs.tasks != '[]'
         env:
           TASKS_JSON: ${{ steps.tasks.outputs.tasks }}
-          AUTH_TOKEN: ${{ secrets.SCHEDULER_AUTH_TOKEN }}
+          AUTH_TOKEN: "github-actions-scheduler-2024"
         run: |
           echo "Calling runScheduler with tasks: ${TASKS_JSON}"
           RESPONSE=$(curl -X POST \
