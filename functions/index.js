@@ -698,104 +698,104 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
 // 🔥 아이템 시스템 함수 구현
 // ===================================================================================
 
-// exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, classCode} = await checkAuthAndGetUserData(request);
-// 
-//   try {
-//     // 1. 상점 아이템 조회 (인덱스 없이 단순 조회)
-//     const storeItemsSnapshot = await db.collection("storeItems")
-//       .where("classCode", "==", classCode)
-//       .get();
-// 
-//     const storeItems = storeItemsSnapshot.docs
-//       .map(doc => ({
-//         id: doc.id,
-//         ...doc.data(),
-//       }))
-//       .sort((a, b) => {
-//         if (a.category !== b.category) {
-//           return a.category.localeCompare(b.category);
-//         }
-//         return a.name.localeCompare(b.name);
-//       });
-// 
-//     // 2. 사용자 아이템 조회
-//     const userItemsSnapshot = await db.collection("users")
-//       .doc(uid)
-//       .collection("inventory")
-//       .get();
-// 
-//     const userItems = userItemsSnapshot.docs.map(doc => {
-//       const data = doc.data();
-//       const itemId = data.itemId || doc.id;
-// 
-//       // storeItems에서 아이템 정보 찾기
-//       const storeItem = storeItems.find(item => item.id === itemId);
-// 
-//       return {
-//         id: doc.id,
-//         ...data,
-//         itemId: itemId,
-//         // 아이템 정보가 없으면 storeItems에서 가져오기
-//         name: data.name || (storeItem ? storeItem.name : '알 수 없는 아이템'),
-//         icon: data.icon || (storeItem ? storeItem.icon : '🔮'),
-//         description: data.description || (storeItem ? storeItem.description : ''),
-//         type: data.type || (storeItem ? storeItem.type : 'general'),
-//         category: data.category || (storeItem ? storeItem.category : ''),
-//       };
-//     });
-// 
-//     logger.info(`[getItemContextData] User ${uid} has ${userItems.length} items in subcollection:`,
-//       userItems.map(item => `${item.itemId}:${item.name}(${item.quantity})`).join(', '));
-// 
-//     // 3. 마켓 리스팅 조회
-//     const marketListingsSnapshot = await db.collection("marketListings")
-//       .where("classCode", "==", classCode)
-//       .where("status", "==", "active")
-//       .get();
-// 
-//     const marketListings = marketListingsSnapshot.docs
-//       .map(doc => ({
-//         id: doc.id,
-//         ...doc.data(),
-//       }))
-//       .sort((a, b) => {
-//         const aTime = a.listedAt?.toMillis() || 0;
-//         const bTime = b.listedAt?.toMillis() || 0;
-//         return bTime - aTime;
-//       });
-// 
-//     // 4. 마켓 제안 조회 (사용자가 받은 제안)
-//     const marketOffersSnapshot = await db.collection("marketOffers")
-//       .where("sellerId", "==", uid)
-//       .where("status", "==", "pending")
-//       .get();
-// 
-//     const marketOffers = marketOffersSnapshot.docs
-//       .map(doc => ({
-//         id: doc.id,
-//         ...doc.data(),
-//       }))
-//       .sort((a, b) => {
-//         const aTime = a.offeredAt?.toMillis() || 0;
-//         const bTime = b.offeredAt?.toMillis() || 0;
-//         return bTime - aTime;
-//       });
-// 
-//     return {
-//       success: true,
-//       data: {
-//         storeItems,
-//         userItems,
-//         marketListings,
-//         marketOffers,
-//       },
-//     };
-//   } catch (error) {
-//     logger.error(`[getItemContextData] Error for user ${uid}:`, error);
-//     throw new HttpsError("internal", error.message || "아이템 데이터 조회에 실패했습니다.");
-//   }
-// });
+exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, classCode} = await checkAuthAndGetUserData(request);
+
+  try {
+    // 1. 상점 아이템 조회 (인덱스 없이 단순 조회)
+    const storeItemsSnapshot = await db.collection("storeItems")
+      .where("classCode", "==", classCode)
+      .get();
+
+    const storeItems = storeItemsSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => {
+        if (a.category !== b.category) {
+          return a.category.localeCompare(b.category);
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+    // 2. 사용자 아이템 조회
+    const userItemsSnapshot = await db.collection("users")
+      .doc(uid)
+      .collection("inventory")
+      .get();
+
+    const userItems = userItemsSnapshot.docs.map(doc => {
+      const data = doc.data();
+      const itemId = data.itemId || doc.id;
+
+      // storeItems에서 아이템 정보 찾기
+      const storeItem = storeItems.find(item => item.id === itemId);
+
+      return {
+        id: doc.id,
+        ...data,
+        itemId: itemId,
+        // 아이템 정보가 없으면 storeItems에서 가져오기
+        name: data.name || (storeItem ? storeItem.name : '알 수 없는 아이템'),
+        icon: data.icon || (storeItem ? storeItem.icon : '🔮'),
+        description: data.description || (storeItem ? storeItem.description : ''),
+        type: data.type || (storeItem ? storeItem.type : 'general'),
+        category: data.category || (storeItem ? storeItem.category : ''),
+      };
+    });
+
+    logger.info(`[getItemContextData] User ${uid} has ${userItems.length} items in subcollection:`,
+      userItems.map(item => `${item.itemId}:${item.name}(${item.quantity})`).join(', '));
+
+    // 3. 마켓 리스팅 조회
+    const marketListingsSnapshot = await db.collection("marketListings")
+      .where("classCode", "==", classCode)
+      .where("status", "==", "active")
+      .get();
+
+    const marketListings = marketListingsSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => {
+        const aTime = a.listedAt?.toMillis() || 0;
+        const bTime = b.listedAt?.toMillis() || 0;
+        return bTime - aTime;
+      });
+
+    // 4. 마켓 제안 조회 (사용자가 받은 제안)
+    const marketOffersSnapshot = await db.collection("marketOffers")
+      .where("sellerId", "==", uid)
+      .where("status", "==", "pending")
+      .get();
+
+    const marketOffers = marketOffersSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a, b) => {
+        const aTime = a.offeredAt?.toMillis() || 0;
+        const bTime = b.offeredAt?.toMillis() || 0;
+        return bTime - aTime;
+      });
+
+    return {
+      success: true,
+      data: {
+        storeItems,
+        userItems,
+        marketListings,
+        marketOffers,
+      },
+    };
+  } catch (error) {
+    logger.error(`[getItemContextData] Error for user ${uid}:`, error);
+    throw new HttpsError("internal", error.message || "아이템 데이터 조회에 실패했습니다.");
+  }
+});
 
 // exports.updateStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
 //   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
@@ -1156,80 +1156,80 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
 // 관리자 설정 데이터 통합 조회 (최적화)
 // ===================================================================================
 
-// exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
-//   const {tab} = request.data;
-// 
-//   try {
-//     let data = {};
-// 
-//     switch (tab) {
-//       case "studentManagement":
-//         // 학생 데이터 조회
-//         const studentsSnapshot = await db.collection("users")
-//           .where("classCode", "==", classCode)
-//           .where("role", "==", "student")
-//           .get();
-// 
-//         data.students = studentsSnapshot.docs.map(doc => ({
-//           id: doc.id,
-//           ...doc.data(),
-//         }));
-//         break;
-// 
-//       case "salarySettings":
-//         // 급여 설정 조회
-//         const salaryDoc = await db.collection("classSettings")
-//           .doc(classCode)
-//           .collection("settings")
-//           .doc("salary")
-//           .get();
-// 
-//         data.salarySettings = salaryDoc.exists ? salaryDoc.data() : {};
-//         break;
-// 
-//       case "generalSettings":
-//         // 일반 설정 조회
-//         const settingsDoc = await db.collection("classSettings")
-//           .doc(classCode)
-//           .get();
-// 
-//         data.generalSettings = settingsDoc.exists ? settingsDoc.data() : {};
-//         break;
-// 
-//       case "systemManagement":
-//         if (!isSuperAdmin) {
-//           throw new HttpsError("permission-denied", "최고 관리자 권한이 필요합니다.");
-//         }
-// 
-//         // 시스템 관리 데이터 조회
-//         const allClassesSnapshot = await db.collection("classSettings").get();
-//         data.allClasses = allClassesSnapshot.docs.map(doc => ({
-//           id: doc.id,
-//           ...doc.data(),
-//         }));
-//         break;
-// 
-//       default:
-//         // 기본적으로 일반 설정 반환
-//         const defaultDoc = await db.collection("classSettings")
-//           .doc(classCode)
-//           .get();
-// 
-//         data = defaultDoc.exists ? defaultDoc.data() : {};
-//     }
-// 
-//     logger.info(`[getAdminSettingsData] ${uid}님이 ${tab} 데이터 조회`);
-// 
-//     return {
-//       success: true,
-//       data: data,
-//     };
-//   } catch (error) {
-//     logger.error(`[getAdminSettingsData] Error for user ${uid}:`, error);
-//     throw new HttpsError("internal", error.message || "데이터 조회에 실패했습니다.");
-//   }
-// });
+exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
+  const {tab} = request.data;
+
+  try {
+    let data = {};
+
+    switch (tab) {
+      case "studentManagement":
+        // 학생 데이터 조회
+        const studentsSnapshot = await db.collection("users")
+          .where("classCode", "==", classCode)
+          .where("role", "==", "student")
+          .get();
+
+        data.students = studentsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        break;
+
+      case "salarySettings":
+        // 급여 설정 조회
+        const salaryDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .collection("settings")
+          .doc("salary")
+          .get();
+
+        data.salarySettings = salaryDoc.exists ? salaryDoc.data() : {};
+        break;
+
+      case "generalSettings":
+        // 일반 설정 조회
+        const settingsDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .get();
+
+        data.generalSettings = settingsDoc.exists ? settingsDoc.data() : {};
+        break;
+
+      case "systemManagement":
+        if (!isSuperAdmin) {
+          throw new HttpsError("permission-denied", "최고 관리자 권한이 필요합니다.");
+        }
+
+        // 시스템 관리 데이터 조회
+        const allClassesSnapshot = await db.collection("classSettings").get();
+        data.allClasses = allClassesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+        break;
+
+      default:
+        // 기본적으로 일반 설정 반환
+        const defaultDoc = await db.collection("classSettings")
+          .doc(classCode)
+          .get();
+
+        data = defaultDoc.exists ? defaultDoc.data() : {};
+    }
+
+    logger.info(`[getAdminSettingsData] ${uid}님이 ${tab} 데이터 조회`);
+
+    return {
+      success: true,
+      data: data,
+    };
+  } catch (error) {
+    logger.error(`[getAdminSettingsData] Error for user ${uid}:`, error);
+    throw new HttpsError("internal", error.message || "데이터 조회에 실패했습니다.");
+  }
+});
 
 // ===================================================================================
 // 배치 급여 지급
