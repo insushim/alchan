@@ -36,8 +36,8 @@ jobs:
             IS_MARKET_HOURS=true
             TASKS="\"updateMarketCondition\",\"updateCentralStockMarket\",\"createCentralMarketNews\",\"cleanupExpiredCentralNews\",\"autoManageStocks\""
           else
-            # 시장 시간 외에는 뉴스 정리만 실행
-            TASKS="\"cleanupExpiredCentralNews\""
+            # 시장 시간 외에는 불필요한 작업 실행 안함
+            TASKS=""
           fi
 
           # 일일 작업 리셋 (매일 자정 KST 부근)
