@@ -62,7 +62,7 @@ exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket;
 //   timeoutSeconds: 540,
 // }, resetDailyTasksLogic);
 
-exports.seedStocks = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.seedStocks = onCall({region: "asia-northeast3"}, async (request) => {
   await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
 
   logger.info("🌱 [데이터 시딩] 초기 주식 데이터 추가 시작");
@@ -109,7 +109,7 @@ exports.seedStocks = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
   const { taskId, jobId = null, isJobTask = false, cardType = null, rewardAmount = null } = request.data;
   if (!taskId) {
@@ -239,7 +239,7 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request, true);
   const {classCode} = request.data;
   if (!classCode) throw new HttpsError("invalid-argument", "유효한 classCode가 필요합니다.");
@@ -255,7 +255,7 @@ exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (reque
   }
 });
 
-exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, userData, classCode} = await checkAuthAndGetUserData(request);
   const {amount, message} = request.data;
   if (!classCode) {
@@ -321,7 +321,7 @@ exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.sellCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.sellCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request);
   const {amount} = request.data;
   if (!amount || amount <= 0) {
@@ -350,7 +350,7 @@ exports.sellCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.giftCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.giftCoupon = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, userData} = await checkAuthAndGetUserData(request);
   const {recipientId, amount, message} = request.data;
   if (!recipientId || !amount || amount <= 0) {
@@ -390,7 +390,7 @@ const TAX_RATE = 0.22; // 양도소득세율 22%
 const BOND_TAX_RATE = 0.154; // 채권세율 15.4%
 const TRANSACTION_TAX_RATE = 0.01; // 거래세율 1%
 
-exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode} = await checkAuthAndGetUserData(request);
   const {stockId, quantity} = request.data;
 
@@ -534,7 +534,7 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode} = await checkAuthAndGetUserData(request);
   const {holdingId, quantity} = request.data;
 
@@ -698,7 +698,7 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
 // 🔥 아이템 시스템 함수 구현
 // ===================================================================================
 
-exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode} = await checkAuthAndGetUserData(request);
 
   try {
@@ -797,7 +797,7 @@ exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request)
   }
 });
 
-exports.updateStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.updateStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
   const {itemId, updatesToApply} = request.data;
 
@@ -834,7 +834,7 @@ exports.updateStoreItem = onCall({region: "asia-northeast3"}, async (request) =>
   }
 });
 
-exports.addStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.addStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
   const {newItemData} = request.data;
 
@@ -864,7 +864,7 @@ exports.addStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.deleteStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.deleteStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
   const {itemId} = request.data;
 
@@ -896,7 +896,7 @@ exports.deleteStoreItem = onCall({region: "asia-northeast3"}, async (request) =>
   }
 });
 
-exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode} = await checkAuthAndGetUserData(request);
   const {itemId, quantity = 1} = request.data;
 
@@ -1028,7 +1028,7 @@ exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) 
   }
 });
 
-exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request);
   const {itemId} = request.data;
 
@@ -1093,7 +1093,7 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
   const {inventoryItemId, quantity, price} = request.data;
 
@@ -1156,7 +1156,7 @@ exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request
 // 관리자 설정 데이터 통합 조회 (최적화)
 // ===================================================================================
 
-exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
   const {tab} = request.data;
 
@@ -1235,7 +1235,7 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 // 배치 급여 지급
 // ===================================================================================
 
-exports.batchPaySalaries = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.batchPaySalaries = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, classCode, isAdmin, isSuperAdmin} = await checkAuthAndGetUserData(request, true);
   const {studentIds, payAll} = request.data;
 
@@ -1316,7 +1316,7 @@ exports.batchPaySalaries = onCall({region: "asia-northeast3"}, async (request) =
 // 아이템 시장 거래 함수
 // ===================================================================================
 
-exports.buyMarketItem = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.buyMarketItem = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, userData} = await checkAuthAndGetUserData(request);
   const {listingId} = request.data;
 
@@ -1410,7 +1410,7 @@ exports.buyMarketItem = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-exports.cancelMarketSale = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.cancelMarketSale = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid} = await checkAuthAndGetUserData(request);
   const {listingId} = request.data;
 
@@ -1473,7 +1473,7 @@ exports.cancelMarketSale = onCall({region: "asia-northeast3"}, async (request) =
   }
 });
 
-exports.makeOffer = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.makeOffer = onCall({region: "asia-northeast3"}, async (request) => {
   const {uid, userData} = await checkAuthAndGetUserData(request);
   const {listingId, offerPrice, quantity = 1} = request.data;
 
@@ -1528,7 +1528,7 @@ exports.makeOffer = onCall({region: "asia-northeast3"}, async (request) => {
 // ===================================================================================
 // 🏠 부동산 구매 함수
 // ===================================================================================
-exports.purchaseRealEstate = onCall({region: "asia-northeast3", cors: true}, async (request) => {
+// exports.purchaseRealEstate = onCall({region: "asia-northeast3", cors: true}, async (request) => {
   try {
     const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
     const {propertyId} = request.data;
@@ -1623,7 +1623,7 @@ exports.purchaseRealEstate = onCall({region: "asia-northeast3", cors: true}, asy
   }
 });
 
-exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
+// exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
   try {
     const { uid, classCode, userData } = await checkAuthAndGetUserData(request, false); // no admin check yet
 
