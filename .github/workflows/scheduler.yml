@@ -2,8 +2,8 @@ name: Scheduled Tasks
 
 on:
   schedule:
-    # 5분마다 실행 (GitHub Actions의 안정적인 최소 간격)
-    - cron: '*/5 * * * *'
+    # 15분마다 실행 (비용 절감을 위해 빈도 감소)
+    - cron: '*/15 * * * *'
 
   # 수동 실행 옵션
   workflow_dispatch:
@@ -31,13 +31,13 @@ jobs:
           TASKS=""
           IS_MARKET_HOURS=false
 
-          # 뉴스 생성 및 정리 (시장 시간과 무관하게 항상 실행)
-          TASKS="\"createCentralMarketNews\",\"cleanupExpiredCentralNews\""
-
-          # 평일(월-금, 1-5) 8시-15시 KST 체크
+          # 평일(월-금, 1-5) 8시-15시 KST 시장 시간에만 실행
           if [ $KST_DAY -ge 1 ] && [ $KST_DAY -le 5 ] && [ $KST_HOUR -ge 8 ] && [ $KST_HOUR -lt 15 ]; then
             IS_MARKET_HOURS=true
-            TASKS="${TASKS},\"updateMarketCondition\",\"updateCentralStockMarket\",\"autoManageStocks\""
+            TASKS="\"updateMarketCondition\",\"updateCentralStockMarket\",\"createCentralMarketNews\",\"cleanupExpiredCentralNews\",\"autoManageStocks\""
+          else
+            # 시장 시간 외에는 뉴스 정리만 실행
+            TASKS="\"cleanupExpiredCentralNews\""
           fi
 
           # 일일 작업 리셋 (매일 자정 KST 부근)

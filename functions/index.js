@@ -109,135 +109,135 @@ exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket; // 관리�
 //   }
 // });
 
-// exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
-//   const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
-//   const { taskId, jobId = null, isJobTask = false, cardType = null, rewardAmount = null } = request.data;
-//   if (!taskId) {
-//     throw new HttpsError("invalid-argument", "할일 ID가 필요합니다.");
-//   }
-//   const userRef = db.collection("users").doc(uid);
-//   try {
-//     let taskReward = 0;
-//     let taskName = "";
-//     let cashReward = 0;
-//     let couponReward = 0;
-// 
-//     if (isJobTask && jobId) {
-//       const jobRef = db.collection("jobs").doc(jobId);
-//       await db.runTransaction(async (transaction) => {
-//         const jobDoc = await transaction.get(jobRef);
-//         if (!jobDoc.exists) throw new Error("직업을 찾을 수 없습니다.");
-// 
-//         const userDoc = await transaction.get(userRef);
-//         if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
-// 
-//         const jobData = jobDoc.data();
-//         const jobTasks = jobData.tasks || [];
-//         const taskIndex = jobTasks.findIndex((t) => t.id === taskId);
-//         if (taskIndex === -1) throw new Error("직업 할일을 찾을 수 없습니다.");
-// 
-//         const task = jobTasks[taskIndex];
-//         taskName = task.name;
-// 
-//         // 사용자별 진행 상황 확인 (개인별 클릭 횟수)
-//         const userData = userDoc.data();
-//         const completedJobTasks = userData.completedJobTasks || {};
-//         const jobTaskKey = `${jobId}_${taskId}`;
-//         const currentClicks = completedJobTasks[jobTaskKey] || 0;
-// 
-//         if (currentClicks >= task.maxClicks) {
-//           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
-//         }
-// 
-//         // 사용자 문서 업데이트 (개인별 클릭 횟수)
-//         const updateData = {
-//           [`completedJobTasks.${jobTaskKey}`]: admin.firestore.FieldValue.increment(1),
-//         };
-// 
-//         // 카드 선택 보상 적용
-//         if (cardType && rewardAmount) {
-//           if (cardType === "cash") {
-//             cashReward = rewardAmount;
-//             updateData.cash = admin.firestore.FieldValue.increment(cashReward);
-//           } else if (cardType === "coupon") {
-//             couponReward = rewardAmount;
-//             updateData.coupons = admin.firestore.FieldValue.increment(couponReward);
-//           }
-//         }
-// 
-//         transaction.update(userRef, updateData);
-//       });
-//     } else {
-//       const commonTaskRef = db.collection("commonTasks").doc(taskId);
-//       await db.runTransaction(async (transaction) => {
-//         const commonTaskDoc = await transaction.get(commonTaskRef);
-//         if (!commonTaskDoc.exists) throw new Error("공통 할일을 찾을 수 없습니다.");
-//         const userDoc = await transaction.get(userRef);
-//         if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
-//         const taskData = commonTaskDoc.data();
-//         taskName = taskData.name;
-//         taskReward = taskData.reward || 0;
-//         const userData = userDoc.data();
-//         const completedTasks = userData.completedTasks || {};
-//         const currentClicks = completedTasks[taskId] || 0;
-//         if (currentClicks >= taskData.maxClicks) {
-//           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
-//         }
-//         const updateData = {
-//           [`completedTasks.${taskId}`]: admin.firestore.FieldValue.increment(1),
-//         };
-//         if (taskReward > 0) {
-//           updateData.coupons = admin.firestore.FieldValue.increment(taskReward);
-//         }
-//         transaction.update(userRef, updateData);
-//       });
-//     }
-//     // 활동 로그 기록
-//     if (taskReward > 0) {
-//       try {
-//         await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`, { taskName, reward: taskReward, taskId, isJobTask, jobId: jobId || null });
-//       } catch (logError) {
-//         logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
-//       }
-//     }
-//     if (cashReward > 0) {
-//       try {
-//         await logActivity(null, uid, LOG_TYPES.CASH_INCOME, `'${taskName}' 할일 완료로 ${cashReward}원을 획득했습니다.`, { taskName, reward: cashReward, taskId, isJobTask, jobId: jobId || null });
-//       } catch (logError) {
-//         logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
-//       }
-//     }
-//     if (couponReward > 0) {
-//       try {
-//         await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${couponReward}개를 획득했습니다.`, { taskName, reward: couponReward, taskId, isJobTask, jobId: jobId || null });
-//       } catch (logError) {
-//         logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
-//       }
-//     }
-// 
-//     const updatedUserDoc = await userRef.get();
-//     const updatedUserData = updatedUserDoc.data();
-// 
-//     let message = `'${taskName}' 완료!`;
-//     if (taskReward > 0) message += ` +${taskReward} 쿠폰!`;
-//     if (cashReward > 0) message += ` +${cashReward}원!`;
-//     if (couponReward > 0) message += ` +${couponReward} 쿠폰!`;
-// 
-//     return {
-//       success: true,
-//       message,
-//       taskName: taskName,
-//       reward: taskReward + couponReward,
-//       cashReward,
-//       couponReward,
-//       updatedCash: updatedUserData.cash || 0,
-//       updatedCoupons: updatedUserData.coupons || 0,
-//     };
-//   } catch (error) {
-//     logger.error(`[completeTask] User: ${uid}, Task: ${taskId}, Error:`, error);
-//     throw new HttpsError("aborted", error.message || "할일 완료 처리 중 오류가 발생했습니다.");
-//   }
-// });
+exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid, classCode, userData } = await checkAuthAndGetUserData(request);
+  const { taskId, jobId = null, isJobTask = false, cardType = null, rewardAmount = null } = request.data;
+  if (!taskId) {
+    throw new HttpsError("invalid-argument", "할일 ID가 필요합니다.");
+  }
+  const userRef = db.collection("users").doc(uid);
+  try {
+    let taskReward = 0;
+    let taskName = "";
+    let cashReward = 0;
+    let couponReward = 0;
+
+    if (isJobTask && jobId) {
+      const jobRef = db.collection("jobs").doc(jobId);
+      await db.runTransaction(async (transaction) => {
+        const jobDoc = await transaction.get(jobRef);
+        if (!jobDoc.exists) throw new Error("직업을 찾을 수 없습니다.");
+
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+
+        const jobData = jobDoc.data();
+        const jobTasks = jobData.tasks || [];
+        const taskIndex = jobTasks.findIndex((t) => t.id === taskId);
+        if (taskIndex === -1) throw new Error("직업 할일을 찾을 수 없습니다.");
+
+        const task = jobTasks[taskIndex];
+        taskName = task.name;
+
+        // 사용자별 진행 상황 확인 (개인별 클릭 횟수)
+        const userData = userDoc.data();
+        const completedJobTasks = userData.completedJobTasks || {};
+        const jobTaskKey = `${jobId}_${taskId}`;
+        const currentClicks = completedJobTasks[jobTaskKey] || 0;
+
+        if (currentClicks >= task.maxClicks) {
+          throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
+        }
+
+        // 사용자 문서 업데이트 (개인별 클릭 횟수)
+        const updateData = {
+          [`completedJobTasks.${jobTaskKey}`]: admin.firestore.FieldValue.increment(1),
+        };
+
+        // 카드 선택 보상 적용
+        if (cardType && rewardAmount) {
+          if (cardType === "cash") {
+            cashReward = rewardAmount;
+            updateData.cash = admin.firestore.FieldValue.increment(cashReward);
+          } else if (cardType === "coupon") {
+            couponReward = rewardAmount;
+            updateData.coupons = admin.firestore.FieldValue.increment(couponReward);
+          }
+        }
+
+        transaction.update(userRef, updateData);
+      });
+    } else {
+      const commonTaskRef = db.collection("commonTasks").doc(taskId);
+      await db.runTransaction(async (transaction) => {
+        const commonTaskDoc = await transaction.get(commonTaskRef);
+        if (!commonTaskDoc.exists) throw new Error("공통 할일을 찾을 수 없습니다.");
+        const userDoc = await transaction.get(userRef);
+        if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
+        const taskData = commonTaskDoc.data();
+        taskName = taskData.name;
+        taskReward = taskData.reward || 0;
+        const userData = userDoc.data();
+        const completedTasks = userData.completedTasks || {};
+        const currentClicks = completedTasks[taskId] || 0;
+        if (currentClicks >= taskData.maxClicks) {
+          throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
+        }
+        const updateData = {
+          [`completedTasks.${taskId}`]: admin.firestore.FieldValue.increment(1),
+        };
+        if (taskReward > 0) {
+          updateData.coupons = admin.firestore.FieldValue.increment(taskReward);
+        }
+        transaction.update(userRef, updateData);
+      });
+    }
+    // 활동 로그 기록
+    if (taskReward > 0) {
+      try {
+        await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${taskReward}개를 획득했습니다.`, { taskName, reward: taskReward, taskId, isJobTask, jobId: jobId || null });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+      }
+    }
+    if (cashReward > 0) {
+      try {
+        await logActivity(null, uid, LOG_TYPES.CASH_INCOME, `'${taskName}' 할일 완료로 ${cashReward}원을 획득했습니다.`, { taskName, reward: cashReward, taskId, isJobTask, jobId: jobId || null });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+      }
+    }
+    if (couponReward > 0) {
+      try {
+        await logActivity(null, uid, LOG_TYPES.COUPON_EARN, `'${taskName}' 할일 완료로 쿠폰 ${couponReward}개를 획득했습니다.`, { taskName, reward: couponReward, taskId, isJobTask, jobId: jobId || null });
+      } catch (logError) {
+        logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
+      }
+    }
+
+    const updatedUserDoc = await userRef.get();
+    const updatedUserData = updatedUserDoc.data();
+
+    let message = `'${taskName}' 완료!`;
+    if (taskReward > 0) message += ` +${taskReward} 쿠폰!`;
+    if (cashReward > 0) message += ` +${cashReward}원!`;
+    if (couponReward > 0) message += ` +${couponReward} 쿠폰!`;
+
+    return {
+      success: true,
+      message,
+      taskName: taskName,
+      reward: taskReward + couponReward,
+      cashReward,
+      couponReward,
+      updatedCash: updatedUserData.cash || 0,
+      updatedCoupons: updatedUserData.coupons || 0,
+    };
+  } catch (error) {
+    logger.error(`[completeTask] User: ${uid}, Task: ${taskId}, Error:`, error);
+    throw new HttpsError("aborted", error.message || "할일 완료 처리 중 오류가 발생했습니다.");
+  }
+});
 
 // exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
 //   const {uid} = await checkAuthAndGetUserData(request, true);
@@ -896,202 +896,202 @@ exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request)
 //   }
 // });
 
-// exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, classCode} = await checkAuthAndGetUserData(request);
-//   const {itemId, quantity = 1} = request.data;
-// 
-//   if (!itemId || quantity <= 0) {
-//     throw new HttpsError("invalid-argument", "유효한 아이템 ID와 수량을 입력해야 합니다.");
-//   }
-// 
-//   const userRef = db.collection("users").doc(uid);
-//   const itemRef = db.collection("storeItems").doc(itemId);
-//   const userItemRef = userRef.collection("inventory").doc(itemId);
-// 
-//   try {
-//     // 🔥 Transaction으로 변경하여 원자적 처리 및 재고 보충 정보 포함
-//     const result = await db.runTransaction(async (transaction) => {
-//       // 모든 읽기 작업을 먼저 수행
-//       const [userDoc, itemDoc, userItemDoc] = await Promise.all([
-//         transaction.get(userRef),
-//         transaction.get(itemRef),
-//         transaction.get(userItemRef),
-//       ]);
-// 
-//       if (!userDoc.exists) {
-//         throw new Error("사용자 정보를 찾을 수 없습니다.");
-//       }
-// 
-//       if (!itemDoc.exists) {
-//         throw new Error("아이템을 찾을 수 없습니다.");
-//       }
-// 
-//       const userData = userDoc.data();
-//       const itemData = itemDoc.data();
-// 
-//       const totalCost = itemData.price * quantity;
-//       const currentCash = userData.cash || 0;
-//       const currentStock = itemData.stock !== undefined ? itemData.stock : Infinity;
-// 
-//       if (currentCash < totalCost) {
-//         throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
-//       }
-// 
-//       // 재고 확인 (stock 필드가 있는 경우에만)
-//       if (itemData.stock !== undefined && currentStock < quantity) {
-//         throw new Error(`재고가 부족합니다. 요청: ${quantity}개, 재고: ${currentStock}개`);
-//       }
-// 
-//       const newStock = currentStock - quantity;
-// 
-//       // 품절 시 재고 보충 및 가격 인상 계산
-//       let restocked = false;
-//       let finalStock = newStock;
-//       let finalPrice = itemData.price;
-// 
-//       if (itemData.stock !== undefined && newStock === 0) {
-//         restocked = true;
-//         const initialStock = itemData.initialStock || 10;
-//         const priceIncreasePercentage = itemData.priceIncreasePercentage || 10;
-//         finalStock = initialStock;
-//         finalPrice = Math.round(itemData.price * (1 + priceIncreasePercentage / 100));
-// 
-//         logger.info(`[purchaseStoreItem] ${itemData.name} 품절 -> 재고 ${initialStock}개 보충, 가격 ${itemData.price}원 -> ${finalPrice}원 (${priceIncreasePercentage}% 인상)`);
-//       }
-// 
-//       // 모든 쓰기 작업 수행
-//       // 현금 차감
-//       transaction.update(userRef, {
-//         cash: admin.firestore.FieldValue.increment(-totalCost),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       // 재고 업데이트 (stock 필드가 있는 경우에만)
-//       if (itemData.stock !== undefined) {
-//         const stockUpdate = {
-//           stock: finalStock,
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         };
-// 
-//         // 재고 보충 시 가격도 업데이트
-//         if (restocked) {
-//           stockUpdate.price = finalPrice;
-//         }
-// 
-//         transaction.update(itemRef, stockUpdate);
-//       }
-// 
-//       // 사용자 아이템에 추가
-//       if (userItemDoc.exists) {
-//         transaction.update(userItemRef, {
-//           quantity: admin.firestore.FieldValue.increment(quantity),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       } else {
-//         const newItemData = {
-//           itemId: itemId,
-//           name: itemData.name || "",
-//           quantity: quantity,
-//           acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         };
-// 
-//         // optional 필드들만 추가
-//         if (itemData.category) newItemData.category = itemData.category;
-//         if (itemData.description) newItemData.description = itemData.description;
-//         if (itemData.effect) newItemData.effect = itemData.effect;
-// 
-//         transaction.set(userItemRef, newItemData);
-//       }
-// 
-//       // 트랜잭션 결과 반환
-//       return {
-//         itemName: itemData.name,
-//         quantity: quantity,
-//         totalCost: totalCost,
-//         restocked: restocked,
-//         newStock: finalStock,
-//         newPrice: finalPrice,
-//       };
-//     });
-// 
-//     logger.info(`[purchaseStoreItem] ${uid}님이 ${result.itemName} ${result.quantity}개 구매 (${result.totalCost}원)${result.restocked ? ' [재고 자동 보충됨]' : ''}`);
-// 
-//     return {
-//       success: true,
-//       message: `${result.itemName} ${result.quantity}개 구매 완료`,
-//       ...result,
-//     };
-//   } catch (error) {
-//     logger.error(`[purchaseStoreItem] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "아이템 구매에 실패했습니다.");
-//   }
-// });
+exports.purchaseStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, classCode} = await checkAuthAndGetUserData(request);
+  const {itemId, quantity = 1} = request.data;
 
-// exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid} = await checkAuthAndGetUserData(request);
-//   const {itemId} = request.data;
-// 
-//   if (!itemId) {
-//     throw new HttpsError("invalid-argument", "아이템 ID가 필요합니다.");
-//   }
-// 
-//   const userRef = db.collection("users").doc(uid);
-//   const userItemRef = userRef.collection("inventory").doc(itemId);
-// 
-//   try {
-//     const result = await db.runTransaction(async (transaction) => {
-//       const userItemDoc = await transaction.get(userItemRef);
-// 
-//       if (!userItemDoc.exists) {
-//         throw new Error("아이템을 찾을 수 없습니다.");
-//       }
-// 
-//       const itemData = userItemDoc.data();
-//       const currentQuantity = itemData.quantity || 0;
-// 
-//       if (currentQuantity <= 0) {
-//         throw new Error("아이템 수량이 부족합니다.");
-//       }
-// 
-//       // 아이템 효과 적용 (예: 현금 증가)
-//       if (itemData.effect && itemData.effect.type === "cash") {
-//         const cashAmount = itemData.effect.value || 0;
-//         transaction.update(userRef, {
-//           cash: admin.firestore.FieldValue.increment(cashAmount),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       }
-// 
-//       // 아이템 수량 감소
-//       const newQuantity = currentQuantity - 1;
-//       if (newQuantity > 0) {
-//         transaction.update(userItemRef, {
-//           quantity: newQuantity,
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       } else {
-//         transaction.delete(userItemRef);
-//       }
-// 
-//       return {
-//         itemName: itemData.name,
-//         effect: itemData.effect,
-//       };
-//     });
-// 
-//     logger.info(`[useUserItem] ${uid}님이 ${result.itemName} 사용`);
-// 
-//     return {
-//       success: true,
-//       message: `${result.itemName} 사용 완료`,
-//       ...result,
-//     };
-//   } catch (error) {
-//     logger.error(`[useUserItem] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "아이템 사용에 실패했습니다.");
-//   }
-// });
+  if (!itemId || quantity <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 아이템 ID와 수량을 입력해야 합니다.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const itemRef = db.collection("storeItems").doc(itemId);
+  const userItemRef = userRef.collection("inventory").doc(itemId);
+
+  try {
+    // 🔥 Transaction으로 변경하여 원자적 처리 및 재고 보충 정보 포함
+    const result = await db.runTransaction(async (transaction) => {
+      // 모든 읽기 작업을 먼저 수행
+      const [userDoc, itemDoc, userItemDoc] = await Promise.all([
+        transaction.get(userRef),
+        transaction.get(itemRef),
+        transaction.get(userItemRef),
+      ]);
+
+      if (!userDoc.exists) {
+        throw new Error("사용자 정보를 찾을 수 없습니다.");
+      }
+
+      if (!itemDoc.exists) {
+        throw new Error("아이템을 찾을 수 없습니다.");
+      }
+
+      const userData = userDoc.data();
+      const itemData = itemDoc.data();
+
+      const totalCost = itemData.price * quantity;
+      const currentCash = userData.cash || 0;
+      const currentStock = itemData.stock !== undefined ? itemData.stock : Infinity;
+
+      if (currentCash < totalCost) {
+        throw new Error(`현금이 부족합니다. 필요: ${totalCost.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
+      }
+
+      // 재고 확인 (stock 필드가 있는 경우에만)
+      if (itemData.stock !== undefined && currentStock < quantity) {
+        throw new Error(`재고가 부족합니다. 요청: ${quantity}개, 재고: ${currentStock}개`);
+      }
+
+      const newStock = currentStock - quantity;
+
+      // 품절 시 재고 보충 및 가격 인상 계산
+      let restocked = false;
+      let finalStock = newStock;
+      let finalPrice = itemData.price;
+
+      if (itemData.stock !== undefined && newStock === 0) {
+        restocked = true;
+        const initialStock = itemData.initialStock || 10;
+        const priceIncreasePercentage = itemData.priceIncreasePercentage || 10;
+        finalStock = initialStock;
+        finalPrice = Math.round(itemData.price * (1 + priceIncreasePercentage / 100));
+
+        logger.info(`[purchaseStoreItem] ${itemData.name} 품절 -> 재고 ${initialStock}개 보충, 가격 ${itemData.price}원 -> ${finalPrice}원 (${priceIncreasePercentage}% 인상)`);
+      }
+
+      // 모든 쓰기 작업 수행
+      // 현금 차감
+      transaction.update(userRef, {
+        cash: admin.firestore.FieldValue.increment(-totalCost),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 재고 업데이트 (stock 필드가 있는 경우에만)
+      if (itemData.stock !== undefined) {
+        const stockUpdate = {
+          stock: finalStock,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // 재고 보충 시 가격도 업데이트
+        if (restocked) {
+          stockUpdate.price = finalPrice;
+        }
+
+        transaction.update(itemRef, stockUpdate);
+      }
+
+      // 사용자 아이템에 추가
+      if (userItemDoc.exists) {
+        transaction.update(userItemRef, {
+          quantity: admin.firestore.FieldValue.increment(quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        const newItemData = {
+          itemId: itemId,
+          name: itemData.name || "",
+          quantity: quantity,
+          acquiredAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+
+        // optional 필드들만 추가
+        if (itemData.category) newItemData.category = itemData.category;
+        if (itemData.description) newItemData.description = itemData.description;
+        if (itemData.effect) newItemData.effect = itemData.effect;
+
+        transaction.set(userItemRef, newItemData);
+      }
+
+      // 트랜잭션 결과 반환
+      return {
+        itemName: itemData.name,
+        quantity: quantity,
+        totalCost: totalCost,
+        restocked: restocked,
+        newStock: finalStock,
+        newPrice: finalPrice,
+      };
+    });
+
+    logger.info(`[purchaseStoreItem] ${uid}님이 ${result.itemName} ${result.quantity}개 구매 (${result.totalCost}원)${result.restocked ? ' [재고 자동 보충됨]' : ''}`);
+
+    return {
+      success: true,
+      message: `${result.itemName} ${result.quantity}개 구매 완료`,
+      ...result,
+    };
+  } catch (error) {
+    logger.error(`[purchaseStoreItem] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 구매에 실패했습니다.");
+  }
+});
+
+exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {itemId} = request.data;
+
+  if (!itemId) {
+    throw new HttpsError("invalid-argument", "아이템 ID가 필요합니다.");
+  }
+
+  const userRef = db.collection("users").doc(uid);
+  const userItemRef = userRef.collection("inventory").doc(itemId);
+
+  try {
+    const result = await db.runTransaction(async (transaction) => {
+      const userItemDoc = await transaction.get(userItemRef);
+
+      if (!userItemDoc.exists) {
+        throw new Error("아이템을 찾을 수 없습니다.");
+      }
+
+      const itemData = userItemDoc.data();
+      const currentQuantity = itemData.quantity || 0;
+
+      if (currentQuantity <= 0) {
+        throw new Error("아이템 수량이 부족합니다.");
+      }
+
+      // 아이템 효과 적용 (예: 현금 증가)
+      if (itemData.effect && itemData.effect.type === "cash") {
+        const cashAmount = itemData.effect.value || 0;
+        transaction.update(userRef, {
+          cash: admin.firestore.FieldValue.increment(cashAmount),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 아이템 수량 감소
+      const newQuantity = currentQuantity - 1;
+      if (newQuantity > 0) {
+        transaction.update(userItemRef, {
+          quantity: newQuantity,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.delete(userItemRef);
+      }
+
+      return {
+        itemName: itemData.name,
+        effect: itemData.effect,
+      };
+    });
+
+    logger.info(`[useUserItem] ${uid}님이 ${result.itemName} 사용`);
+
+    return {
+      success: true,
+      message: `${result.itemName} 사용 완료`,
+      ...result,
+    };
+  } catch (error) {
+    logger.error(`[useUserItem] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 사용에 실패했습니다.");
+  }
+});
 
 // exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request) => {
 //   const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
