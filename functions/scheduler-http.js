@@ -793,19 +793,56 @@ async function createCentralMarketNewsLogic() {
       return;
     }
 
-    // Firestore에 뉴스 추가
+    // 🔥 새로운 로직: 오래된 뉴스 자동 비활성화
+    // 새 뉴스를 추가한 후 총 개수가 4개를 넘으면 오래된 뉴스를 비활성화
+    const totalAfterCreation = activeNewsCount + newsItems.length;
+    let newsToDeactivate = [];
+
+    if (totalAfterCreation > 4) {
+      // 활성 뉴스를 timestamp 오름차순으로 정렬 (가장 오래된 것이 앞에)
+      const sortedActiveNews = activeNewsSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          ref: doc.ref,
+          timestamp: doc.data().timestamp?.toMillis() || 0,
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp);
+
+      // 비활성화할 개수 계산
+      const deactivateCount = totalAfterCreation - 4;
+      newsToDeactivate = sortedActiveNews.slice(0, deactivateCount);
+
+      logger.info(`[뉴스 생성] ${deactivateCount}개의 오래된 뉴스를 비활성화합니다.`);
+    }
+
+    // Firestore 배치로 처리 (새 뉴스 추가 + 오래된 뉴스 비활성화)
     const batch = db.batch();
+
+    // 1. 새 뉴스 추가
     for (const news of newsItems) {
       const newsRef = db.collection("CentralNews").doc();
       batch.set(newsRef, news);
     }
+
+    // 2. 오래된 뉴스 비활성화
+    for (const oldNews of newsToDeactivate) {
+      batch.update(oldNews.ref, {
+        isActive: false,
+        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deactivatedReason: "새 뉴스 생성으로 인한 자동 순환",
+      });
+    }
+
     await batch.commit();
 
     logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 15분)`);
     newsItems.forEach(news => {
       logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
     });
-    logger.info(`[뉴스 생성 통계] 읽기: ${activeNewsCount + stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length}개`);
+    if (newsToDeactivate.length > 0) {
+      logger.info(`✅ ${newsToDeactivate.length}개의 오래된 뉴스 비활성화 완료`);
+    }
+    logger.info(`[뉴스 생성 통계] 읽기: ${activeNewsCount + stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length + newsToDeactivate.length}개`);
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
