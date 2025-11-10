@@ -18,6 +18,7 @@ const {
   autoManageStocksLogic,
   cleanupExpiredCentralNewsLogic,
   resetDailyTasksLogic,
+  resetTasksForClass,
 } = require("./scheduler-http");
 const { initialStocks } = require("./initialStocks");
 
@@ -239,21 +240,21 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-// exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid} = await checkAuthAndGetUserData(request, true);
-//   const {classCode} = request.data;
-//   if (!classCode) throw new HttpsError("invalid-argument", "유효한 classCode가 필요합니다.");
-//   logger.info(`[수동 리셋] 관리자(UID: ${uid})가 클래스 '${classCode}'의 할일을 수동 리셋합니다.`);
-//   try {
-//     const result = await resetTasksForClass(classCode);
-//     const message = `클래스 '${classCode}'의 ${result.userCount}명 학생 및 ${result.jobCount}개 직업의 할일이 리셋되었습니다.`;
-//     logger.info(`[수동 리셋] ${message}`);
-//     return {success: true, message, updatedCount: result.userCount};
-//   } catch (error) {
-//     logger.error(`[수동 리셋] 클래스 '${classCode}' 리셋 중 오류:`, error);
-//     throw new HttpsError("internal", `할일 리셋 실패: ${error.message}`);
-//   }
-// });
+exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request, true);
+  const {classCode} = request.data;
+  if (!classCode) throw new HttpsError("invalid-argument", "유효한 classCode가 필요합니다.");
+  logger.info(`[수동 리셋] 관리자(UID: ${uid})가 클래스 '${classCode}'의 할일을 수동 리셋합니다.`);
+  try {
+    const result = await resetTasksForClass(classCode);
+    const message = `클래스 '${classCode}'의 ${result.userCount}명 학생 및 ${result.jobCount}개 직업의 할일이 리셋되었습니다.`;
+    logger.info(`[수동 리셋] ${message}`);
+    return {success: true, message, updatedCount: result.userCount};
+  } catch (error) {
+    logger.error(`[수동 리셋] 클래스 '${classCode}' 리셋 중 오류:`, error);
+    throw new HttpsError("internal", `할일 리셋 실패: ${error.message}`);
+  }
+});
 
 // exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
 //   const {uid, userData, classCode} = await checkAuthAndGetUserData(request);

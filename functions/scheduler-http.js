@@ -776,3 +776,4 @@ module.exports.autoManageStocksLogic = autoManageStocksLogic;
 module.exports.cleanupExpiredCentralNewsLogic = cleanupExpiredCentralNewsLogic;
 module.exports.resetDailyTasksLogic = resetDailyTasksLogic;
 module.exports.updateMarketConditionLogic = updateMarketConditionLogic;
+module.exports.resetTasksForClass = resetTasksForClass;
