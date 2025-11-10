@@ -44,20 +44,26 @@ const batchDataLoader = {
 
     if (!forceRefresh) {
       const cached = globalCache.get(batchKey);
-      if (cached) return cached;
+      if (cached) {
+        console.log('[batchDataLoader] Cache HIT - 캐시된 데이터 사용');
+        return cached;
+      }
     }
 
     // 이미 같은 배치 요청이 진행 중이면 대기
     if (this.pendingRequests.has(batchKey)) {
+      console.log('[batchDataLoader] 대기 중인 요청 재사용');
       return await this.pendingRequests.get(batchKey);
     }
 
+    console.log('[batchDataLoader] 서버에서 새 데이터 로드 시작');
     const batchPromise = this._executeBatchLoad(classCode, userId);
     this.pendingRequests.set(batchKey, batchPromise);
 
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 5 * 60 * 1000); // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 절감)
+      globalCache.set(batchKey, result, 3 * 60 * 1000); // 🔥 최적화: 3분 캐시 (5분→3분, 낙관적 업데이트 개선)
+      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -225,11 +231,11 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
-  STOCKS: 1000 * 60 * 5, // 5분
-  PORTFOLIO: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
-  NEWS: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
-  MARKET_STATUS: 1000 * 60 * 15, // 🔥 최적화: 15분 (10분 → 15분)
+  BATCH_DATA: 1000 * 60 * 3, // 🔥 낙관적 업데이트: 3분 (5분 → 3분, 주식 변동을 더 빠르게 반영)
+  STOCKS: 1000 * 60 * 3, // 3분
+  PORTFOLIO: 1000 * 60 * 3, // 🔥 낙관적 업데이트: 3분 (포트폴리오도 빠르게 업데이트)
+  NEWS: 1000 * 60 * 5, // 5분 (뉴스는 덜 자주 변경되므로 유지)
+  MARKET_STATUS: 1000 * 60 * 15, // 15분 (시장 상태는 자주 변경되지 않음)
 };
 
 // === 유틸리티 함수들 ===
@@ -678,62 +684,55 @@ const StockExchange = () => {
     }
   }, [classCode, user]);
 
-  // === 초기 데이터 로드 및 조건부 자동 새로고침 (읽기 비용 최적화) ===
+  // === 초기 데이터 로드 및 서버 스케줄 동기화 폴링 ===
   useEffect(() => {
-    if (!user || !firebaseReady || !classCode) return;
+    if (!user || !firebaseReady || !classCode || !marketOpen) return;
 
     // 초기 로드
     fetchAllData(true);
 
-    // 페이지 가시성 상태 추적
-    let isPageVisible = !document.hidden;
-    let pollingInterval = null;
+    let pollTimeoutId = null;
 
-    // 폴링 시작/중지 함수
-    const startPolling = () => {
-      if (pollingInterval) return; // 이미 실행 중이면 무시
+    const scheduleNextPoll = () => {
+      const POLL_MINUTES = [1, 16, 31, 46]; // 서버 업데이트 직후 시간 (0, 15, 30, 45분 업데이트 후 1분 뒤)
+      const now = new Date();
+      const currentMinute = now.getMinutes();
 
-      pollingInterval = setInterval(() => {
-        // 페이지가 보이고 있고, 시장이 열려있을 때만 폴링
-        if (isPageVisible && marketOpen) {
-          fetchAllData(false);
-        }
-      }, 15 * 60 * 1000); // 🔥 최적화: 15분 간격 (10분 → 15분, GitHub Actions 스케줄러와 동기화)
-    };
+      let nextPollMinute = POLL_MINUTES.find(m => m > currentMinute);
+      
+      const nextPollTime = new Date(now);
 
-    const stopPolling = () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
-      }
-    };
-
-    // 페이지 가시성 변경 감지
-    const handleVisibilityChange = () => {
-      isPageVisible = !document.hidden;
-
-      if (isPageVisible && marketOpen) {
-        // 페이지가 다시 활성화되고 시장이 열려있으면 즉시 데이터 갱신 후 폴링 시작
-        fetchAllData(false);
-        startPolling();
+      if (nextPollMinute) {
+        nextPollTime.setMinutes(nextPollMinute, 0, 0);
       } else {
-        // 페이지가 비활성화되거나 시장이 닫혔으면 폴링 중지
-        stopPolling();
+        // 다음 시간 첫번째 스케줄로 설정
+        nextPollTime.setHours(now.getHours() + 1, POLL_MINUTES[0], 0, 0);
       }
+
+      const delay = nextPollTime.getTime() - now.getTime();
+
+      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 1000)}초 후)`);
+
+      pollTimeoutId = setTimeout(() => {
+        if (document.hidden) { // 페이지가 비활성화 상태면 다음 스케줄로 건너뜀
+          console.log('[StockExchange] 페이지 비활성화 상태, 데이터 갱신 건너뛰고 다음 스케줄 예약');
+          scheduleNextPoll();
+          return;
+        }
+        
+        console.log('[StockExchange] 스케줄 동기화: 데이터 갱신 실행');
+        fetchAllData(true); // 강제 새로고침으로 최신 데이터 반영
+        scheduleNextPoll(); // 다음 폴링 예약
+      }, delay);
     };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // 시장이 열려있고 페이지가 활성화되어 있으면 폴링 시작
-    if (marketOpen && isPageVisible) {
-      startPolling();
-    }
+    scheduleNextPoll(); // 스케줄링 시작
 
     return () => {
-      stopPolling();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (pollTimeoutId) {
+        clearTimeout(pollTimeoutId);
+      }
     };
-    // 🔥 fetchAllData는 useCallback으로 메모이제이션되어 있으므로 의존성에 포함 안전
   }, [user, firebaseReady, classCode, marketOpen, fetchAllData]);
 
   // === 자동 상장/폐지 관리는 Firebase Functions에서 처리 ===

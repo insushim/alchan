@@ -30,6 +30,7 @@ exports.simpleScheduler = scheduler.simpleScheduler; // 간단한 GET 방식 스
 exports.midnightReset = scheduler.midnightReset; // 자정 리셋용 엔드포인트
 exports.weeklySalary = scheduler.weeklySalary; // 주급 지급용 엔드포인트
 exports.weeklyRent = scheduler.weeklyRent; // 월세 징수용 엔드포인트
+exports.cleanupOldNews = scheduler.cleanupOldNews; // 오래된 뉴스 정리용 (한 번만 실행)
 
 // 초기 설정 함수들 (관리자 전용)
 const initSettings = require("./initializeSettings");

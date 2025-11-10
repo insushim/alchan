@@ -466,6 +466,77 @@ exports.weeklyRent = onRequest({
   }
 });
 
+// 🧹 수동 뉴스 정리용 엔드포인트 (관리자가 한 번만 실행)
+exports.cleanupOldNews = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 60,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[cleanupOldNews] 오래된 뉴스 정리 시작`);
+
+    // 모든 활성 뉴스 조회
+    const activeNewsSnapshot = await db.collection("CentralNews")
+      .where("isActive", "==", true)
+      .get();
+
+    if (activeNewsSnapshot.empty) {
+      return res.json({ success: true, message: '활성 뉴스가 없습니다.', cleaned: 0 });
+    }
+
+    // timestamp 기준으로 정렬 (오래된 것이 앞에)
+    const sortedNews = activeNewsSnapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ref: doc.ref,
+        timestamp: doc.data().timestamp?.toMillis() || 0,
+        title: doc.data().title,
+      }))
+      .sort((a, b) => a.timestamp - b.timestamp);
+
+    const totalCount = sortedNews.length;
+    logger.info(`[cleanupOldNews] 총 ${totalCount}개의 활성 뉴스 발견`);
+
+    // 최신 4개만 남기고 나머지 비활성화
+    const batch = db.batch();
+    let cleanedCount = 0;
+
+    if (totalCount > 4) {
+      const newsToDeactivate = sortedNews.slice(0, totalCount - 4);
+
+      for (const news of newsToDeactivate) {
+        batch.update(news.ref, {
+          isActive: false,
+          deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          deactivatedReason: "수동 정리",
+        });
+        cleanedCount++;
+        logger.info(`[cleanupOldNews] 비활성화: ${news.title}`);
+      }
+
+      await batch.commit();
+    }
+
+    logger.info(`[cleanupOldNews] 완료: ${cleanedCount}개 비활성화, ${totalCount - cleanedCount}개 유지`);
+
+    res.json({
+      success: true,
+      message: `${cleanedCount}개의 오래된 뉴스를 정리했습니다. 현재 활성 뉴스: ${totalCount - cleanedCount}개`,
+      cleaned: cleanedCount,
+      remaining: totalCount - cleanedCount,
+    });
+  } catch (error) {
+    logger.error('[cleanupOldNews] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
@@ -729,12 +800,6 @@ async function createCentralMarketNewsLogic() {
 
     const activeNewsCount = activeNewsSnapshot.size;
     logger.info(`[뉴스 생성] 현재 활성 뉴스: ${activeNewsCount}개`);
-
-    // 🔥 최적화 2: 활성 뉴스가 4개 이상이면 생성하지 않음 (쓰기 비용 절감, 6개→4개로 조정)
-    if (activeNewsCount >= 4) {
-      logger.info(`[뉴스 생성] 활성 뉴스가 충분하여 생성을 건너뜁니다. (${activeNewsCount}개)`);
-      return;
-    }
 
     const stocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", true)
