@@ -690,9 +690,9 @@ async function autoManageStocksLogic() {
           price: initialPrice,
           priceHistory: [initialPrice],
           relistedAt: admin.firestore.FieldValue.serverTimestamp(),
-          delistedAt: admin.firestore.FieldDelete(), // 폐지 시간 필드 삭제
-          delistedTimestamp: admin.firestore.FieldDelete(), // 폐지 타임스탬프 필드 삭제
-          delistReason: admin.firestore.FieldDelete(), // 폐지 사유 필드 삭제
+          delistedAt: admin.firestore.FieldValue.delete(), // 폐지 시간 필드 삭제
+          delistedTimestamp: admin.firestore.FieldValue.delete(), // 폐지 타임스탬프 필드 삭제
+          delistReason: admin.firestore.FieldValue.delete(), // 폐지 사유 필드 삭제
           lastUpdated: admin.firestore.FieldValue.serverTimestamp()
         });
         relistCount++;
@@ -730,8 +730,8 @@ async function createCentralMarketNewsLogic() {
     const activeNewsCount = activeNewsSnapshot.size;
     logger.info(`[뉴스 생성] 현재 활성 뉴스: ${activeNewsCount}개`);
 
-    // 🔥 최적화 2: 활성 뉴스가 6개 이상이면 생성하지 않음 (쓰기 비용 절감)
-    if (activeNewsCount >= 6) {
+    // 🔥 최적화 2: 활성 뉴스가 4개 이상이면 생성하지 않음 (쓰기 비용 절감, 6개→4개로 조정)
+    if (activeNewsCount >= 4) {
       logger.info(`[뉴스 생성] 활성 뉴스가 충분하여 생성을 건너뜁니다. (${activeNewsCount}개)`);
       return;
     }
@@ -762,7 +762,7 @@ async function createCentralMarketNewsLogic() {
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
     // 🔥 최적화 3: 부족한 만큼만 생성 (최대 2개)
-    const newsToCreate = Math.min(2, 6 - activeNewsCount);
+    const newsToCreate = Math.min(2, 4 - activeNewsCount);
     logger.info(`[뉴스 생성] ${newsToCreate}개 생성 예정`);
 
     for (let i = 0; i < newsToCreate; i++) {
