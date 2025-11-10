@@ -556,9 +556,23 @@ async function cleanupWorthlessStocksLogic() {
 }
 
 async function createCentralMarketNewsLogic() {
-  logger.info("<<<<< AUTOMATIC NEWS CREATION CHECK - THIS IS A TEST LOG >>>>>");
-  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (무조건 2개 생성, 영향력 3분)");
+  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (조건부 생성, 영향력 15분)");
   try {
+    // 🔥 최적화 1: 활성 뉴스 수 먼저 확인 (읽기 비용 절감)
+    const activeNewsSnapshot = await db.collection("CentralNews")
+      .where("isActive", "==", true)
+      .limit(10) // 최대 10개만 확인
+      .get();
+
+    const activeNewsCount = activeNewsSnapshot.size;
+    logger.info(`[뉴스 생성] 현재 활성 뉴스: ${activeNewsCount}개`);
+
+    // 🔥 최적화 2: 활성 뉴스가 6개 이상이면 생성하지 않음 (쓰기 비용 절감)
+    if (activeNewsCount >= 6) {
+      logger.info(`[뉴스 생성] 활성 뉴스가 충분하여 생성을 건너뜁니다. (${activeNewsCount}개)`);
+      return;
+    }
+
     const stocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", true)
       .get();
@@ -584,8 +598,11 @@ async function createCentralMarketNewsLogic() {
     const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
-    // 무조건 2개의 뉴스 생성
-    for (let i = 0; i < 2; i++) {
+    // 🔥 최적화 3: 부족한 만큼만 생성 (최대 2개)
+    const newsToCreate = Math.min(2, 6 - activeNewsCount);
+    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 예정`);
+
+    for (let i = 0; i < newsToCreate; i++) {
       const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
       const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
       const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
@@ -600,12 +617,17 @@ async function createCentralMarketNewsLogic() {
         content: "투자 판단 시 신중한 분석이 필요합니다.",
         relatedStocks: relatedStockIds,
         sector: randomSector,
-        category: randomCategory, // 주가 영향용 카테고리
+        category: randomCategory,
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 3 * 60 * 1000), // 3분 후 만료
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 15 * 60 * 1000), // 🔥 최적화 4: 3분 → 15분으로 증가 (뉴스 수명 연장)
         createdAt: now,
       });
+    }
+
+    if (newsItems.length === 0) {
+      logger.info("[뉴스 생성] 생성할 뉴스가 없습니다.");
+      return;
     }
 
     // Firestore에 뉴스 추가
@@ -616,11 +638,11 @@ async function createCentralMarketNewsLogic() {
     }
     await batch.commit();
 
-    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 3분)`);
+    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 15분)`);
     newsItems.forEach(news => {
       logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
     });
-    logger.info(`[뉴스 생성 통계] 읽기: ${stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length}개`);
+    logger.info(`[뉴스 생성 통계] 읽기: ${activeNewsCount + stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length}개`);
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
@@ -631,8 +653,11 @@ async function cleanupExpiredCentralNewsLogic() {
   logger.info("🧹 [스케줄러] 만료된 중앙 뉴스 정리 시작");
   try {
     const now = admin.firestore.Timestamp.now();
+
+    // 🔥 최적화: limit 추가하여 한 번에 처리할 문서 수 제한 (읽기 비용 절감)
     const expiredNewsSnapshot = await db.collection("CentralNews")
       .where("expiresAt", "<=", now)
+      .limit(50) // 최대 50개까지만 처리
       .get();
 
     if (expiredNewsSnapshot.empty) {
@@ -646,7 +671,7 @@ async function cleanupExpiredCentralNewsLogic() {
     }
 
     await batch.commit();
-    logger.info(`✅ ${expiredNewsSnapshot.size}개의 만료된 뉴스 비활성화 완료`);
+    logger.info(`✅ ${expiredNewsSnapshot.size}개의 만료된 뉴스 비활성화 완료 (읽기: ${expiredNewsSnapshot.size}개, 쓰기: ${expiredNewsSnapshot.size}개)`);
   } catch (error) {
     logger.error("❌ 뉴스 정리 중 오류:", error);
     throw error;

@@ -41,7 +41,7 @@ const batchDataLoader = {
   // 배치로 여러 데이터를 한 번에 로드
   loadBatchData: async function(classCode, userId, forceRefresh = false) {
     const batchKey = globalCache.generateKey('BATCH', { classCode, userId });
-    
+
     if (!forceRefresh) {
       const cached = globalCache.get(batchKey);
       if (cached) return cached;
@@ -54,10 +54,10 @@ const batchDataLoader = {
 
     const batchPromise = this._executeBatchLoad(classCode, userId);
     this.pendingRequests.set(batchKey, batchPromise);
-    
+
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 2 * 60 * 1000); // 2분 (읽기 비용 절감을 위해 30초 → 2분으로 증가)
+      globalCache.set(batchKey, result, 5 * 60 * 1000); // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 절감)
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -225,11 +225,11 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 2, // 2 minutes (읽기 비용 절감을 위해 30초 → 2분으로 증가)
-  STOCKS: 1000 * 60 * 5, // 5 minutes
-  PORTFOLIO: 1000 * 60 * 2, // 2 minutes (읽기 비용 절감을 위해 30초 → 2분으로 증가)
-  NEWS: 1000 * 60 * 2, // 2 minutes
-  MARKET_STATUS: 1000 * 60 * 10, // 10 minutes
+  BATCH_DATA: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
+  STOCKS: 1000 * 60 * 5, // 5분
+  PORTFOLIO: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
+  NEWS: 1000 * 60 * 5, // 🔥 최적화: 5분 (2분 → 5분, 읽기 비용 대폭 절감)
+  MARKET_STATUS: 1000 * 60 * 15, // 🔥 최적화: 15분 (10분 → 15분)
 };
 
 // === 유틸리티 함수들 ===
@@ -698,7 +698,7 @@ const StockExchange = () => {
         if (isPageVisible && marketOpen) {
           fetchAllData(false);
         }
-      }, 10 * 60 * 1000); // 10분 간격 (읽기 비용 절감을 위해 5분 → 10분으로 증가)
+      }, 15 * 60 * 1000); // 🔥 최적화: 15분 간격 (10분 → 15분, GitHub Actions 스케줄러와 동기화)
     };
 
     const stopPolling = () => {

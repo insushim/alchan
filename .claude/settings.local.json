@@ -49,7 +49,9 @@
       "Bash(firebase emulators:start:*)",
       "Bash(timeout /t 10 /nobreak)",
       "Bash(ping:*)",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(node:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
