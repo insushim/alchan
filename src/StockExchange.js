@@ -109,10 +109,16 @@ const batchDataLoader = {
       const q = query(portfolioRef, where("classCode", "==", classCode));
       const querySnapshot = await getDocs(q);
 
-      return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          // 🔥 Timestamp를 Date로 변환하여 캐시 호환성 확보
+          lastBuyTime: data.lastBuyTime?.toDate ? data.lastBuyTime.toDate() : data.lastBuyTime,
+          delistedAt: data.delistedAt?.toDate ? data.delistedAt.toDate() : data.delistedAt,
+        };
+      });
     } catch (error) {
       console.error('[batchDataLoader] Portfolio load error:', error);
       return [];
@@ -329,13 +335,33 @@ const calculateMarketIndex = (stocks) => {
 
 const canSellHolding = (holding) => {
   if (!holding.lastBuyTime) return true;
-  const timeSinceBuy = Date.now() - holding.lastBuyTime.toDate().getTime();
+
+  // 🔥 Date 객체와 Timestamp 모두 처리
+  const lastBuyTimeMs = holding.lastBuyTime instanceof Date
+    ? holding.lastBuyTime.getTime()
+    : holding.lastBuyTime?.toDate
+      ? holding.lastBuyTime.toDate().getTime()
+      : typeof holding.lastBuyTime === 'number'
+        ? holding.lastBuyTime
+        : Date.now();
+
+  const timeSinceBuy = Date.now() - lastBuyTimeMs;
   return timeSinceBuy >= HOLDING_LOCK_PERIOD;
 };
 
 const getRemainingLockTime = (holding) => {
   if (!holding.lastBuyTime) return 0;
-  const timeSinceBuy = Date.now() - holding.lastBuyTime.toDate().getTime();
+
+  // 🔥 Date 객체와 Timestamp 모두 처리
+  const lastBuyTimeMs = holding.lastBuyTime instanceof Date
+    ? holding.lastBuyTime.getTime()
+    : holding.lastBuyTime?.toDate
+      ? holding.lastBuyTime.toDate().getTime()
+      : typeof holding.lastBuyTime === 'number'
+        ? holding.lastBuyTime
+        : Date.now();
+
+  const timeSinceBuy = Date.now() - lastBuyTimeMs;
   const remaining = HOLDING_LOCK_PERIOD - timeSinceBuy;
   return Math.max(0, remaining);
 };
@@ -684,12 +710,17 @@ const StockExchange = () => {
     }
   }, [classCode, user]);
 
-  // === 초기 데이터 로드 및 서버 스케줄 동기화 폴링 ===
+  // === 초기 데이터 로드 ===
+  useEffect(() => {
+    if (!user || !firebaseReady || !classCode) return;
+
+    // 초기 로드 (시장 개장 여부와 관계없이 항상 데이터 로드)
+    fetchAllData(true);
+  }, [user, firebaseReady, classCode, fetchAllData]);
+
+  // === 서버 스케줄 동기화 폴링 (시장 개장 시간에만 활성화) ===
   useEffect(() => {
     if (!user || !firebaseReady || !classCode || !marketOpen) return;
-
-    // 초기 로드
-    fetchAllData(true);
 
     let pollTimeoutId = null;
 
@@ -699,7 +730,7 @@ const StockExchange = () => {
       const currentMinute = now.getMinutes();
 
       let nextPollMinute = POLL_MINUTES.find(m => m > currentMinute);
-      
+
       const nextPollTime = new Date(now);
 
       if (nextPollMinute) {
@@ -719,7 +750,7 @@ const StockExchange = () => {
           scheduleNextPoll();
           return;
         }
-        
+
         console.log('[StockExchange] 스케줄 동기화: 데이터 갱신 실행');
         fetchAllData(true); // 강제 새로고침으로 최신 데이터 반영
         scheduleNextPoll(); // 다음 폴링 예약
