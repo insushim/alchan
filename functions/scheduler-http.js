@@ -303,6 +303,121 @@ exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (req
   }
 });
 
+// 🌐 간단한 GET 방식 스케줄러 (cron-job.org 등 외부 cron 서비스용)
+exports.simpleScheduler = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    // URL 파라미터로 인증 토큰 확인
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const now = new Date();
+    const kstOffset = 9 * 60; // KST = UTC+9
+    const kstTime = new Date(now.getTime() + kstOffset * 60 * 1000);
+    const hour = kstTime.getUTCHours();
+    const day = kstTime.getUTCDay(); // 0=일요일, 1=월요일, ..., 6=토요일
+
+    logger.info(`[simpleScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
+
+    // 평일(1-5) 8시-15시 KST 시장 시간 체크
+    const isWeekday = day >= 1 && day <= 5;
+    const isMarketHours = hour >= 8 && hour < 15;
+
+    if (!isWeekday || !isMarketHours) {
+      logger.info(`[simpleScheduler] 시장 시간 외 (평일: ${isWeekday}, 시간: ${hour}시) - 작업 건너뜀`);
+      res.json({
+        success: true,
+        message: '시장 시간 외 - 작업 건너뜀',
+        kstHour: hour,
+        day: day
+      });
+      return;
+    }
+
+    // 시장 시간이면 모든 작업 실행
+    logger.info(`[simpleScheduler] 시장 시간 - 모든 작업 실행 시작`);
+
+    const results = {};
+
+    try {
+      await updateMarketConditionLogic();
+      results.updateMarketCondition = 'success';
+    } catch (error) {
+      logger.error('[simpleScheduler] updateMarketCondition 오류:', error);
+      results.updateMarketCondition = `error: ${error.message}`;
+    }
+
+    try {
+      await updateCentralStockMarketLogic();
+      results.updateCentralStockMarket = 'success';
+    } catch (error) {
+      logger.error('[simpleScheduler] updateCentralStockMarket 오류:', error);
+      results.updateCentralStockMarket = `error: ${error.message}`;
+    }
+
+    try {
+      await createCentralMarketNewsLogic();
+      results.createCentralMarketNews = 'success';
+    } catch (error) {
+      logger.error('[simpleScheduler] createCentralMarketNews 오류:', error);
+      results.createCentralMarketNews = `error: ${error.message}`;
+    }
+
+    try {
+      await cleanupExpiredCentralNewsLogic();
+      results.cleanupExpiredCentralNews = 'success';
+    } catch (error) {
+      logger.error('[simpleScheduler] cleanupExpiredCentralNews 오류:', error);
+      results.cleanupExpiredCentralNews = `error: ${error.message}`;
+    }
+
+    try {
+      await autoManageStocksLogic();
+      results.autoManageStocks = 'success';
+    } catch (error) {
+      logger.error('[simpleScheduler] autoManageStocks 오류:', error);
+      results.autoManageStocks = `error: ${error.message}`;
+    }
+
+    logger.info(`[simpleScheduler] 작업 완료:`, results);
+
+    res.json({ success: true, results, kstHour: hour });
+  } catch (error) {
+    logger.error('[simpleScheduler] 전체 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🌙 자정 리셋용 간단한 GET 엔드포인트
+exports.midnightReset = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[midnightReset] 일일 작업 리셋 시작`);
+
+    await resetDailyTasksLogic();
+
+    res.json({ success: true, message: '일일 작업 리셋 완료' });
+  } catch (error) {
+    logger.error('[midnightReset] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
