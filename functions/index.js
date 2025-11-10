@@ -28,6 +28,7 @@ exports.runScheduler = scheduler.runScheduler; // GitHub Actions에서 호출할
 exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket; // 관리자 수동 업데이트
 exports.simpleScheduler = scheduler.simpleScheduler; // 간단한 GET 방식 스케줄러 (cron-job.org용)
 exports.midnightReset = scheduler.midnightReset; // 자정 리셋용 엔드포인트
+exports.weeklySalary = scheduler.weeklySalary; // 주급 지급용 엔드포인트
 
 // 5분마다 주식 가격 업데이트
 // exports.updateCentralStockMarket = onSchedule({

@@ -418,6 +418,30 @@ exports.midnightReset = onRequest({
   }
 });
 
+// 💰 주급 지급용 GET 엔드포인트 (매주 금요일 또는 원하는 요일에 실행)
+exports.weeklySalary = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[weeklySalary] 주급 지급 시작`);
+
+    await payWeeklySalariesLogic();
+
+    res.json({ success: true, message: '주급 지급 완료' });
+  } catch (error) {
+    logger.error('[weeklySalary] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
@@ -864,27 +888,93 @@ async function resetDailyTasksLogic() {
 
 async function payWeeklySalariesLogic() {
   logger.info("💰 [스케줄러] 주급 지급 시작");
-  // 필요시 나중에 구현
+  try {
+    // 모든 학급 코드 가져오기
+    const classCodesDoc = await db.collection("settings").doc("classCodes").get();
+    if (!classCodesDoc.exists) {
+      logger.warn("classCodes 문서가 없습니다.");
+      return;
+    }
+
+    const classCodes = classCodesDoc.data().validCodes || [];
+    let totalPaidCount = 0;
+    let totalAmount = 0;
+
+    for (const classCode of classCodes) {
+      // 학급별 급여 설정 조회
+      const salaryDoc = await db.collection("classSettings")
+        .doc(classCode)
+        .collection("settings")
+        .doc("salary")
+        .get();
+
+      if (!salaryDoc.exists) continue;
+
+      const salarySettings = salaryDoc.data();
+
+      // 학급 학생들 조회
+      const studentsSnapshot = await db.collection("users")
+        .where("classCode", "==", classCode)
+        .where("role", "==", "student")
+        .get();
+
+      if (studentsSnapshot.empty) continue;
+
+      // 배치로 급여 지급
+      const batch = db.batch();
+      let classCount = 0;
+
+      studentsSnapshot.forEach(doc => {
+        const student = doc.data();
+        const job = student.job || "무직";
+        const salary = salarySettings[job] || 0;
+
+        if (salary > 0) {
+          batch.update(doc.ref, {
+            cash: admin.firestore.FieldValue.increment(salary),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          classCount++;
+          totalAmount += salary;
+        }
+      });
+
+      if (classCount > 0) {
+        await batch.commit();
+        totalPaidCount += classCount;
+        logger.info(`[주급 지급] ${classCode}: ${classCount}명에게 총 ${totalAmount.toLocaleString()}원 지급`);
+      }
+    }
+
+    logger.info(`✅ 주급 지급 완료: 총 ${totalPaidCount}명, ${totalAmount.toLocaleString()}원`);
+  } catch (error) {
+    logger.error("❌ 주급 지급 중 오류:", error);
+    throw error;
+  }
 }
 
 async function collectWeeklyRentLogic() {
   logger.info("🏠 [스케줄러] 임대료 징수 시작");
-  // 필요시 나중에 구현
+  // 추후 부동산 시스템과 연동하여 구현 예정
+  logger.info("임대료 징수 로직은 아직 구현되지 않았습니다.");
 }
 
 async function provideSocialSafetyNetLogic() {
   logger.info("🛡️ [스케줄러] 사회안전망 제공 시작");
-  // 필요시 나중에 구현
+  // 추후 복지 시스템과 연동하여 구현 예정
+  logger.info("사회안전망 제공 로직은 아직 구현되지 않았습니다.");
 }
 
 async function openMarketLogic() {
   logger.info("🔓 [스케줄러] 시장 개장 시작");
-  // 필요시 나중에 구현
+  // 필요시 시장 상태 플래그 설정 등으로 구현 가능
+  logger.info("시장 개장 로직은 아직 구현되지 않았습니다.");
 }
 
 async function closeMarketLogic() {
   logger.info("🔒 [스케줄러] 시장 폐장 시작");
-  // 필요시 나중에 구현
+  // 필요시 시장 상태 플래그 설정 등으로 구현 가능
+  logger.info("시장 폐장 로직은 아직 구현되지 않았습니다.");
 }
 
 async function aggregateActivityStatsLogic() {
