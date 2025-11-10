@@ -442,6 +442,30 @@ exports.weeklySalary = onRequest({
   }
 });
 
+// 🏠 월세 징수용 GET 엔드포인트 (매주 금요일 14:40에 실행)
+exports.weeklyRent = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[weeklyRent] 월세 징수 시작`);
+
+    await collectWeeklyRentLogic();
+
+    res.json({ success: true, message: '월세 징수 완료' });
+  } catch (error) {
+    logger.error('[weeklyRent] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
@@ -955,8 +979,118 @@ async function payWeeklySalariesLogic() {
 
 async function collectWeeklyRentLogic() {
   logger.info("🏠 [스케줄러] 임대료 징수 시작");
-  // 추후 부동산 시스템과 연동하여 구현 예정
-  logger.info("임대료 징수 로직은 아직 구현되지 않았습니다.");
+  try {
+    // 모든 학급 코드 가져오기
+    const classCodesDoc = await db.collection("settings").doc("classCodes").get();
+    if (!classCodesDoc.exists) {
+      logger.warn("classCodes 문서가 없습니다.");
+      return;
+    }
+
+    const classCodes = classCodesDoc.data().validCodes || [];
+    let totalCollected = 0;
+    let totalTenantsCount = 0;
+
+    for (const classCode of classCodes) {
+      logger.info(`[월세 징수] ${classCode} 클래스 처리 시작`);
+
+      // 학급별 모든 부동산 조회
+      const propertiesSnapshot = await db.collection("classes")
+        .doc(classCode)
+        .collection("realEstateProperties")
+        .get();
+
+      if (propertiesSnapshot.empty) {
+        logger.info(`[월세 징수] ${classCode}: 부동산이 없습니다.`);
+        continue;
+      }
+
+      let classCollected = 0;
+      let classTenantsCount = 0;
+
+      for (const propertyDoc of propertiesSnapshot.docs) {
+        const property = propertyDoc.data();
+
+        // 세입자가 있는 경우에만 처리
+        if (!property.tenantId || !property.rent) {
+          continue;
+        }
+
+        classTenantsCount++;
+
+        try {
+          await db.runTransaction(async (transaction) => {
+            const now = admin.firestore.Timestamp.now();
+
+            // 세입자 정보 조회
+            const tenantRef = db.collection("users").doc(property.tenantId);
+            const tenantDoc = await transaction.get(tenantRef);
+
+            if (!tenantDoc.exists) {
+              logger.warn(`[월세 징수] 세입자 ${property.tenantId} 문서가 없습니다.`);
+              return;
+            }
+
+            const tenantData = tenantDoc.data();
+            const rentAmount = property.rent;
+
+            // 집주인 정보 조회
+            let ownerRef = null;
+            if (property.owner && property.owner !== "government") {
+              ownerRef = db.collection("users").doc(property.owner);
+              const ownerDoc = await transaction.get(ownerRef);
+              if (!ownerDoc.exists) {
+                logger.warn(`[월세 징수] 집주인 ${property.owner} 문서가 없습니다.`);
+              }
+            }
+
+            // 🔥 강제 징수: 돈이 부족해도 마이너스로 차감
+            const newTenantCash = tenantData.cash - rentAmount;
+
+            // 세입자 돈 차감 (마이너스 허용)
+            transaction.update(tenantRef, {
+              cash: newTenantCash,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+
+            // 집주인에게 월세 지급 (본인 땅이 아닌 경우)
+            if (ownerRef && property.owner !== property.tenantId) {
+              transaction.update(ownerRef, {
+                cash: admin.firestore.FieldValue.increment(rentAmount),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
+            }
+
+            // 부동산 문서 업데이트
+            transaction.update(propertyDoc.ref, {
+              lastRentPayment: now,
+              updatedAt: now,
+            });
+
+            classCollected += rentAmount;
+            logger.info(
+              `[월세 징수] ${property.tenantName} → ${property.ownerName || "정부"}: ${rentAmount.toLocaleString()}원 ${
+                newTenantCash < 0 ? "(마이너스 발생)" : ""
+              }`
+            );
+          });
+        } catch (error) {
+          logger.error(`[월세 징수] 부동산 ${property.id} 처리 중 오류:`, error);
+        }
+      }
+
+      totalCollected += classCollected;
+      totalTenantsCount += classTenantsCount;
+      logger.info(
+        `[월세 징수] ${classCode} 완료: ${classTenantsCount}명 세입자, 총 ${classCollected.toLocaleString()}원`
+      );
+    }
+
+    logger.info(`✅ 월세 징수 완료: 총 ${totalTenantsCount}명, ${totalCollected.toLocaleString()}원`);
+  } catch (error) {
+    logger.error("❌ 월세 징수 중 오류:", error);
+    throw error;
+  }
 }
 
 async function provideSocialSafetyNetLogic() {
