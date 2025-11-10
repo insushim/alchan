@@ -826,9 +826,9 @@ async function createCentralMarketNewsLogic() {
     const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
-    // 🔥 최적화 3: 부족한 만큼만 생성 (최대 2개)
-    const newsToCreate = Math.min(2, 4 - activeNewsCount);
-    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 예정`);
+    // 🔥 수정: 항상 2개의 뉴스를 생성하도록 고정하여, 뉴스 개수 초과 상태를 해결
+    const newsToCreate = 2;
+    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 시도`);
 
     for (let i = 0; i < newsToCreate; i++) {
       const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
