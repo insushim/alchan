@@ -27,6 +27,9 @@ import {
   useAdminDataPreloader,
 } from "./hooks/useOptimizedAdminData";
 
+// 시스템 모니터링 컴포넌트
+import SystemMonitoring from "./SystemMonitoring";
+
 const AdminSettingsModal = ({
   isAdmin,
   isSuperAdmin,
@@ -697,8 +700,8 @@ const AdminSettingsModal = ({
   const adminResetUserPassword = httpsCallable(functions, 'adminResetUserPassword');
 
   const handleResetPassword = useCallback(async (userId) => {
-    if (!isSuperAdmin) {
-      alert("최고 관리자만 비밀번호를 초기화할 수 있습니다.");
+    if (!isAdmin && !isSuperAdmin) {
+      alert("관리자만 비밀번호를 초기화할 수 있습니다.");
       return;
     }
 
@@ -725,7 +728,7 @@ const AdminSettingsModal = ({
         setMembersLoading(false);
       }
     }
-  }, [isSuperAdmin, adminResetUserPassword]);
+  }, [isAdmin, isSuperAdmin, adminResetUserPassword]);
 
   // 관리자 권한 토글
   const toggleAdminStatus = useCallback(
@@ -1752,22 +1755,8 @@ const AdminSettingsModal = ({
               </div>
             )}
 
-            {/* 전역 설정 관리 섹션 */}
-            <div className="admin-global-settings-container section-card">
-              <h3>전역 시스템 설정</h3>
-              <p className="admin-section-desc">
-                전체 시스템의 고급 설정을 관리합니다. (최고 관리자 전용)
-              </p>
-              <div className="global-settings-info">
-                <p>• 데이터베이스 백업 및 복원</p>
-                <p>• 시스템 메모리 관리</p>
-                <p>• 로그 파일 관리</p>
-                <p>• 서버 상태 모니터링</p>
-              </div>
-              <div className="coming-soon">
-                <p className="feature-note">🔧 추가 시스템 관리 기능은 향후 업데이트에서 제공됩니다.</p>
-              </div>
-            </div>
+            {/* 서버 상태 모니터링 섹션 */}
+            <SystemMonitoring isSuperAdmin={isSuperAdmin} />
           </div>
         )}
 

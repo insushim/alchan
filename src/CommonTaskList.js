@@ -28,6 +28,9 @@ export default function CommonTaskList({
     );
   }
 
+  // 🔥 모바일 감지
+  const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
+
   return (
     <div style={styles.container}>
       <div style={styles.header}>
@@ -35,7 +38,14 @@ export default function CommonTaskList({
         {/* 관리자용 추가 버튼은 Dashboard에서 관리하므로 여기서는 제거 */}
       </div>
 
-      <div style={styles.listContainer}>
+      {/* 🔥 2열 그리드 레이아웃 */}
+      <div style={{
+        ...styles.listContainer,
+        display: "grid",
+        gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)",
+        gap: isMobile ? "8px" : "10px",
+        padding: isMobile ? "8px" : "10px"
+      }}>
         {/* commonTasks 대신 tasks를 사용 */}
         {tasks.map((task) => (
           <TaskItem
@@ -78,9 +88,6 @@ const styles = {
     fontSize: "14px",
   },
   listContainer: {
-    padding: "10px",
-    display: "flex",
-    flexDirection: "column",
-    gap: "12px",
+    // 🔥 스타일은 인라인에서 동적으로 처리
   },
 };

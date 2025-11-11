@@ -22,12 +22,11 @@ export default function TaskItem({
   const handleInternalClick = () => {
     console.log("[TaskItem] handleInternalClick 호출됨:", { taskName: task?.name, isJobTask, taskId, jobId });
 
-    // 직업 할일은 reward가 없을 수 있으므로 검증에서 제외
+    // 기본 검증
     if (
       !task ||
       typeof task.clicks !== "number" ||
-      typeof task.maxClicks !== "number" ||
-      (!isJobTask && typeof task.reward !== "number")
+      typeof task.maxClicks !== "number"
     ) {
       console.error("Invalid task prop:", task);
       return;
@@ -36,37 +35,13 @@ export default function TaskItem({
       return;
     }
 
-    // 직업 할일인 경우 카드 선택 모달 표시
-    if (isJobTask) {
-      console.log("[TaskItem] 직업 할일 - 카드 모달 열기");
-      const rewards = generateJobTaskReward();
-      setRewardData(rewards);
-      setSelectedCard(null);
-      setIsFlipping(false);
-      setShowCardModal(true);
-    } else {
-      console.log("[TaskItem] 공통 할일 - 즉시 처리");
-      // 공통 할일은 기존 방식 유지
-      const currentClicks = task.clicks;
-      const maxClicks = task.maxClicks > 0 ? task.maxClicks : 1;
-      const remainingClicksAfterClick = maxClicks - (currentClicks + 1);
-      const gainedCouponText =
-        task.reward > 0 ? `+${task.reward} 쿠폰 획득! 😊` : "완료! 😊";
-      const remainingText =
-        maxClicks <= 1
-          ? ""
-          : remainingClicksAfterClick > 0
-          ? `(오늘 ${remainingClicksAfterClick}번 남음)`
-          : "(오늘 할당량 완료!)";
-      setBubbleText(`${gainedCouponText} ${remainingText}`.trim());
-      setShowBubble(true);
-
-      if (typeof onEarnCoupon === "function") {
-        onEarnCoupon(taskId || task.id, null, false);
-      } else {
-        console.warn("onEarnCoupon prop is not a function in TaskItem");
-      }
-    }
+    // 🔥 모든 할일에 랜덤 보상 카드 모달 표시
+    console.log("[TaskItem] 카드 모달 열기");
+    const rewards = generateJobTaskReward();
+    setRewardData(rewards);
+    setSelectedCard(null);
+    setIsFlipping(false);
+    setShowCardModal(true);
   };
 
   const handleCardSelect = (cardType) => {
@@ -291,16 +266,10 @@ export default function TaskItem({
         </div>
 
         <div style={taskActionsStyle}>
-          {task.reward > 0 && !isJobTask && (
-            <span style={couponStyle}>
-              +{task.reward} 쿠폰
-            </span>
-          )}
-          {isJobTask && (
-            <span style={couponStyle}>
-              🎁 랜덤보상
-            </span>
-          )}
+          {/* 🔥 모든 할일에 랜덤보상 표시 */}
+          <span style={couponStyle}>
+            🎁 랜덤보상
+          </span>
 
           {isAdmin && (
             <>

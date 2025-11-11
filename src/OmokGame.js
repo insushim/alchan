@@ -1,4 +1,5 @@
 // src/OmokGame.js - 랭킹 포인트 시스템 수정 및 UI 개선 (재대결 기능 추가)
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
     collection,
     doc,
@@ -36,6 +37,7 @@ const RP_ON_LOSS = 8;
 const BASE_RP = 1000;
 
 const BOARD_SIZE = 19;
+const TURN_TIME_LIMIT = 30; // 턴당 제한 시간 (초)
 
 // ===== 오목 AI 엔진 =====
 const getIndex = (row, col) => row * BOARD_SIZE + col;

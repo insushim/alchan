@@ -1154,25 +1154,41 @@ function Dashboard({ adminTabMode }) {
         return;
       }
 
+      // 🔥 낙관적 업데이트: 이미 완료된 할일인지 체크
+      if (isJobTask && jobId) {
+        const taskKey = `${jobId}_${taskId}`;
+        const currentClicks = (userDoc.completedJobTasks || {})[taskKey] || 0;
+        const jobTask = jobs
+          .find(j => j.id === jobId)
+          ?.tasks?.find(t => t.id === taskId);
+
+        if (jobTask && jobTask.maxClicks > 0 && currentClicks >= jobTask.maxClicks) {
+          console.warn("[Dashboard] 이미 완료된 직업 할일:", { taskKey, currentClicks, maxClicks: jobTask.maxClicks });
+          return;
+        }
+      } else if (!isJobTask) {
+        const currentClicks = (userDoc.completedTasks || {})[taskId] || 0;
+        const commonTask = commonTasks?.find(t => t.id === taskId);
+
+        if (commonTask && commonTask.maxClicks > 0 && currentClicks >= commonTask.maxClicks) {
+          console.warn("[Dashboard] 이미 완료된 공통 할일:", { taskId, currentClicks, maxClicks: commonTask.maxClicks });
+          return;
+        }
+      }
+
       setIsHandlingTask(true);
       console.log("[Dashboard] 할일 완료 처리 시작:", { taskId, jobId, isJobTask, cardType, rewardAmount });
 
-      // 낙관적 업데이트: 예상 보상 계산
+      // 🔥 낙관적 업데이트: 예상 보상 계산
       let expectedCashReward = 0;
       let expectedCouponReward = 0;
 
-      if (isJobTask && cardType && rewardAmount) {
-        // 직업 할일: 카드 선택 보상
+      // 🔥 모든 할일이 cardType과 rewardAmount 사용
+      if (cardType && rewardAmount) {
         if (cardType === "cash") {
           expectedCashReward = rewardAmount;
         } else if (cardType === "coupon") {
           expectedCouponReward = rewardAmount;
-        }
-      } else if (!isJobTask) {
-        // 공통 할일: 고정 쿠폰 보상
-        const commonTask = commonTasks?.find(t => t.id === taskId);
-        if (commonTask) {
-          expectedCouponReward = commonTask.reward || 0;
         }
       }
 
@@ -1234,7 +1250,7 @@ function Dashboard({ adminTabMode }) {
         setIsHandlingTask(false);
       }
     },
-    [isHandlingTask, userDoc, commonTasks, setUserDoc]
+    [isHandlingTask, userDoc, commonTasks, jobs, setUserDoc]
   );
 
   // Admin settings handlers
@@ -1667,8 +1683,8 @@ function Dashboard({ adminTabMode }) {
                 <CommonTaskList
                   tasks={commonTasksWithUserProgress} // 사용자 진행 상황이 포함된 데이터 전달
                   isAdmin={isAdmin?.()}
-                  onEarnCoupon={(taskId) =>
-                    handleTaskEarnCoupon(taskId, null, false)
+                  onEarnCoupon={(taskId, jobId, isJobTask, cardType, rewardAmount) =>
+                    handleTaskEarnCoupon(taskId, jobId, isJobTask, cardType, rewardAmount)
                   }
                   onEditTask={(taskId) => handleEditTask(commonTasks.find(t => t.id === taskId), null)}
                   onDeleteTask={(taskId) => handleDeleteTask(taskId, null)}

@@ -826,9 +826,15 @@ async function createCentralMarketNewsLogic() {
     const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
-    // 🔥 수정: 항상 2개의 뉴스를 생성하도록 고정하여, 뉴스 개수 초과 상태를 해결
-    const newsToCreate = 2;
-    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 시도`);
+    // 🔥 최적화: 활성 뉴스가 3개 미만일 때만 1개 생성 (읽기/쓰기 비용 대폭 절감)
+    const newsToCreate = activeNewsCount < 3 ? 1 : 0;
+
+    if (newsToCreate === 0) {
+      logger.info(`[뉴스 생성] 활성 뉴스 ${activeNewsCount}개로 충분, 생성 건너뜀 (읽기 비용 절감)`);
+      return;
+    }
+
+    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 시도 (현재 활성: ${activeNewsCount}개)`);
 
     for (let i = 0; i < newsToCreate; i++) {
       const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
@@ -848,7 +854,7 @@ async function createCentralMarketNewsLogic() {
         category: randomCategory,
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 15 * 60 * 1000), // 🔥 최적화 4: 3분 → 15분으로 증가 (뉴스 수명 연장)
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 🔥 최적화: 15분 → 30분으로 증가 (뉴스 수명 대폭 연장, 읽기 비용 절감)
         createdAt: now,
       });
     }
@@ -858,12 +864,11 @@ async function createCentralMarketNewsLogic() {
       return;
     }
 
-    // 🔥 새로운 로직: 오래된 뉴스 자동 비활성화
-    // 새 뉴스를 추가한 후 총 개수가 4개를 넘으면 오래된 뉴스를 비활성화
+    // 🔥 최적화: 뉴스가 5개를 초과할 때만 비활성화 (쓰기 비용 절감)
     const totalAfterCreation = activeNewsCount + newsItems.length;
     let newsToDeactivate = [];
 
-    if (totalAfterCreation > 4) {
+    if (totalAfterCreation > 5) {
       // 활성 뉴스를 timestamp 오름차순으로 정렬 (가장 오래된 것이 앞에)
       const sortedActiveNews = activeNewsSnapshot.docs
         .map(doc => ({
@@ -873,11 +878,11 @@ async function createCentralMarketNewsLogic() {
         }))
         .sort((a, b) => a.timestamp - b.timestamp);
 
-      // 비활성화할 개수 계산
-      const deactivateCount = totalAfterCreation - 4;
+      // 비활성화할 개수 계산 (최대 5개까지만 유지)
+      const deactivateCount = totalAfterCreation - 5;
       newsToDeactivate = sortedActiveNews.slice(0, deactivateCount);
 
-      logger.info(`[뉴스 생성] ${deactivateCount}개의 오래된 뉴스를 비활성화합니다.`);
+      logger.info(`[뉴스 생성] ${deactivateCount}개의 오래된 뉴스를 비활성화합니다 (최대 5개 유지).`);
     }
 
     // Firestore 배치로 처리 (새 뉴스 추가 + 오래된 뉴스 비활성화)

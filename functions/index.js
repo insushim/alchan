@@ -133,6 +133,8 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
     let taskName = "";
     let cashReward = 0;
     let couponReward = 0;
+    let updatedCash = 0;
+    let updatedCoupons = 0;
 
     if (isJobTask && jobId) {
       const jobRef = db.collection("jobs").doc(jobId);
@@ -161,6 +163,10 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
         }
 
+        // 🔥 현재 현금과 쿠폰 값 가져오기
+        const currentCash = userData.cash || 0;
+        const currentCoupons = userData.coupons || 0;
+
         // 사용자 문서 업데이트 (개인별 클릭 횟수)
         const updateData = {
           [`completedJobTasks.${jobTaskKey}`]: admin.firestore.FieldValue.increment(1),
@@ -171,15 +177,23 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
           if (cardType === "cash") {
             cashReward = rewardAmount;
             updateData.cash = admin.firestore.FieldValue.increment(cashReward);
+            updatedCash = currentCash + cashReward; // 🔥 최종 값 계산
+            updatedCoupons = currentCoupons; // 쿠폰은 변하지 않음
           } else if (cardType === "coupon") {
             couponReward = rewardAmount;
             updateData.coupons = admin.firestore.FieldValue.increment(couponReward);
+            updatedCash = currentCash; // 현금은 변하지 않음
+            updatedCoupons = currentCoupons + couponReward; // 🔥 최종 값 계산
           }
+        } else {
+          updatedCash = currentCash;
+          updatedCoupons = currentCoupons;
         }
 
         transaction.update(userRef, updateData);
       });
     } else {
+      // 🔥 공통 할일도 랜덤 보상 적용
       const commonTaskRef = db.collection("commonTasks").doc(taskId);
       await db.runTransaction(async (transaction) => {
         const commonTaskDoc = await transaction.get(commonTaskRef);
@@ -188,19 +202,39 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
         if (!userDoc.exists) throw new Error("사용자 정보를 찾을 수 없습니다.");
         const taskData = commonTaskDoc.data();
         taskName = taskData.name;
-        taskReward = taskData.reward || 0;
         const userData = userDoc.data();
         const completedTasks = userData.completedTasks || {};
         const currentClicks = completedTasks[taskId] || 0;
         if (currentClicks >= taskData.maxClicks) {
           throw new Error(`${taskName} 할일은 오늘 이미 최대 완료했습니다.`);
         }
+
+        // 🔥 현재 현금과 쿠폰 값 가져오기
+        const currentCash = userData.cash || 0;
+        const currentCoupons = userData.coupons || 0;
+
         const updateData = {
           [`completedTasks.${taskId}`]: admin.firestore.FieldValue.increment(1),
         };
-        if (taskReward > 0) {
-          updateData.coupons = admin.firestore.FieldValue.increment(taskReward);
+
+        // 🔥 카드 선택 보상 적용 (공통 할일도 동일)
+        if (cardType && rewardAmount) {
+          if (cardType === "cash") {
+            cashReward = rewardAmount;
+            updateData.cash = admin.firestore.FieldValue.increment(cashReward);
+            updatedCash = currentCash + cashReward; // 🔥 최종 값 계산
+            updatedCoupons = currentCoupons; // 쿠폰은 변하지 않음
+          } else if (cardType === "coupon") {
+            couponReward = rewardAmount;
+            updateData.coupons = admin.firestore.FieldValue.increment(couponReward);
+            updatedCash = currentCash; // 현금은 변하지 않음
+            updatedCoupons = currentCoupons + couponReward; // 🔥 최종 값 계산
+          }
+        } else {
+          updatedCash = currentCash;
+          updatedCoupons = currentCoupons;
         }
+
         transaction.update(userRef, updateData);
       });
     }
@@ -214,7 +248,7 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
     }
     if (cashReward > 0) {
       try {
-        await logActivity(null, uid, LOG_TYPES.CASH_INCOME, `'${taskName}' 할일 완료로 ${cashReward}원을 획득했습니다.`, { taskName, reward: cashReward, taskId, isJobTask, jobId: jobId || null });
+        await logActivity(null, uid, LOG_TYPES.CASH_INCOME, `'${taskName}' 할일 완료로 ${cashReward.toLocaleString()}원을 획득했습니다.`, { taskName, reward: cashReward, taskId, isJobTask, jobId: jobId || null });
       } catch (logError) {
         logger.warn(`[completeTask] 활동 로그 기록 실패:`, logError);
       }
@@ -227,12 +261,9 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
       }
     }
 
-    const updatedUserDoc = await userRef.get();
-    const updatedUserData = updatedUserDoc.data();
-
     let message = `'${taskName}' 완료!`;
     if (taskReward > 0) message += ` +${taskReward} 쿠폰!`;
-    if (cashReward > 0) message += ` +${cashReward}원!`;
+    if (cashReward > 0) message += ` +${cashReward.toLocaleString()}원!`;
     if (couponReward > 0) message += ` +${couponReward} 쿠폰!`;
 
     return {
@@ -242,8 +273,8 @@ exports.completeTask = onCall({region: "asia-northeast3"}, async (request) => {
       reward: taskReward + couponReward,
       cashReward,
       couponReward,
-      updatedCash: updatedUserData.cash || 0,
-      updatedCoupons: updatedUserData.coupons || 0,
+      updatedCash: updatedCash, // 🔥 트랜잭션 내에서 계산된 최종 값
+      updatedCoupons: updatedCoupons, // 🔥 트랜잭션 내에서 계산된 최종 값
     };
   } catch (error) {
     logger.error(`[completeTask] User: ${uid}, Task: ${taskId}, Error:`, error);
@@ -267,131 +298,190 @@ exports.manualResetClassTasks = onCall({region: "asia-northeast3"}, async (reque
   }
 });
 
-// exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, userData, classCode} = await checkAuthAndGetUserData(request);
-//   const {amount, message} = request.data;
-//   if (!classCode) {
-//     throw new HttpsError("failed-precondition", "사용자에게 학급 코드가 할당되지 않았습니다. 프로필을 확인하거나 관리자에게 문의해주세요.");
-//   }
-//   if (!amount || amount <= 0) {
-//     throw new HttpsError("invalid-argument", "유효한 쿠폰 수량을 입력해야 합니다.");
-//   }
-//   const userRef = db.collection("users").doc(uid);
-//   const goalRef = db.collection("goals").doc(`${classCode}_goal`);
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const [userDoc, goalDoc] = await transaction.getAll(userRef, goalRef);
-//       if (!userDoc.exists) {
-//         throw new Error("사용자 정보가 없습니다.");
-//       }
-//       const currentCoupons = userDoc.data().coupons || 0;
-//       if (currentCoupons < amount) {
-//         throw new Error("보유한 쿠폰이 부족합니다.");
-//       }
-//       transaction.set(userRef, {
-//         coupons: admin.firestore.FieldValue.increment(-amount),
-//         myContribution: admin.firestore.FieldValue.increment(amount),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       }, { merge: true });
-//       const newDonation = {
-//         id: db.collection("goals").doc().id,
-//         userId: uid,
-//         userName: userData.name || "알 수 없는 사용자",
-//         amount: amount,
-//         message: message || "",
-//         timestamp: admin.firestore.Timestamp.now(),
-//         classCode: classCode,
-//       };
-//       if (goalDoc.exists) {
-//         transaction.update(goalRef, {
-//           progress: admin.firestore.FieldValue.increment(amount),
-//           donations: admin.firestore.FieldValue.arrayUnion(newDonation),
-//           donationCount: admin.firestore.FieldValue.increment(1),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       } else {
-//         transaction.set(goalRef, {
-//           progress: amount,
-//           donations: [newDonation],
-//           donationCount: 1,
-//           targetAmount: 1000,
-//           classCode: classCode,
-//           title: `${classCode} 학급 목표`,
-//           description: `${classCode} 학급의 쿠폰 목표입니다.`,
-//           createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//           createdBy: uid,
-//         });
-//       }
-//       logActivity(transaction, uid, LOG_TYPES.COUPON_USE, `학급 목표에 쿠폰 ${amount}개를 기부했습니다.`, {amount, message, type: "donation"});
-//       logActivity(transaction, uid, LOG_TYPES.COUPON_DONATE, `쿠폰 ${amount}개를 기부했습니다. 메시지: ${message || "없음"}`, {amount, message});
-//     });
-//     return {success: true, message: "쿠폰 기부가 완료되었습니다."};
-//   } catch (error) {
-//     logger.error(`[donateCoupon] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "쿠폰 기부에 실패했습니다.");
-//   }
-// });
+exports.adminResetUserPassword = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, isAdmin, isSuperAdmin, classCode} = await checkAuthAndGetUserData(request, false);
 
-// exports.sellCoupon = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid} = await checkAuthAndGetUserData(request);
-//   const {amount} = request.data;
-//   if (!amount || amount <= 0) {
-//     throw new HttpsError("invalid-argument", "유효한 쿠폰 수량을 입력해야 합니다.");
-//   }
-//   const userRef = db.collection("users").doc(uid);
-//   const mainSettingsRef = db.collection("settings").doc("mainSettings");
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const [userDoc, settingsDoc] = await transaction.getAll(userRef, mainSettingsRef);
-//       if (!userDoc.exists) throw new Error("사용자 정보가 없습니다.");
-//       const currentCoupons = userDoc.data().coupons || 0;
-//       if (currentCoupons < amount) throw new Error("보유한 쿠폰이 부족합니다.");
-//       const couponValue = settingsDoc.exists ? settingsDoc.data().couponValue : 1000;
-//       const cashGained = amount * couponValue;
-//       transaction.update(userRef, {
-//         coupons: admin.firestore.FieldValue.increment(-amount),
-//         cash: admin.firestore.FieldValue.increment(cashGained),
-//       });
-//       logActivity(transaction, uid, LOG_TYPES.COUPON_SELL, `쿠폰 ${amount}개를 ${cashGained.toLocaleString()}원에 판매했습니다.`, { amount, couponValue, cashGained });
-//     });
-//     return {success: true, message: "쿠폰 판매가 완료되었습니다."};
-//   } catch (error) {
-//     logger.error(`[sellCoupon] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "쿠폰 판매에 실패했습니다.");
-//   }
-// });
+  // 관리자 권한 확인 (학급 관리자 또는 최고 관리자)
+  if (!isAdmin && !isSuperAdmin) {
+    throw new HttpsError("permission-denied", "관리자만 비밀번호를 초기화할 수 있습니다.");
+  }
 
-// exports.giftCoupon = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, userData} = await checkAuthAndGetUserData(request);
-//   const {recipientId, amount, message} = request.data;
-//   if (!recipientId || !amount || amount <= 0) {
-//     throw new HttpsError("invalid-argument", "받는 사람과 쿠폰 수량을 정확히 입력해야 합니다.");
-//   }
-//   if (uid === recipientId) {
-//     throw new HttpsError("invalid-argument", "자기 자신에게는 쿠폰을 선물할 수 없습니다.");
-//   }
-//   const senderRef = db.collection("users").doc(uid);
-//   const recipientRef = db.collection("users").doc(recipientId);
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const [senderDoc, recipientDoc] = await transaction.getAll(senderRef, recipientRef);
-//       if (!senderDoc.exists) throw new Error("보내는 사람의 정보가 없습니다.");
-//       if (!recipientDoc.exists) throw new Error("받는 사람의 정보가 없습니다.");
-//       const senderCoupons = senderDoc.data().coupons || 0;
-//       if (senderCoupons < amount) throw new Error("보유한 쿠폰이 부족합니다.");
-//       transaction.update(senderRef, {coupons: admin.firestore.FieldValue.increment(-amount)});
-//       transaction.update(recipientRef, {coupons: admin.firestore.FieldValue.increment(amount)});
-//       const recipientData = recipientDoc.data();
-//       logActivity(transaction, uid, LOG_TYPES.COUPON_TRANSFER_SEND, `${recipientData.name}님에게 쿠폰 ${amount}개를 선물했습니다.`, {recipientId, recipientName: recipientData.name, amount, message});
-//       logActivity(transaction, recipientId, LOG_TYPES.COUPON_TRANSFER_RECEIVE, `${userData.name}님으로부터 쿠폰 ${amount}개를 선물 받았습니다.`, {senderId: uid, senderName: userData.name, amount, message});
-//     });
-//     return {success: true, message: "쿠폰 선물이 완료되었습니다."};
-//   } catch (error) {
-//     logger.error(`[giftCoupon] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "쿠폰 선물에 실패했습니다.");
-//   }
-// });
+  const {userId, newPassword} = request.data;
+
+  if (!userId || !newPassword) {
+    throw new HttpsError("invalid-argument", "사용자 ID와 새 비밀번호가 필요합니다.");
+  }
+
+  if (newPassword.length < 6) {
+    throw new HttpsError("invalid-argument", "비밀번호는 6자 이상이어야 합니다.");
+  }
+
+  try {
+    // 학급 관리자인 경우, 같은 학급 학생인지 확인
+    if (isAdmin && !isSuperAdmin) {
+      const targetUserRef = db.collection("users").doc(userId);
+      const targetUserDoc = await targetUserRef.get();
+
+      if (!targetUserDoc.exists) {
+        throw new Error("대상 사용자를 찾을 수 없습니다.");
+      }
+
+      const targetUserData = targetUserDoc.data();
+
+      // 같은 학급인지 확인
+      if (targetUserData.classCode !== classCode) {
+        throw new HttpsError("permission-denied", "자신의 학급 학생만 비밀번호를 초기화할 수 있습니다.");
+      }
+    }
+
+    // Firebase Admin SDK를 사용하여 비밀번호 업데이트
+    await admin.auth().updateUser(userId, {
+      password: newPassword,
+    });
+
+    logger.info(`[adminResetUserPassword] 관리자 ${uid}가 사용자 ${userId}의 비밀번호를 초기화했습니다.`);
+
+    return {
+      success: true,
+      message: "비밀번호가 성공적으로 초기화되었습니다.",
+    };
+  } catch (error) {
+    logger.error(`[adminResetUserPassword] Error for admin ${uid}, target user ${userId}:`, error);
+
+    // HttpsError는 그대로 throw
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+
+    throw new HttpsError("internal", error.message || "비밀번호 초기화에 실패했습니다.");
+  }
+});
+
+exports.donateCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, userData, classCode} = await checkAuthAndGetUserData(request);
+  const {amount, message} = request.data;
+  if (!classCode) {
+    throw new HttpsError("failed-precondition", "사용자에게 학급 코드가 할당되지 않았습니다. 프로필을 확인하거나 관리자에게 문의해주세요.");
+  }
+  if (!amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 쿠폰 수량을 입력해야 합니다.");
+  }
+  const userRef = db.collection("users").doc(uid);
+  const goalRef = db.collection("goals").doc(`${classCode}_goal`);
+  try {
+    await db.runTransaction(async (transaction) => {
+      const [userDoc, goalDoc] = await transaction.getAll(userRef, goalRef);
+      if (!userDoc.exists) {
+        throw new Error("사용자 정보가 없습니다.");
+      }
+      const currentCoupons = userDoc.data().coupons || 0;
+      if (currentCoupons < amount) {
+        throw new Error("보유한 쿠폰이 부족합니다.");
+      }
+      transaction.set(userRef, {
+        coupons: admin.firestore.FieldValue.increment(-amount),
+        myContribution: admin.firestore.FieldValue.increment(amount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      const newDonation = {
+        id: db.collection("goals").doc().id,
+        userId: uid,
+        userName: userData.name || "알 수 없는 사용자",
+        amount: amount,
+        message: message || "",
+        timestamp: admin.firestore.Timestamp.now(),
+        classCode: classCode,
+      };
+      if (goalDoc.exists) {
+        transaction.update(goalRef, {
+          progress: admin.firestore.FieldValue.increment(amount),
+          donations: admin.firestore.FieldValue.arrayUnion(newDonation),
+          donationCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        transaction.set(goalRef, {
+          progress: amount,
+          donations: [newDonation],
+          donationCount: 1,
+          targetAmount: 1000,
+          classCode: classCode,
+          title: `${classCode} 학급 목표`,
+          description: `${classCode} 학급의 쿠폰 목표입니다.`,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          createdBy: uid,
+        });
+      }
+      logActivity(transaction, uid, LOG_TYPES.COUPON_USE, `학급 목표에 쿠폰 ${amount}개를 기부했습니다.`, {amount, message, type: "donation"});
+      logActivity(transaction, uid, LOG_TYPES.COUPON_DONATE, `쿠폰 ${amount}개를 기부했습니다. 메시지: ${message || "없음"}`, {amount, message});
+    });
+    return {success: true, message: "쿠폰 기부가 완료되었습니다."};
+  } catch (error) {
+    logger.error(`[donateCoupon] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "쿠폰 기부에 실패했습니다.");
+  }
+});
+
+exports.sellCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {amount} = request.data;
+  if (!amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 쿠폰 수량을 입력해야 합니다.");
+  }
+  const userRef = db.collection("users").doc(uid);
+  const mainSettingsRef = db.collection("settings").doc("mainSettings");
+  try {
+    await db.runTransaction(async (transaction) => {
+      const [userDoc, settingsDoc] = await transaction.getAll(userRef, mainSettingsRef);
+      if (!userDoc.exists) throw new Error("사용자 정보가 없습니다.");
+      const currentCoupons = userDoc.data().coupons || 0;
+      if (currentCoupons < amount) throw new Error("보유한 쿠폰이 부족합니다.");
+      const couponValue = settingsDoc.exists ? settingsDoc.data().couponValue : 1000;
+      const cashGained = amount * couponValue;
+      transaction.update(userRef, {
+        coupons: admin.firestore.FieldValue.increment(-amount),
+        cash: admin.firestore.FieldValue.increment(cashGained),
+      });
+      logActivity(transaction, uid, LOG_TYPES.COUPON_SELL, `쿠폰 ${amount}개를 ${cashGained.toLocaleString()}원에 판매했습니다.`, { amount, couponValue, cashGained });
+    });
+    return {success: true, message: "쿠폰 판매가 완료되었습니다."};
+  } catch (error) {
+    logger.error(`[sellCoupon] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "쿠폰 판매에 실패했습니다.");
+  }
+});
+
+exports.giftCoupon = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, userData} = await checkAuthAndGetUserData(request);
+  const {recipientId, amount, message} = request.data;
+  if (!recipientId || !amount || amount <= 0) {
+    throw new HttpsError("invalid-argument", "받는 사람과 쿠폰 수량을 정확히 입력해야 합니다.");
+  }
+  if (uid === recipientId) {
+    throw new HttpsError("invalid-argument", "자기 자신에게는 쿠폰을 선물할 수 없습니다.");
+  }
+  const senderRef = db.collection("users").doc(uid);
+  const recipientRef = db.collection("users").doc(recipientId);
+  try {
+    await db.runTransaction(async (transaction) => {
+      const [senderDoc, recipientDoc] = await transaction.getAll(senderRef, recipientRef);
+      if (!senderDoc.exists) throw new Error("보내는 사람의 정보가 없습니다.");
+      if (!recipientDoc.exists) throw new Error("받는 사람의 정보가 없습니다.");
+      const senderCoupons = senderDoc.data().coupons || 0;
+      if (senderCoupons < amount) throw new Error("보유한 쿠폰이 부족합니다.");
+      transaction.update(senderRef, {coupons: admin.firestore.FieldValue.increment(-amount)});
+      transaction.update(recipientRef, {coupons: admin.firestore.FieldValue.increment(amount)});
+      const recipientData = recipientDoc.data();
+      logActivity(transaction, uid, LOG_TYPES.COUPON_TRANSFER_SEND, `${recipientData.name}님에게 쿠폰 ${amount}개를 선물했습니다.`, {recipientId, recipientName: recipientData.name, amount, message});
+      logActivity(transaction, recipientId, LOG_TYPES.COUPON_TRANSFER_RECEIVE, `${userData.name}님으로부터 쿠폰 ${amount}개를 선물 받았습니다.`, {senderId: uid, senderName: userData.name, amount, message});
+    });
+    return {success: true, message: "쿠폰 선물이 완료되었습니다."};
+  } catch (error) {
+    logger.error(`[giftCoupon] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "쿠폰 선물에 실패했습니다.");
+  }
+});
 
 // ===================================================================================
 // 🔥 주식 거래 함수 구현
@@ -1163,6 +1253,297 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
 //     throw new HttpsError("aborted", error.message || "아이템 판매 등록에 실패했습니다.");
 //   }
 // });
+
+// ===================================================================================
+// 🔥 시스템 모니터링 및 상태 관리
+// ===================================================================================
+
+// 시스템 메트릭 임계값 설정
+const THRESHOLDS = {
+  READS_PER_MINUTE: 5000,       // 분당 읽기 작업 임계값
+  WRITES_PER_MINUTE: 1000,      // 분당 쓰기 작업 임계값
+  ERROR_RATE: 0.05,              // 5% 이상 에러율
+  RESPONSE_TIME_MS: 3000,        // 3초 이상 응답 시간
+  REPEATED_OPERATIONS: 100,      // 같은 작업 반복 횟수
+};
+
+// 시스템 상태 조회
+exports.getSystemStatus = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, isSuperAdmin} = await checkAuthAndGetUserData(request, false);
+
+  // 최고 관리자만 조회 가능
+  if (!isSuperAdmin) {
+    throw new HttpsError("permission-denied", "최고 관리자만 시스템 상태를 조회할 수 있습니다.");
+  }
+
+  try {
+    const now = Date.now();
+
+    // 🔥 단순화된 통계 - 인덱스 없이 작동
+    const stats1min = {
+      reads: 0,
+      writes: 0,
+      errors: 0,
+      operations: 0,
+      errorRate: 0,
+      avgResponseTime: 0,
+    };
+
+    const stats5min = {
+      reads: 0,
+      writes: 0,
+      errors: 0,
+      operations: 0,
+      errorRate: 0,
+      avgResponseTime: 0,
+    };
+
+    // 🔥 활성 경고 조회 (단순 쿼리)
+    let activeAlerts = [];
+    try {
+      const activeAlertsSnapshot = await db.collection("systemAlerts")
+        .where("resolved", "==", false)
+        .limit(20)
+        .get();
+
+      activeAlerts = activeAlertsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    } catch (alertError) {
+      logger.warn(`[getSystemStatus] 경고 조회 실패 (정상):`, alertError.message);
+      // 인덱스 없으면 빈 배열 반환
+    }
+
+    // 🔥 에러 로그 조회 (단순 쿼리)
+    let errorLogs = [];
+    try {
+      const errorLogsSnapshot = await db.collection("systemLogs")
+        .where("level", "==", "error")
+        .limit(50)
+        .get();
+
+      errorLogs = errorLogsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+    } catch (logError) {
+      logger.warn(`[getSystemStatus] 로그 조회 실패 (정상):`, logError.message);
+      // 인덱스 없으면 빈 배열 반환
+    }
+
+    // 비정상 패턴 감지
+    const anomalies = detectAnomalies(stats1min, stats5min);
+
+    // 전체 사용자 수 조회
+    let totalUsers = 0;
+    try {
+      const usersSnapshot = await db.collection("users").count().get();
+      totalUsers = usersSnapshot.data().count;
+    } catch (userError) {
+      logger.warn(`[getSystemStatus] 사용자 수 조회 실패:`, userError.message);
+    }
+
+    logger.info(`[getSystemStatus] 관리자 ${uid}가 시스템 상태를 조회했습니다.`);
+
+    return {
+      success: true,
+      data: {
+        timestamp: now,
+        stats: {
+          lastMinute: stats1min,
+          last5Minutes: stats5min,
+        },
+        alerts: activeAlerts,
+        errorLogs: errorLogs,
+        anomalies: anomalies,
+        totalUsers: totalUsers,
+        health: anomalies.length === 0 ? "healthy" : anomalies.some(a => a.severity === "critical") ? "critical" : "warning",
+        message: "시스템 모니터링이 초기화 중입니다. 메트릭 데이터가 수집되면 더 자세한 정보가 표시됩니다.",
+      },
+    };
+  } catch (error) {
+    logger.error(`[getSystemStatus] Error for admin ${uid}:`, error);
+
+    // 🔥 에러 발생 시에도 기본 응답 반환 (무한 루프 방지)
+    return {
+      success: true,
+      data: {
+        timestamp: Date.now(),
+        stats: {
+          lastMinute: { reads: 0, writes: 0, errors: 0, operations: 0, errorRate: 0, avgResponseTime: 0 },
+          last5Minutes: { reads: 0, writes: 0, errors: 0, operations: 0, errorRate: 0, avgResponseTime: 0 },
+        },
+        alerts: [],
+        errorLogs: [],
+        anomalies: [],
+        totalUsers: 0,
+        health: "healthy",
+        message: "시스템 모니터링이 초기화 중입니다.",
+        error: error.message,
+      },
+    };
+  }
+});
+
+// 통계 계산 헬퍼 함수
+function calculateStats(metrics) {
+  if (metrics.length === 0) {
+    return {
+      reads: 0,
+      writes: 0,
+      errors: 0,
+      operations: 0,
+      errorRate: 0,
+      avgResponseTime: 0,
+    };
+  }
+
+  const totalReads = metrics.reduce((sum, m) => sum + (m.reads || 0), 0);
+  const totalWrites = metrics.reduce((sum, m) => sum + (m.writes || 0), 0);
+  const totalErrors = metrics.reduce((sum, m) => sum + (m.errors || 0), 0);
+  const totalOperations = totalReads + totalWrites;
+  const errorRate = totalOperations > 0 ? totalErrors / totalOperations : 0;
+
+  const responseTimes = metrics.filter(m => m.responseTime).map(m => m.responseTime);
+  const avgResponseTime = responseTimes.length > 0
+    ? responseTimes.reduce((sum, t) => sum + t, 0) / responseTimes.length
+    : 0;
+
+  return {
+    reads: totalReads,
+    writes: totalWrites,
+    errors: totalErrors,
+    operations: totalOperations,
+    errorRate: errorRate,
+    avgResponseTime: avgResponseTime,
+  };
+}
+
+// 비정상 패턴 감지 함수
+function detectAnomalies(stats1min, stats5min) {
+  const anomalies = [];
+
+  // 과도한 읽기 작업 감지
+  if (stats1min.reads > THRESHOLDS.READS_PER_MINUTE) {
+    anomalies.push({
+      type: "excessive_reads",
+      severity: "warning",
+      message: `분당 읽기 작업이 임계값을 초과했습니다 (${stats1min.reads} > ${THRESHOLDS.READS_PER_MINUTE})`,
+      value: stats1min.reads,
+      threshold: THRESHOLDS.READS_PER_MINUTE,
+    });
+  }
+
+  // 과도한 쓰기 작업 감지
+  if (stats1min.writes > THRESHOLDS.WRITES_PER_MINUTE) {
+    anomalies.push({
+      type: "excessive_writes",
+      severity: "warning",
+      message: `분당 쓰기 작업이 임계값을 초과했습니다 (${stats1min.writes} > ${THRESHOLDS.WRITES_PER_MINUTE})`,
+      value: stats1min.writes,
+      threshold: THRESHOLDS.WRITES_PER_MINUTE,
+    });
+  }
+
+  // 높은 에러율 감지
+  if (stats1min.errorRate > THRESHOLDS.ERROR_RATE) {
+    anomalies.push({
+      type: "high_error_rate",
+      severity: "error",
+      message: `에러율이 임계값을 초과했습니다 (${(stats1min.errorRate * 100).toFixed(2)}% > ${THRESHOLDS.ERROR_RATE * 100}%)`,
+      value: stats1min.errorRate,
+      threshold: THRESHOLDS.ERROR_RATE,
+    });
+  }
+
+  // 느린 응답 시간 감지
+  if (stats1min.avgResponseTime > THRESHOLDS.RESPONSE_TIME_MS) {
+    anomalies.push({
+      type: "slow_response",
+      severity: "warning",
+      message: `평균 응답 시간이 임계값을 초과했습니다 (${stats1min.avgResponseTime.toFixed(0)}ms > ${THRESHOLDS.RESPONSE_TIME_MS}ms)`,
+      value: stats1min.avgResponseTime,
+      threshold: THRESHOLDS.RESPONSE_TIME_MS,
+    });
+  }
+
+  // 무한 루프 의심 패턴 (5분간 지속적으로 높은 작업량)
+  if (stats5min.operations > THRESHOLDS.READS_PER_MINUTE * 5 &&
+      stats1min.operations > THRESHOLDS.READS_PER_MINUTE) {
+    anomalies.push({
+      type: "possible_infinite_loop",
+      severity: "critical",
+      message: `무한 루프가 의심됩니다. 지속적으로 높은 작업량이 감지되었습니다.`,
+      value: stats5min.operations,
+      threshold: THRESHOLDS.READS_PER_MINUTE * 5,
+    });
+  }
+
+  return anomalies;
+}
+
+// 시스템 메트릭 기록 (내부 함수 - 다른 함수에서 호출 가능)
+async function logSystemMetric(metricData) {
+  try {
+    const metricRef = db.collection("systemMetrics").doc();
+    await metricRef.set({
+      ...metricData,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (error) {
+    logger.error("[logSystemMetric] 메트릭 기록 실패:", error);
+  }
+}
+
+// 시스템 경고 생성
+async function createSystemAlert(alertData) {
+  try {
+    const alertRef = db.collection("systemAlerts").doc();
+    await alertRef.set({
+      ...alertData,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      resolved: false,
+    });
+    logger.warn(`[SystemAlert] ${alertData.severity}: ${alertData.message}`);
+  } catch (error) {
+    logger.error("[createSystemAlert] 경고 생성 실패:", error);
+  }
+}
+
+// 경고 해결 처리
+exports.resolveSystemAlert = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid, isSuperAdmin} = await checkAuthAndGetUserData(request, false);
+
+  if (!isSuperAdmin) {
+    throw new HttpsError("permission-denied", "최고 관리자만 경고를 해결할 수 있습니다.");
+  }
+
+  const {alertId} = request.data;
+
+  if (!alertId) {
+    throw new HttpsError("invalid-argument", "경고 ID가 필요합니다.");
+  }
+
+  try {
+    const alertRef = db.collection("systemAlerts").doc(alertId);
+    await alertRef.update({
+      resolved: true,
+      resolvedAt: admin.firestore.FieldValue.serverTimestamp(),
+      resolvedBy: uid,
+    });
+
+    logger.info(`[resolveSystemAlert] 관리자 ${uid}가 경고 ${alertId}를 해결했습니다.`);
+
+    return {
+      success: true,
+      message: "경고가 해결되었습니다.",
+    };
+  } catch (error) {
+    logger.error(`[resolveSystemAlert] Error for admin ${uid}:`, error);
+    throw new HttpsError("internal", error.message || "경고 해결에 실패했습니다.");
+  }
+});
 
 // ===================================================================================
 // 관리자 설정 데이터 통합 조회 (최적화)

@@ -172,14 +172,47 @@ export const ItemProvider = ({ children }) => {
 
     const totalPrice = itemToPurchase.price * quantity;
 
-    // 🔥 즉시 UI 업데이트 (낙관적 업데이트 - 현금만 먼저 차감)
+    // 🔥 1. 현금 즉시 차감 (낙관적 업데이트)
     if (optimisticUpdate) {
       optimisticUpdate({ cash: -totalPrice });
     }
 
-    // 재고는 서버 응답을 기다렸다가 업데이트 (깜빡거림 방지)
+    // 🔥 2. userItems에 낙관적으로 추가
+    const newUserItem = {
+      id: `temp-${Date.now()}-${Math.random()}`, // 임시 ID
+      itemId: itemToPurchase.id,
+      name: itemToPurchase.name,
+      icon: itemToPurchase.icon || '🔮',
+      description: itemToPurchase.description || '',
+      type: itemToPurchase.type || 'general',
+      quantity: quantity,
+      price: itemToPurchase.price,
+      durationMs: itemToPurchase.durationMs || 300000,
+      purchasedAt: new Date(),
+    };
+
+    console.log('[ItemContext] 낙관적 업데이트: Store 아이템 추가', newUserItem);
+
+    // 기존 상태 백업 (롤백용)
+    const originalUserItems = [...userItems];
     const originalStock = itemToPurchase.stock;
     const originalPrice = itemToPurchase.price;
+
+    // 🔥 userItems에 즉시 추가
+    setUserItems(prev => {
+      // 동일한 itemId가 있으면 수량 증가, 없으면 새로 추가
+      const existingIndex = prev.findIndex(item => item.itemId === newUserItem.itemId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + quantity
+        };
+        return updated;
+      } else {
+        return [...prev, newUserItem];
+      }
+    });
 
     try {
       const result = await firebaseFunctions.purchaseStoreItem({ itemId, quantity });
@@ -212,21 +245,27 @@ export const ItemProvider = ({ children }) => {
           );
         }
 
-        // refreshData는 호출하지 않음 - 로컬 상태가 이미 정확함
+        // 🎯 서버 데이터로 동기화 (정확한 inventory 데이터 가져오기)
+        console.log('[ItemContext] 구매 성공, 서버 데이터로 동기화');
+        refreshData();
+
         return { success: true, restocked, newStock, newPrice };
       } else {
-        // Cloud Function 실패 - 현금 롤백
+        // 🔥 실패: 모든 변경사항 롤백
+        console.warn('[ItemContext] 구매 실패, 롤백 수행');
         if (optimisticUpdate) {
           optimisticUpdate({ cash: totalPrice });
         }
+        setUserItems(originalUserItems);
         throw new Error(result.data.message || "구매에 실패했습니다.");
       }
     } catch (error) {
-      // 에러 발생 - 현금 롤백
+      // 🔥 에러: 모든 변경사항 롤백
+      console.error('[ItemContext] 구매 에러, 롤백 수행:', error);
       if (optimisticUpdate) {
         optimisticUpdate({ cash: totalPrice });
       }
-      console.error('[ItemContext] 구매 실패:', error);
+      setUserItems(originalUserItems);
 
       // 에러 시에만 refreshData로 동기화
       refreshData();
@@ -236,7 +275,7 @@ export const ItemProvider = ({ children }) => {
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData, items, optimisticUpdate]);
+  }, [userId, firebaseFunctions, refreshData, items, userItems, optimisticUpdate]);
 
   const useItem = useCallback(async (inventoryItemId, quantity = 1) => {
     if (!userId) return { success: false, message: "로그인 필요" };
@@ -275,31 +314,77 @@ export const ItemProvider = ({ children }) => {
 
     const itemPrice = itemToBuy.price || itemToBuy.totalPrice || 0;
 
-    // Optimistically deduct cash
+    // 🔥 1. 현금 낙관적 차감
     const deductResult = await deductCash(itemPrice, `${itemToBuy.itemName} 구매`);
     if (!deductResult) {
       return { success: false, message: "현금 차감에 실패했습니다." };
     }
 
+    // 🔥 2. 낙관적 업데이트: 내 아이템에 추가
+    const newUserItem = {
+      id: `temp-${Date.now()}-${Math.random()}`, // 임시 ID
+      itemId: itemToBuy.itemId || itemToBuy.id,
+      name: itemToBuy.itemName,
+      icon: itemToBuy.icon || '🔮',
+      description: itemToBuy.description || '',
+      type: itemToBuy.category || itemToBuy.itemType || 'general',
+      quantity: itemToBuy.quantity || 1,
+      purchasedAt: new Date(),
+    };
+
+    console.log('[ItemContext] 낙관적 업데이트: 아이템 추가', newUserItem);
+
+    // 기존 상태 백업 (롤백용)
+    const originalUserItems = [...userItems];
+    const originalMarketListings = [...marketListings];
+
+    // 🔥 userItems에 즉시 추가
+    setUserItems(prev => {
+      // 동일한 itemId가 있으면 수량 증가, 없으면 새로 추가
+      const existingIndex = prev.findIndex(item => item.itemId === newUserItem.itemId);
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + newUserItem.quantity
+        };
+        return updated;
+      } else {
+        return [...prev, newUserItem];
+      }
+    });
+
+    // 🔥 marketListings에서 즉시 제거
+    setMarketListings(prev => prev.filter(item => item.id !== listingId));
+
     try {
       const result = await firebaseFunctions.buyMarketItem({ listingId });
       if (result.data.success) {
-        refreshData(); // Keep this to update market listings
+        console.log('[ItemContext] 구매 성공, 서버 데이터로 동기화');
+        // 🎯 성공: refreshData로 정확한 데이터 동기화
+        refreshData();
         return { success: true };
       } else {
-        // Rollback cash if Cloud Function fails
+        // 🔥 실패: 모든 변경사항 롤백
+        console.warn('[ItemContext] 구매 실패, 롤백 수행');
         await addCash(itemPrice, `${itemToBuy.itemName} 구매 실패 (롤백)`);
+        setUserItems(originalUserItems);
+        setMarketListings(originalMarketListings);
         throw new Error(result.data.message || "구매에 실패했습니다.");
       }
     } catch (error) {
-      // Rollback cash if any error occurs
+      // 🔥 에러: 모든 변경사항 롤백
+      console.error('[ItemContext] 구매 에러, 롤백 수행:', error);
       await addCash(itemPrice, `${itemToBuy.itemName} 구매 실패 (롤백)`);
+      setUserItems(originalUserItems);
+      setMarketListings(originalMarketListings);
+
       if (error.code === 'not-found') {
         return { success: false, message: "구매 처리 함수(buyMarketItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData, marketListings, userDoc?.cash, deductCash, addCash]);
+  }, [userId, firebaseFunctions, refreshData, marketListings, userItems, deductCash, addCash]);
 
   const cancelSale = useCallback(async (listingId) => {
     if (!userId) return { success: false, message: "로그인 필요" };

@@ -51,7 +51,9 @@
       "Bash(ping:*)",
       "Bash(del nul)",
       "Bash(node:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npm run deploy:all:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

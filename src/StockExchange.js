@@ -62,8 +62,8 @@ const batchDataLoader = {
 
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 3 * 60 * 1000); // 🔥 최적화: 3분 캐시 (5분→3분, 낙관적 업데이트 개선)
-      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장');
+      globalCache.set(batchKey, result, 30 * 60 * 1000); // 🔥 최적화: 30분 캐시 (읽기 비용 극대 절감)
+      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (30분)');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -129,13 +129,13 @@ const batchDataLoader = {
     try {
       const allNews = [];
 
-      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 읽기 비용 절감을 위해 limit 10으로 감소
+      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 읽기 비용 절감을 위해 limit 5로 감소
       try {
         const centralNewsRef = collection(db, "CentralNews");
         const centralActiveQuery = query(
           centralNewsRef,
           where("isActive", "==", true),
-          limit(10)
+          limit(5)
         );
         const centralSnapshot = await getDocs(centralActiveQuery);
 
@@ -152,10 +152,10 @@ const batchDataLoader = {
         console.warn('[batchDataLoader] Central news load failed:', centralError);
       }
 
-      // 클라이언트 측에서 시간순으로 정렬하고 최신 15개만 반환
+      // 🔥 최적화: 클라이언트 측에서 시간순으로 정렬하고 최신 8개만 반환 (15→8)
       return allNews
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 15);
+        .slice(0, 8);
 
     } catch (error) {
       console.error('[batchDataLoader] News load error:', error);
@@ -237,11 +237,11 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 3, // 🔥 낙관적 업데이트: 3분 (5분 → 3분, 주식 변동을 더 빠르게 반영)
-  STOCKS: 1000 * 60 * 3, // 3분
-  PORTFOLIO: 1000 * 60 * 3, // 🔥 낙관적 업데이트: 3분 (포트폴리오도 빠르게 업데이트)
-  NEWS: 1000 * 60 * 5, // 5분 (뉴스는 덜 자주 변경되므로 유지)
-  MARKET_STATUS: 1000 * 60 * 15, // 15분 (시장 상태는 자주 변경되지 않음)
+  BATCH_DATA: 1000 * 60 * 30, // 🔥 최적화: 30분 캐시 (읽기 비용 극대 절감, 뉴스 수명과 동기화)
+  STOCKS: 1000 * 60 * 30, // 30분
+  PORTFOLIO: 1000 * 60 * 30, // 🔥 최적화: 30분 캐시
+  NEWS: 1000 * 60 * 30, // 30분 (뉴스 수명과 동일하게 설정)
+  MARKET_STATUS: 1000 * 60 * 60, // 60분 (시장 상태는 거의 변경되지 않음)
 };
 
 // === 유틸리티 함수들 ===
@@ -714,8 +714,8 @@ const StockExchange = () => {
   useEffect(() => {
     if (!user || !firebaseReady || !classCode) return;
 
-    // 초기 로드 (시장 개장 여부와 관계없이 항상 데이터 로드)
-    fetchAllData(true);
+    // 🔥 최적화: 초기 로드도 캐시 활용 (true → false, 불필요한 강제 읽기 제거)
+    fetchAllData(false);
   }, [user, firebaseReady, classCode, fetchAllData]);
 
   // === 서버 스케줄 동기화 폴링 (시장 개장 시간에만 활성화) ===
@@ -725,24 +725,24 @@ const StockExchange = () => {
     let pollTimeoutId = null;
 
     const scheduleNextPoll = () => {
-      const POLL_MINUTES = [1, 16, 31, 46]; // 서버 업데이트 직후 시간 (0, 15, 30, 45분 업데이트 후 1분 뒤)
+      // 🔥 최적화: 매 시간 5분에 1회만 업데이트 (읽기 비용 극대 절감, 30분 캐시와 조화)
       const now = new Date();
       const currentMinute = now.getMinutes();
-
-      let nextPollMinute = POLL_MINUTES.find(m => m > currentMinute);
+      const currentHour = now.getHours();
 
       const nextPollTime = new Date(now);
 
-      if (nextPollMinute) {
-        nextPollTime.setMinutes(nextPollMinute, 0, 0);
+      // 매 시간 5분에 실행
+      if (currentMinute < 5) {
+        nextPollTime.setMinutes(5, 0, 0);
       } else {
-        // 다음 시간 첫번째 스케줄로 설정
-        nextPollTime.setHours(now.getHours() + 1, POLL_MINUTES[0], 0, 0);
+        // 다음 시간 5분으로 설정
+        nextPollTime.setHours(currentHour + 1, 5, 0, 0);
       }
 
       const delay = nextPollTime.getTime() - now.getTime();
 
-      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 1000)}초 후)`);
+      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 60000)}분 후)`);
 
       pollTimeoutId = setTimeout(() => {
         if (document.hidden) { // 페이지가 비활성화 상태면 다음 스케줄로 건너뜀
@@ -751,8 +751,8 @@ const StockExchange = () => {
           return;
         }
 
-        console.log('[StockExchange] 스케줄 동기화: 데이터 갱신 실행');
-        fetchAllData(true); // 강제 새로고침으로 최신 데이터 반영
+        console.log('[StockExchange] 스케줄 동기화: 시간당 1회 데이터 갱신 실행');
+        fetchAllData(false); // 🔥 최적화: 캐시 활용 (강제 새로고침 제거)
         scheduleNextPoll(); // 다음 폴링 예약
       }, delay);
     };
