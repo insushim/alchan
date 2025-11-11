@@ -291,7 +291,8 @@ exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (req
 
   try {
     await updateCentralStockMarketLogic();
-    await createCentralMarketNewsLogic();
+    // 🔥 수동 실행 시에는 뉴스 생성 조건(활성 뉴스 3개 미만)을 무시하고 강제로 1개 생성
+    await createCentralMarketNewsLogic(true);
 
     return {
       success: true,
@@ -789,8 +790,8 @@ async function cleanupWorthlessStocksLogic() {
   // 필요시 나중에 구현
 }
 
-async function createCentralMarketNewsLogic() {
-  logger.info("📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (조건부 생성, 영향력 15분)");
+async function createCentralMarketNewsLogic(force = false) {
+  logger.info(`📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (강제: ${force})`);
   try {
     // 🔥 최적화 1: 활성 뉴스 수 먼저 확인 (읽기 비용 절감)
     const activeNewsSnapshot = await db.collection("CentralNews")
@@ -826,8 +827,8 @@ async function createCentralMarketNewsLogic() {
     const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
-    // 🔥 최적화: 활성 뉴스가 3개 미만일 때만 1개 생성 (읽기/쓰기 비용 대폭 절감)
-    const newsToCreate = activeNewsCount < 3 ? 1 : 0;
+    // 🔥 최적화: 강제 생성이거나 활성 뉴스가 3개 미만일 때만 1개 생성
+    const newsToCreate = (force || activeNewsCount < 3) ? 1 : 0;
 
     if (newsToCreate === 0) {
       logger.info(`[뉴스 생성] 활성 뉴스 ${activeNewsCount}개로 충분, 생성 건너뜀 (읽기 비용 절감)`);
