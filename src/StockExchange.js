@@ -725,24 +725,25 @@ const StockExchange = () => {
     let pollTimeoutId = null;
 
     const scheduleNextPoll = () => {
-      // 🔥 최적화: 매 시간 5분에 1회만 업데이트 (읽기 비용 극대 절감, 30분 캐시와 조화)
+      // 15분 주기 폴링 (1, 16, 31, 46분)
+      const POLL_MINUTES = [1, 16, 31, 46];
       const now = new Date();
       const currentMinute = now.getMinutes();
-      const currentHour = now.getHours();
 
+      let nextPollMinute = POLL_MINUTES.find(m => m > currentMinute);
+      
       const nextPollTime = new Date(now);
 
-      // 매 시간 5분에 실행
-      if (currentMinute < 5) {
-        nextPollTime.setMinutes(5, 0, 0);
+      if (nextPollMinute) {
+        nextPollTime.setMinutes(nextPollMinute, 0, 0);
       } else {
-        // 다음 시간 5분으로 설정
-        nextPollTime.setHours(currentHour + 1, 5, 0, 0);
+        // 다음 시간 첫번째 스케줄로 설정
+        nextPollTime.setHours(now.getHours() + 1, POLL_MINUTES[0], 0, 0);
       }
 
       const delay = nextPollTime.getTime() - now.getTime();
 
-      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 60000)}분 후)`);
+      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 1000)}초 후)`);
 
       pollTimeoutId = setTimeout(() => {
         if (document.hidden) { // 페이지가 비활성화 상태면 다음 스케줄로 건너뜀
@@ -751,8 +752,8 @@ const StockExchange = () => {
           return;
         }
 
-        console.log('[StockExchange] 스케줄 동기화: 시간당 1회 데이터 갱신 실행');
-        fetchAllData(false); // 🔥 최적화: 캐시 활용 (강제 새로고침 제거)
+        console.log('[StockExchange] 스케줄 동기화: 데이터 갱신 실행');
+        fetchAllData(true); // 뉴스 생성을 위해 강제 새로고침(true)으로 변경
         scheduleNextPoll(); // 다음 폴링 예약
       }, delay);
     };
