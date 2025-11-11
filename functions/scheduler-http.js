@@ -294,6 +294,8 @@ exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (req
     // 🔥 수동 실행 시에는 뉴스 생성 조건(활성 뉴스 3개 미만)을 무시하고 강제로 1개 생성
     await createCentralMarketNewsLogic(true);
 
+    // 🔥 FCM 알림 제거: 클라이언트는 다음 폴링 때 자동으로 업데이트됨
+
     return {
       success: true,
       message: "주식 가격 업데이트 및 뉴스 생성 완료"
@@ -387,6 +389,9 @@ exports.simpleScheduler = onRequest({
     }
 
     logger.info(`[simpleScheduler] 작업 완료:`, results);
+
+    // 🔥 FCM 알림 제거: 푸시 알림은 사용자 경험을 해치고 읽기를 증가시킴
+    // 클라이언트는 30분 캐시와 자동 폴링으로 충분히 데이터를 받음
 
     res.json({ success: true, results, kstHour: hour });
   } catch (error) {
@@ -541,6 +546,35 @@ exports.cleanupOldNews = onRequest({
 // ===================================================================================
 // 실제 로직 함수들
 // ===================================================================================
+
+/**
+ * 🔥 FCM 푸시 알림 제거됨
+ * 이유:
+ * 1. 사용자에게 알림 스팸 (15분마다 모든 사용자에게 푸시)
+ * 2. 읽기 증가 (푸시 받으면 fetchAllData(true)로 캐시 무시하고 강제 읽기)
+ * 3. 사용자 경험 악화 (앱 꺼져있어도 계속 알림)
+ *
+ * 대신:
+ * - 30분 캐시로 충분히 최신 데이터 제공
+ * - 시간당 1회 자동 폴링 (부드러운 업데이트)
+ * - 사용자가 원할 때 새로고침 버튼 사용
+ */
+// async function sendMarketUpdateNotification() {
+//   const topic = 'market_updates';
+//   const message = {
+//     data: {
+//       type: 'MARKET_UPDATE',
+//       timestamp: String(Date.now()),
+//     },
+//     topic: topic,
+//   };
+//   try {
+//     await admin.messaging().send(message);
+//     logger.info(`🚀 FCM 메시지를 '${topic}' 토픽으로 전송했습니다.`);
+//   } catch (error) {
+//     logger.error(`FCM 메시지 전송 실패:`, error);
+//   }
+// }
 
 // 시장 상황 업데이트 (5분마다 랜덤 생성)
 async function updateMarketConditionLogic() {
@@ -906,7 +940,7 @@ async function createCentralMarketNewsLogic(force = false) {
 
     await batch.commit();
 
-    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (영향력 지속: 15분)`);
+    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (수명: 30분, 자동 삭제)`);
     newsItems.forEach(news => {
       logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
     });
@@ -925,7 +959,7 @@ async function cleanupExpiredCentralNewsLogic() {
   try {
     const now = admin.firestore.Timestamp.now();
 
-    // 🔥 최적화: limit 추가하여 한 번에 처리할 문서 수 제한 (읽기 비용 절감)
+    // 🔥 최적화: 만료된 뉴스 완전 삭제 (읽기 비용 절감 + 깔끔한 DB 관리)
     const expiredNewsSnapshot = await db.collection("CentralNews")
       .where("expiresAt", "<=", now)
       .limit(50) // 최대 50개까지만 처리
@@ -938,11 +972,13 @@ async function cleanupExpiredCentralNewsLogic() {
 
     const batch = db.batch();
     for (const newsDoc of expiredNewsSnapshot.docs) {
-      batch.update(newsDoc.ref, { isActive: false });
+      // 🔥 변경: isActive=false 대신 문서 삭제
+      batch.delete(newsDoc.ref);
+      logger.info(`[뉴스 삭제] ${newsDoc.data().title} (만료 시간: ${newsDoc.data().expiresAt?.toDate?.()?.toLocaleString('ko-KR')})`);
     }
 
     await batch.commit();
-    logger.info(`✅ ${expiredNewsSnapshot.size}개의 만료된 뉴스 비활성화 완료 (읽기: ${expiredNewsSnapshot.size}개, 쓰기: ${expiredNewsSnapshot.size}개)`);
+    logger.info(`✅ ${expiredNewsSnapshot.size}개의 만료된 뉴스 삭제 완료 (읽기: ${expiredNewsSnapshot.size}개, 삭제: ${expiredNewsSnapshot.size}개)`);
   } catch (error) {
     logger.error("❌ 뉴스 정리 중 오류:", error);
     throw error;
