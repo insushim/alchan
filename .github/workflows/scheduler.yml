@@ -1,11 +1,11 @@
 name: Scheduled Tasks
 
 on:
-  schedule:
-    # 15분마다 실행 (비용 절감을 위해 빈도 감소)
-    - cron: '*/15 * * * *'
+  # 🔥 자동 스케줄 비활성화: cron-job.org를 사용하여 중복 실행 방지
+  # schedule:
+  #   - cron: '*/15 * * * *'
 
-  # 수동 실행 옵션
+  # 수동 실행만 허용 (긴급 상황용)
   workflow_dispatch:
 
 jobs:
