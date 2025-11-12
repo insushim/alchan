@@ -393,6 +393,54 @@ exports.stockPriceScheduler = onRequest({
   }
 });
 
+// 🗑️ 모든 뉴스 삭제 (초기화용 - 관리자 전용)
+exports.deleteAllNews = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[deleteAllNews] 모든 뉴스 삭제 시작`);
+
+    // CentralNews 컬렉션의 모든 문서 가져오기
+    const allNewsSnapshot = await db.collection("CentralNews").get();
+
+    if (allNewsSnapshot.empty) {
+      logger.info('[deleteAllNews] 삭제할 뉴스가 없습니다.');
+      res.json({ success: true, message: '삭제할 뉴스가 없습니다.', deletedCount: 0 });
+      return;
+    }
+
+    // 배치로 모든 뉴스 삭제
+    const batch = db.batch();
+    let deleteCount = 0;
+
+    allNewsSnapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+      deleteCount++;
+    });
+
+    await batch.commit();
+
+    logger.info(`[deleteAllNews] ${deleteCount}개의 뉴스 삭제 완료`);
+
+    res.json({
+      success: true,
+      message: `모든 뉴스 삭제 완료 (${deleteCount}개)`,
+      deletedCount: deleteCount
+    });
+  } catch (error) {
+    logger.error('[deleteAllNews] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 🌙 자정 리셋용 간단한 GET 엔드포인트
 exports.midnightReset = onRequest({
   region: "asia-northeast3",
