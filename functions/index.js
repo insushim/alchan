@@ -22,15 +22,15 @@ const {
 } = require("./scheduler-http");
 const { initialStocks } = require("./initialStocks");
 
-// HTTP 호출을 위한 스케줄러 로직 (GitHub Actions 등 외부에서 호출 가능)
+// HTTP 호출을 위한 스케줄러 로직 (cron-job.org에서 호출 가능)
 const scheduler = require("./scheduler-http");
-exports.runScheduler = scheduler.runScheduler; // GitHub Actions에서 호출할 HTTP 엔드포인트
 exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket; // 관리자 수동 업데이트
-exports.simpleScheduler = scheduler.simpleScheduler; // 간단한 GET 방식 스케줄러 (cron-job.org용)
+exports.simpleScheduler = scheduler.simpleScheduler; // 레거시 통합 스케줄러 (하위 호환성)
+exports.newsScheduler = scheduler.newsScheduler; // 뉴스 생성 스케줄러 (30분마다)
+exports.stockPriceScheduler = scheduler.stockPriceScheduler; // 주식 가격 업데이트 스케줄러 (15분마다)
 exports.midnightReset = scheduler.midnightReset; // 자정 리셋용 엔드포인트
 exports.weeklySalary = scheduler.weeklySalary; // 주급 지급용 엔드포인트
 exports.weeklyRent = scheduler.weeklyRent; // 월세 징수용 엔드포인트
-exports.cleanupOldNews = scheduler.cleanupOldNews; // 오래된 뉴스 정리용 (한 번만 실행)
 
 // 초기 설정 함수들 (관리자 전용)
 const initSettings = require("./initializeSettings");

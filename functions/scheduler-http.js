@@ -248,21 +248,8 @@ exports.simpleScheduler = onRequest({
       results.updateCentralStockMarket = `error: ${error.message}`;
     }
 
-    try {
-      await createCentralMarketNewsLogic();
-      results.createCentralMarketNews = 'success';
-    } catch (error) {
-      logger.error('[simpleScheduler] createCentralMarketNews 오류:', error);
-      results.createCentralMarketNews = `error: ${error.message}`;
-    }
-
-    try {
-      await cleanupExpiredCentralNewsLogic();
-      results.cleanupExpiredCentralNews = 'success';
-    } catch (error) {
-      logger.error('[simpleScheduler] cleanupExpiredCentralNews 오류:', error);
-      results.cleanupExpiredCentralNews = `error: ${error.message}`;
-    }
+    // 🔥 뉴스 생성은 별도 스케줄러에서 처리 (30분마다)
+    // 주식 가격 업데이트와 분리하여 비용 최적화
 
     try {
       await autoManageStocksLogic();
@@ -280,6 +267,128 @@ exports.simpleScheduler = onRequest({
     res.json({ success: true, results, kstHour: hour });
   } catch (error) {
     logger.error('[simpleScheduler] 전체 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 📰 뉴스 전용 스케줄러 (30분마다 실행 - cron-job.org)
+exports.newsScheduler = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const now = new Date();
+    const kstOffset = 9 * 60;
+    const kstTime = new Date(now.getTime() + kstOffset * 60 * 1000);
+    const hour = kstTime.getUTCHours();
+    const day = kstTime.getUTCDay();
+
+    logger.info(`[newsScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
+
+    // 평일(1-5) 8시-15시 KST 시장 시간 체크
+    const isWeekday = day >= 1 && day <= 5;
+    const isMarketHours = hour >= 8 && hour < 15;
+
+    if (!isWeekday || !isMarketHours) {
+      logger.info(`[newsScheduler] 시장 시간 외 - 작업 건너뜀`);
+      res.json({
+        success: true,
+        message: '시장 시간 외 - 작업 건너뜀',
+        kstHour: hour,
+        day: day
+      });
+      return;
+    }
+
+    logger.info(`[newsScheduler] 뉴스 생성 시작`);
+
+    await createCentralMarketNewsLogic();
+
+    logger.info(`[newsScheduler] 뉴스 생성 완료`);
+
+    res.json({ success: true, message: '뉴스 2개 생성 완료', kstHour: hour });
+  } catch (error) {
+    logger.error('[newsScheduler] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 📈 주식 가격 업데이트 전용 스케줄러 (15분마다 실행 - cron-job.org)
+exports.stockPriceScheduler = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 540,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    const now = new Date();
+    const kstOffset = 9 * 60;
+    const kstTime = new Date(now.getTime() + kstOffset * 60 * 1000);
+    const hour = kstTime.getUTCHours();
+    const day = kstTime.getUTCDay();
+
+    logger.info(`[stockPriceScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
+
+    // 평일(1-5) 8시-15시 KST 시장 시간 체크
+    const isWeekday = day >= 1 && day <= 5;
+    const isMarketHours = hour >= 8 && hour < 15;
+
+    if (!isWeekday || !isMarketHours) {
+      logger.info(`[stockPriceScheduler] 시장 시간 외 - 작업 건너뜀`);
+      res.json({
+        success: true,
+        message: '시장 시간 외 - 작업 건너뜀',
+        kstHour: hour,
+        day: day
+      });
+      return;
+    }
+
+    logger.info(`[stockPriceScheduler] 주식 가격 업데이트 시작`);
+
+    const results = {};
+
+    try {
+      await updateMarketConditionLogic();
+      results.updateMarketCondition = 'success';
+    } catch (error) {
+      logger.error('[stockPriceScheduler] updateMarketCondition 오류:', error);
+      results.updateMarketCondition = `error: ${error.message}`;
+    }
+
+    try {
+      await updateCentralStockMarketLogic();
+      results.updateCentralStockMarket = 'success';
+    } catch (error) {
+      logger.error('[stockPriceScheduler] updateCentralStockMarket 오류:', error);
+      results.updateCentralStockMarket = `error: ${error.message}`;
+    }
+
+    try {
+      await autoManageStocksLogic();
+      results.autoManageStocks = 'success';
+    } catch (error) {
+      logger.error('[stockPriceScheduler] autoManageStocks 오류:', error);
+      results.autoManageStocks = `error: ${error.message}`;
+    }
+
+    logger.info(`[stockPriceScheduler] 작업 완료:`, results);
+
+    res.json({ success: true, results, kstHour: hour });
+  } catch (error) {
+    logger.error('[stockPriceScheduler] 전체 오류:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -644,15 +753,6 @@ async function cleanupWorthlessStocksLogic() {
 async function createCentralMarketNewsLogic(force = false) {
   logger.info(`📰 [스케줄러] 중앙 시장 뉴스 생성 시작 (강제: ${force})`);
   try {
-    // 🔥 최적화 1: 활성 뉴스 수 먼저 확인 (읽기 비용 절감)
-    const activeNewsSnapshot = await db.collection("CentralNews")
-      .where("isActive", "==", true)
-      .limit(10) // 최대 10개만 확인
-      .get();
-
-    const activeNewsCount = activeNewsSnapshot.size;
-    logger.info(`[뉴스 생성] 현재 활성 뉴스: ${activeNewsCount}개`);
-
     const stocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", true)
       .get();
@@ -673,22 +773,26 @@ async function createCentralMarketNewsLogic(force = false) {
       stocksBySector[sector].push(stockDoc.id);
     }
 
-    const newsItems = [];
+    const batch = db.batch();
     const now = admin.firestore.Timestamp.now();
     const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
     const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
 
-    // 🔥 최적화: 강제 생성이거나 활성 뉴스가 3개 미만일 때만 1개 생성
-    const newsToCreate = (force || activeNewsCount < 3) ? 1 : 0;
+    // 🔥 1단계: 기존 모든 활성 뉴스 삭제
+    const activeNewsSnapshot = await db.collection("CentralNews")
+      .where("isActive", "==", true)
+      .get();
 
-    if (newsToCreate === 0) {
-      logger.info(`[뉴스 생성] 활성 뉴스 ${activeNewsCount}개로 충분, 생성 건너뜀 (읽기 비용 절감)`);
-      return;
+    logger.info(`[뉴스 생성] 기존 활성 뉴스 ${activeNewsSnapshot.size}개 삭제`);
+
+    for (const doc of activeNewsSnapshot.docs) {
+      batch.delete(doc.ref);
     }
 
-    logger.info(`[뉴스 생성] ${newsToCreate}개 생성 시도 (현재 활성: ${activeNewsCount}개)`);
+    // 🔥 2단계: 새로운 뉴스 정확히 2개 생성
+    logger.info(`[뉴스 생성] 새로운 뉴스 2개 생성`);
 
-    for (let i = 0; i < newsToCreate; i++) {
+    for (let i = 0; i < 2; i++) {
       const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
       const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
       const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
@@ -698,7 +802,8 @@ async function createCentralMarketNewsLogic(force = false) {
 
       logger.info(`[뉴스 생성] 뉴스 ${i + 1}: ${randomSector} 섹터 (${randomCategory}) - ${randomTemplate}`);
 
-      newsItems.push({
+      const newsRef = db.collection("CentralNews").doc();
+      batch.set(newsRef, {
         title: randomTemplate,
         content: "투자 판단 시 신중한 분석이 필요합니다.",
         relatedStocks: relatedStockIds,
@@ -706,65 +811,16 @@ async function createCentralMarketNewsLogic(force = false) {
         category: randomCategory,
         isActive: true,
         timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 🔥 최적화: 15분 → 30분으로 증가 (뉴스 수명 대폭 연장, 읽기 비용 절감)
+        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 수명
         createdAt: now,
       });
     }
 
-    if (newsItems.length === 0) {
-      logger.info("[뉴스 생성] 생성할 뉴스가 없습니다.");
-      return;
-    }
-
-    // 🔥 최적화: 뉴스가 5개를 초과할 때만 비활성화 (쓰기 비용 절감)
-    const totalAfterCreation = activeNewsCount + newsItems.length;
-    let newsToDeactivate = [];
-
-    if (totalAfterCreation > 5) {
-      // 활성 뉴스를 timestamp 오름차순으로 정렬 (가장 오래된 것이 앞에)
-      const sortedActiveNews = activeNewsSnapshot.docs
-        .map(doc => ({
-          id: doc.id,
-          ref: doc.ref,
-          timestamp: doc.data().timestamp?.toMillis() || 0,
-        }))
-        .sort((a, b) => a.timestamp - b.timestamp);
-
-      // 비활성화할 개수 계산 (최대 5개까지만 유지)
-      const deactivateCount = totalAfterCreation - 5;
-      newsToDeactivate = sortedActiveNews.slice(0, deactivateCount);
-
-      logger.info(`[뉴스 생성] ${deactivateCount}개의 오래된 뉴스를 비활성화합니다 (최대 5개 유지).`);
-    }
-
-    // Firestore 배치로 처리 (새 뉴스 추가 + 오래된 뉴스 비활성화)
-    const batch = db.batch();
-
-    // 1. 새 뉴스 추가
-    for (const news of newsItems) {
-      const newsRef = db.collection("CentralNews").doc();
-      batch.set(newsRef, news);
-    }
-
-    // 2. 오래된 뉴스 비활성화
-    for (const oldNews of newsToDeactivate) {
-      batch.update(oldNews.ref, {
-        isActive: false,
-        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        deactivatedReason: "새 뉴스 생성으로 인한 자동 순환",
-      });
-    }
-
+    // 🔥 3단계: 배치 커밋 (기존 뉴스 삭제 + 새 뉴스 2개 생성)
     await batch.commit();
 
-    logger.info(`✅ ${newsItems.length}개의 시장 뉴스 생성 완료 (수명: 30분, 자동 삭제)`);
-    newsItems.forEach(news => {
-      logger.info(`  - [${news.sector}] ${news.title} (${news.category})`);
-    });
-    if (newsToDeactivate.length > 0) {
-      logger.info(`✅ ${newsToDeactivate.length}개의 오래된 뉴스 비활성화 완료`);
-    }
-    logger.info(`[뉴스 생성 통계] 읽기: ${activeNewsCount + stocksSnapshot.docs.length}개, 쓰기: ${newsItems.length + newsToDeactivate.length}개`);
+    logger.info(`✅ 뉴스 교체 완료: 기존 ${activeNewsSnapshot.size}개 삭제, 새로운 2개 생성 (30분 수명)`);
+    logger.info(`[뉴스 생성 통계] 읽기: ${stocksSnapshot.docs.length + activeNewsSnapshot.size}개, 쓰기: ${activeNewsSnapshot.size + 2}개 (삭제 ${activeNewsSnapshot.size} + 생성 2)`);
   } catch (error) {
     logger.error("❌ 뉴스 생성 중 오류:", error);
     throw error;
