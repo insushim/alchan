@@ -231,7 +231,7 @@ const SECTORS = {
   CORPORATE: { name: "회사채" }
 };
 
-const HOLDING_LOCK_PERIOD = 5 * 60 * 1000;
+const HOLDING_LOCK_PERIOD = 60 * 60 * 1000; // 1시간 (60분)
 const COMMISSION_RATE = 0.003;
 const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
@@ -927,7 +927,7 @@ const StockExchange = () => {
 
     if (!canSellHolding(holding)) {
       const remaining = getRemainingLockTime(holding);
-      return alert(`매수 후 ${HOLDING_LOCK_PERIOD / 60000}분간은 매도할 수 없습니다.\n남은 시간: ${formatTime(remaining)}`);
+      return alert(`매수 후 1시간 동안은 매도할 수 없습니다.\n남은 시간: ${formatTime(remaining)}`);
     }
 
     const stock = stocks.find(s => s.id === holding.stockId);

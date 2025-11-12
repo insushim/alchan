@@ -676,14 +676,14 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
         throw new Error(`보유 수량이 부족합니다. 보유: ${currentQuantity}주, 요청: ${quantity}주`);
       }
 
-      // 매수 후 5분 이내 매도 제한 확인
+      // 매수 후 1시간 이내 매도 제한 확인
       if (portfolioData.lastBuyTime) {
         const lastBuyTime = portfolioData.lastBuyTime.toDate ? portfolioData.lastBuyTime.toDate() : new Date(portfolioData.lastBuyTime);
         const timeSinceBuy = Date.now() - lastBuyTime.getTime();
-        const LOCK_PERIOD = 5 * 60 * 1000; // 5분
+        const LOCK_PERIOD = 60 * 60 * 1000; // 1시간 (60분)
         if (timeSinceBuy < LOCK_PERIOD) {
-          const remainingSeconds = Math.ceil((LOCK_PERIOD - timeSinceBuy) / 1000);
-          throw new Error(`매수 후 5분간은 매도할 수 없습니다. 남은 시간: ${remainingSeconds}초`);
+          const remainingMinutes = Math.ceil((LOCK_PERIOD - timeSinceBuy) / 60000);
+          throw new Error(`매수 후 1시간 동안은 매도할 수 없습니다. 남은 시간: 약 ${remainingMinutes}분`);
         }
       }
 
