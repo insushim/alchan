@@ -46,11 +46,11 @@ exports.initializeAll = initSettings.initializeAll; // 전체 초기화
 // }, updateCentralStockMarketLogic);
 
 // 3분마다 뉴스 생성
-// exports.createCentralMarketNews = onSchedule({
-//   region: "asia-northeast3",
-//   schedule: "every 3 minutes",
-//   timeoutSeconds: 540,
-// }, createCentralMarketNewsLogic);
+exports.createCentralMarketNews = onSchedule({
+  region: "asia-northeast3",
+  schedule: "every 3 minutes",
+  timeoutSeconds: 540,
+}, createCentralMarketNewsLogic);
 
 // 10분마다 자동 상장/폐지
 // exports.autoManageStocks = onSchedule({
@@ -60,11 +60,11 @@ exports.initializeAll = initSettings.initializeAll; // 전체 초기화
 // }, autoManageStocksLogic);
 
 // 3분마다 만료된 뉴스 정리
-// exports.cleanupExpiredCentralNews = onSchedule({
-//   region: "asia-northeast3",
-//   schedule: "every 3 minutes",
-//   timeoutSeconds: 540,
-// }, cleanupExpiredCentralNewsLogic);
+exports.cleanupExpiredCentralNews = onSchedule({
+  region: "asia-northeast3",
+  schedule: "every 3 minutes",
+  timeoutSeconds: 540,
+}, cleanupExpiredCentralNewsLogic);
 
 // 매일 자정 작업 리셋
 // exports.resetDailyTasks = onSchedule({
@@ -2095,3 +2095,32 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 //     throw new HttpsError("internal", error.message || "합의금 처리 중 내부 오류가 발생했습니다.");
 //   }
 // });
+
+exports.saveFCMToken = onCall({region: "asia-northeast3"}, async (request) => {
+  const { uid } = await checkAuthAndGetUserData(request);
+  const { token } = request.data;
+
+  if (!token) {
+    throw new HttpsError("invalid-argument", "FCM 토큰이 필요합니다.");
+  }
+
+  try {
+    // Firestore에 토큰 저장 (users/{userId}/fcmTokens/{token})
+    const tokenRef = db.collection("users").doc(uid).collection("fcmTokens").doc(token);
+    await tokenRef.set({
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      platform: request.rawRequest.headers['user-agent'] || 'unknown',
+    });
+
+    // 'market_updates' 토픽에 구독
+    const topic = 'market_updates';
+    await admin.messaging().subscribeToTopic(token, topic);
+
+    logger.info(`[FCM] 사용자 ${uid}의 토큰 ${token.substring(0,10)}...을(를) 저장하고 '${topic}' 토픽에 구독했습니다.`);
+
+    return { success: true, message: "토큰 저장 및 토픽 구독 완료" };
+  } catch (error) {
+    logger.error(`[FCM] 토큰 저장 또는 토픽 구독 실패 (사용자: ${uid}):`, error);
+    throw new HttpsError("internal", "FCM 토큰 처리 중 오류가 발생했습니다.");
+  }
+});

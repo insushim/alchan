@@ -47,6 +47,7 @@ import {
 import { getStorage } from "firebase/storage";
 // 👇 [수정] httpsCallable import 추가
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions"; 
+import { getMessaging, getToken, onMessage } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -791,9 +792,7 @@ const updateUserCashInFirestore = async (userId, amount, logMessage = '', sender
     );
 
     console.log(
-      `[firebase.js] 사용자 ${userId} 현금 ${
-        amount > 0 ? "+" : ""
-      }${amount} 만큼 업데이트 성공.`
+      `[firebase.js] 사용자 ${userId} 현금 ${amount > 0 ? "+" : ""}${amount} 만큼 업데이트 성공.`
     );
     return true;
   } catch (error) {
@@ -886,8 +885,8 @@ export const transferCash = async (senderId, receiverId, amount, message = '', a
     const senderName = senderDoc?.name || '알 수 없는 사용자';
     const receiverName = receiverDoc?.name || '알 수 없는 사용자';
     
-    const senderLogMessage = `${receiverName}님에게 ${amount}원을 송금했습니다.${message ? ` 메시지: \'\'${message}\'\'` : ''}`;
-    const receiverLogMessage = `${senderName}님으로부터 ${amount}원을 받았습니다.${message ? ` 메시지: \'\'${message}\'\'` : ''}`;
+    const senderLogMessage = `${receiverName}님에게 ${amount}원을 송금했습니다.${message ? ` 메시지: ''${message}''` : ''}`;
+    const receiverLogMessage = `${senderName}님으로부터 ${amount}원을 받았습니다.${message ? ` 메시지: ''${message}''` : ''}`;
 
     await Promise.all([
       addActivityLog(senderId, '송금', senderLogMessage),
@@ -1592,9 +1591,7 @@ export const purchaseItemTransaction = async (
       if (!skipCashDeduction && userData) {
         if ((userData.cash || 0) < finalPriceWithVAT) {
           throw new Error(
-            `[firebase.js] 현금이 부족합니다. (필요: ${finalPriceWithVAT}, 부가세 ${vatAmount} 포함, 현재: ${
-              userData.cash || 0
-            })`
+            `[firebase.js] 현금이 부족합니다. (필요: ${finalPriceWithVAT}, 부가세 ${vatAmount} 포함, 현재: ${userData.cash || 0})`
           );
         }
       }
@@ -1684,9 +1681,7 @@ export const purchaseItemTransaction = async (
     await addActivityLog(userId, '아이템 구매', logDescription);
 
     console.log(
-      `[${userClassCode}] 아이템 구매 성공 (ID: ${storeItemId}), 부가세 ${vatAmount} 납부 완료.${
-        autoRestockOccurred ? " 🔄 자동 재고 채우기 및 가격 인상 적용됨!" : ""
-      }`
+      `[${userClassCode}] 아이템 구매 성공 (ID: ${storeItemId}), 부가세 ${vatAmount} 납부 완료.${autoRestockOccurred ? " 🔄 자동 재고 채우기 및 가격 인상 적용됨!" : ""}`
     );
 
     return {
@@ -1903,7 +1898,8 @@ export const verifyClassCode = async (classCodeToVerify, maxRetries = 2) => {
 
       const getDocPromise = getDoc(classCodesSettingsRef);
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("문서 조회 타임아웃")), 8000)
+        setTimeout(() => reject(new Error("문서 조회 타임아웃")),
+        8000)
       );
       const docSnap = await Promise.race([getDocPromise, timeoutPromise]);
       console.log(
@@ -1985,9 +1981,7 @@ export const verifyClassCode = async (classCodeToVerify, maxRetries = 2) => {
 
       if (!isRetryableError) {
         console.error(
-          `[firebase.js] verifyClassCode 재시도 불가능한 오류: ${
-            error.code || error.message
-          }`
+          `[firebase.js] verifyClassCode 재시도 불가능한 오류: ${error.code || error.message}`
         );
         break;
       }
@@ -2487,7 +2481,7 @@ export const getCacheStats = () => {
   return stats;
 };
 
-export {
+export { 
   app,
   db,
   auth,
@@ -2561,3 +2555,42 @@ export const processSettlement = async (settlementData) => {
     throw new Error(error.message || "서버 함수 호출에 실패했습니다.");
   }
 };
+
+const messaging = getMessaging(app);
+
+// ⭐️ [신규] FCM 권한 요청 및 토큰/주제 관리
+export const requestNotificationPermission = async () => {
+  if (!auth.currentUser) {
+    console.log("[FCM] 사용자가 로그인하지 않아 권한을 요청할 수 없습니다.");
+    return;
+  }
+
+  console.log("[FCM] 알림 권한 요청 중...");
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      console.log("[FCM] 알림 권한이 허용되었습니다.");
+      
+      const currentToken = await getToken(messaging, {
+        vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY,
+      });
+
+      if (currentToken) {
+        console.log("[FCM] 토큰 수신:", currentToken);
+        // 서버에 토큰 전송 및 주제 구독 요청
+        const saveTokenFunction = httpsCallable(functions, 'saveFCMToken');
+        await saveTokenFunction({ token: currentToken });
+        console.log("[FCM] 서버에 토큰 전송 및 주제 구독 완료.");
+      } else {
+        console.log("[FCM] 토큰을 수신할 수 없습니다. 푸시 알림이 비활성화될 수 있습니다.");
+      }
+    } else {
+      console.log("[FCM] 알림 권한이 거부되었습니다.");
+    }
+  } catch (error) {
+    console.error("[FCM] 권한 요청 또는 토큰 수신 중 오류:", error);
+  }
+};
+
+// messaging 객체도 export합니다.
+export { messaging };

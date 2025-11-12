@@ -10,7 +10,7 @@ import {
 } from "react-router-dom";
 
 // Firebase imports
-import { db, isFirestoreInitialized, functions } from "./firebase";
+import { db, isFirestoreInitialized, functions, requestNotificationPermission } from "./firebase";
 import { httpsCallable } from "firebase/functions";
 import {
   collection,
@@ -1007,6 +1007,13 @@ function AppLayoutContent() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
+  // FCM 권한 요청
+  useEffect(() => {
+    if (authHook.userDoc) {
+      requestNotificationPermission();
+    }
+  }, [authHook.userDoc]);
+
   // 메모이제이션된 스타일 객체들
   const cashBarStyle = useMemo(() => ({
     position: "fixed",
@@ -1357,6 +1364,28 @@ function AppLayoutContent() {
 }
 
 function App() {
+  // FCM 서비스 워커에 설정 전달
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(registration => {
+        if (registration.active) {
+          const firebaseConfig = {
+            apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+            authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+            projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+            storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+            messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+            appId: process.env.REACT_APP_FIREBASE_APP_ID
+          };
+          registration.active.postMessage({
+            type: 'FIREBASE_CONFIG',
+            config: firebaseConfig
+          });
+        }
+      });
+    }
+  }, []);
+
   // 앱 종료 시 캐시 정리
   useEffect(() => {
     const handleBeforeUnload = () => {

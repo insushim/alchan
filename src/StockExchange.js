@@ -636,17 +636,20 @@ const StockExchange = () => {
     }
   }, [userDoc]);
 
+  // 🔥 매도 제한 타이머: portfolio 의존성 제거하여 1초마다 항상 업데이트
   useEffect(() => {
     const interval = setInterval(() => {
-      const newTimers = {};
-      portfolio.forEach(holding => {
-        const remaining = getRemainingLockTime(holding);
-        if (remaining > 0) {
-          newTimers[holding.id] = remaining;
-        }
+      setLockTimers(prevTimers => {
+        const newTimers = {};
+        portfolio.forEach(holding => {
+          const remaining = getRemainingLockTime(holding);
+          if (remaining > 0) {
+            newTimers[holding.id] = remaining;
+          }
+        });
+        return newTimers;
       });
-      setLockTimers(newTimers);
-      
+
       // 캐시 통계 업데이트
       setCacheStatus({
         hits: cacheStats.hits,
@@ -655,6 +658,18 @@ const StockExchange = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
+  }, []); // 🔥 빈 의존성 배열로 변경 - 타이머가 계속 작동하도록 수정
+
+  // 🔥 portfolio가 변경되면 즉시 타이머 재계산
+  useEffect(() => {
+    const newTimers = {};
+    portfolio.forEach(holding => {
+      const remaining = getRemainingLockTime(holding);
+      if (remaining > 0) {
+        newTimers[holding.id] = remaining;
+      }
+    });
+    setLockTimers(newTimers);
   }, [portfolio]);
 
   // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
@@ -718,54 +733,8 @@ const StockExchange = () => {
     fetchAllData(false);
   }, [user, firebaseReady, classCode, fetchAllData]);
 
-  // === 서버 스케줄 동기화 폴링 (시장 개장 시간에만 활성화) ===
-  useEffect(() => {
-    if (!user || !firebaseReady || !classCode || !marketOpen) return;
-
-    let pollTimeoutId = null;
-
-    const scheduleNextPoll = () => {
-      // 15분 주기 폴링 (1, 16, 31, 46분)
-      const POLL_MINUTES = [1, 16, 31, 46];
-      const now = new Date();
-      const currentMinute = now.getMinutes();
-
-      let nextPollMinute = POLL_MINUTES.find(m => m > currentMinute);
-      
-      const nextPollTime = new Date(now);
-
-      if (nextPollMinute) {
-        nextPollTime.setMinutes(nextPollMinute, 0, 0);
-      } else {
-        // 다음 시간 첫번째 스케줄로 설정
-        nextPollTime.setHours(now.getHours() + 1, POLL_MINUTES[0], 0, 0);
-      }
-
-      const delay = nextPollTime.getTime() - now.getTime();
-
-      console.log(`[StockExchange] 다음 자동 업데이트는 ${nextPollTime.toLocaleTimeString()} 입니다. (${Math.round(delay / 1000)}초 후)`);
-
-      pollTimeoutId = setTimeout(() => {
-        if (document.hidden) { // 페이지가 비활성화 상태면 다음 스케줄로 건너뜀
-          console.log('[StockExchange] 페이지 비활성화 상태, 데이터 갱신 건너뛰고 다음 스케줄 예약');
-          scheduleNextPoll();
-          return;
-        }
-
-        console.log('[StockExchange] 스케줄 동기화: 데이터 갱신 실행');
-        fetchAllData(true); // 뉴스 생성을 위해 강제 새로고침(true)으로 변경
-        scheduleNextPoll(); // 다음 폴링 예약
-      }, delay);
-    };
-
-    scheduleNextPoll(); // 스케줄링 시작
-
-    return () => {
-      if (pollTimeoutId) {
-        clearTimeout(pollTimeoutId);
-      }
-    };
-  }, [user, firebaseReady, classCode, marketOpen, fetchAllData]);
+  // 🔥 FCM 푸시 알림 제거됨 (이유: 알림 스팸, 읽기 증가, 사용자 경험 악화)
+  // 대신 30분 캐시 + 시간당 1회 자동 폴링으로 부드러운 업데이트 제공
 
   // === 자동 상장/폐지 관리는 Firebase Functions에서 처리 ===
   // 10분마다 서버에서 자동으로 실행됨 (autoManageStocks 함수)
