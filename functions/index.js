@@ -45,12 +45,13 @@ exports.initializeAll = initSettings.initializeAll; // 전체 초기화
 //   timeoutSeconds: 540,
 // }, updateCentralStockMarketLogic);
 
+// 🔥 뉴스 생성 및 정리는 cron-job.org의 simpleScheduler에서 처리 (비용 절감)
 // 3분마다 뉴스 생성
-exports.createCentralMarketNews = onSchedule({
-  region: "asia-northeast3",
-  schedule: "every 3 minutes",
-  timeoutSeconds: 540,
-}, createCentralMarketNewsLogic);
+// exports.createCentralMarketNews = onSchedule({
+//   region: "asia-northeast3",
+//   schedule: "every 3 minutes",
+//   timeoutSeconds: 540,
+// }, createCentralMarketNewsLogic);
 
 // 10분마다 자동 상장/폐지
 // exports.autoManageStocks = onSchedule({
@@ -60,11 +61,11 @@ exports.createCentralMarketNews = onSchedule({
 // }, autoManageStocksLogic);
 
 // 3분마다 만료된 뉴스 정리
-exports.cleanupExpiredCentralNews = onSchedule({
-  region: "asia-northeast3",
-  schedule: "every 3 minutes",
-  timeoutSeconds: 540,
-}, cleanupExpiredCentralNewsLogic);
+// exports.cleanupExpiredCentralNews = onSchedule({
+//   region: "asia-northeast3",
+//   schedule: "every 3 minutes",
+//   timeoutSeconds: 540,
+// }, cleanupExpiredCentralNewsLogic);
 
 // 매일 자정 작업 리셋
 // exports.resetDailyTasks = onSchedule({
