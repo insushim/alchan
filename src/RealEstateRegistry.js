@@ -38,13 +38,14 @@ const DEFAULT_SETTINGS = {
 };
 
 const RealEstateRegistry = () => {
+  const authContext = useAuth(); // 🔥 [수정] authContext로 저장
   const {
     userDoc: currentUser,
     loading: authLoading,
     isAdmin,
     refreshUserDocument,
     optimisticUpdate,
-  } = useAuth();
+  } = authContext;
 
   const classCode = currentUser?.classCode;
 
