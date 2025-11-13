@@ -625,7 +625,7 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
 
 // === 메인 컴포넌트 ===
 const StockExchange = () => {
-  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady, functions, optimisticUpdate } = useAuth();
+  const { user, userDoc, isAdmin, loading: authLoading, firebaseReady, functions, optimisticUpdate, refreshUserDocument } = useAuth();
 
   const [classCode, setClassCode] = useState(null);
   const [stocks, setStocks] = useState([]);
@@ -958,7 +958,12 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      await fetchAllData(true);
+
+      // 🔥 [수정] 사용자 문서 새로고침 추가 (현금 업데이트 반영)
+      await Promise.all([
+        fetchAllData(true),
+        refreshUserDocument && refreshUserDocument(user.uid)
+      ]);
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
 
@@ -975,7 +980,7 @@ const StockExchange = () => {
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, user, isTrading, classCode, marketOpen, functions, fetchAllData, invalidateCache, optimisticUpdate]);
+  }, [stocks, user, isTrading, classCode, marketOpen, functions, fetchAllData, invalidateCache, optimisticUpdate, refreshUserDocument]);
 
   const sellStock = useCallback(async (holdingId, quantityString) => {
     if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
@@ -1023,7 +1028,12 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      await fetchAllData(true);
+
+      // 🔥 [수정] 사용자 문서 새로고침 추가 (현금 업데이트 반영)
+      await Promise.all([
+        fetchAllData(true),
+        refreshUserDocument && refreshUserDocument(user.uid)
+      ]);
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
 
@@ -1042,7 +1052,7 @@ const StockExchange = () => {
     } finally {
       setIsTrading(false);
     }
-  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions, optimisticUpdate]);
+  }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions, optimisticUpdate, refreshUserDocument]);
 
   const deleteHolding = useCallback(async (holdingId) => {
     if (!user || !classCode) return;
