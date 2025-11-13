@@ -966,6 +966,7 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH`); // 🔥 [추가] 모든 BATCH 캐시 무효화 (localStorage 포함)
 
       // 주식 데이터 새로고침
       await fetchAllData(true);
@@ -1041,6 +1042,7 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
+      invalidateCache(`BATCH`); // 🔥 [추가] 모든 BATCH 캐시 무효화 (localStorage 포함)
 
       // 주식 데이터 새로고침
       await fetchAllData(true);

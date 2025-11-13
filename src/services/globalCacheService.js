@@ -238,15 +238,36 @@ class GlobalCacheService {
     }
   }
 
-  // 패턴 기반 캐시 무효화
+  // 패턴 기반 캐시 무효화 (메모리 + localStorage)
   invalidatePattern(pattern) {
     const keysToInvalidate = [];
+
+    // 메모리 캐시에서 패턴 매칭
     for (const key of this.cache.keys()) {
       if (key.includes(pattern)) {
         keysToInvalidate.push(key);
       }
     }
+
+    // 🔥 [수정] localStorage에서도 패턴 매칭하여 삭제
+    if (this.useLocalStorage) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const lsKey = localStorage.key(i);
+          if (lsKey && lsKey.startsWith(this.localStoragePrefix)) {
+            const actualKey = lsKey.substring(this.localStoragePrefix.length);
+            if (actualKey.includes(pattern) && !keysToInvalidate.includes(actualKey)) {
+              keysToInvalidate.push(actualKey);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[GlobalCache] localStorage 패턴 검색 오류:', error);
+      }
+    }
+
     keysToInvalidate.forEach(key => this.invalidate(key));
+    console.log(`[GlobalCache] 패턴 '${pattern}' 매칭: ${keysToInvalidate.length}개 캐시 무효화`);
   }
 
   // 구독 추가
