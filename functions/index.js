@@ -614,6 +614,9 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
         });
       }
 
+      // 🔥 [추가] 거래 후 잔액 계산 및 반환
+      const newBalance = currentCash - totalCost;
+
       return {
         stockName: stockData.name,
         quantity: quantity,
@@ -622,6 +625,7 @@ exports.buyStock = onCall({region: "asia-northeast3"}, async (request) => {
         commission: commission,
         tax: transactionTax,
         totalCost: totalCost,
+        newBalance: newBalance, // 거래 후 새 잔액
       };
     });
 
@@ -774,6 +778,11 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
         });
       }
 
+      // 🔥 [추가] 거래 후 잔액 계산 및 반환
+      const userData = userDoc.data();
+      const currentCash = userData.cash || 0;
+      const newBalance = currentCash + netRevenue;
+
       return {
         stockName: stockData.name,
         quantity: quantity,
@@ -782,6 +791,7 @@ exports.sellStock = onCall({region: "asia-northeast3"}, async (request) => {
         totalTax: totalTax,
         profit: profit,
         netRevenue: netRevenue,
+        newBalance: newBalance, // 거래 후 새 잔액
       };
     });
 

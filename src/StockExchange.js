@@ -953,22 +953,22 @@ const StockExchange = () => {
 
       console.log('[buyStock] 매수 성공:', result.data);
 
+      // 🔥 [수정] 서버에서 받은 정확한 잔액으로 낙관적 업데이트 보정
+      if (result.data.newBalance !== undefined && optimisticUpdate) {
+        const currentCash = userDoc?.cash || 0;
+        const cashDiff = result.data.newBalance - currentCash;
+        optimisticUpdate({ cash: cashDiff });
+        console.log('[buyStock] 현금 정확한 값으로 업데이트:', result.data.newBalance);
+      }
+
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
 
-      // 주식 데이터 먼저 새로고침
+      // 주식 데이터 새로고침
       await fetchAllData(true);
-
-      // 🔥 [수정] Cloud Function 완료 대기 후 사용자 문서 새로고침 (1초 대기)
-      setTimeout(async () => {
-        if (refreshUserDocument) {
-          await refreshUserDocument(user.uid);
-          console.log('[buyStock] 현금 최종 업데이트 완료');
-        }
-      }, 1000);
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
 
@@ -1028,22 +1028,22 @@ const StockExchange = () => {
 
       console.log('[sellStock] 매도 성공:', result.data);
 
+      // 🔥 [수정] 서버에서 받은 정확한 잔액으로 낙관적 업데이트 보정
+      if (result.data.newBalance !== undefined && optimisticUpdate) {
+        const currentCash = userDoc?.cash || 0;
+        const cashDiff = result.data.newBalance - currentCash;
+        optimisticUpdate({ cash: cashDiff });
+        console.log('[sellStock] 현금 정확한 값으로 업데이트:', result.data.newBalance);
+      }
+
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
 
-      // 주식 데이터 먼저 새로고침
+      // 주식 데이터 새로고침
       await fetchAllData(true);
-
-      // 🔥 [수정] Cloud Function 완료 대기 후 사용자 문서 새로고침 (1초 대기)
-      setTimeout(async () => {
-        if (refreshUserDocument) {
-          await refreshUserDocument(user.uid);
-          console.log('[sellStock] 현금 최종 업데이트 완료');
-        }
-      }, 1000);
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
 
