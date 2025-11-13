@@ -80,6 +80,17 @@ class GlobalCacheService {
         if (cached) {
           const {data, expiry} = JSON.parse(cached);
           if (Date.now() <= expiry) {
+            // 🔥 [추가] BATCH 캐시는 5분 이상 된 것은 무효화 (거래 후 정확도 보장)
+            if (key.includes('BATCH')) {
+              const age = Date.now() - (expiry - 10 * 60 * 1000); // 10분 TTL 역산
+              if (age > 5 * 60 * 1000) { // 5분 이상
+                console.log(`[GlobalCache] ⚠️ 오래된 BATCH 캐시 무효화: ${key} (${Math.floor(age/1000)}초 경과)`);
+                localStorage.removeItem(lsKey);
+                cacheStats.misses++;
+                return null;
+              }
+            }
+
             // localStorage에서 복원하여 메모리 캐시에 저장
             this.cache.set(key, data);
             this.timestamps.set(key, expiry);
