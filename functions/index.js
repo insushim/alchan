@@ -2028,85 +2028,85 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 //   }
 // });
 
-// exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
-//   try {
-//     const { uid, classCode, userData } = await checkAuthAndGetUserData(request, false); // no admin check yet
-// 
-//     const { reportId, amount, senderId, recipientId } = request.data;
-// 
-//     if (!reportId || !amount || !senderId || !recipientId || !classCode) {
-//       throw new HttpsError("invalid-argument", "필수 파라미터가 누락되었습니다.");
-//     }
-// 
-//     // 관리자 또는 경찰청장만 합의금 처리 가능
-//     const isAdmin = userData.isAdmin || userData.isSuperAdmin;
-// 
-//     // jobName 또는 jobTitle 필드를 확인
-//     // 또는 selectedJobIds에서 경찰청장 직업이 있는지 확인
-//     let isPoliceChief = false;
-//     if (userData.jobName === "경찰청장" || userData.jobTitle === "경찰청장") {
-//       isPoliceChief = true;
-//     } else if (userData.selectedJobIds && Array.isArray(userData.selectedJobIds)) {
-//       // selectedJobIds에서 경찰청장 직업 확인
-//       const jobsSnapshot = await db.collection("jobs")
-//         .where("classCode", "==", classCode)
-//         .where(admin.firestore.FieldPath.documentId(), "in", userData.selectedJobIds.slice(0, 10))
-//         .get();
-// 
-//       isPoliceChief = jobsSnapshot.docs.some(doc => doc.data().title === "경찰청장");
-//     }
-// 
-//     logger.info(`[processSettlement] 권한 확인: uid=${uid}, isAdmin=${isAdmin}, isPoliceChief=${isPoliceChief}, jobName=${userData.jobName}, jobTitle=${userData.jobTitle}, selectedJobIds=${JSON.stringify(userData.selectedJobIds)}`);
-// 
-//     if (!isAdmin && !isPoliceChief) {
-//       throw new HttpsError("permission-denied", "관리자 또는 경찰청장만 합의금을 처리할 수 있습니다.");
-//     }
-// 
-//     const settlementAmount = parseInt(amount, 10);
-//     if (isNaN(settlementAmount) || settlementAmount <= 0) {
-//       throw new HttpsError("invalid-argument", "합의금은 0보다 커야 합니다.");
-//     }
-// 
-//     const reportRef = db.collection("classes").doc(classCode).collection("policeReports").doc(reportId);
-//     const senderRef = db.collection("users").doc(senderId);
-//     const recipientRef = db.collection("users").doc(recipientId);
-// 
-//     await db.runTransaction(async (transaction) => {
-//       const [reportDoc, senderDoc, recipientDoc] = await transaction.getAll(reportRef, senderRef, recipientRef);
-// 
-//       if (!reportDoc.exists) throw new Error("신고 정보를 찾을 수 없습니다.");
-//       if (!senderDoc.exists) throw new Error("가해자 정보를 찾을 수 없습니다.");
-//       if (!recipientDoc.exists) throw new Error("피해자 정보를 찾을 수 없습니다.");
-// 
-//       const senderData = senderDoc.data();
-//       if ((senderData.cash || 0) < settlementAmount) {
-//         throw new Error("가해자의 현금이 부족하여 합의금을 처리할 수 없습니다.");
-//       }
-// 
-//       transaction.update(senderRef, { cash: admin.firestore.FieldValue.increment(-settlementAmount) });
-//       transaction.update(recipientRef, { cash: admin.firestore.FieldValue.increment(settlementAmount) });
-//       transaction.update(reportRef, {
-//         status: "settled",
-//         settlementAmount: settlementAmount,
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       const recipientData = recipientDoc.data();
-//       logActivity(transaction, senderId, LOG_TYPES.CASH_EXPENSE, `경찰서 합의금으로 ${recipientData.name}에게 ${settlementAmount}원 지급`, { reportId, victimName: recipientData.name });
-//       logActivity(transaction, recipientId, LOG_TYPES.CASH_INCOME, `경찰서 합의금으로 ${senderData.name}에게서 ${settlementAmount}원 수령`, { reportId, offenderName: senderData.name });
-//     });
-// 
-//     logger.info(`Settlement processed successfully for report ${reportId} by admin ${uid}`);
-//     return { success: true, message: "합의금이 성공적으로 처리되었습니다." };
-// 
-//   } catch (error) {
-//     logger.error(`[processSettlement] Error for user ${request.auth?.uid}:`, error);
-//     if (error instanceof HttpsError) {
-//       throw error;
-//     }
-//     throw new HttpsError("internal", error.message || "합의금 처리 중 내부 오류가 발생했습니다.");
-//   }
-// });
+exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
+  try {
+    const { uid, classCode, userData } = await checkAuthAndGetUserData(request, false); // no admin check yet
+
+    const { reportId, amount, senderId, recipientId } = request.data;
+
+    if (!reportId || !amount || !senderId || !recipientId || !classCode) {
+      throw new HttpsError("invalid-argument", "필수 파라미터가 누락되었습니다.");
+    }
+
+    // 관리자 또는 경찰청장만 합의금 처리 가능
+    const isAdmin = userData.isAdmin || userData.isSuperAdmin;
+
+    // jobName 또는 jobTitle 필드를 확인
+    // 또는 selectedJobIds에서 경찰청장 직업이 있는지 확인
+    let isPoliceChief = false;
+    if (userData.jobName === "경찰청장" || userData.jobTitle === "경찰청장") {
+      isPoliceChief = true;
+    } else if (userData.selectedJobIds && Array.isArray(userData.selectedJobIds)) {
+      // selectedJobIds에서 경찰청장 직업 확인
+      const jobsSnapshot = await db.collection("jobs")
+        .where("classCode", "==", classCode)
+        .where(admin.firestore.FieldPath.documentId(), "in", userData.selectedJobIds.slice(0, 10))
+        .get();
+
+      isPoliceChief = jobsSnapshot.docs.some(doc => doc.data().title === "경찰청장");
+    }
+
+    logger.info(`[processSettlement] 권한 확인: uid=${uid}, isAdmin=${isAdmin}, isPoliceChief=${isPoliceChief}, jobName=${userData.jobName}, jobTitle=${userData.jobTitle}, selectedJobIds=${JSON.stringify(userData.selectedJobIds)}`);
+
+    if (!isAdmin && !isPoliceChief) {
+      throw new HttpsError("permission-denied", "관리자 또는 경찰청장만 합의금을 처리할 수 있습니다.");
+    }
+
+    const settlementAmount = parseInt(amount, 10);
+    if (isNaN(settlementAmount) || settlementAmount <= 0) {
+      throw new HttpsError("invalid-argument", "합의금은 0보다 커야 합니다.");
+    }
+
+    const reportRef = db.collection("classes").doc(classCode).collection("policeReports").doc(reportId);
+    const senderRef = db.collection("users").doc(senderId);
+    const recipientRef = db.collection("users").doc(recipientId);
+
+    await db.runTransaction(async (transaction) => {
+      const [reportDoc, senderDoc, recipientDoc] = await transaction.getAll(reportRef, senderRef, recipientRef);
+
+      if (!reportDoc.exists) throw new Error("신고 정보를 찾을 수 없습니다.");
+      if (!senderDoc.exists) throw new Error("가해자 정보를 찾을 수 없습니다.");
+      if (!recipientDoc.exists) throw new Error("피해자 정보를 찾을 수 없습니다.");
+
+      const senderData = senderDoc.data();
+      if ((senderData.cash || 0) < settlementAmount) {
+        throw new Error("가해자의 현금이 부족하여 합의금을 처리할 수 없습니다.");
+      }
+
+      transaction.update(senderRef, { cash: admin.firestore.FieldValue.increment(-settlementAmount) });
+      transaction.update(recipientRef, { cash: admin.firestore.FieldValue.increment(settlementAmount) });
+      transaction.update(reportRef, {
+        status: "settled",
+        settlementAmount: settlementAmount,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      const recipientData = recipientDoc.data();
+      logActivity(transaction, senderId, LOG_TYPES.CASH_EXPENSE, `경찰서 합의금으로 ${recipientData.name}에게 ${settlementAmount}원 지급`, { reportId, victimName: recipientData.name });
+      logActivity(transaction, recipientId, LOG_TYPES.CASH_INCOME, `경찰서 합의금으로 ${senderData.name}에게서 ${settlementAmount}원 수령`, { reportId, offenderName: senderData.name });
+    });
+
+    logger.info(`Settlement processed successfully for report ${reportId} by admin ${uid}`);
+    return { success: true, message: "합의금이 성공적으로 처리되었습니다." };
+
+  } catch (error) {
+    logger.error(`[processSettlement] Error for user ${request.auth?.uid}:`, error);
+    if (error instanceof HttpsError) {
+      throw error;
+    }
+    throw new HttpsError("internal", error.message || "합의금 처리 중 내부 오류가 발생했습니다.");
+  }
+});
 
 exports.saveFCMToken = onCall({region: "asia-northeast3"}, async (request) => {
   const { uid } = await checkAuthAndGetUserData(request);
