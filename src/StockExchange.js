@@ -966,7 +966,23 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH`); // 🔥 [추가] 모든 BATCH 캐시 무효화 (localStorage 포함)
+
+      // 🔥 [수정] localStorage에서 BATCH 관련 키 직접 삭제
+      try {
+        const keysToDelete = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes('BATCH')) {
+            keysToDelete.push(key);
+          }
+        }
+        keysToDelete.forEach(key => {
+          localStorage.removeItem(key);
+          console.log('[거래] localStorage 캐시 삭제:', key);
+        });
+      } catch (error) {
+        console.warn('[거래] localStorage 정리 오류:', error);
+      }
 
       // 주식 데이터 새로고침
       await fetchAllData(true);
@@ -1042,7 +1058,23 @@ const StockExchange = () => {
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH`); // 🔥 [추가] 모든 BATCH 캐시 무효화 (localStorage 포함)
+
+      // 🔥 [수정] localStorage에서 BATCH 관련 키 직접 삭제
+      try {
+        const keysToDelete = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes('BATCH')) {
+            keysToDelete.push(key);
+          }
+        }
+        keysToDelete.forEach(key => {
+          localStorage.removeItem(key);
+          console.log('[거래] localStorage 캐시 삭제:', key);
+        });
+      } catch (error) {
+        console.warn('[거래] localStorage 정리 오류:', error);
+      }
 
       // 주식 데이터 새로고침
       await fetchAllData(true);
