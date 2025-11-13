@@ -78,11 +78,13 @@ class GlobalCacheService {
         const lsKey = this.localStoragePrefix + key;
         const cached = localStorage.getItem(lsKey);
         if (cached) {
-          const {data, expiry} = JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          const {data, expiry, createdAt} = parsed;
+
           if (Date.now() <= expiry) {
             // 🔥 [추가] BATCH 캐시는 5분 이상 된 것은 무효화 (거래 후 정확도 보장)
-            if (key.includes('BATCH')) {
-              const age = Date.now() - (expiry - 10 * 60 * 1000); // 10분 TTL 역산
+            if (key.includes('BATCH') && createdAt) {
+              const age = Date.now() - createdAt;
               if (age > 5 * 60 * 1000) { // 5분 이상
                 console.log(`[GlobalCache] ⚠️ 오래된 BATCH 캐시 무효화: ${key} (${Math.floor(age/1000)}초 경과)`);
                 localStorage.removeItem(lsKey);
@@ -146,8 +148,21 @@ class GlobalCacheService {
         const lsKey = this.localStoragePrefix + key;
         const cached = localStorage.getItem(lsKey);
         if (cached) {
-          const {data, expiry} = JSON.parse(cached);
+          const parsed = JSON.parse(cached);
+          const {data, expiry, createdAt} = parsed;
+
           if (Date.now() <= expiry) {
+            // 🔥 [추가] BATCH 캐시는 5분 이상 된 것은 무효화
+            if (key.includes('BATCH') && createdAt) {
+              const age = Date.now() - createdAt;
+              if (age > 5 * 60 * 1000) {
+                console.log(`[GlobalCache] ⚠️ 오래된 BATCH 캐시 무효화: ${key} (${Math.floor(age/1000)}초 경과)`);
+                localStorage.removeItem(lsKey);
+                cacheStats.misses++;
+                return null;
+              }
+            }
+
             this.cache.set(key, data);
             this.timestamps.set(key, expiry);
             console.log(`[GlobalCache] ✅ localStorage에서 복원: ${key}`);
@@ -170,6 +185,7 @@ class GlobalCacheService {
   // 🔥 [최적화] 메모리, IndexedDB, localStorage 동시 저장
   set(key, data, ttl = this.DEFAULT_TTL) {
     const expiry = Date.now() + ttl;
+    const createdAt = Date.now(); // 🔥 [추가] 생성 시간 기록
 
     // 메모리 캐시 저장
     this.cache.set(key, data);
@@ -184,7 +200,7 @@ class GlobalCacheService {
     if (this.useLocalStorage) {
       try {
         const lsKey = this.localStoragePrefix + key;
-        localStorage.setItem(lsKey, JSON.stringify({data, expiry}));
+        localStorage.setItem(lsKey, JSON.stringify({data, expiry, createdAt})); // 🔥 [수정] createdAt 추가
       } catch (error) {
         console.warn('[GlobalCache] localStorage 쓰기 오류 (용량 초과 가능):', error);
         // localStorage 용량 초과 시 가장 오래된 항목 삭제
