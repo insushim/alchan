@@ -10,8 +10,8 @@ import { formatKoreanCurrency } from './numberFormatter';
 import { useAuth } from "./AuthContext";
 import { db, functions } from "./firebase";
 import { applyStockTax } from "./utils/taxUtils";
-// 자동 상장/폐지는 Firebase Functions에서 처리 (10분마다)
-// import { startAutoManagementScheduler } from "./services/stockAutoManagementService";
+// 🔥 뉴스 생성: cron-job.org 스케줄러만 사용 (클라이언트 측 뉴스 생성 없음)
+// 🔥 자동 상장/폐지: Firebase Functions에서 처리 (10분마다)
 import { httpsCallable } from "firebase/functions";
 import {
   collection,
@@ -48,6 +48,10 @@ const batchDataLoader = {
         console.log('[batchDataLoader] Cache HIT - 캐시된 데이터 사용');
         return cached;
       }
+    } else {
+      console.log('[batchDataLoader] forceRefresh=true - 캐시 무시하고 서버에서 로드');
+      // 강제 새로고침 시 캐시 무효화
+      globalCache.delete(batchKey);
     }
 
     // 이미 같은 배치 요청이 진행 중이면 대기
@@ -62,8 +66,8 @@ const batchDataLoader = {
 
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 30 * 60 * 1000); // 🔥 최적화: 30분 캐시 (읽기 비용 극대 절감)
-      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (30분)');
+      globalCache.set(batchKey, result, 10 * 60 * 1000); // 🔥 최적화: 10분 캐시 (읽기 비용 절감)
+      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (10분)');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -93,6 +97,8 @@ const batchDataLoader = {
       const q = query(stocksRef, where("isListed", "==", true));
       const querySnapshot = await getDocs(q);
 
+      console.log(`[Firebase 읽기] Stocks: ${querySnapshot.docs.length}개 문서 읽음`);
+
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
@@ -108,6 +114,8 @@ const batchDataLoader = {
       const portfolioRef = collection(db, "users", userId, "portfolio");
       const q = query(portfolioRef, where("classCode", "==", classCode));
       const querySnapshot = await getDocs(q);
+
+      console.log(`[Firebase 읽기] Portfolio: ${querySnapshot.docs.length}개 문서 읽음`);
 
       return querySnapshot.docs.map(doc => {
         const data = doc.data();
@@ -129,15 +137,17 @@ const batchDataLoader = {
     try {
       const allNews = [];
 
-      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 읽기 비용 절감을 위해 limit 5로 감소
+      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 정확히 2개의 뉴스만 표시
       try {
         const centralNewsRef = collection(db, "CentralNews");
         const centralActiveQuery = query(
           centralNewsRef,
           where("isActive", "==", true),
-          limit(5)
+          limit(2)
         );
         const centralSnapshot = await getDocs(centralActiveQuery);
+
+        console.log(`[Firebase 읽기] News: ${centralSnapshot.docs.length}개 문서 읽음`);
 
         centralSnapshot.docs.forEach(doc => {
           const data = doc.data();
@@ -152,10 +162,10 @@ const batchDataLoader = {
         console.warn('[batchDataLoader] Central news load failed:', centralError);
       }
 
-      // 🔥 최적화: 클라이언트 측에서 시간순으로 정렬하고 최신 8개만 반환 (15→8)
+      // 🔥 최적화: 클라이언트 측에서 시간순으로 정렬하고 최신 2개만 반환
       return allNews
         .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 8);
+        .slice(0, 2);
 
     } catch (error) {
       console.error('[batchDataLoader] News load error:', error);
@@ -237,10 +247,10 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 30, // 🔥 최적화: 30분 캐시 (읽기 비용 극대 절감, 뉴스 수명과 동기화)
-  STOCKS: 1000 * 60 * 30, // 30분
-  PORTFOLIO: 1000 * 60 * 30, // 🔥 최적화: 30분 캐시
-  NEWS: 1000 * 60 * 30, // 30분 (뉴스 수명과 동일하게 설정)
+  BATCH_DATA: 1000 * 60 * 5, // 🔥 최적화: 5분 캐시 (뉴스가 30분마다 생성되므로 5분이면 새 뉴스를 빠르게 확인 가능)
+  STOCKS: 1000 * 60 * 5, // 5분 (주가가 자주 변동되므로)
+  PORTFOLIO: 1000 * 60 * 5, // 🔥 최적화: 5분 캐시
+  NEWS: 1000 * 60 * 5, // 5분 (뉴스가 30분마다 생성되므로)
   MARKET_STATUS: 1000 * 60 * 60, // 60분 (시장 상태는 거의 변경되지 않음)
 };
 
@@ -336,14 +346,19 @@ const calculateMarketIndex = (stocks) => {
 const canSellHolding = (holding) => {
   if (!holding.lastBuyTime) return true;
 
-  // 🔥 Date 객체와 Timestamp 모두 처리
-  const lastBuyTimeMs = holding.lastBuyTime instanceof Date
-    ? holding.lastBuyTime.getTime()
-    : holding.lastBuyTime?.toDate
-      ? holding.lastBuyTime.toDate().getTime()
-      : typeof holding.lastBuyTime === 'number'
-        ? holding.lastBuyTime
-        : Date.now();
+  // 🔥 Date 객체, Timestamp, 문자열 모두 처리
+  let lastBuyTimeMs;
+  if (holding.lastBuyTime instanceof Date) {
+    lastBuyTimeMs = holding.lastBuyTime.getTime();
+  } else if (holding.lastBuyTime?.toDate) {
+    lastBuyTimeMs = holding.lastBuyTime.toDate().getTime();
+  } else if (typeof holding.lastBuyTime === 'number') {
+    lastBuyTimeMs = holding.lastBuyTime;
+  } else if (typeof holding.lastBuyTime === 'string') {
+    lastBuyTimeMs = new Date(holding.lastBuyTime).getTime();
+  } else {
+    return true; // 알 수 없는 형식이면 매도 가능
+  }
 
   const timeSinceBuy = Date.now() - lastBuyTimeMs;
   return timeSinceBuy >= HOLDING_LOCK_PERIOD;
@@ -352,17 +367,24 @@ const canSellHolding = (holding) => {
 const getRemainingLockTime = (holding) => {
   if (!holding.lastBuyTime) return 0;
 
-  // 🔥 Date 객체와 Timestamp 모두 처리
-  const lastBuyTimeMs = holding.lastBuyTime instanceof Date
-    ? holding.lastBuyTime.getTime()
-    : holding.lastBuyTime?.toDate
-      ? holding.lastBuyTime.toDate().getTime()
-      : typeof holding.lastBuyTime === 'number'
-        ? holding.lastBuyTime
-        : Date.now();
+  // 🔥 Date 객체, Timestamp, 문자열 모두 처리
+  let lastBuyTimeMs;
+  if (holding.lastBuyTime instanceof Date) {
+    lastBuyTimeMs = holding.lastBuyTime.getTime();
+  } else if (holding.lastBuyTime?.toDate) {
+    lastBuyTimeMs = holding.lastBuyTime.toDate().getTime();
+  } else if (typeof holding.lastBuyTime === 'number') {
+    lastBuyTimeMs = holding.lastBuyTime;
+  } else if (typeof holding.lastBuyTime === 'string') {
+    lastBuyTimeMs = new Date(holding.lastBuyTime).getTime();
+  } else {
+    return 0; // 알 수 없는 형식이면 0 반환
+  }
 
-  const timeSinceBuy = Date.now() - lastBuyTimeMs;
+  const now = Date.now();
+  const timeSinceBuy = now - lastBuyTimeMs;
   const remaining = HOLDING_LOCK_PERIOD - timeSinceBuy;
+
   return Math.max(0, remaining);
 };
 
@@ -398,9 +420,10 @@ const invalidateCache = (pattern) => {
 };
 
 // === 관리자 패널 컴포넌트 ===
-const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate }) => {
+const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate, onDeleteAllNews }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isDeletingNews, setIsDeletingNews] = useState(false);
     const [newStock, setNewStock] = useState({
         name: "",
         price: "",
@@ -422,6 +445,22 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
             alert("업데이트 실패: " + error.message);
         } finally {
             setIsUpdating(false);
+        }
+    };
+
+    const handleDeleteAllNews = async () => {
+        if (!window.confirm("정말로 모든 뉴스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+            return;
+        }
+        if (isDeletingNews) return;
+        setIsDeletingNews(true);
+        try {
+            await onDeleteAllNews();
+            alert("모든 뉴스가 삭제되었습니다!");
+        } catch (error) {
+            alert("뉴스 삭제 실패: " + error.message);
+        } finally {
+            setIsDeletingNews(false);
         }
     };
 
@@ -478,15 +517,23 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
                     <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px' }}>
                         <p style={{ marginBottom: '10px', color: '#0369a1' }}>
                             📊 주식/ETF/채권 가격을 즉시 업데이트하고 뉴스를 생성합니다.<br/>
-                            ⏰ 자동 업데이트: 평일 8시-15시, 5분마다 가격 변동 / 3분마다 뉴스 생성
+                            ⏰ 자동 업데이트: cron-job.org 스케줄러를 통해 정기적으로 실행됩니다.
                         </p>
                         <button
                             onClick={handleManualUpdate}
                             disabled={isUpdating}
                             className="btn btn-success"
-                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold' }}
+                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold', marginBottom: '10px' }}
                         >
                             {isUpdating ? '⏳ 업데이트 중...' : '🚀 지금 즉시 가격 & 뉴스 업데이트'}
+                        </button>
+                        <button
+                            onClick={handleDeleteAllNews}
+                            disabled={isDeletingNews}
+                            className="btn btn-danger"
+                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold' }}
+                        >
+                            {isDeletingNews ? '⏳ 삭제 중...' : '🗑️ 모든 뉴스 강제 삭제'}
                         </button>
                     </div>
                 </div>
@@ -636,12 +683,18 @@ const StockExchange = () => {
     }
   }, [userDoc]);
 
-  // 🔥 매도 제한 타이머: portfolio 의존성 제거하여 1초마다 항상 업데이트
+  // 🔥 매도 제한 타이머: 1초마다 업데이트 (portfolio를 ref로 참조)
+  const portfolioRef = useRef(portfolio);
+
+  useEffect(() => {
+    portfolioRef.current = portfolio;
+  }, [portfolio]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setLockTimers(prevTimers => {
         const newTimers = {};
-        portfolio.forEach(holding => {
+        portfolioRef.current.forEach(holding => {
           const remaining = getRemainingLockTime(holding);
           if (remaining > 0) {
             newTimers[holding.id] = remaining;
@@ -658,7 +711,7 @@ const StockExchange = () => {
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []); // 🔥 빈 의존성 배열로 변경 - 타이머가 계속 작동하도록 수정
+  }, []); // 빈 의존성 배열 - portfolioRef를 통해 최신 portfolio 참조
 
   // 🔥 portfolio가 변경되면 즉시 타이머 재계산
   useEffect(() => {
@@ -752,7 +805,7 @@ const StockExchange = () => {
 
   // === 거래 함수들 (최적화된 캐시 무효화) ===
   const addStock = useCallback(async (stockData) => {
-    if (!classCode) return alert("클래스 정보가 없습니다.");
+    if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     try {
       const stockRef = doc(collection(db, "CentralStocks"));
       await setDoc(stockRef, {
@@ -768,60 +821,65 @@ const StockExchange = () => {
         recentSellVolume: 0,
         volatility: stockData.volatility || 0.02
       });
-      
-      // 선택적 캐시 무효화
+
+      // 캐시 무효화
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
-      
+
       alert(`${stockData.name} 상품이 추가되었습니다.`);
-    } catch (error) { 
-      alert("상품 추가 중 오류가 발생했습니다."); 
+    } catch (error) {
+      alert("상품 추가 중 오류가 발생했습니다.");
     }
-  }, [classCode, fetchAllData]);
+  }, [classCode, user, fetchAllData]);
 
   const deleteStock = useCallback(async (stockId, stockName) => {
-    if (!classCode) return alert("클래스 정보가 없습니다.");
+    if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     if (window.confirm(`'${stockName}' 상품을 정말로 삭제하시겠습니까?`)) {
       try {
         await deleteDoc(doc(db, "CentralStocks", stockId));
-        
+
+        // 캐시 무효화
+        const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+        globalCache.delete(batchKey);
         invalidateCache(`STOCKS_${classCode}`);
-        invalidateCache(`BATCH_${classCode}`);
         await fetchAllData(true);
-        
+
         alert(`${stockName} 상품이 삭제되었습니다.`);
-      } catch (error) { 
-        alert("상품 삭제 중 오류가 발생했습니다."); 
+      } catch (error) {
+        alert("상품 삭제 중 오류가 발생했습니다.");
       }
     }
-  }, [classCode, fetchAllData]);
+  }, [classCode, user, fetchAllData]);
 
   const editStock = useCallback(async (stockId) => {
-    if (!classCode) return alert("클래스 정보가 없습니다.");
+    if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     const stock = stocks.find(s => s.id === stockId);
     if (!stock) return;
     const newPriceStr = prompt(`'${stock.name}'의 새로운 가격:`, stock.price.toString());
     const newPrice = parseFloat(newPriceStr);
     if (isNaN(newPrice) || newPrice <= 0) return alert("유효한 가격을 입력해주세요.");
     try {
-      await updateDoc(doc(db, "CentralStocks", stockId), { 
-        price: newPrice, 
-        priceHistory: [...(stock.priceHistory || []).slice(-19), newPrice] 
+      await updateDoc(doc(db, "CentralStocks", stockId), {
+        price: newPrice,
+        priceHistory: [...(stock.priceHistory || []).slice(-19), newPrice]
       });
-      
+
+      // 캐시 무효화
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
-      
+
       alert('가격이 수정되었습니다.');
-    } catch (error) { 
-      alert("가격 수정 중 오류가 발생했습니다."); 
+    } catch (error) {
+      alert("가격 수정 중 오류가 발생했습니다.");
     }
-  }, [stocks, classCode, fetchAllData]);
+  }, [stocks, classCode, user, fetchAllData]);
 
   const toggleManualStock = useCallback(async (stockId, currentIsListed) => {
-    if (!classCode) return alert("클래스 정보가 없습니다.");
+    if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     const stock = stocks.find(s => s.id === stockId);
     if (!stock) return;
     const action = currentIsListed ? '상장폐지' : '재상장';
@@ -836,7 +894,7 @@ const StockExchange = () => {
 
         if (currentIsListed) {
           const batch = writeBatch(db);
-          
+
           const portfoliosToDelistQuery = query(
             collectionGroup(db, 'portfolio'),
             where('classCode', '==', classCode),
@@ -844,25 +902,27 @@ const StockExchange = () => {
           );
 
           const snapshot = await getDocs(portfoliosToDelistQuery);
-          
+
           snapshot.forEach(doc => {
             batch.update(doc.ref, { delistedAt: serverTimestamp() });
           });
 
           await batch.commit();
         }
-        
+
+        // 캐시 무효화
+        const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+        globalCache.delete(batchKey);
         invalidateCache(`STOCKS_${classCode}`);
         invalidateCache(`PORTFOLIO`);
-        invalidateCache(`BATCH_${classCode}`);
         await fetchAllData(true);
-        
+
         alert(`${action} 처리되었습니다.`);
-      } catch (error) { 
-        alert(`${action} 처리 중 오류가 발생했습니다.`); 
+      } catch (error) {
+        alert(`${action} 처리 중 오류가 발생했습니다.`);
       }
     }
-  }, [stocks, classCode, fetchAllData]);
+  }, [stocks, classCode, user, fetchAllData]);
 
   const buyStock = useCallback(async (stockId, quantityString) => {
     if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
@@ -894,9 +954,10 @@ const StockExchange = () => {
       console.log('[buyStock] 매수 성공:', result.data);
 
       // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
@@ -958,9 +1019,10 @@ const StockExchange = () => {
       console.log('[sellStock] 매도 성공:', result.data);
 
       // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
@@ -983,13 +1045,15 @@ const StockExchange = () => {
   }, [stocks, portfolio, user, userDoc, isTrading, classCode, marketOpen, fetchAllData, functions, optimisticUpdate]);
 
   const deleteHolding = useCallback(async (holdingId) => {
-    if (!user) return;
+    if (!user || !classCode) return;
     if (window.confirm("이 상품(휴지조각)을 포트폴리오에서 삭제하시겠습니까?")) {
       try {
         await deleteDoc(doc(db, "users", user.uid, "portfolio", holdingId));
 
+        // 캐시 무효화
+        const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+        globalCache.delete(batchKey);
         invalidateCache(`PORTFOLIO_user_${user.uid}`);
-        invalidateCache(`BATCH_${classCode}`);
         await fetchAllData(true);
 
         alert("삭제되었습니다.");
@@ -1001,7 +1065,7 @@ const StockExchange = () => {
 
   // 🔥 수동으로 주식 시장 업데이트 (관리자 전용)
   const manualUpdateStockMarket = useCallback(async () => {
-    if (!functions) {
+    if (!functions || !classCode || !user) {
       throw new Error("Firebase Functions가 초기화되지 않았습니다.");
     }
 
@@ -1013,8 +1077,9 @@ const StockExchange = () => {
       console.log('[manualUpdateStockMarket] 업데이트 성공:', result.data);
 
       // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
-      invalidateCache(`BATCH_${classCode}`);
       await fetchAllData(true);
 
       return result.data;
@@ -1022,7 +1087,49 @@ const StockExchange = () => {
       console.error('[manualUpdateStockMarket] 업데이트 실패:', error);
       throw error;
     }
-  }, [functions, classCode, fetchAllData, invalidateCache]);
+  }, [functions, classCode, user, fetchAllData]);
+
+  // 🔥 모든 뉴스 강제 삭제 (관리자 전용)
+  const deleteAllNews = useCallback(async () => {
+    if (!classCode || !user) {
+      throw new Error("클래스 정보가 없습니다.");
+    }
+
+    try {
+      console.log('[deleteAllNews] 모든 뉴스 삭제 시작');
+
+      // CentralNews 컬렉션의 모든 문서 가져오기
+      const centralNewsRef = collection(db, "CentralNews");
+      const snapshot = await getDocs(centralNewsRef);
+
+      console.log(`[deleteAllNews] ${snapshot.size}개의 뉴스 발견`);
+
+      // 배치로 삭제 (최대 500개씩)
+      const batch = writeBatch(db);
+      let count = 0;
+
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+        count++;
+      });
+
+      if (count > 0) {
+        await batch.commit();
+        console.log(`[deleteAllNews] ${count}개의 뉴스 삭제 완료`);
+      }
+
+      // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.delete(batchKey);
+      invalidateCache(`NEWS_${classCode}`);
+      await fetchAllData(true);
+
+      return { deletedCount: count };
+    } catch (error) {
+      console.error('[deleteAllNews] 뉴스 삭제 실패:', error);
+      throw error;
+    }
+  }, [classCode, user, fetchAllData]);
 
   // === stocks 데이터를 Map으로 변환하여 조회 성능 향상 ===
   const stocksMap = useMemo(() => {
@@ -1069,13 +1176,17 @@ const StockExchange = () => {
 
   // === 수동 새로고침 함수 ===
   const handleManualRefresh = useCallback(() => {
+    if (!classCode || !user) return;
+    // 캐시 강제 삭제
+    const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+    globalCache.delete(batchKey);
     fetchAllData(true);
-  }, [fetchAllData]);
+  }, [fetchAllData, classCode, user]);
 
   if (authLoading || !firebaseReady) return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
   if (!user || !userDoc) return <div className="loading-message">로그인이 필요합니다.</div>;
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
-  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} />; 
+  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onDeleteAllNews={deleteAllNews} />; 
 
    
 
@@ -1321,11 +1432,30 @@ const StockExchange = () => {
                         const investedValue = holding.averagePrice * holding.quantity;
                         const profit = currentValue - investedValue;
                         const profitPercent = investedValue > 0 ? (profit / investedValue) * 100 : 0;
+                        const isLocked = !!lockTimers[holding.id];
+                        const canSell = !isLocked;
+
                         return (
                             <div key={holding.id} className={`portfolio-card ${profit >= 0 ? 'profit' : 'loss'}`}>
                                 <div className="portfolio-card-header">
                                     <div className="stock-title-section">
                                         <h3 className="stock-name">{getProductIcon(stock.productType)} {holding.stockName}</h3>
+                                        {isLocked && (
+                                            <span style={{
+                                                fontSize: '0.75rem',
+                                                padding: '2px 8px',
+                                                background: '#fef3c7',
+                                                color: '#92400e',
+                                                borderRadius: '4px',
+                                                fontWeight: 'bold',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}>
+                                                <Lock size={12} />
+                                                매도 불가
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
                                 </div>
@@ -1339,20 +1469,38 @@ const StockExchange = () => {
                                     <div className="profit-amount">{formatCurrency(profit)}</div>
                                     <div className="profit-percent">{formatPercent(profitPercent)}</div>
                                 </div>
-                                {lockTimers[holding.id] && (
+                                {isLocked && (
                                     <div style={{
-                                        padding: '8px',
-                                        background: '#fef3c7',
+                                        padding: '10px 12px',
+                                        background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
                                         borderRadius: '8px',
                                         display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        fontSize: '0.85rem',
-                                        color: '#92400e',
-                                        marginTop: '8px'
+                                        flexDirection: 'column',
+                                        gap: '4px',
+                                        marginTop: '8px',
+                                        border: '1px solid #fbbf24'
                                     }}>
-                                        <Lock size={16} />
-                                        <span>매도 제한: {formatTime(lockTimers[holding.id])} 남음</span>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px',
+                                            fontSize: '0.9rem',
+                                            color: '#92400e',
+                                            fontWeight: 'bold'
+                                        }}>
+                                            <Lock size={16} />
+                                            <span>매도 제한 시간</span>
+                                        </div>
+                                        <div style={{
+                                            fontSize: '1.1rem',
+                                            color: '#78350f',
+                                            fontWeight: 'bold',
+                                            textAlign: 'center',
+                                            marginTop: '4px',
+                                            fontFamily: 'monospace'
+                                        }}>
+                                            ⏱️ {formatTime(lockTimers[holding.id])} 남음
+                                        </div>
                                     </div>
                                 )}
                                 <div className="portfolio-card-actions">

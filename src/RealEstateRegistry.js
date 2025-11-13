@@ -238,7 +238,7 @@ const RealEstateRegistry = () => {
     };
 
     fetchProperties(); // 초기 로드
-    const interval = setInterval(fetchProperties, 300000); // 5분마다 폴링
+    const interval = setInterval(fetchProperties, 600000); // 🔥 [최적화] 10분마다 폴링 (5분에서 증가)
 
     return () => {
       mounted = false;
@@ -246,30 +246,38 @@ const RealEstateRegistry = () => {
     };
   }, [classCode]);
 
-  // 학급 사용자 목록 로드 Effect
+  // 🔥 [최적화] 학급 사용자 목록 - AuthContext에서 제공하는 allClassMembers 사용 (중복 조회 제거)
   useEffect(() => {
     if (!classCode) {
       setAllUsersData([]);
       setUsersLoading(false);
       return;
     }
-    setUsersLoading(true);
-    const usersQuery = query(
-      collection(db, "users"),
-      where("classCode", "==", classCode)
-    );
-    getDocs(usersQuery)
-      .then((snapshot) => {
-        setAllUsersData(
-          snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-      })
-      .catch((error) => {
-        console.error("[RealEstate] Error fetching users by classCode:", error);
-        setAllUsersData([]);
-      })
-      .finally(() => setUsersLoading(false));
-  }, [classCode]);
+
+    // AuthContext에서 이미 학급 구성원 데이터를 제공하므로 재사용
+    if (authContext.allClassMembers && authContext.allClassMembers.length > 0) {
+      setAllUsersData(authContext.allClassMembers);
+      setUsersLoading(false);
+    } else {
+      // AuthContext에서 데이터가 없을 경우에만 직접 조회
+      setUsersLoading(true);
+      const usersQuery = query(
+        collection(db, "users"),
+        where("classCode", "==", classCode)
+      );
+      getDocs(usersQuery)
+        .then((snapshot) => {
+          setAllUsersData(
+            snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }))
+          );
+        })
+        .catch((error) => {
+          console.error("[RealEstate] Error fetching users by classCode:", error);
+          setAllUsersData([]);
+        })
+        .finally(() => setUsersLoading(false));
+    }
+  }, [classCode, authContext.allClassMembers]);
 
   const handleInitializeProperties = async () => {
     if (!classCode || !currentUser || !isAdmin()) {

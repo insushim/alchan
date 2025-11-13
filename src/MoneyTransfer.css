@@ -219,6 +219,75 @@
   margin-right: 4px;
 }
 
+.take-mode-section {
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  border: 2px solid #0ea5e9;
+  border-radius: 16px;
+  padding: 25px;
+  margin-bottom: 30px;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.2);
+}
+
+.take-mode-section h4 {
+  margin: 0 0 20px 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #075985;
+}
+
+.take-mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.mode-option {
+  display: flex;
+  align-items: flex-start;
+  padding: 20px;
+  background: white;
+  border: 2px solid #0ea5e9;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.mode-option:hover {
+  border-color: #0284c7;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14, 165, 233, 0.3);
+}
+
+.mode-option.active {
+  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
+  border-color: #0284c7;
+  border-width: 3px;
+}
+
+.mode-option input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.mode-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-left: 35px;
+}
+
+.mode-text strong {
+  font-size: 1.1rem;
+  color: #0c4a6e;
+}
+
+.mode-text small {
+  font-size: 0.9rem;
+  color: #0369a1;
+}
+
 .tax-section {
   background: linear-gradient(135deg, #fef3c7, #fbbf24);
   border: 2px solid #f59e0b;

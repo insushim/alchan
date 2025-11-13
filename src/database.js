@@ -116,6 +116,7 @@ export const adminCashAction = async ({
   adminClassCode,
   targetUsers,
   action,
+  takeMode, // "toMe" 또는 "remove"
   amountType,
   amount,
   taxRate,
@@ -123,6 +124,7 @@ export const adminCashAction = async ({
   console.log('[database.js] adminCashAction 시작:', {
     adminName,
     action,
+    takeMode,
     amountType,
     amount,
     taxRate,
@@ -188,18 +190,36 @@ export const adminCashAction = async ({
       successCount++;
 
       const logRef = doc(collection(db, "activity_logs"));
-      const logType = action === "send" ? "ADMIN_CASH_SEND" : "ADMIN_CASH_TAKE";
-      let logDescription;
+      let logType, logDescription;
 
-      if (amountType === "percentage") {
-        logDescription = `관리자(${adminName})가 ${user.name}님에게 ${amount}% (${finalAmount.toLocaleString()}원)을 ${action === 'send' ? '지급' : '회수'}했습니다.`;
-        if (action === 'send' && taxAmount > 0) {
-          logDescription += ` (원금 ${baseAmount.toLocaleString()}원, 세금 ${taxAmount.toLocaleString()}원 제외)`;
+      if (action === "send") {
+        logType = "ADMIN_CASH_SEND";
+        if (amountType === "percentage") {
+          logDescription = `관리자(${adminName})가 ${user.name}님에게 ${amount}% (${finalAmount.toLocaleString()}원)을 지급했습니다.`;
+          if (taxAmount > 0) {
+            logDescription += ` (원금 ${baseAmount.toLocaleString()}원, 세금 ${taxAmount.toLocaleString()}원 제외)`;
+          }
+        } else {
+          logDescription = `관리자(${adminName})가 ${user.name}님에게 ${finalAmount.toLocaleString()}원을 지급했습니다.`;
+          if (taxAmount > 0) {
+            logDescription += ` (원금 ${baseAmount.toLocaleString()}원, 세금 ${taxAmount.toLocaleString()}원 제외)`;
+          }
         }
-      } else {
-        logDescription = `관리자(${adminName})가 ${user.name}님에게 ${finalAmount.toLocaleString()}원을 ${action === 'send' ? '지급' : '회수'}했습니다.`;
-        if (action === 'send' && taxAmount > 0) {
-          logDescription += ` (원금 ${baseAmount.toLocaleString()}원, 세금 ${taxAmount.toLocaleString()}원 제외)`;
+      } else if (action === "take") {
+        if (takeMode === "remove") {
+          logType = "ADMIN_CASH_REMOVE";
+          if (amountType === "percentage") {
+            logDescription = `관리자(${adminName})가 ${user.name}님의 ${amount}% (${baseAmount.toLocaleString()}원)을 제거했습니다.`;
+          } else {
+            logDescription = `관리자(${adminName})가 ${user.name}님의 ${baseAmount.toLocaleString()}원을 제거했습니다.`;
+          }
+        } else {
+          logType = "ADMIN_CASH_TAKE";
+          if (amountType === "percentage") {
+            logDescription = `관리자(${adminName})가 ${user.name}님으로부터 ${amount}% (${baseAmount.toLocaleString()}원)을 회수했습니다.`;
+          } else {
+            logDescription = `관리자(${adminName})가 ${user.name}님으로부터 ${baseAmount.toLocaleString()}원을 회수했습니다.`;
+          }
         }
       }
 

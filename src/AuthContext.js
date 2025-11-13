@@ -81,8 +81,8 @@ export const AuthProvider = ({ children }) => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
-  const CLASSMATES_CACHE_TTL = 30 * 60 * 1000; // 학급 구성원 캐시 30분 (Firebase 읽기 최적화)
-  const USER_DOC_CACHE_TTL = 2 * 60 * 60 * 1000; // 2시간 (30분에서 증가)
+  const CLASSMATES_CACHE_TTL = 60 * 60 * 1000; // 🔥 [최적화] 학급 구성원 캐시 1시간 (Firebase 읽기 최적화)
+  const USER_DOC_CACHE_TTL = 4 * 60 * 60 * 1000; // 🔥 [최적화] 4시간 (2시간에서 증가)
   const LASTLOGIN_UPDATE_COOLDOWN = 24 * 60 * 60 * 1000; // 24시간 (6시간에서 증가)
 
   // Firebase 초기화 확인 (한 번만 실행)

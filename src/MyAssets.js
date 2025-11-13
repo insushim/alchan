@@ -59,7 +59,7 @@ export default function MyAssets() {
   const giftCouponFunction = httpsCallable(functions, 'giftCoupon');
 
   // 🔥 [최적화 4] 캐시 유효 시간 설정
-  const CACHE_DURATION = 5 * 60 * 1000; // 5분 (MyAssets 전용)
+  const CACHE_DURATION = 15 * 60 * 1000; // 🔥 [최적화] 15분 (5분에서 증가)
 
   const currentGoalId = currentUserClassCode
     ? `${currentUserClassCode}_goal` 

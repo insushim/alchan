@@ -550,21 +550,34 @@ exports.weeklyRent = onRequest({
 //   }
 // }
 
-// 시장 상황 업데이트 (5분마다 랜덤 생성)
+// 시장 상황 업데이트 (5분마다 가중치 기반 생성)
 async function updateMarketConditionLogic() {
   logger.info("📊 [스케줄러] 시장 상황 업데이트 시작");
   try {
+    // 🔥 [균형 조정] 하락 확률을 높여서 상승 편향 제거
+    // 가중치: 초강세(5%), 강세(15%), 강보합(20%), 약보합(20%), 약세(25%), 초약세(15%)
+    // 평균 impact: 약 -0.5% (거래량/뉴스 상승 편향을 상쇄)
     const marketConditions = [
-      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다" },
-      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다" },
-      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다" },
-      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다" },
-      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다" },
-      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다" }
+      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다", weight: 5 },
+      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다", weight: 15 },
+      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다", weight: 20 },
+      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다", weight: 20 },
+      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다", weight: 25 },
+      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다", weight: 15 }
     ];
 
-    // 랜덤으로 시장 상황 선택
-    const randomCondition = marketConditions[Math.floor(Math.random() * marketConditions.length)];
+    // 가중치 기반 랜덤 선택
+    const totalWeight = marketConditions.reduce((sum, condition) => sum + condition.weight, 0);
+    let random = Math.random() * totalWeight;
+    let randomCondition = marketConditions[0];
+
+    for (const condition of marketConditions) {
+      random -= condition.weight;
+      if (random <= 0) {
+        randomCondition = condition;
+        break;
+      }
+    }
 
     // Firestore에 저장
     const marketConditionRef = db.collection("MarketCondition").doc("current");

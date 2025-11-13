@@ -10,7 +10,7 @@ import {
 } from "react-router-dom";
 
 // Firebase imports
-import { db, isFirestoreInitialized, functions, requestNotificationPermission } from "./firebase";
+import { db, isFirestoreInitialized, functions } from "./firebase";
 import { httpsCallable } from "firebase/functions";
 import {
   collection,
@@ -117,7 +117,7 @@ import {
 // 캐시 관리를 위한 전역 객체
 const userDataCache = new Map();
 const cacheTimeouts = new Map();
-const CACHE_DURATION = 30 * 60 * 1000; // 30분 캐시 (5분에서 증가)
+const CACHE_DURATION = 60 * 60 * 1000; // 🔥 [최적화] 1시간 캐시 (30분에서 증가)
 const DEBOUNCE_DELAY = 500; // 500ms 디바운스
 
 // 디바운스 유틸리티 함수
@@ -1006,13 +1006,6 @@ function AppLayoutContent() {
     
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
-  // FCM 권한 요청
-  useEffect(() => {
-    if (authHook.userDoc) {
-      requestNotificationPermission();
-    }
-  }, [authHook.userDoc]);
 
   // 메모이제이션된 스타일 객체들
   const cashBarStyle = useMemo(() => ({

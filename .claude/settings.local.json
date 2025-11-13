@@ -53,7 +53,11 @@
       "Bash(node:*)",
       "Bash(git checkout:*)",
       "Bash(npm run deploy:all:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(dir:*)",
+      "Bash(if exist nul del /f nul)",
+      "Bash(git reset:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

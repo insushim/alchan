@@ -92,6 +92,14 @@ export const getActivityLogs = async (classCode, options = {}) => {
   const { userId, type, startDate, endDate, limitCount = 50, lastDoc = null } = options;
 
   try {
+    // 🔥 캐시 확인
+    const cacheKey = getCacheKey(classCode, 'activity_logs', options);
+    const cached = getFromCache(cacheKey);
+    if (cached) {
+      console.log('[AdminDatabaseService] 캐시된 활동 로그 사용');
+      return cached;
+    }
+
     console.log('[AdminDatabaseService] 활동 로그 서버에서 직접 조회 시작:', { classCode, limitCount });
 
     // 🔥 최적화: limit을 쿼리에 직접 적용하여 서버에서 제한된 데이터만 가져옴
@@ -150,11 +158,16 @@ export const getActivityLogs = async (classCode, options = {}) => {
 
     console.log(`[AdminDatabaseService] 활동 로그 조회 완료: ${paginatedLogs.length}개`);
 
-    return {
+    const result = {
       logs: paginatedLogs,
       hasMore,
       lastDoc: newLastDoc
     };
+
+    // 🔥 캐시 저장
+    setCache(cacheKey, result);
+
+    return result;
 
   } catch (error) {
     console.error('[AdminDatabaseService] 활동 로그 조회 오류:', error);

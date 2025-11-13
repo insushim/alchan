@@ -21,6 +21,7 @@ function MoneyTransfer() {
   const [amount, setAmount] = useState("");
   const [amountType, setAmountType] = useState("fixed");
   const [action, setAction] = useState("send");
+  const [takeMode, setTakeMode] = useState("toMe"); // "toMe" 또는 "remove"
   const [taxRate, setTaxRate] = useState(10);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -113,6 +114,7 @@ function MoneyTransfer() {
         adminClassCode,
         targetUsers: targetUsersData,
         action,
+        takeMode: action === "take" ? takeMode : undefined, // 가져오기 모드 전달
         amountType,
         amount: inputValue,
         taxRate,
@@ -135,19 +137,21 @@ function MoneyTransfer() {
           if (action === "send") {
             // 보냈을 때는 처리된 총액만큼 차감 (세금 포함된 금액이 totalProcessed)
             newAdminCash = currentAdminCash - totalProcessed;
-          } else { // take
-            // 가져왔을 때는 처리된 총액만큼 증가
+          } else if (action === "take" && takeMode === "toMe") {
+            // 나에게 가져올 때는 처리된 총액만큼 증가
             newAdminCash = currentAdminCash + totalProcessed;
+          } else {
+            // 돈 없애기 모드는 관리자 잔액 변화 없음
+            newAdminCash = currentAdminCash;
           }
           return { ...currentAdminDoc, cash: newAdminCash };
         });
       }
 
       // 성공 메시지 설정
+      const actionText = action === "send" ? "보내기" : (takeMode === "toMe" ? "가져오기" : "없애기");
       setMessage(
-        `${count}명에게 ${amountType === 'percentage' ? `${inputValue}%` : `${inputValue.toLocaleString()}원`} ${
-          action === "send" ? "보내기" : "가져오기"
-        } 완료! (총 ${totalProcessed.toLocaleString()}원 처리${action === 'send' && taxRate > 0 ? `, 세금 ${taxRate}% 적용` : ''})`
+        `${count}명에게 ${amountType === 'percentage' ? `${inputValue}%` : `${inputValue.toLocaleString()}원`} ${actionText} 완료! (총 ${totalProcessed.toLocaleString()}원 처리${action === 'send' && taxRate > 0 ? `, 세금 ${taxRate}% 적용` : ''})`
       );
       
       setAmount("");
@@ -203,6 +207,42 @@ function MoneyTransfer() {
             <span className="icon">📥</span> 가져오기
           </button>
         </div>
+
+        {action === "take" && (
+          <div className="take-mode-section">
+            <h4>가져오기 옵션</h4>
+            <div className="take-mode-selector">
+              <label className={`mode-option ${takeMode === 'toMe' ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="takeMode"
+                  value="toMe"
+                  checked={takeMode === 'toMe'}
+                  onChange={(e) => setTakeMode(e.target.value)}
+                />
+                <span className="radio-custom"></span>
+                <span className="mode-text">
+                  <strong>💰 나에게 가져오기</strong>
+                  <small>선택한 학생들의 돈을 내 계좌로 가져옵니다</small>
+                </span>
+              </label>
+              <label className={`mode-option ${takeMode === 'remove' ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="takeMode"
+                  value="remove"
+                  checked={takeMode === 'remove'}
+                  onChange={(e) => setTakeMode(e.target.value)}
+                />
+                <span className="radio-custom"></span>
+                <span className="mode-text">
+                  <strong>🗑️ 돈 없애기</strong>
+                  <small>선택한 학생들의 돈을 영구적으로 제거합니다</small>
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
 
         <div className="amount-section">
           <div className="amount-type-selector">

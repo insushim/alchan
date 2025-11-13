@@ -46,8 +46,7 @@ import {
 } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 // 👇 [수정] httpsCallable import 추가
-import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions"; 
-import { getMessaging, getToken, onMessage } from "firebase/messaging";
+import { getFunctions, httpsCallable, connectFunctionsEmulator } from "firebase/functions";
 
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
@@ -296,6 +295,7 @@ export const subscribeToCollection = (collectionName, callback, conditions = [])
 };
 
 // ⭐️ [신규 추가] 학급 구성원 조회 함수 - 핵심 누락 함수 구현
+// 🔥 [최적화] getAllUsersDocuments를 활용하여 중복 읽기 방지 (33개 문서 중복 제거)
 export const getClassmates = async (classCode, forceRefresh = false) => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode || classCode === '미지정') {
@@ -304,7 +304,7 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
   }
 
   const cacheKey = `classmates_${classCode}`;
-  
+
   // 강제 새로고침이 아닐 때만 캐시 확인
   if (!forceRefresh) {
     const cached = getCache(cacheKey);
@@ -315,27 +315,25 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
   }
 
   try {
-    console.log(`[firebase.js] 학급 구성원 서버 조회 시작 (${classCode}), forceRefresh: ${forceRefresh}`);
-    
-    const usersRef = collection(db, "users");
-    const q = originalFirebaseQuery(
-      usersRef,
-      originalFirebaseWhere("classCode", "==", classCode)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const classMembers = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      uid: doc.id, // AuthContext에서 uid도 사용하므로 추가
-      ...doc.data()
-    }));
-    
+    console.log(`[firebase.js] 학급 구성원 조회 시작 (${classCode}), forceRefresh: ${forceRefresh}`);
+
+    // 🔥 [최적화] getAllUsersDocuments 활용 - 중복 읽기 방지
+    // 기존: 별도 쿼리로 33개 문서 읽기
+    // 개선: getAllUsersDocuments 캐시 활용 후 필터링
+    const allUsers = await getAllUsersDocuments(!forceRefresh);
+    const classMembers = allUsers
+      .filter(user => user.classCode === classCode)
+      .map(user => ({
+        ...user,
+        uid: user.id, // AuthContext에서 uid도 사용하므로 추가
+      }));
+
     // 캐시에 저장 (강제 새로고침 시에도 저장)
     setCache(cacheKey, classMembers);
-    
-    console.log(`[firebase.js] 학급 구성원 조회 완료 (${classCode}): ${classMembers.length}명`);
+
+    console.log(`[firebase.js] 학급 구성원 조회 완료 (${classCode}): ${classMembers.length}명 (중복 읽기 방지)`);
     return classMembers;
-    
+
   } catch (error) {
     console.error(`[firebase.js] 학급 구성원 조회 오류 (${classCode}):`, error);
     throw error;
@@ -2556,41 +2554,6 @@ export const processSettlement = async (settlementData) => {
   }
 };
 
-const messaging = getMessaging(app);
-
-// ⭐️ [신규] FCM 권한 요청 및 토큰/주제 관리
-export const requestNotificationPermission = async () => {
-  if (!auth.currentUser) {
-    console.log("[FCM] 사용자가 로그인하지 않아 권한을 요청할 수 없습니다.");
-    return;
-  }
-
-  console.log("[FCM] 알림 권한 요청 중...");
-  try {
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      console.log("[FCM] 알림 권한이 허용되었습니다.");
-      
-      const currentToken = await getToken(messaging, {
-        vapidKey: process.env.REACT_APP_FIREBASE_VAPID_KEY,
-      });
-
-      if (currentToken) {
-        console.log("[FCM] 토큰 수신:", currentToken);
-        // 서버에 토큰 전송 및 주제 구독 요청
-        const saveTokenFunction = httpsCallable(functions, 'saveFCMToken');
-        await saveTokenFunction({ token: currentToken });
-        console.log("[FCM] 서버에 토큰 전송 및 주제 구독 완료.");
-      } else {
-        console.log("[FCM] 토큰을 수신할 수 없습니다. 푸시 알림이 비활성화될 수 있습니다.");
-      }
-    } else {
-      console.log("[FCM] 알림 권한이 거부되었습니다.");
-    }
-  } catch (error) {
-    console.error("[FCM] 권한 요청 또는 토큰 수신 중 오류:", error);
-  }
-};
-
-// messaging 객체도 export합니다.
-export { messaging };
+// FCM (Firebase Cloud Messaging) 관련 코드 제거됨
+// 이유: 알림 스팸, 읽기 증가, 사용자 경험 악화
+// 대신 30분 캐시 + 자동 폴링으로 부드러운 업데이트 제공
