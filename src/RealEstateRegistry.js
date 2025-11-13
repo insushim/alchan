@@ -38,14 +38,14 @@ const DEFAULT_SETTINGS = {
 };
 
 const RealEstateRegistry = () => {
-  const authContext = useAuth(); // 🔥 [수정] authContext로 저장
   const {
     userDoc: currentUser,
     loading: authLoading,
     isAdmin,
     refreshUserDocument,
     optimisticUpdate,
-  } = authContext;
+    allClassMembers, // 🔥 [추가] 학급 구성원 데이터
+  } = useAuth();
 
   const classCode = currentUser?.classCode;
 
@@ -256,8 +256,8 @@ const RealEstateRegistry = () => {
     }
 
     // AuthContext에서 이미 학급 구성원 데이터를 제공하므로 재사용
-    if (authContext.allClassMembers && authContext.allClassMembers.length > 0) {
-      setAllUsersData(authContext.allClassMembers);
+    if (allClassMembers && allClassMembers.length > 0) {
+      setAllUsersData(allClassMembers);
       setUsersLoading(false);
     } else {
       // AuthContext에서 데이터가 없을 경우에만 직접 조회
@@ -278,7 +278,7 @@ const RealEstateRegistry = () => {
         })
         .finally(() => setUsersLoading(false));
     }
-  }, [classCode, authContext.allClassMembers]);
+  }, [classCode, allClassMembers]);
 
   const handleInitializeProperties = async () => {
     if (!classCode || !currentUser || !isAdmin()) {
