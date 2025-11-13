@@ -51,7 +51,7 @@ const batchDataLoader = {
     } else {
       console.log('[batchDataLoader] forceRefresh=true - 캐시 무시하고 서버에서 로드');
       // 강제 새로고침 시 캐시 무효화
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
     }
 
     // 이미 같은 배치 요청이 진행 중이면 대기
@@ -824,7 +824,7 @@ const StockExchange = () => {
 
       // 캐시 무효화
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
 
@@ -842,7 +842,7 @@ const StockExchange = () => {
 
         // 캐시 무효화
         const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-        globalCache.delete(batchKey);
+        globalCache.invalidate(batchKey);
         invalidateCache(`STOCKS_${classCode}`);
         await fetchAllData(true);
 
@@ -868,7 +868,7 @@ const StockExchange = () => {
 
       // 캐시 무효화
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
 
@@ -912,7 +912,7 @@ const StockExchange = () => {
 
         // 캐시 무효화
         const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-        globalCache.delete(batchKey);
+        globalCache.invalidate(batchKey);
         invalidateCache(`STOCKS_${classCode}`);
         invalidateCache(`PORTFOLIO`);
         await fetchAllData(true);
@@ -955,7 +955,7 @@ const StockExchange = () => {
 
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
@@ -1020,7 +1020,7 @@ const StockExchange = () => {
 
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
@@ -1052,7 +1052,7 @@ const StockExchange = () => {
 
         // 캐시 무효화
         const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-        globalCache.delete(batchKey);
+        globalCache.invalidate(batchKey);
         invalidateCache(`PORTFOLIO_user_${user.uid}`);
         await fetchAllData(true);
 
@@ -1078,7 +1078,7 @@ const StockExchange = () => {
 
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
 
@@ -1120,7 +1120,7 @@ const StockExchange = () => {
 
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-      globalCache.delete(batchKey);
+      globalCache.invalidate(batchKey);
       invalidateCache(`NEWS_${classCode}`);
       await fetchAllData(true);
 
@@ -1179,7 +1179,7 @@ const StockExchange = () => {
     if (!classCode || !user) return;
     // 캐시 강제 삭제
     const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
-    globalCache.delete(batchKey);
+    globalCache.invalidate(batchKey);
     fetchAllData(true);
   }, [fetchAllData, classCode, user]);
 
