@@ -959,11 +959,16 @@ const StockExchange = () => {
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
 
-      // 🔥 [수정] 사용자 문서 새로고침 추가 (현금 업데이트 반영)
-      await Promise.all([
-        fetchAllData(true),
-        refreshUserDocument && refreshUserDocument(user.uid)
-      ]);
+      // 주식 데이터 먼저 새로고침
+      await fetchAllData(true);
+
+      // 🔥 [수정] Cloud Function 완료 대기 후 사용자 문서 새로고침 (1초 대기)
+      setTimeout(async () => {
+        if (refreshUserDocument) {
+          await refreshUserDocument(user.uid);
+          console.log('[buyStock] 현금 최종 업데이트 완료');
+        }
+      }, 1000);
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
 
@@ -1029,11 +1034,16 @@ const StockExchange = () => {
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
       invalidateCache(`STOCKS_${classCode}`);
 
-      // 🔥 [수정] 사용자 문서 새로고침 추가 (현금 업데이트 반영)
-      await Promise.all([
-        fetchAllData(true),
-        refreshUserDocument && refreshUserDocument(user.uid)
-      ]);
+      // 주식 데이터 먼저 새로고침
+      await fetchAllData(true);
+
+      // 🔥 [수정] Cloud Function 완료 대기 후 사용자 문서 새로고침 (1초 대기)
+      setTimeout(async () => {
+        if (refreshUserDocument) {
+          await refreshUserDocument(user.uid);
+          console.log('[sellStock] 현금 최종 업데이트 완료');
+        }
+      }, 1000);
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
 
