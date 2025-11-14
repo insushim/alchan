@@ -45,7 +45,7 @@ const Banking = () => {
   const [activeView, setActiveView] = useState("parking");
   const [isLoading, setIsLoading] = useState(false);
 
-  const [parkingSavingsProducts, setParkingSavingsProducts] = useState([]);
+  const [parkingDepositProducts, setParkingDepositProducts] = useState([]);
   const [parkingInstallmentProducts, setParkingInstallmentProducts] = useState(
     []
   );
@@ -166,7 +166,7 @@ const Banking = () => {
     }
   };
 
-  const [formattedSavingsProducts, setFormattedSavingsProducts] = useState([]);
+  const [formattedDepositProducts, setFormattedDepositProducts] = useState([]);
   const [formattedInstallmentProducts, setFormattedInstallmentProducts] =
     useState([]);
   const [formattedLoanProducts, setFormattedLoanProducts] = useState([]);
@@ -184,9 +184,9 @@ const Banking = () => {
 
       // deposits를 savings로 매핑 (예금 상품)
       if (bankingData.deposits) {
-        setParkingSavingsProducts(bankingData.deposits);
+        setParkingDepositProducts(bankingData.deposits);
       } else {
-        setParkingSavingsProducts([]);
+        setParkingDepositProducts([]);
       }
 
       // savings를 installments로 매핑 (적금 상품)
@@ -224,8 +224,8 @@ const Banking = () => {
   }, [auth?.user, auth?.loading, auth?.userDoc?.classCode]);
 
   useEffect(() => {
-    setFormattedSavingsProducts(
-      convertAdminProductsToAccountFormat(parkingSavingsProducts)
+    setFormattedDepositProducts(
+      convertAdminProductsToAccountFormat(parkingDepositProducts)
     );
     setFormattedInstallmentProducts(
       convertAdminProductsToAccountFormat(parkingInstallmentProducts)
@@ -233,14 +233,14 @@ const Banking = () => {
     setFormattedLoanProducts(
       convertAdminProductsToAccountFormat(parkingLoanProducts)
     );
-  }, [parkingSavingsProducts, parkingInstallmentProducts, parkingLoanProducts]);
+  }, [parkingDepositProducts, parkingInstallmentProducts, parkingLoanProducts]);
 
   const handleParkingProductChange = (type, index, field, value) => {
     let productsState, setProductsState;
     switch (type) {
-      case "savings":
-        productsState = parkingSavingsProducts;
-        setProductsState = setParkingSavingsProducts;
+      case "deposits":
+        productsState = parkingDepositProducts;
+        setProductsState = setParkingDepositProducts;
         break;
       case "installments":
         productsState = parkingInstallmentProducts;
@@ -295,8 +295,8 @@ const Banking = () => {
       let products, firestoreType;
 
       switch (type) {
-        case "savings":
-          products = parkingSavingsProducts;
+        case "deposits":
+          products = parkingDepositProducts;
           firestoreType = "deposits"; // Firebase에서는 deposits로 저장
           break;
         case "installments":
@@ -319,7 +319,7 @@ const Banking = () => {
 
       setMessage(
         `${
-          type === "savings"
+          type === "deposits"
             ? "예금"
             : type === "installments"
             ? "적금"
@@ -345,7 +345,7 @@ const Banking = () => {
     const newProduct = {
       id: Date.now(),
       name: `새 ${
-        type === "savings"
+        type === "deposits"
           ? "예금"
           : type === "installments"
           ? "적금"
@@ -358,8 +358,8 @@ const Banking = () => {
     };
 
     switch (type) {
-      case "savings":
-        setParkingSavingsProducts([...parkingSavingsProducts, newProduct]);
+      case "deposits":
+        setParkingDepositProducts([...parkingDepositProducts, newProduct]);
         break;
       case "installments":
         setParkingInstallmentProducts([
@@ -380,9 +380,9 @@ const Banking = () => {
 
     let productsState, setProductsState;
     switch (type) {
-      case "savings":
-        productsState = parkingSavingsProducts;
-        setProductsState = setParkingSavingsProducts;
+      case "deposits":
+        productsState = parkingDepositProducts;
+        setProductsState = setParkingDepositProducts;
         break;
       case "installments":
         productsState = parkingInstallmentProducts;
@@ -406,7 +406,7 @@ const Banking = () => {
       setIsLoading(true);
       try {
         const firestoreType =
-          type === "savings"
+          type === "deposits"
             ? "deposits"
             : type === "installments"
             ? "savings"
@@ -466,7 +466,7 @@ const Banking = () => {
           {(activeView === "parking" || activeView === "userProducts") && (
             <ParkingAccount
               auth={auth}
-              savingsProducts={formattedSavingsProducts}
+              depositProducts={formattedDepositProducts}
               installmentProducts={formattedInstallmentProducts}
               loanProducts={formattedLoanProducts}
               activeView={activeView}
@@ -512,7 +512,7 @@ const Banking = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {parkingSavingsProducts.map((p, index) => (
+                      {parkingDepositProducts.map((p, index) => (
                         <tr key={p.id}>
                           <td className="admin-td">
                             <input
@@ -520,7 +520,7 @@ const Banking = () => {
                               value={p.name || ''}
                               onChange={(e) =>
                                 handleParkingProductChange(
-                                  "savings",
+                                  "deposits",
                                   index,
                                   "name",
                                   e.target.value
@@ -537,7 +537,7 @@ const Banking = () => {
                               value={p.termInDays || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
-                                  "savings",
+                                  "deposits",
                                   index,
                                   "termInDays",
                                   e.target.value
@@ -555,7 +555,7 @@ const Banking = () => {
                               value={p.dailyRate || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
-                                  "savings",
+                                  "deposits",
                                   index,
                                   "dailyRate",
                                   e.target.value
@@ -573,7 +573,7 @@ const Banking = () => {
                               value={p.minAmount || 0}
                               onChange={(e) =>
                                 handleParkingProductChange(
-                                  "savings",
+                                  "deposits",
                                   index,
                                   "minAmount",
                                   e.target.value
@@ -586,7 +586,7 @@ const Banking = () => {
                           <td className="admin-td">
                             <button
                               onClick={() =>
-                                deleteParkingProduct("savings", index)
+                                deleteParkingProduct("deposits", index)
                               }
                               className={`admin-button-small delete-button ${isLoading ? "disabled-button" : ""}`}
                               disabled={isLoading}>
@@ -599,13 +599,13 @@ const Banking = () => {
                   </table>
                   <div className="admin-action-buttons">
                     <button
-                      onClick={() => addParkingProduct("savings")}
+                      onClick={() => addParkingProduct("deposits")}
                       className={`admin-button-small add-button ${isLoading ? "disabled-button" : ""}`}
                       disabled={isLoading}>
                       추가
                     </button>
                     <button
-                      onClick={() => saveParkingProducts("savings")}
+                      onClick={() => saveParkingProducts("deposits")}
                       className={`admin-button-small save-button ${isLoading ? "disabled-button" : ""}`}
                       disabled={isLoading}>
                       예금 상품 저장

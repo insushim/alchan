@@ -526,7 +526,7 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
 // --- Main Component ---
 const ParkingAccount = ({
   auth = {},
-  savingsProducts = [],
+  depositProducts = [],
   installmentProducts = [],
   loanProducts = [],
   activeView = 'parking',
@@ -669,70 +669,94 @@ const ParkingAccount = ({
     }
 
     setIsProcessing(true);
-    console.log("가입 처리 시작...");
+    handleCloseModal(); // UX 개선을 위해 모달 즉시 닫기
 
+    // --- 낙관적 업데이트 (Optimistic Update) ---
+    const tempId = `temp_${Date.now()}`;
+    const maturityDate = new Date(Date.now() + product.termInDays * 24 * 60 * 60 * 1000);
+    const optimisticProduct = {
+      id: tempId,
+      name: product.name,
+      termInDays: product.termInDays,
+      rate: product.dailyRate,
+      balance: amount,
+      startDate: new Date(),
+      maturityDate: maturityDate,
+      type: type === 'deposits' ? 'deposit' : (type === 'savings' ? 'savings' : 'loan'),
+      isOptimistic: true // 임시 데이터임을 표시
+    };
+
+    // 상품 목록 낙관적 업데이트
+    if (optimisticProduct.type === 'deposit') {
+      setUserDeposits(prev => [...prev, optimisticProduct]);
+    } else if (optimisticProduct.type === 'savings') {
+      setUserSavings(prev => [...prev, optimisticProduct]);
+    } else if (optimisticProduct.type === 'loan') {
+      setUserLoans(prev => [...prev, optimisticProduct]);
+    }
+
+    // 현금 보유량 낙관적 업데이트
+    const cashChangeAmount = type === 'loans' ? amount : -amount;
+    if (cashChangeAmount < 0) {
+      deductCash(Math.abs(cashChangeAmount));
+    } else {
+      addCash(cashChangeAmount);
+    }
+    
     try {
       await runTransaction(db, async (transaction) => {
-        console.log("트랜잭션 시작");
         const userRef = doc(db, "users", userId);
         const userSnapshot = await transaction.get(userRef);
-        if (!userSnapshot.exists()) {
-          throw new Error("사용자 정보를 찾을 수 없습니다.");
-        }
-        const currentCash = userSnapshot.data()?.cash ?? 0;
-        console.log(`현재 보유 현금: ${currentCash}`);
-
-        if (type !== 'loans' && currentCash < amount) {
+        if (!userSnapshot.exists()) throw new Error("사용자 정보를 찾을 수 없습니다.");
+        
+        const currentCashInDb = userSnapshot.data()?.cash ?? 0;
+        if (type !== 'loans' && currentCashInDb < amount) {
           throw new Error("보유 현금이 부족합니다.");
         }
 
-        const maturityDate = new Date(Date.now() + product.termInDays * 24 * 60 * 60 * 1000);
         const newProductData = {
           name: product.name,
           termInDays: product.termInDays,
-          rate: product.dailyRate, // 일일이율 저장
+          rate: product.dailyRate,
           balance: amount,
           startDate: serverTimestamp(),
           maturityDate: maturityDate,
           type: type === 'deposits' ? 'deposit' : (type === 'savings' ? 'savings' : 'loan'),
         };
-        console.log("새 상품 데이터:", newProductData);
 
         const newProductRef = doc(collection(db, "users", userId, "products"));
         transaction.set(newProductRef, newProductData);
-        console.log("새 상품 생성 예약");
-
-        const cashChange = type === 'loans' ? amount : -amount;
-        transaction.update(userRef, { cash: increment(cashChange) });
-        console.log(`사용자 현금 변경 (${cashChange}) 예약`);
-        console.log("트랜잭션 커밋 시도");
+        transaction.update(userRef, { cash: increment(cashChangeAmount) });
       });
 
-      console.log("트랜잭션 성공");
-
       displayMessage("상품 가입이 완료되었습니다.", "success");
-
-      // 백그라운드에서 userDoc 갱신
-      if (refreshUserDocument) {
-        console.log("userDoc 갱신 시작");
-        refreshUserDocument().then(() => {
-          console.log("[ParkingAccount] 상품 가입 후 userDoc 갱신 완료");
-        });
-      }
+      
+      // 서버 데이터로 다시 로드하여 낙관적 업데이트 결과 교체
       await loadAllData();
-      handleCloseModal();
+      if (refreshUserDocument) refreshUserDocument();
 
     } catch (error) {
       console.error("가입 처리 중 오류 발생:", error);
       displayMessage(`가입 처리 오류: ${error.message}`, "error");
-      // 에러 발생 시 currentCash 롤백
-      if (userDoc?.cash !== undefined) {
-        console.log("오류 발생으로 현금 롤백:", userDoc.cash);
-        setCurrentCash(userDoc.cash);
+      
+      // --- 낙관적 업데이트 롤백 ---
+      if (optimisticProduct.type === 'deposit') {
+        setUserDeposits(prev => prev.filter(p => p.id !== tempId));
+      } else if (optimisticProduct.type === 'savings') {
+        setUserSavings(prev => prev.filter(p => p.id !== tempId));
+      } else if (optimisticProduct.type === 'loan') {
+        setUserLoans(prev => prev.filter(p => p.id !== tempId));
       }
+      
+      // 현금 롤백
+      if (cashChangeAmount < 0) {
+        addCash(Math.abs(cashChangeAmount));
+      } else {
+        deductCash(cashChangeAmount);
+      }
+
     } finally {
       setIsProcessing(false);
-      console.log("--- handleSubscribe 종료 ---");
     }
   };
 
@@ -838,6 +862,25 @@ const ParkingAccount = ({
       setIsProcessing(true);
       console.log("중도 해지 처리 시작...");
 
+      // --- 낙관적 업데이트 (Optimistic Update) ---
+      const originalProducts = {
+        deposit: [...userDeposits],
+        savings: [...userSavings],
+        loan: [...userLoans]
+      };
+      const originalCash = currentCash;
+
+      const cashChangeAmount = isLoan ? -balance : balance;
+      setCurrentCash(prev => prev + cashChangeAmount);
+
+      if (type === 'deposit') {
+        setUserDeposits(prev => prev.filter(p => p.id !== id));
+      } else if (type === 'savings') {
+        setUserSavings(prev => prev.filter(p => p.id !== id));
+      } else if (type === 'loan') {
+        setUserLoans(prev => prev.filter(p => p.id !== id));
+      }
+
       try {
         const productRef = doc(db, "users", userId, "products", String(id));
         console.log("Firestore 문서 참조:", productRef.path);
@@ -849,16 +892,15 @@ const ParkingAccount = ({
           if (!userSnapshot.exists()) {
             throw new Error("사용자 정보를 찾을 수 없습니다.");
           }
-          const currentCash = userSnapshot.data()?.cash ?? 0;
-          console.log(`현재 보유 현금: ${currentCash}`);
+          const currentCashInDb = userSnapshot.data()?.cash ?? 0;
+          console.log(`현재 보유 현금 (DB): ${currentCashInDb}`);
           
-          if (isLoan && currentCash < balance) {
+          if (isLoan && currentCashInDb < balance) {
             throw new Error("대출금을 상환하기에 현금이 부족합니다.");
           }
           
-          const cashChange = isLoan ? -balance : balance;
-          transaction.update(userRef, { cash: increment(cashChange) });
-          console.log(`사용자 현금 변경 (${cashChange}) 예약`);
+          transaction.update(userRef, { cash: increment(cashChangeAmount) });
+          console.log(`사용자 현금 변경 (${cashChangeAmount}) 예약`);
 
           transaction.delete(productRef);
           console.log("상품 문서 삭제 예약");
@@ -867,25 +909,25 @@ const ParkingAccount = ({
   
         console.log("트랜잭션 성공");
 
-        displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료.`, "success");
+        displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료. 원금 ${formatCurrency(balance)}원이 반환되었습니다.`, "success");
 
         // 백그라운드에서 userDoc 갱신
         if (refreshUserDocument) {
           console.log("userDoc 갱신 시작");
-          refreshUserDocument().then(() => {
-            console.log("[ParkingAccount] 중도 해지 후 userDoc 갱신 완료");
-          });
+          refreshUserDocument();
         }
         await loadAllData();
 
       } catch (error) {
         console.error("중도 해지 처리 중 오류 발생:", error);
         displayMessage(`처리 오류: ${error.message}`, "error");
-        // 에러 발생 시 currentCash 롤백
-        if (userDoc?.cash !== undefined) {
-          console.log("오류 발생으로 현금 롤백:", userDoc.cash);
-          setCurrentCash(userDoc.cash);
-        }
+        
+        // --- 낙관적 업데이트 롤백 ---
+        setUserDeposits(originalProducts.deposit);
+        setUserSavings(originalProducts.savings);
+        setUserLoans(originalProducts.loan);
+        setCurrentCash(originalCash);
+
       } finally {
         setIsProcessing(false);
         console.log("--- handleCancelEarly 종료 ---");
@@ -1169,7 +1211,7 @@ const ParkingAccount = ({
           title="예금"
           icon={ICON_MAP.deposits}
           subscribedProducts={userDeposits}
-          availableProducts={savingsProducts}
+          availableProducts={depositProducts}
           onSubscribe={(p) => handleOpenModal(p, 'deposits')}
           onCancel={handleCancelEarly}
           onMaturity={handleMaturity}
