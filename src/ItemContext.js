@@ -122,20 +122,48 @@ export const ItemProvider = ({ children }) => {
   // All context functions now use firebaseFunctions and refreshData
   const addItem = useCallback(async (newItemData) => {
     if (!isAuthAdmin()) return { success: false, message: "관리자 권한 필요" };
+
+    // Optimistic Update: Add item to local state immediately
+    const tempId = `temp_${Date.now()}`;
+    const tempNewItem = { ...newItemData, id: tempId };
+    setItems(prevItems => [...prevItems, tempNewItem]);
+
     try {
-      const result = await firebaseFunctions.addStoreItem({ newItemData });
+      const token = await user?.getIdToken();
+      if (!token) {
+        throw new Error("인증 토큰을 가져올 수 없습니다.");
+      }
+
+      const functionUrl = `https://asia-northeast3-inconomysu-class.cloudfunctions.net/addStoreItem`;
+      const response = await fetch(functionUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ data: { newItemData } })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `서버 오류: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
       if (result.data.success) {
-        refreshData();
+        // Success: Refresh data from server to get final item with correct ID
+        await refreshData();
         return { success: true };
+      } else {
+        throw new Error(result.data.message || "알 수 없는 오류가 발생했습니다.");
       }
-      throw new Error(result.data.message);
     } catch (error) {
-      if (error.code === 'not-found') {
-        return { success: false, message: "아이템 추가 함수(addStoreItem)를 찾을 수 없습니다. 관리자에게 문의하세요." };
-      }
+      // Rollback on error
+      setItems(prevItems => prevItems.filter(item => item.id !== tempId));
       return { success: false, message: error.message };
     }
-  }, [isAuthAdmin, firebaseFunctions, refreshData]);
+  }, [isAuthAdmin, user, refreshData]);
 
   const updateItem = useCallback(async (itemId, updatesToApply) => {
     if (!isAuthAdmin()) return { success: false, message: "관리자 권한 필요" };

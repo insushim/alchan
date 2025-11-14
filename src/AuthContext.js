@@ -816,28 +816,25 @@ export const AuthProvider = ({ children }) => {
   // 최적화: 특정 사용자 문서만 새로고침
   const refreshUserDocument = useCallback(
     async (userId) => {
-      // userId가 없으면 현재 사용자 ID 사용
       const targetUserId = userId || userDoc?.id || userDoc?.uid;
       if (!targetUserId) return null;
 
-      console.log("[AuthContext] refreshUserDocument 호출:", targetUserId);
+      console.log("[AuthContext] refreshUserDocument 호출 (강제 새로고침):", targetUserId);
 
-      // 캐시 무효화
-      userDocCacheRef.current.delete(targetUserId);
-      userDocFetchTimeRef.current.delete(targetUserId);
-
-      // 서버에서 새로 가져오기
-      const freshDoc = await fetchUserDocument(targetUserId);
+      // 서버에서 강제로 새로 가져오기
+      const freshDoc = await getUserDocument(targetUserId, true);
 
       // 현재 로그인한 사용자의 문서라면 즉시 상태 업데이트
       if (freshDoc && targetUserId === (userDoc?.id || userDoc?.uid)) {
         console.log("[AuthContext] userDoc 즉시 업데이트:", freshDoc.cash);
         setUserDoc(freshDoc);
+        // AuthContext 레벨의 캐시도 업데이트
+        setCachedUserDoc(targetUserId, freshDoc);
       }
 
       return freshDoc;
     },
-    [fetchUserDocument, userDoc]
+    [userDoc, setCachedUserDoc]
   );
 
   // 🔥 낙관적 업데이트 함수 (Cloud Function 호출 시 즉시 UI 업데이트)

@@ -948,35 +948,73 @@ exports.getItemContextData = onCall({region: "asia-northeast3"}, async (request)
 //   }
 // });
 
-// exports.addStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요
-//   const {newItemData} = request.data;
-// 
-//   if (!newItemData || !newItemData.name || typeof newItemData.price !== 'number') {
-//     throw new HttpsError("invalid-argument", "유효한 아이템 데이터가 필요합니다. (name, price는 필수)");
-//   }
-// 
-//   try {
-//     const itemData = {
-//       ...newItemData,
-//       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//     };
-// 
-//     const docRef = await db.collection("storeItems").add(itemData);
-// 
-//     logger.info(`[addStoreItem] ${uid}님이 새 아이템 추가: ${newItemData.name} (ID: ${docRef.id})`);
-// 
-//     return {
-//       success: true,
-//       message: "아이템이 성공적으로 추가되었습니다.",
-//       itemId: docRef.id,
-//     };
-//   } catch (error) {
-//     logger.error(`[addStoreItem] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "아이템 추가에 실패했습니다.");
-//   }
-// });
+const cors = require("cors")({origin: true});
+const {onRequest} = require("firebase-functions/v2/https");
+
+// ... (other exports)
+
+exports.addStoreItem = onRequest({region: "asia-northeast3"}, (req, res) => {
+  cors(req, res, async () => {
+    if (req.method !== "POST") {
+      return res.status(405).send("Method Not Allowed");
+    }
+
+    // Manually check auth
+    const idToken = req.headers.authorization?.split("Bearer ")[1];
+    if (!idToken) {
+      return res.status(403).send("Unauthorized");
+    }
+
+    try {
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+      
+      const userDocRef = db.collection("users").doc(uid);
+      const userDoc = await userDocRef.get();
+
+      if (!userDoc.exists) {
+        return res.status(404).send("User not found in database.");
+      }
+
+      const userData = userDoc.data();
+      const userIsAdmin = userData.isAdmin === true || userData.isSuperAdmin === true;
+
+      if (!userIsAdmin) {
+        return res.status(403).send("Permission denied. Admin role required.");
+      }
+
+      const {newItemData} = req.body.data;
+
+      if (!newItemData || !newItemData.name || typeof newItemData.price !== "number") {
+        return res.status(400).send("Invalid item data. 'name' and 'price' are required.");
+      }
+
+      const itemData = {
+        ...newItemData,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      };
+
+      const docRef = await db.collection("storeItems").add(itemData);
+
+      logger.info(`[addStoreItem] ${uid}님이 새 아이템 추가: ${newItemData.name} (ID: ${docRef.id})`);
+
+      res.status(200).send({
+        data: {
+          success: true,
+          message: "아이템이 성공적으로 추가되었습니다.",
+          itemId: docRef.id,
+        }
+      });
+    } catch (error) {
+      logger.error(`[addStoreItem] Error for token:`, error);
+      if (error.code === 'auth/id-token-expired') {
+        return res.status(401).send("Authentication token has expired.");
+      }
+      return res.status(500).send("Internal Server Error: " + error.message);
+    }
+  });
+});
 
 // exports.deleteStoreItem = onCall({region: "asia-northeast3"}, async (request) => {
 //   const {uid} = await checkAuthAndGetUserData(request, true); // 관리자 권한 필요

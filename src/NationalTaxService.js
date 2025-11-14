@@ -11,11 +11,7 @@ import {
 } from "firebase/firestore";
 import { usePolling } from "./hooks/usePolling";
 
-// 유틸리티 함수 (기존과 동일)
-const formatCurrency = (amount) => {
-  if (typeof amount !== "number" || isNaN(amount)) return "0원";
-  return new Intl.NumberFormat("ko-KR").format(Math.round(amount)) + "원";
-};
+import { formatKoreanCurrency } from "./numberFormatter";
 
 const formatDate = (timestamp) => {
   if (!timestamp) return "-";
@@ -312,7 +308,7 @@ const NationalTaxService = ({ classCode }) => {
         }}
       >
         <h1 style={{ margin: 0, fontSize: "2.5em", fontWeight: "bold" }}>
-          🏛️ 국세청 (학급: {classCode})
+          🏛️ {classCode} 학급 국세청
         </h1>
         <p style={{ margin: "10px 0 0 0", fontSize: "1.2em", opacity: 0.9 }}>
           세금 정책 관리 및 국고 운영
@@ -381,7 +377,7 @@ const NationalTaxService = ({ classCode }) => {
                 💰 총 국고
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.totalAmount)}
+                {formatKoreanCurrency(treasuryData.totalAmount)}
               </p>
             </div>
             <div
@@ -403,7 +399,7 @@ const NationalTaxService = ({ classCode }) => {
                 📈 주식 거래세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.stockTaxRevenue)}
+                {formatKoreanCurrency(treasuryData.stockTaxRevenue)}
               </p>
             </div>
             {/* [신규] 주식 거래 수수료 카드 */}
@@ -426,7 +422,7 @@ const NationalTaxService = ({ classCode }) => {
                 📋 주식 거래 수수료 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.stockCommissionRevenue)}
+                {formatKoreanCurrency(treasuryData.stockCommissionRevenue)}
               </p>
             </div>
             <div
@@ -448,7 +444,7 @@ const NationalTaxService = ({ classCode }) => {
                 🏡 부동산 거래세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.realEstateTransactionTaxRevenue)}
+                {formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}
               </p>
             </div>
             <div
@@ -470,7 +466,7 @@ const NationalTaxService = ({ classCode }) => {
                 🛒 아이템 부가세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.vatRevenue)}
+                {formatKoreanCurrency(treasuryData.vatRevenue)}
               </p>
             </div>
             <div
@@ -492,7 +488,7 @@ const NationalTaxService = ({ classCode }) => {
                 ⚖️ 경매장 거래세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.auctionTaxRevenue)}
+                {formatKoreanCurrency(treasuryData.auctionTaxRevenue)}
               </p>
             </div>
             <div
@@ -514,7 +510,7 @@ const NationalTaxService = ({ classCode }) => {
                 🏘️ 부동산 보유세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.propertyHoldingTaxRevenue)}
+                {formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}
               </p>
             </div>
             <div
@@ -536,7 +532,7 @@ const NationalTaxService = ({ classCode }) => {
                 ♻️ 아이템 시장 거래세 수입
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatCurrency(treasuryData.itemMarketTaxRevenue)}
+                {formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}
               </p>
             </div>
           </div>
@@ -603,7 +599,7 @@ const NationalTaxService = ({ classCode }) => {
                     color: "#333",
                   }}
                 >
-                  {formatCurrency(totalTaxRevenue)}
+                  {formatKoreanCurrency(totalTaxRevenue)}
                 </p>
               </div>
             </div>
@@ -701,7 +697,7 @@ const NationalTaxService = ({ classCode }) => {
                       ></div>
                     </div>
                     <div style={{ minWidth: "150px", textAlign: "right" }}>
-                      {formatCurrency(itemAmount)} ({percentage}%)
+                      {formatKoreanCurrency(itemAmount)} ({percentage}%)
                     </div>
                   </div>
                 );

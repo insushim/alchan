@@ -561,7 +561,7 @@ const ParkingAccount = ({
     try {
       // 파킹통장 처리
       const parkingRef = doc(db, "users", userId, "financials", "parkingAccount");
-      const parkingRateProduct = savingsProducts.length > 0 ? savingsProducts[0] : null;
+      const parkingRateProduct = depositProducts.length > 0 ? depositProducts[0] : null;
 
       if (parkingRateProduct) {
         const parkingDoc = await getDoc(parkingRef);
@@ -630,7 +630,7 @@ const ParkingAccount = ({
     } finally {
       setIsProcessing(false);
     }
-  }, [userId, savingsProducts]);
+  }, [userId, depositProducts]);
 
   useEffect(() => {
     if (!loading && userId) loadAllData();
@@ -697,11 +697,7 @@ const ParkingAccount = ({
 
     // 현금 보유량 낙관적 업데이트
     const cashChangeAmount = type === 'loans' ? amount : -amount;
-    if (cashChangeAmount < 0) {
-      deductCash(Math.abs(cashChangeAmount));
-    } else {
-      addCash(cashChangeAmount);
-    }
+    setCurrentCash(prev => prev + cashChangeAmount); // 로컬 UI 상태만 먼저 업데이트
     
     try {
       await runTransaction(db, async (transaction) => {
@@ -748,12 +744,8 @@ const ParkingAccount = ({
         setUserLoans(prev => prev.filter(p => p.id !== tempId));
       }
       
-      // 현금 롤백
-      if (cashChangeAmount < 0) {
-        addCash(Math.abs(cashChangeAmount));
-      } else {
-        deductCash(cashChangeAmount);
-      }
+      // 현금 롤백 (로컬 UI)
+      setCurrentCash(prev => prev - cashChangeAmount);
 
     } finally {
       setIsProcessing(false);

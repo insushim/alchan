@@ -1546,76 +1546,16 @@ const RealEstateRegistry = () => {
     );
   };
   
-  const renderAdminPanel = () => {
-    console.log('[RealEstate] renderAdminPanel 호출:', { showAdminPanel, isAdmin: isAdmin() });
-
-    if (!showAdminPanel || !isAdmin()) {
-      console.log('[RealEstate] 관리자 패널 렌더링 안 함 - showAdminPanel:', showAdminPanel, 'isAdmin:', isAdmin());
-      return null;
-    }
-
-    console.log('[RealEstate] 관리자 패널 렌더링 시작');
-
-    const tenantIds = new Set(
-      properties.map((p) => p.tenantId).filter(Boolean)
-    );
-    const nonTenants = allUsersData.filter(
-      (user) => !tenantIds.has(user.id) && !user.isAdmin
-    );
-
-    const adminPanelContent = (
-      <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
-        <div className="admin-panel" onClick={(e) => e.stopPropagation()}>
-          <div className="panel-header">
-            <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
-            <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
-          </div>
-          <div className="panel-content">
-            <div className="form-group">
-              <label>활성화할 부동산 개수 (변경 후 '부동산 초기화' 필요)</label>
-              <input type="number" min="1" max="100" value={adminInputs.totalProperties} onChange={(e) => setAdminInputs(prev => ({ ...prev, totalProperties: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label>배치도 한 줄당 칸 수</label>
-              <select value={adminInputs.layoutColumns} onChange={(e) => setAdminInputs(prev => ({ ...prev, layoutColumns: e.target.value }))}>
-                  {[4, 5, 6, 7, 8, 10].map(n => <option key={n} value={n.toString()}>{n}칸</option>)}
-              </select>
-            </div>
-            <div className="form-group">
-              <label>기본 부동산 가격 (원) (변경 후 '부동산 초기화' 필요)</label>
-              <input type="number" min="1000000" step="1000000" value={adminInputs.basePrice} onChange={(e) => setAdminInputs(prev => ({ ...prev, basePrice: e.target.value }))} />
-            </div>
-            <div className="form-group">
-              <label>월세 비율 (%) (변경 후 '부동산 초기화' 필요)</label>
-              <input type="number" min="0" max="20" step="0.1" value={adminInputs.rentPercentage} onChange={(e) => setAdminInputs(prev => ({ ...prev, rentPercentage: e.target.value }))} />
-            </div>
-            <div className="non-tenant-list">
-              <h4>⚠️ 미입주 학생 ({nonTenants.length}명)</h4>
-              {nonTenants.length > 0 ? (
-                  <ul>
-                      {nonTenants.map(user => <li key={user.id}>{user.name}</li>)}
-                  </ul>
-              ) : (
-                  <p>모든 학생이 입주했습니다!</p>
-              )}
-            </div>
-          </div>
-          <div className="panel-actions">
-            <button className="btn-primary" onClick={handleSaveSettings} disabled={operationLoading}>💾 설정 저장</button>
-            <button className="btn-danger" onClick={handleInitializeProperties} disabled={operationLoading}>🔄 부동산 초기화</button>
-          </div>
-        </div>
-      </div>
-    );
-
-    // 🔥 [수정] Portal 제거 - 일반 렌더링으로 변경
-    return adminPanelContent;
-  };
-
-
   if (authLoading || settingsLoading || propertiesLoading || usersLoading) {
     return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
   }
+
+  const tenantIds = new Set(
+    properties.map((p) => p.tenantId).filter(Boolean)
+  );
+  const nonTenants = allUsersData.filter(
+    (user) => !tenantIds.has(user.id) && !user.isAdmin
+  );
 
   return (
     <>
@@ -1779,7 +1719,51 @@ const RealEstateRegistry = () => {
           </div>
         )}
       </div>
-      {renderAdminPanel()}
+      {showAdminPanel && isAdmin() && ReactDOM.createPortal(
+        <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
+          <div className="admin-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="panel-header">
+              <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
+              <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
+            </div>
+            <div className="panel-content">
+              <div className="form-group">
+                <label>활성화할 부동산 개수 (변경 후 '부동산 초기화' 필요)</label>
+                <input type="number" min="1" max="100" value={adminInputs.totalProperties} onChange={(e) => setAdminInputs(prev => ({ ...prev, totalProperties: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>배치도 한 줄당 칸 수</label>
+                <select value={adminInputs.layoutColumns} onChange={(e) => setAdminInputs(prev => ({ ...prev, layoutColumns: e.target.value }))}>
+                    {[4, 5, 6, 7, 8, 10].map(n => <option key={n} value={n.toString()}>{n}칸</option>)}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>기본 부동산 가격 (원) (변경 후 '부동산 초기화' 필요)</label>
+                <input type="number" min="1000000" step="1000000" value={adminInputs.basePrice} onChange={(e) => setAdminInputs(prev => ({ ...prev, basePrice: e.target.value }))} />
+              </div>
+              <div className="form-group">
+                <label>월세 비율 (%) (변경 후 '부동산 초기화' 필요)</label>
+                <input type="number" min="0" max="20" step="0.1" value={adminInputs.rentPercentage} onChange={(e) => setAdminInputs(prev => ({ ...prev, rentPercentage: e.target.value }))} />
+              </div>
+              <div className="non-tenant-list">
+                <h4>⚠️ 미입주 학생 ({nonTenants.length}명)</h4>
+                {nonTenants.length > 0 ? (
+                    <ul>
+                        {nonTenants.map(user => <li key={user.id}>{user.name}</li>)}
+                    </ul>
+                ) : (
+                    <p>모든 학생이 입주했습니다!</p>
+                )}
+              </div>
+            </div>
+            <div className="panel-actions">
+              <button className="btn-primary" onClick={handleSaveSettings} disabled={operationLoading}>💾 설정 저장</button>
+              <button className="btn-danger" onClick={handleInitializeProperties} disabled={operationLoading}>🔄 부동산 초기화</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

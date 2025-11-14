@@ -462,15 +462,18 @@ const getUserDocument = async (userId, forceRefresh = false) => {
   try {
     const userRef = doc(db, "users", userId);
     
-    // 🔥 [최적화] 캐시에서 먼저 시도
     let userSnap;
-    try {
-      userSnap = await getDocFromCache(userRef);
-      console.log(`[firebase.js] getUserDocument(${userId}) - 캐시에서 조회`);
-    } catch (cacheError) {
-      // 캐시에 없으면 서버에서 조회
+    if (forceRefresh) {
+      console.log(`[firebase.js] getUserDocument(${userId}) - 강제 새로고침 (서버 조회)`);
       userSnap = await getDoc(userRef);
-      console.log(`[firebase.js] getUserDocument(${userId}) - 서버에서 조회`);
+    } else {
+      try {
+        userSnap = await getDocFromCache(userRef);
+        console.log(`[firebase.js] getUserDocument(${userId}) - 캐시에서 조회`);
+      } catch (cacheError) {
+        userSnap = await getDoc(userRef);
+        console.log(`[firebase.js] getUserDocument(${userId}) - 서버에서 조회`);
+      }
     }
     
     const result = userSnap.exists()
