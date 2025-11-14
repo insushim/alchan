@@ -647,19 +647,25 @@ async function updateCentralStockMarketLogic() {
       const sellVolume = stockData.recentSellVolume || 0;
       const netVolume = buyVolume - sellVolume;
 
-      // 🔥 개별 주식 변동성 강화 (각 주식마다 독립적으로 등락)
-      let volatility = stockData.volatility || 0.05; // 5% (기존 4%에서 증가)
+      // 🔥 변동성 감소 및 상승 편향 (학생 투자 의욕 증진)
+      let volatility = stockData.volatility || 0.03; // 3% (5%에서 감소)
       if (stockData.productType === "bond") {
-        volatility = 0.015; // 채권은 변동성 낮음 (1.5%, 기존 1%에서 증가)
+        volatility = 0.01; // 채권은 변동성 낮음 (1%, 1.5%에서 감소)
       }
 
       // 거래량에 따른 변동성 조정
-      const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.05);
+      const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.03);
       const direction = netVolume > 0 ? 1 : netVolume < 0 ? -1 : 0;
 
-      // 🔥 랜덤 변동을 더 강하게 (시장 상황의 영향을 상쇄)
-      // 완전 랜덤: -1 ~ +1 사이의 값 * volatility
-      const randomChange = (Math.random() * 2 - 1) * volatility;
+      // 🔥 최소가 근처 반등 메커니즘 (바닥권에서 강한 상승 압력)
+      const priceRatio = currentPrice / minPrice; // 1.0 ~ 무한대
+      let bounceBoost = 0;
+      if (priceRatio < 1.2) { // 최소가의 120% 미만일 때
+        bounceBoost = 0.02 * (1.2 - priceRatio) / 0.2; // 최대 +2% 추가 상승
+      }
+
+      // 🔥 약한 상승 편향 랜덤 변동 (-0.8 ~ +1.2 범위, 평균 +0.2)
+      const randomChange = ((Math.random() * 2 - 0.8) * volatility) + bounceBoost;
       const volumeChange = direction * volumeImpact;
 
       // 뉴스 영향 계산 (개별 주식)
@@ -676,9 +682,10 @@ async function updateCentralStockMarketLogic() {
         logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
       }
 
-      // 🔥 전체 변동 = 랜덤(강함) + 거래량 + 개별 뉴스 + 시장 상황(약함)
-      // 시장 상황 영향을 50%로 줄여서 개별 주식의 독립성 강화
-      const totalChange = randomChange + volumeChange + newsImpact + (marketImpact * 0.5);
+      // 🔥 전체 변동 = 랜덤(상승편향) + 거래량 + 개별 뉴스 + 시장 상황(약함) + 기본 상승률
+      // 시장 상황 영향을 30%로 더 줄이고, 기본 +0.3% 상승률 추가
+      const baseGrowth = 0.003; // 기본 +0.3% 상승률 (장기적으로 완만한 상승)
+      const totalChange = randomChange + volumeChange + newsImpact + (marketImpact * 0.3) + baseGrowth;
 
       let newPrice = Math.round(currentPrice * (1 + totalChange));
 

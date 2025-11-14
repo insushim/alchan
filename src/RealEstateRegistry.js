@@ -1719,13 +1719,15 @@ const RealEstateRegistry = () => {
           </div>
         )}
       </div>
-      {showAdminPanel && isAdmin() && ReactDOM.createPortal(
-        <div className="modal-overlay" onClick={() => setShowAdminPanel(false)}>
-          <div className="admin-panel" onClick={(e) => e.stopPropagation()}>
-            <div className="panel-header">
-              <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
-              <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
-            </div>
+      {showAdminPanel && isAdmin() && (() => {
+        console.log('[RealEstate] Portal 렌더링 시작 - showAdminPanel:', showAdminPanel, 'isAdmin:', isAdmin());
+        return ReactDOM.createPortal(
+          <div className="modal-overlay" onClick={() => setShowAdminPanel(false)} style={{ display: 'flex' }}>
+            <div className="admin-panel" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'white', zIndex: 100001 }}>
+              <div className="panel-header">
+                <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
+                <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
+              </div>
             <div className="panel-content">
               <div className="form-group">
                 <label>활성화할 부동산 개수 (변경 후 '부동산 초기화' 필요)</label>
@@ -1763,7 +1765,8 @@ const RealEstateRegistry = () => {
           </div>
         </div>,
         document.body
-      )}
+      );
+      })()}
     </>
   );
 };
