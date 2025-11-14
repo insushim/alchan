@@ -360,9 +360,11 @@ body {
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
-  align-items: center;
-  z-index: 1000;
+  align-items: flex-start; /* center → flex-start 변경으로 위에서부터 시작 */
+  z-index: 99999; /* 1000 → 99999로 대폭 증가 */
   padding: 1rem;
+  padding-top: 2rem; /* 상단 여백 추가 */
+  overflow-y: auto; /* 오버레이 자체에서 스크롤 */
 }
 
 .admin-panel,
@@ -376,6 +378,8 @@ body {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+  position: relative; /* z-index가 작동하도록 position 추가 */
+  z-index: 100000; /* 오버레이보다 높게 */
 }
 
 .panel-header,

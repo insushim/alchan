@@ -554,16 +554,16 @@ exports.weeklyRent = onRequest({
 async function updateMarketConditionLogic() {
   logger.info("📊 [스케줄러] 시장 상황 업데이트 시작");
   try {
-    // 🔥 [균형 조정] 하락 확률을 높여서 상승 편향 제거
-    // 가중치: 초강세(5%), 강세(15%), 강보합(20%), 약보합(20%), 약세(25%), 초약세(15%)
-    // 평균 impact: 약 -0.5% (거래량/뉴스 상승 편향을 상쇄)
+    // 🔥 [상승장 유도] 상승 확률을 65%로, 하락 확률을 35%로 조정
+    // 가중치: 초강세(15%), 강세(25%), 강보합(25%), 약보합(15%), 약세(15%), 초약세(5%)
+    // 평균 impact: +0.09% (완만한 상승 유도)
     const marketConditions = [
-      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다", weight: 5 },
-      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다", weight: 15 },
-      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다", weight: 20 },
-      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다", weight: 20 },
-      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다", weight: 25 },
-      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다", weight: 15 }
+      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다", weight: 15 },
+      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다", weight: 25 },
+      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다", weight: 25 },
+      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다", weight: 15 },
+      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다", weight: 15 },
+      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다", weight: 5 }
     ];
 
     // 가중치 기반 랜덤 선택
@@ -647,18 +647,19 @@ async function updateCentralStockMarketLogic() {
       const sellVolume = stockData.recentSellVolume || 0;
       const netVolume = buyVolume - sellVolume;
 
-      // 기본 변동성 증가 (더 활발한 시장을 위해)
-      let volatility = stockData.volatility || 0.04; // 4% (기존 2%에서 증가)
+      // 🔥 개별 주식 변동성 강화 (각 주식마다 독립적으로 등락)
+      let volatility = stockData.volatility || 0.05; // 5% (기존 4%에서 증가)
       if (stockData.productType === "bond") {
-        volatility = 0.01; // 채권은 변동성 낮음 (1%, 기존 0.5%에서 증가)
+        volatility = 0.015; // 채권은 변동성 낮음 (1.5%, 기존 1%에서 증가)
       }
 
       // 거래량에 따른 변동성 조정
       const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.05);
       const direction = netVolume > 0 ? 1 : netVolume < 0 ? -1 : 0;
 
-      // 랜덤 변동 + 거래량 영향
-      const randomChange = (Math.random() - 0.5) * volatility * 2;
+      // 🔥 랜덤 변동을 더 강하게 (시장 상황의 영향을 상쇄)
+      // 완전 랜덤: -1 ~ +1 사이의 값 * volatility
+      const randomChange = (Math.random() * 2 - 1) * volatility;
       const volumeChange = direction * volumeImpact;
 
       // 뉴스 영향 계산 (개별 주식)
@@ -675,8 +676,9 @@ async function updateCentralStockMarketLogic() {
         logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
       }
 
-      // 전체 변동 = 랜덤 + 거래량 + 개별 뉴스 + 시장 상황
-      const totalChange = randomChange + volumeChange + newsImpact + marketImpact;
+      // 🔥 전체 변동 = 랜덤(강함) + 거래량 + 개별 뉴스 + 시장 상황(약함)
+      // 시장 상황 영향을 50%로 줄여서 개별 주식의 독립성 강화
+      const totalChange = randomChange + volumeChange + newsImpact + (marketImpact * 0.5);
 
       let newPrice = Math.round(currentPrice * (1 + totalChange));
 

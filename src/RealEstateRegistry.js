@@ -22,6 +22,7 @@ import {
   increment,
 } from "./firebase";
 import { httpsCallable } from "firebase/functions";
+import { globalCache } from "./services/globalCacheService";
 
 // onSnapshot과 orderBy는 firebase/firestore에서 직접 가져옵니다.
 import {
@@ -63,18 +64,9 @@ const RealEstateRegistry = () => {
   const [showQuickAction, setShowQuickAction] = useState(null);
   const [adminInputs, setAdminInputs] = useState({ ...DEFAULT_SETTINGS });
 
-  // 팝업이 열릴 때 body 스크롤 막기/해제하기
-  useEffect(() => {
-    const isModalOpen = showAdminPanel || selectedProperty || showQuickAction;
-    if (isModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [showAdminPanel, selectedProperty, showQuickAction]);
+  // 🔥 [제거] body 스크롤 조작 완전 제거 - CSS로만 처리
+  // 모달 오버레이에 overflow-y: auto 설정으로 모달 내부 스크롤 허용
+  // body는 전혀 건드리지 않아서 레이아웃 깨짐 방지
 
   // Settings 로드 Effect (폴링 방식으로 변경 - 무한 루프 방지)
   useEffect(() => {
@@ -359,8 +351,10 @@ const RealEstateRegistry = () => {
       optimisticUpdate({ cash: -purchasePrice });
     }
 
-    // 🔥 낙관적 업데이트 2: 부동산 소유자 즉시 변경 (UI 업데이트)
+    // 🔥 낙관적 업데이트 2: 구매한 부동산에 즉시 입주 + 소유자 변경 (UI 업데이트)
     const previousPropertyState = { ...property };
+    const previousProperties = [...properties];
+
     setProperties(prevProperties =>
       prevProperties.map(p =>
         p.id === propertyId
@@ -369,9 +363,18 @@ const RealEstateRegistry = () => {
               owner: currentUser.id,
               ownerName: currentUser.name,
               forSale: false,
-              salePrice: null
+              salePrice: null,
+              tenant: currentUser.name,
+              tenantId: currentUser.id,
+              tenantName: currentUser.name,
             }
-          : p
+          : {
+              ...p,
+              // 다른 부동산에 입주 중이었다면 퇴거 처리
+              tenant: p.tenantId === currentUser.id ? null : p.tenant,
+              tenantId: p.tenantId === currentUser.id ? null : p.tenantId,
+              tenantName: p.tenantId === currentUser.id ? null : p.tenantName,
+            }
       )
     );
 
@@ -398,12 +401,8 @@ const RealEstateRegistry = () => {
         optimisticUpdate({ cash: purchasePrice });
       }
 
-      // 실패 시 롤백 2: 부동산 상태 복구
-      setProperties(prevProperties =>
-        prevProperties.map(p =>
-          p.id === propertyId ? previousPropertyState : p
-        )
-      );
+      // 실패 시 롤백 2: 부동산 상태 전체 복구 (이전 상태로 되돌림)
+      setProperties(previousProperties);
 
       alert(error.message || '부동산 구매 중 오류가 발생했습니다.');
     } finally {
@@ -643,9 +642,63 @@ const RealEstateRegistry = () => {
   const handleTenancy = async (propertyId) => {
     if (!currentUser || !classCode) return;
 
+    const property = properties.find(p => p.id === propertyId);
+    if (!property) {
+      alert("부동산 정보를 찾을 수 없습니다.");
+      return;
+    }
+
     const isAlreadyTenantElsewhere = properties.some(
-      (p) => p.tenantId === currentUser.id
+      (p) => p.tenantId === currentUser.id && p.id !== propertyId
     );
+
+    const isTenantOfThisProperty = property.tenantId === currentUser.id;
+
+    // 🔥 [추가] 낙관적 업데이트: 퇴거인지 입주인지 판단
+    const isVacating = isTenantOfThisProperty;
+
+    // 이전 상태 저장 (롤백용)
+    const previousProperties = [...properties];
+
+    if (isVacating) {
+      // 🔥 낙관적 업데이트: 퇴거 처리
+      setProperties(prevProperties =>
+        prevProperties.map(p =>
+          p.id === propertyId
+            ? {
+                ...p,
+                tenant: null,
+                tenantId: null,
+                tenantName: null,
+              }
+            : p
+        )
+      );
+    } else {
+      // 🔥 낙관적 업데이트: 입주 처리 + 현금 차감 + 기존 입주지 퇴거
+      if (optimisticUpdate) {
+        optimisticUpdate({ cash: -property.rent });
+      }
+
+      setProperties(prevProperties =>
+        prevProperties.map(p =>
+          p.id === propertyId
+            ? {
+                ...p,
+                tenant: currentUser.name,
+                tenantId: currentUser.id,
+                tenantName: currentUser.name,
+              }
+            : {
+                ...p,
+                // 다른 부동산에 입주 중이었다면 퇴거 처리
+                tenant: p.tenantId === currentUser.id ? null : p.tenant,
+                tenantId: p.tenantId === currentUser.id ? null : p.tenantId,
+                tenantName: p.tenantId === currentUser.id ? null : p.tenantName,
+              }
+        )
+      );
+    }
 
     setOperationLoading(true);
     const propertyRef = doc(
@@ -658,6 +711,8 @@ const RealEstateRegistry = () => {
     const userRef = doc(db, "users", currentUser.id);
 
     try {
+      let transactionResult = null;
+
       await runTransaction(db, async (transaction) => {
         const propertyDoc = await transaction.get(propertyRef);
         if (!propertyDoc.exists())
@@ -670,6 +725,7 @@ const RealEstateRegistry = () => {
         const userData = userDoc.data();
 
         if (propertyData.tenantId === currentUser.id) {
+          // 퇴거 처리
           transaction.update(propertyRef, {
             tenant: null,
             tenantId: null,
@@ -677,7 +733,7 @@ const RealEstateRegistry = () => {
             lastRentPayment: null,
             updatedAt: serverTimestamp(),
           });
-          alert("성공적으로 퇴거했습니다.");
+          transactionResult = { type: 'vacate' };
           return;
         }
 
@@ -713,14 +769,37 @@ const RealEstateRegistry = () => {
           lastRentPayment: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
-        alert("성공적으로 입주했습니다. 첫 월세가 지불되었습니다.");
+
+        transactionResult = { type: 'moveIn', rent: propertyData.rent };
       });
 
+      // 🔥 트랜잭션 완료 후 처리
+      if (transactionResult?.type === 'vacate') {
+        alert("성공적으로 퇴거했습니다.");
+      } else if (transactionResult?.type === 'moveIn') {
+        alert("성공적으로 입주했습니다. 첫 월세가 지불되었습니다.");
+
+        // 🔥 [중요] 유저 캐시 무효화 후 서버에서 최신 데이터 가져오기
+        if (currentUser?.id) {
+          globalCache.invalidate(`user_${currentUser.id}`);
+          console.log('[RealEstate] 입주 완료 - 유저 캐시 무효화:', currentUser.id);
+        }
+      }
+
+      // 🔥 서버 데이터와 동기화
+      await refreshProperties();
       if (refreshUserDocument) refreshUserDocument();
       setShowQuickAction(null);
       setSelectedProperty(null);
     } catch (error) {
       console.error("입주/퇴거 처리 오류:", error);
+
+      // 🔥 롤백: 이전 상태로 복구
+      setProperties(previousProperties);
+      if (!isVacating && optimisticUpdate) {
+        optimisticUpdate({ cash: property.rent });
+      }
+
       alert(`처리 중 오류 발생: ${error.message}`);
     } finally {
       setOperationLoading(false);
@@ -781,6 +860,63 @@ const RealEstateRegistry = () => {
   };
 
   // ⭐️ [수정된 함수] 월세 징수 로직 개선 (잔액 부족 시 전액 징수)
+  // 🔥 [추가] 월세 0원인 부동산 수정 함수
+  const handleFixZeroRent = async () => {
+    if (!classCode || !currentUser || !isAdmin()) {
+      alert("권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+
+    // 🔥 [중요] 현재 설정값 확인
+    const currentRentPercentage = settings.rentPercentage || 1;
+    console.log(`[FixRent] 현재 월세 비율: ${currentRentPercentage}%`);
+
+    if (!window.confirm(
+      `월세가 0원인 부동산을 모두 수정하시겠습니까?\n\n현재 설정:\n- 월세 비율: ${currentRentPercentage}%\n- 기본 부동산 가격: ${(settings.basePrice / 10000).toFixed(0)}만원\n\n각 부동산의 가격 × ${currentRentPercentage}%로 월세가 설정됩니다.`
+    )) {
+      return;
+    }
+
+    setOperationLoading(true);
+    try {
+      const propCollRef = collection(db, "classes", classCode, "realEstateProperties");
+      const allPropertiesSnapshot = await getDocs(propCollRef);
+
+      const batch = writeBatch(db);
+      let fixedCount = 0;
+
+      allPropertiesSnapshot.forEach((propDoc) => {
+        const data = propDoc.data();
+        // 월세가 0이거나 없는 경우
+        if (!data.rent || data.rent === 0) {
+          // 🔥 [수정] settings의 rentPercentage 사용
+          const propertyPrice = data.price || settings.basePrice;
+          const calculatedRent = Math.round(propertyPrice * (currentRentPercentage / 100));
+
+          batch.update(propDoc.ref, {
+            rent: calculatedRent,
+            updatedAt: serverTimestamp(),
+          });
+          fixedCount++;
+          console.log(`[FixRent] 부동산 #${data.id}: 가격 ${(propertyPrice / 10000).toFixed(0)}만원 × ${currentRentPercentage}% = 월세 ${(calculatedRent / 10000).toFixed(1)}만원`);
+        }
+      });
+
+      if (fixedCount > 0) {
+        await batch.commit();
+        await refreshProperties();
+        alert(`월세 수정 완료!\n\n${fixedCount}개 부동산의 월세를 수정했습니다.\n(월세 비율: ${currentRentPercentage}%)`);
+      } else {
+        alert("월세가 0원인 부동산이 없습니다.");
+      }
+    } catch (error) {
+      console.error("[FixRent] 오류:", error);
+      alert("월세 수정 중 오류 발생: " + error.message);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
   const handleCollectRent = async () => {
     if (!classCode || !currentUser || !isAdmin()) {
       alert("월세 징수 권한이 없거나 학급 정보가 없습니다.");
@@ -1411,7 +1547,14 @@ const RealEstateRegistry = () => {
   };
   
   const renderAdminPanel = () => {
-    if (!showAdminPanel || !isAdmin()) return null;
+    console.log('[RealEstate] renderAdminPanel 호출:', { showAdminPanel, isAdmin: isAdmin() });
+
+    if (!showAdminPanel || !isAdmin()) {
+      console.log('[RealEstate] 관리자 패널 렌더링 안 함 - showAdminPanel:', showAdminPanel, 'isAdmin:', isAdmin());
+      return null;
+    }
+
+    console.log('[RealEstate] 관리자 패널 렌더링 시작');
 
     const tenantIds = new Set(
       properties.map((p) => p.tenantId).filter(Boolean)
@@ -1465,7 +1608,8 @@ const RealEstateRegistry = () => {
       </div>
     );
 
-    return ReactDOM.createPortal(adminPanelContent, document.body);
+    // 🔥 [수정] Portal 제거 - 일반 렌더링으로 변경
+    return adminPanelContent;
   };
 
 
@@ -1526,7 +1670,11 @@ const RealEstateRegistry = () => {
             <div className="admin-controls">
                 <button
                     className="admin-btn settings"
-                    onClick={() => setShowAdminPanel(true)}
+                    onClick={() => {
+                      console.log('[RealEstate] 관리자 설정 버튼 클릭');
+                      setShowAdminPanel(true);
+                      console.log('[RealEstate] showAdminPanel 상태 변경: true');
+                    }}
                     style={{ textDecoration: "none" }}
                 >
                     ⚙️ 관리자 설정
@@ -1537,6 +1685,13 @@ const RealEstateRegistry = () => {
                 disabled={operationLoading}
               >
                 💸 월세 징수
+              </button>
+              <button
+                className="admin-btn settings"
+                onClick={handleFixZeroRent}
+                disabled={operationLoading}
+              >
+                🔧 월세 0원 수정
               </button>
             </div>
           )}

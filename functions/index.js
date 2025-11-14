@@ -1933,100 +1933,143 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 // ===================================================================================
 // 🏠 부동산 구매 함수
 // ===================================================================================
-// exports.purchaseRealEstate = onCall({region: "asia-northeast3", cors: true}, async (request) => {
-//   try {
-//     const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
-//     const {propertyId} = request.data;
-// 
-//     if (!propertyId) {
-//       throw new HttpsError("invalid-argument", "부동산 ID가 필요합니다.");
-//     }
-// 
-//     logger.info(`[purchaseRealEstate] User ${uid} attempting to purchase property ${propertyId}`);
-// 
-//     // 트랜잭션으로 처리
-//     const result = await db.runTransaction(async (transaction) => {
-//       // 1. 부동산 정보 조회
-//       const propertyRef = db.collection("classes").doc(classCode).collection("realEstateProperties").doc(propertyId);
-//       const propertyDoc = await transaction.get(propertyRef);
-// 
-//       if (!propertyDoc.exists) {
-//         throw new Error("부동산 정보를 찾을 수 없습니다.");
-//       }
-// 
-//       const propertyData = propertyDoc.data();
-// 
-//       // 2. 구매 가능 여부 확인
-//       if (!propertyData.forSale) {
-//         throw new Error("판매 중인 부동산이 아닙니다.");
-//       }
-// 
-//       if (propertyData.owner === uid) {
-//         throw new Error("이미 소유한 부동산입니다.");
-//       }
-// 
-//       const purchasePrice = propertyData.salePrice || propertyData.price;
-// 
-//       // 3. 사용자 현금 확인
-//       const userRef = db.collection("users").doc(uid);
-//       const userDoc = await transaction.get(userRef);
-// 
-//       if (!userDoc.exists) {
-//         throw new Error("사용자 정보를 찾을 수 없습니다.");
-//       }
-// 
-//       const currentCash = userDoc.data().cash || 0;
-// 
-//       if (currentCash < purchasePrice) {
-//         throw new Error(`현금이 부족합니다. 필요: ${purchasePrice.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
-//       }
-// 
-//       // 4. 현금 차감
-//       transaction.update(userRef, {
-//         cash: admin.firestore.FieldValue.increment(-purchasePrice),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       // 5. 부동산 소유자 변경 및 판매 상태 해제
-//       transaction.update(propertyRef, {
-//         owner: uid,
-//         ownerName: userData.name,
-//         forSale: false,
-//         salePrice: admin.firestore.FieldValue.delete(),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       // 6. 활동 로그 기록
-//       await logActivity(
-//           transaction,
-//           uid,
-//           "부동산 구매",
-//           `부동산 #${propertyId}를 ${purchasePrice.toLocaleString()}원에 구매했습니다.`,
-//           {
-//             propertyId,
-//             propertyName: propertyData.name,
-//             purchasePrice,
-//             previousOwner: propertyData.owner,
-//             previousOwnerName: propertyData.ownerName,
-//           }
-//       );
-// 
-//       return {
-//         success: true,
-//         message: "부동산을 성공적으로 구매했습니다.",
-//         propertyId,
-//         purchasePrice,
-//         remainingCash: currentCash - purchasePrice,
-//       };
-//     });
-// 
-//     logger.info(`[purchaseRealEstate] Success for user ${uid}:`, result);
-//     return result;
-//   } catch (error) {
-//     logger.error(`[purchaseRealEstate] Error:`, error);
-//     throw new HttpsError("aborted", error.message || "부동산 구매에 실패했습니다.");
-//   }
-// });
+exports.purchaseRealEstate = onCall({region: "asia-northeast3"}, async (request) => {
+  try {
+    const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
+    const {propertyId} = request.data;
+
+    if (!propertyId) {
+      throw new HttpsError("invalid-argument", "부동산 ID가 필요합니다.");
+    }
+
+    logger.info(`[purchaseRealEstate] User ${uid} attempting to purchase property ${propertyId}`);
+
+    // 트랜잭션으로 처리
+    const result = await db.runTransaction(async (transaction) => {
+      // 1. 부동산 정보 조회
+      const propertyRef = db.collection("classes").doc(classCode).collection("realEstateProperties").doc(propertyId);
+      const propertyDoc = await transaction.get(propertyRef);
+
+      if (!propertyDoc.exists) {
+        throw new Error("부동산 정보를 찾을 수 없습니다.");
+      }
+
+      const propertyData = propertyDoc.data();
+
+      // 🔥 [추가] 부동산 설정 조회 (월세 비율 확인)
+      const settingsRef = db.collection("classes").doc(classCode).collection("realEstateSettings").doc("settingsDoc");
+      const settingsDoc = await transaction.get(settingsRef);
+      const settings = settingsDoc.exists ? settingsDoc.data() : {rentPercentage: 1}; // 기본값 1%
+      const rentPercentage = settings.rentPercentage || 1;
+
+      logger.info(`[purchaseRealEstate] 월세 비율: ${rentPercentage}%`);
+
+      // 2. 구매 가능 여부 확인
+      // 정부 소유 부동산은 항상 구매 가능 (forSale 여부 무관)
+      // 개인 소유 부동산은 forSale이 true일 때만 구매 가능
+      if (propertyData.owner !== "government" && !propertyData.forSale) {
+        throw new Error("판매 중인 부동산이 아닙니다.");
+      }
+
+      if (propertyData.owner === uid) {
+        throw new Error("이미 소유한 부동산입니다.");
+      }
+
+      const purchasePrice = propertyData.salePrice || propertyData.price;
+
+      // 🔥 [수정] 월세가 0이거나 없는 경우 설정된 비율로 계산
+      const rent = propertyData.rent || Math.round(propertyData.price * (rentPercentage / 100));
+
+      // 3. 사용자 현금 확인
+      const userRef = db.collection("users").doc(uid);
+      const userDoc = await transaction.get(userRef);
+
+      if (!userDoc.exists) {
+        throw new Error("사용자 정보를 찾을 수 없습니다.");
+      }
+
+      const currentCash = userDoc.data().cash || 0;
+
+      if (currentCash < purchasePrice) {
+        throw new Error(`현금이 부족합니다. 필요: ${purchasePrice.toLocaleString()}원, 보유: ${currentCash.toLocaleString()}원`);
+      }
+
+      // 🔥 [추가] 4-1. 기존 입주지 확인 및 퇴거 처리
+      const allPropertiesSnapshot = await transaction.get(
+        db.collection("classes").doc(classCode).collection("realEstateProperties")
+      );
+
+      let previousTenantPropertyId = null;
+      allPropertiesSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.tenantId === uid) {
+          previousTenantPropertyId = doc.id;
+          // 기존 입주지에서 퇴거 처리
+          transaction.update(doc.ref, {
+            tenant: null,
+            tenantId: null,
+            tenantName: null,
+            lastRentPayment: null,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+          logger.info(`[purchaseRealEstate] User ${uid} vacated from property ${doc.id}`);
+        }
+      });
+
+      // 4-2. 현금 차감
+      transaction.update(userRef, {
+        cash: admin.firestore.FieldValue.increment(-purchasePrice),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 5. 부동산 소유자 변경 + 자동 입주 처리
+      transaction.update(propertyRef, {
+        owner: uid,
+        ownerName: userData.name,
+        forSale: false,
+        salePrice: admin.firestore.FieldValue.delete(),
+        rent: rent, // 🔥 [추가] 월세 명시적으로 보존/설정
+        tenant: userData.name,
+        tenantId: uid,
+        tenantName: userData.name,
+        lastRentPayment: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 6. 활동 로그 기록
+      logActivity(
+          transaction,
+          uid,
+          "부동산 구매",
+          `부동산 #${propertyId}를 ${purchasePrice.toLocaleString()}원에 구매하고 입주했습니다.`,
+          {
+            propertyId,
+            propertyName: propertyData.name,
+            purchasePrice,
+            previousOwner: propertyData.owner,
+            previousOwnerName: propertyData.ownerName,
+            previousTenantPropertyId,
+          }
+      );
+
+      return {
+        success: true,
+        message: "부동산을 성공적으로 구매하고 입주했습니다.",
+        propertyId,
+        purchasePrice,
+        remainingCash: currentCash - purchasePrice,
+        movedIn: true,
+        vacatedFrom: previousTenantPropertyId,
+      };
+    });
+
+    logger.info(`[purchaseRealEstate] Success for user ${uid}:`, result);
+    return result;
+  } catch (error) {
+    logger.error(`[purchaseRealEstate] Error:`, error);
+    throw new HttpsError("aborted", error.message || "부동산 구매에 실패했습니다.");
+  }
+});
 
 exports.processSettlement = onCall({region: "asia-northeast3"}, async (request) => {
   try {
