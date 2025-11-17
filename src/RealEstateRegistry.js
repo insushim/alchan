@@ -1,6 +1,5 @@
-/* RealEstateRegistry.js (모든 함수가 포함된 최종본 - Portal 적용 및 관리자 기능 강화) */
+/* RealEstateRegistry.js (모든 함수가 포함된 최종본 - 관리자 기능 강화) */
 import React, { useState, useEffect } from "react";
-import ReactDOM from "react-dom"; // ⭐ Portal 사용을 위해 ReactDOM 임포트
 import "./RealEstateRegistry.css";
 import { useAuth } from "./AuthContext";
 
@@ -859,6 +858,239 @@ const RealEstateRegistry = () => {
     }
   };
 
+  // 🔥 [추가] 관리자가 학생을 강제로 빈 부동산에 입주시키는 함수
+  const handleAdminAssignSeat = async (userId, userName) => {
+    if (!classCode || !currentUser || !isAdmin()) {
+      alert("권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+
+    // 빈 부동산 찾기 (세입자가 없는 부동산)
+    const emptyProperties = properties.filter(p => !p.tenantId);
+
+    if (emptyProperties.length === 0) {
+      alert("배정할 수 있는 빈 부동산이 없습니다.");
+      return;
+    }
+
+    // 첫 번째 빈 부동산 선택
+    const targetProperty = emptyProperties[0];
+
+    if (!window.confirm(
+      `'${userName}' 학생을 부동산 #${targetProperty.id}에 강제로 입주시키시겠습니까?\n\n월세: ${(targetProperty.rent / 10000).toFixed(0)}만원\n소유자: ${targetProperty.owner === 'government' ? '정부' : targetProperty.ownerName}`
+    )) {
+      return;
+    }
+
+    setOperationLoading(true);
+
+    // 🔥 낙관적 업데이트: 즉시 UI 업데이트
+    const previousProperties = [...properties];
+    setProperties(prevProperties =>
+      prevProperties.map(p =>
+        p.id === targetProperty.id
+          ? {
+              ...p,
+              tenant: userName,
+              tenantId: userId,
+              tenantName: userName,
+            }
+          : {
+              ...p,
+              // 기존에 다른 곳에 입주해 있었다면 퇴거 처리
+              tenant: p.tenantId === userId ? null : p.tenant,
+              tenantId: p.tenantId === userId ? null : p.tenantId,
+              tenantName: p.tenantId === userId ? null : p.tenantName,
+            }
+      )
+    );
+
+    try {
+      const propertyRef = doc(
+        db,
+        "classes",
+        classCode,
+        "realEstateProperties",
+        targetProperty.id
+      );
+      const userRef = doc(db, "users", userId);
+
+      await runTransaction(db, async (transaction) => {
+        const propertyDoc = await transaction.get(propertyRef);
+        if (!propertyDoc.exists()) {
+          throw new Error("부동산 정보를 찾을 수 없습니다.");
+        }
+        const propertyData = propertyDoc.data();
+
+        const userDocSnap = await transaction.get(userRef);
+        if (!userDocSnap.exists()) {
+          throw new Error("사용자 정보를 찾을 수 없습니다.");
+        }
+        const userData = userDocSnap.data();
+
+        // 이미 다른 사람이 입주했는지 확인
+        if (propertyData.tenantId) {
+          throw new Error("이미 다른 사람이 입주해 있습니다.");
+        }
+
+        // 🔥 관리자 강제 입주이므로 현금 확인 없이 입주 처리
+        // 월세는 징수하지 않음 (첫 월세 무료)
+        transaction.update(propertyRef, {
+          tenant: userName,
+          tenantId: userId,
+          tenantName: userName,
+          lastRentPayment: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      console.log(`[RealEstate] 관리자 강제 입주 완료: ${userName} -> 부동산 #${targetProperty.id}`);
+      alert(`'${userName}' 학생이 부동산 #${targetProperty.id}에 입주했습니다.`);
+
+      // 🔥 서버 데이터와 동기화
+      await refreshProperties();
+
+      // 🔥 [중요] 유저 캐시 무효화
+      if (userId) {
+        globalCache.invalidate(`user_${userId}`);
+        console.log('[RealEstate] 강제 입주 - 유저 캐시 무효화:', userId);
+      }
+
+    } catch (error) {
+      console.error("[RealEstate] 강제 입주 오류:", error);
+
+      // 🔥 롤백: 이전 상태로 복구
+      setProperties(previousProperties);
+
+      alert(`강제 입주 중 오류 발생: ${error.message}`);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
+  // 🔥 [추가] 모든 미입주 학생을 자동으로 빈 부동산에 배정
+  const handleAdminAssignAllSeats = async () => {
+    if (!classCode || !currentUser || !isAdmin()) {
+      alert("권한이 없거나 학급 정보가 없습니다.");
+      return;
+    }
+
+    const tenantIds = new Set(properties.map((p) => p.tenantId).filter(Boolean));
+    const nonTenantsList = allUsersData.filter(
+      (user) => !tenantIds.has(user.id) && !user.isAdmin
+    );
+
+    if (nonTenantsList.length === 0) {
+      alert("모든 학생이 이미 입주해 있습니다.");
+      return;
+    }
+
+    const emptyProperties = properties.filter(p => !p.tenantId);
+
+    if (emptyProperties.length < nonTenantsList.length) {
+      alert(`빈 부동산이 부족합니다.\n미입주 학생: ${nonTenantsList.length}명\n빈 부동산: ${emptyProperties.length}개`);
+      return;
+    }
+
+    if (!window.confirm(
+      `${nonTenantsList.length}명의 학생을 자동으로 빈 부동산에 배정하시겠습니까?`
+    )) {
+      return;
+    }
+
+    setOperationLoading(true);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      // 각 미입주 학생을 순차적으로 배정
+      for (let i = 0; i < nonTenantsList.length; i++) {
+        const user = nonTenantsList[i];
+
+        // 현재 빈 부동산 다시 확인 (이전 배정으로 상태가 변경될 수 있음)
+        const currentEmptyProperties = properties.filter(p => !p.tenantId);
+
+        if (currentEmptyProperties.length === 0) {
+          console.warn(`[RealEstate] 빈 부동산 부족: ${user.name} 배정 실패`);
+          failCount++;
+          continue;
+        }
+
+        const targetProperty = currentEmptyProperties[0];
+
+        try {
+          const propertyRef = doc(
+            db,
+            "classes",
+            classCode,
+            "realEstateProperties",
+            targetProperty.id
+          );
+
+          await runTransaction(db, async (transaction) => {
+            const propertyDoc = await transaction.get(propertyRef);
+            if (!propertyDoc.exists()) {
+              throw new Error("부동산 정보를 찾을 수 없습니다.");
+            }
+            const propertyData = propertyDoc.data();
+
+            // 이미 다른 사람이 입주했는지 확인
+            if (propertyData.tenantId) {
+              throw new Error("이미 다른 사람이 입주해 있습니다.");
+            }
+
+            // 강제 입주 처리
+            transaction.update(propertyRef, {
+              tenant: user.name,
+              tenantId: user.id,
+              tenantName: user.name,
+              lastRentPayment: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
+          });
+
+          // 로컬 상태 업데이트 (다음 학생 배정을 위해)
+          setProperties(prevProperties =>
+            prevProperties.map(p =>
+              p.id === targetProperty.id
+                ? {
+                    ...p,
+                    tenant: user.name,
+                    tenantId: user.id,
+                    tenantName: user.name,
+                  }
+                : p
+            )
+          );
+
+          console.log(`[RealEstate] 자동 배정 성공: ${user.name} -> 부동산 #${targetProperty.id}`);
+          successCount++;
+
+          // 유저 캐시 무효화
+          if (user.id) {
+            globalCache.invalidate(`user_${user.id}`);
+          }
+
+        } catch (error) {
+          console.error(`[RealEstate] ${user.name} 배정 실패:`, error);
+          failCount++;
+        }
+      }
+
+      alert(`자동 배정 완료!\n\n성공: ${successCount}명\n실패: ${failCount}명`);
+
+      // 🔥 서버 데이터와 동기화
+      await refreshProperties();
+
+    } catch (error) {
+      console.error("[RealEstate] 자동 배정 전체 오류:", error);
+      alert(`자동 배정 중 오류 발생: ${error.message}`);
+    } finally {
+      setOperationLoading(false);
+    }
+  };
+
   // ⭐️ [수정된 함수] 월세 징수 로직 개선 (잔액 부족 시 전액 징수)
   // 🔥 [추가] 월세 0원인 부동산 수정 함수
   const handleFixZeroRent = async () => {
@@ -1610,11 +1842,7 @@ const RealEstateRegistry = () => {
             <div className="admin-controls">
                 <button
                     className="admin-btn settings"
-                    onClick={() => {
-                      console.log('[RealEstate] 관리자 설정 버튼 클릭');
-                      setShowAdminPanel(true);
-                      console.log('[RealEstate] showAdminPanel 상태 변경: true');
-                    }}
+                    onClick={() => setShowAdminPanel(true)}
                     style={{ textDecoration: "none" }}
                 >
                     ⚙️ 관리자 설정
@@ -1719,15 +1947,45 @@ const RealEstateRegistry = () => {
           </div>
         )}
       </div>
-      {showAdminPanel && isAdmin() && (() => {
-        console.log('[RealEstate] Portal 렌더링 시작 - showAdminPanel:', showAdminPanel, 'isAdmin:', isAdmin());
-        return ReactDOM.createPortal(
-          <div className="modal-overlay" onClick={() => setShowAdminPanel(false)} style={{ display: 'flex' }}>
-            <div className="admin-panel" onClick={(e) => e.stopPropagation()} style={{ backgroundColor: 'white', zIndex: 100001 }}>
-              <div className="panel-header">
-                <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
-                <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
-              </div>
+      {showAdminPanel && isAdmin() && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowAdminPanel(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'flex-start',
+            zIndex: 999999,
+            padding: '2rem 1rem',
+            overflowY: 'auto'
+          }}
+        >
+          <div
+            className="admin-panel"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              width: '100%',
+              maxWidth: '600px',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              position: 'relative',
+              zIndex: 1000000
+            }}
+          >
+            <div className="panel-header">
+              <h3>⚙️ 관리자 설정 (학급: {classCode})</h3>
+              <button className="close-btn" onClick={() => setShowAdminPanel(false)}>✕</button>
+            </div>
             <div className="panel-content">
               <div className="form-group">
                 <label>활성화할 부동산 개수 (변경 후 '부동산 초기화' 필요)</label>
@@ -1736,7 +1994,7 @@ const RealEstateRegistry = () => {
               <div className="form-group">
                 <label>배치도 한 줄당 칸 수</label>
                 <select value={adminInputs.layoutColumns} onChange={(e) => setAdminInputs(prev => ({ ...prev, layoutColumns: e.target.value }))}>
-                    {[4, 5, 6, 7, 8, 10].map(n => <option key={n} value={n.toString()}>{n}칸</option>)}
+                  {[4, 5, 6, 7, 8, 10].map(n => <option key={n} value={n.toString()}>{n}칸</option>)}
                 </select>
               </div>
               <div className="form-group">
@@ -1748,13 +2006,71 @@ const RealEstateRegistry = () => {
                 <input type="number" min="0" max="20" step="0.1" value={adminInputs.rentPercentage} onChange={(e) => setAdminInputs(prev => ({ ...prev, rentPercentage: e.target.value }))} />
               </div>
               <div className="non-tenant-list">
-                <h4>⚠️ 미입주 학생 ({nonTenants.length}명)</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                  <h4 style={{ margin: 0 }}>⚠️ 미입주 학생 ({nonTenants.length}명)</h4>
+                  {nonTenants.length > 0 && (
+                    <button
+                      onClick={handleAdminAssignAllSeats}
+                      disabled={operationLoading}
+                      style={{
+                        padding: '8px 16px',
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: operationLoading ? 'not-allowed' : 'pointer',
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        opacity: operationLoading ? 0.6 : 1,
+                        transition: 'all 0.2s',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}
+                      onMouseOver={(e) => !operationLoading && (e.target.style.backgroundColor = '#059669')}
+                      onMouseOut={(e) => !operationLoading && (e.target.style.backgroundColor = '#10b981')}
+                    >
+                      🏘️ 모두 자동 배정
+                    </button>
+                  )}
+                </div>
                 {nonTenants.length > 0 ? (
-                    <ul>
-                        {nonTenants.map(user => <li key={user.id}>{user.name}</li>)}
-                    </ul>
+                  <ul style={{ listStyle: 'none', padding: 0, maxHeight: '300px', overflowY: 'auto' }}>
+                    {nonTenants.map(user => (
+                      <li key={user.id} style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '8px 12px',
+                        marginBottom: '6px',
+                        backgroundColor: '#f9fafb',
+                        borderRadius: '6px',
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <span style={{ fontWeight: '500' }}>{user.name}</span>
+                        <button
+                          onClick={() => handleAdminAssignSeat(user.id, user.name)}
+                          disabled={operationLoading}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            cursor: operationLoading ? 'not-allowed' : 'pointer',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            opacity: operationLoading ? 0.6 : 1,
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseOver={(e) => !operationLoading && (e.target.style.backgroundColor = '#2563eb')}
+                          onMouseOut={(e) => !operationLoading && (e.target.style.backgroundColor = '#3b82f6')}
+                        >
+                          🏠 자리 배정
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 ) : (
-                    <p>모든 학생이 입주했습니다!</p>
+                  <p style={{ color: '#059669', fontWeight: '600', textAlign: 'center', padding: '20px' }}>✅ 모든 학생이 입주했습니다!</p>
                 )}
               </div>
             </div>
@@ -1763,10 +2079,8 @@ const RealEstateRegistry = () => {
               <button className="btn-danger" onClick={handleInitializeProperties} disabled={operationLoading}>🔄 부동산 초기화</button>
             </div>
           </div>
-        </div>,
-        document.body
-      );
-      })()}
+        </div>
+      )}
     </>
   );
 };

@@ -670,12 +670,21 @@ function Dashboard({ adminTabMode }) {
     return fetchPromise.current;
   }, [userDoc?.classCode, currentGoalId, isSuperAdmin, setupPolling, loadCachedData]);
 
-  // 클라이언트 측 할일 상태 새로고침 (서버에서 리셋 후 UI 업데이트)
+  // 🔥 [최적화] 클라이언트 측 할일 상태 새로고침 (중복 실행 방지)
+  const refreshInProgressRef = useRef(false);
+
   const refreshTasksAfterReset = useCallback(async () => {
+    // 🔥 이미 새로고침 중이면 중복 실행 방지
+    if (refreshInProgressRef.current) {
+      console.log("[Dashboard] 이미 새로고침 진행 중 - 중복 실행 방지");
+      return;
+    }
+
+    refreshInProgressRef.current = true;
     console.log("[Dashboard] 서버 리셋 감지 - 클라이언트 상태 새로고침");
 
     try {
-      // 사용자 문서 새로고침
+      // 사용자 문서 새로고침 (한 번만)
       if (refreshUserDocument) {
         await refreshUserDocument();
       }
@@ -692,6 +701,8 @@ function Dashboard({ adminTabMode }) {
       console.log("[Dashboard] 클라이언트 상태 새로고침 완료");
     } catch (error) {
       console.error("[Dashboard] 상태 새로고침 오류:", error);
+    } finally {
+      refreshInProgressRef.current = false;
     }
   }, [refreshUserDocument, loadTasksData]);
 
@@ -723,17 +734,26 @@ function Dashboard({ adminTabMode }) {
     };
   }, [authLoading, user, userDoc?.id, userDoc?.classCode, loadTasksData]);
 
-  // 날짜 변경 감지 및 UI 새로고침 (서버는 GitHub Actions 스케줄러로 자동 리셋)
+  // 🔥 [최적화] 날짜 변경 감지 및 UI 새로고침 (중복 실행 방지)
+  const dateCheckExecutedRef = useRef(false);
+  const lastCheckedDateRef = useRef(null);
+
   useEffect(() => {
     if (!userDoc?.classCode || !refreshTasksAfterReset) {
       return;
     }
 
-    // 페이지 로드 시 날짜 변경 확인
+    // 페이지 로드 시 날짜 변경 확인 (한 번만 실행)
     const checkDateAndRefresh = () => {
       const today = new Date().toDateString();
       const lastResetDate = localStorage.getItem('lastTaskResetDate');
 
+      // 🔥 중복 실행 방지: 같은 날짜로 이미 체크했으면 스킵
+      if (lastCheckedDateRef.current === today) {
+        return;
+      }
+
+      lastCheckedDateRef.current = today;
       console.log('[Dashboard] 날짜 체크:', { today, lastResetDate });
 
       if (lastResetDate !== today) {
@@ -746,8 +766,11 @@ function Dashboard({ adminTabMode }) {
       }
     };
 
-    // 즉시 날짜 체크
-    checkDateAndRefresh();
+    // 🔥 초기 마운트 시 한 번만 실행 (중복 방지)
+    if (!dateCheckExecutedRef.current) {
+      dateCheckExecutedRef.current = true;
+      checkDateAndRefresh();
+    }
 
     // 5분마다 날짜 체크 (서버 리셋 후 브라우저가 켜져있을 때 감지)
     const dateCheckInterval = setInterval(() => {

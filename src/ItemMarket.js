@@ -989,11 +989,12 @@ const ItemMarket = () => {
                   {visibleItems.map(item => (
                     <div key={item.id} className="item-card">
                       <div className="item-info">
-                        <h3>{item.itemName}</h3>
-                        <p className="item-description">{item.description}</p>
+                        {/* 🔥 아이템 이름 표시 수정: name, itemName 모두 체크 */}
+                        <h3>{item.name || item.itemName || "이름 없는 아이템"}</h3>
+                        <p className="item-description">{item.description || "설명 없음"}</p>
                         <p className="item-price">{(item.price || item.totalPrice || 0).toLocaleString()}원</p>
                         <p className="item-seller">판매자: {getSellerName(item)}</p>
-                        <p className="item-category">{item.category || item.itemType || "기타"}</p>
+                        <p className="item-category">{item.category || item.itemType || item.type || "기타"}</p>
                       </div>
                       <div className="item-actions">
                         {item.sellerId !== currentUserId && (

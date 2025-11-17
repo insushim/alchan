@@ -414,6 +414,101 @@ body {
 .quick-modal-content {
   padding: 1.5rem;
   overflow-y: auto;
+  flex: 1;
+}
+
+/* 관리자 패널 폼 그룹 */
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+/* 미입주 학생 목록 */
+.non-tenant-list {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f7fafc;
+  border-radius: 8px;
+}
+
+.non-tenant-list h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 1rem;
+}
+
+/* 패널 액션 버튼 */
+.panel-actions {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #edf2f7;
+  display: flex;
+  gap: 1rem;
+  background-color: #f7fafc;
+  border-radius: 0 0 16px 16px;
+}
+
+.btn-primary,
+.btn-danger {
+  flex: 1;
+  padding: 0.875rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #357abd;
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background-color: #e53e3e;
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background-color: #c53030;
+  transform: translateY(-2px);
+}
+
+.btn-primary:disabled,
+.btn-danger:disabled {
+  background-color: #e2e8f0;
+  color: #a0aec0;
+  cursor: not-allowed;
 }
 
 /* 로딩 */

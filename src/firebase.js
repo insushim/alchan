@@ -542,13 +542,17 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
     return false;
   }
 
-  // 🔥 [최적화] 사용자 문서 업데이트 시 캐시를 무효화
-  invalidateCache(`user_${userId}`);
-  invalidateCache('users_all');
-  
-  // 학급 코드 변경 시 관련 캐시도 무효화
-  if (updates.classCode) {
-    invalidateCachePattern('classmates_');
+  // 🔥 [최적화] 사용자 문서 업데이트 시 캐시를 무효화 (lastLoginAt 제외)
+  const isOnlyLastLogin = Object.keys(updates).length === 1 && 'lastLoginAt' in updates;
+
+  if (!isOnlyLastLogin) {
+    invalidateCache(`user_${userId}`);
+    invalidateCache('users_all');
+
+    // 학급 코드 변경 시 관련 캐시도 무효화
+    if (updates.classCode) {
+      invalidateCachePattern('classmates_');
+    }
   }
 
   console.log(
@@ -730,8 +734,8 @@ const updateUserCashInFirestore = async (userId, amount, logMessage = '', sender
   if (typeof amount !== "number")
     throw new Error("[firebase.js] 현금 변경액은 숫자여야 합니다.");
 
-  // 🔥 [최적화] 현금 정보는 자주 바뀌므로, 트랜잭션 성공 후 캐시를 바로 무효화
-  invalidateCache(`user_${userId}`);
+  // 🔥 [최적화] AuthContext의 낙관적 업데이트가 캐시를 관리하므로 여기서는 캐시 무효화 안 함
+  // invalidateCache(`user_${userId}`); // 낙관적 업데이트가 처리
 
   const userRef = doc(db, "users", userId);
   try {
@@ -810,8 +814,8 @@ export const updateUserCouponsInFirestore = async (userId, amount, logMessage) =
   if (!userId) throw new Error("[firebase.js] 사용자 ID가 유효하지 않습니다.");
   if (typeof amount !== "number") throw new Error("[firebase.js] 쿠폰 변경액은 숫자여야 합니다.");
 
-  // 🔥 [최적화] 쿠폰 정보는 자주 바뀌므로, 트랜잭션 성공 후 캐시를 바로 무효화
-  invalidateCache(`user_${userId}`);
+  // 🔥 [최적화] AuthContext의 낙관적 업데이트가 캐시를 관리하므로 여기서는 캐시 무효화 안 함
+  // invalidateCache(`user_${userId}`); // 낙관적 업데이트가 처리
 
   const userRef = doc(db, "users", userId);
   try {

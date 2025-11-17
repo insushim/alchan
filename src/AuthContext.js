@@ -657,24 +657,16 @@ export const AuthProvider = ({ children }) => {
         operationType === "deduct" ? -Math.abs(amount) : Math.abs(amount);
 
       try {
+        // 🔥 [수정] 서버 업데이트 성공 후 Firestore 리스너가 자동으로 업데이트하므로
+        // 여기서는 낙관적 업데이트 제거 (중복 업데이트 방지)
         const success = await updateUserCashInFirestore(
           targetUserId,
           effectiveAmount
         );
 
         if (success) {
-          // Optimistically update userDoc and cache
-          const currentCachedUserDoc = getCachedUserDoc(targetUserId);
-          if (currentCachedUserDoc) {
-            const newCash = (currentCachedUserDoc.cash || 0) + effectiveAmount;
-            const updatedUserDoc = { ...currentCachedUserDoc, cash: newCash };
-            setCachedUserDoc(targetUserId, updatedUserDoc);
-
-            // If the targetUserId is the currently logged-in user, update the userDoc state
-            if (targetUserId === (userDoc?.id || userDoc?.uid)) {
-              setUserDoc(updatedUserDoc);
-            }
-          }
+          // 🔥 캐시 무효화만 수행 (Firestore 리스너가 새 값을 가져옴)
+          // 낙관적 업데이트는 ItemContext나 다른 곳에서 이미 처리됨
 
           if (logDescription) {
             try {
@@ -684,7 +676,7 @@ export const AuthProvider = ({ children }) => {
             } catch (txError) {
             }
           }
-          
+
           return true;
         } else {
           return false;

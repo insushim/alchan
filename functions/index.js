@@ -1245,64 +1245,67 @@ exports.useUserItem = onCall({region: "asia-northeast3"}, async (request) => {
   }
 });
 
-// exports.listUserItemForSale = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
-//   const {inventoryItemId, quantity, price} = request.data;
-// 
-//   if (!inventoryItemId || !quantity || quantity <= 0 || !price || price <= 0) {
-//     throw new HttpsError("invalid-argument", "유효한 아이템 정보, 수량, 가격을 입력해야 합니다.");
-//   }
-// 
-//   const userItemRef = db.collection("users").doc(uid).collection("inventory").doc(inventoryItemId);
-//   const marketListingsRef = db.collection("marketListings");
-// 
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const userItemDoc = await transaction.get(userItemRef);
-// 
-//       if (!userItemDoc.exists) {
-//         throw new Error("판매할 아이템을 인벤토리에서 찾을 수 없습니다.");
-//       }
-// 
-//       const itemData = userItemDoc.data();
-//       const currentQuantity = itemData.quantity || 0;
-// 
-//       if (currentQuantity < quantity) {
-//         throw new Error(`아이템 수량이 부족합니다. (보유: ${currentQuantity}, 판매 요청: ${quantity})`);
-//       }
-// 
-//       // 인벤토리에서 아이템 수량 차감
-//       const newQuantity = currentQuantity - quantity;
-//       if (newQuantity > 0) {
-//         transaction.update(userItemRef, {quantity: newQuantity});
-//       } else {
-//         transaction.delete(userItemRef);
-//       }
-// 
-//       // 새로운 마켓 리스팅 생성
-//       const newListingRef = marketListingsRef.doc();
-//       transaction.set(newListingRef, {
-//         sellerId: uid,
-//         sellerName: userData.name,
-//         classCode: classCode,
-//         itemId: itemData.itemId || inventoryItemId,
-//         name: itemData.name || "알 수 없는 아이템",
-//         icon: itemData.icon || "🔮",
-//         description: itemData.description || "",
-//         type: itemData.type || "general",
-//         quantity: quantity,
-//         price: price,
-//         status: "active",
-//         listedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-//     });
-// 
-//     return {success: true, message: "아이템을 시장에 등록했습니다."};
-//   } catch (error) {
-//     logger.error(`[listUserItemForSale] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "아이템 판매 등록에 실패했습니다.");
-//   }
-// });
+exports.listUserItemForSale = onCall({
+  region: "asia-northeast3",
+  cors: true,
+}, async (request) => {
+  const {uid, classCode, userData} = await checkAuthAndGetUserData(request);
+  const {inventoryItemId, quantity, price} = request.data;
+
+  if (!inventoryItemId || !quantity || quantity <= 0 || !price || price <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 아이템 정보, 수량, 가격을 입력해야 합니다.");
+  }
+
+  const userItemRef = db.collection("users").doc(uid).collection("inventory").doc(inventoryItemId);
+  const marketListingsRef = db.collection("marketListings");
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const userItemDoc = await transaction.get(userItemRef);
+
+      if (!userItemDoc.exists) {
+        throw new Error("판매할 아이템을 인벤토리에서 찾을 수 없습니다.");
+      }
+
+      const itemData = userItemDoc.data();
+      const currentQuantity = itemData.quantity || 0;
+
+      if (currentQuantity < quantity) {
+        throw new Error(`아이템 수량이 부족합니다. (보유: ${currentQuantity}, 판매 요청: ${quantity})`);
+      }
+
+      // 인벤토리에서 아이템 수량 차감
+      const newQuantity = currentQuantity - quantity;
+      if (newQuantity > 0) {
+        transaction.update(userItemRef, {quantity: newQuantity});
+      } else {
+        transaction.delete(userItemRef);
+      }
+
+      // 새로운 마켓 리스팅 생성
+      const newListingRef = marketListingsRef.doc();
+      transaction.set(newListingRef, {
+        sellerId: uid,
+        sellerName: userData.name,
+        classCode: classCode,
+        itemId: itemData.itemId || inventoryItemId,
+        name: itemData.name || "알 수 없는 아이템",
+        icon: itemData.icon || "🔮",
+        description: itemData.description || "",
+        type: itemData.type || "general",
+        quantity: quantity,
+        price: price,
+        status: "active",
+        listedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return {success: true, message: "아이템을 시장에 등록했습니다."};
+  } catch (error) {
+    logger.error(`[listUserItemForSale] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 판매 등록에 실패했습니다.");
+  }
+});
 
 // ===================================================================================
 // 🔥 시스템 모니터링 및 상태 관리
@@ -1759,214 +1762,351 @@ exports.getAdminSettingsData = onCall({region: "asia-northeast3"}, async (reques
 // 아이템 시장 거래 함수
 // ===================================================================================
 
-// exports.buyMarketItem = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, userData} = await checkAuthAndGetUserData(request);
-//   const {listingId} = request.data;
-// 
-//   if (!listingId) {
-//     throw new HttpsError("invalid-argument", "구매할 아이템 ID를 입력해야 합니다.");
-//   }
-// 
-//   const listingRef = db.collection("marketListings").doc(listingId);
-//   const buyerRef = db.collection("users").doc(uid);
-// 
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const listingDoc = await transaction.get(listingRef);
-// 
-//       if (!listingDoc.exists) {
-//         throw new Error("판매 중인 아이템을 찾을 수 없습니다.");
-//       }
-// 
-//       const listingData = listingDoc.data();
-// 
-//       if (listingData.status !== "active") {
-//         throw new Error("이미 판매 완료되었거나 취소된 아이템입니다.");
-//       }
-// 
-//       if (listingData.sellerId === uid) {
-//         throw new Error("자신이 판매한 아이템은 구매할 수 없습니다.");
-//       }
-// 
-//       const buyerDoc = await transaction.get(buyerRef);
-//       if (!buyerDoc.exists) {
-//         throw new Error("구매자 정보를 찾을 수 없습니다.");
-//       }
-// 
-//       const buyerData = buyerDoc.data();
-//       const totalPrice = listingData.price * listingData.quantity;
-// 
-//       if (buyerData.cash < totalPrice) {
-//         throw new Error(`현금이 부족합니다. (필요: ${totalPrice.toLocaleString()}원, 보유: ${buyerData.cash.toLocaleString()}원)`);
-//       }
-// 
-//       // 구매자 현금 차감
-//       transaction.update(buyerRef, {
-//         cash: admin.firestore.FieldValue.increment(-totalPrice),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       // 판매자에게 현금 지급
-//       const sellerRef = db.collection("users").doc(listingData.sellerId);
-//       transaction.update(sellerRef, {
-//         cash: admin.firestore.FieldValue.increment(totalPrice),
-//         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-// 
-//       // 구매자 인벤토리에 아이템 추가
-//       const buyerInventoryRef = db.collection("users").doc(uid).collection("inventory");
-//       const buyerItemQuery = await buyerInventoryRef.where("itemId", "==", listingData.itemId).get();
-// 
-//       if (!buyerItemQuery.empty) {
-//         const buyerItemDoc = buyerItemQuery.docs[0];
-//         transaction.update(buyerItemDoc.ref, {
-//           quantity: admin.firestore.FieldValue.increment(listingData.quantity),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       } else {
-//         const newItemRef = buyerInventoryRef.doc();
-//         transaction.set(newItemRef, {
-//           itemId: listingData.itemId,
-//           name: listingData.name,
-//           icon: listingData.icon || "🔮",
-//           description: listingData.description || "",
-//           type: listingData.type || "general",
-//           quantity: listingData.quantity,
-//           purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       }
-// 
-//       // 마켓 리스팅 상태 업데이트
-//       transaction.update(listingRef, {
-//         status: "sold",
-//         buyerId: uid,
-//         buyerName: userData.name,
-//         soldAt: admin.firestore.FieldValue.serverTimestamp(),
-//       });
-//     });
-// 
-//     return {success: true, message: "아이템을 성공적으로 구매했습니다."};
-//   } catch (error) {
-//     logger.error(`[buyMarketItem] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "아이템 구매에 실패했습니다.");
-//   }
-// });
+// 🔥 CORS 설정 추가 (Firebase v2 함수)
+exports.buyMarketItem = onCall({
+  region: "asia-northeast3",
+  cors: true, // CORS 활성화
+}, async (request) => {
+  const {uid, userData} = await checkAuthAndGetUserData(request);
+  const {listingId} = request.data;
 
-// exports.cancelMarketSale = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid} = await checkAuthAndGetUserData(request);
-//   const {listingId} = request.data;
-// 
-//   if (!listingId) {
-//     throw new HttpsError("invalid-argument", "취소할 판매 ID를 입력해야 합니다.");
-//   }
-// 
-//   const listingRef = db.collection("marketListings").doc(listingId);
-// 
-//   try {
-//     await db.runTransaction(async (transaction) => {
-//       const listingDoc = await transaction.get(listingRef);
-// 
-//       if (!listingDoc.exists) {
-//         throw new Error("판매 정보를 찾을 수 없습니다.");
-//       }
-// 
-//       const listingData = listingDoc.data();
-// 
-//       if (listingData.sellerId !== uid) {
-//         throw new Error("본인이 등록한 판매만 취소할 수 있습니다.");
-//       }
-// 
-//       if (listingData.status !== "active") {
-//         throw new Error("이미 판매 완료되었거나 취소된 아이템입니다.");
-//       }
-// 
-//       // 판매자 인벤토리에 아이템 복원
-//       const sellerInventoryRef = db.collection("users").doc(uid).collection("inventory");
-//       const sellerItemQuery = await sellerInventoryRef.where("itemId", "==", listingData.itemId).get();
-// 
-//       if (!sellerItemQuery.empty) {
-//         const sellerItemDoc = sellerItemQuery.docs[0];
-//         transaction.update(sellerItemDoc.ref, {
-//           quantity: admin.firestore.FieldValue.increment(listingData.quantity),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       } else {
-//         const newItemRef = sellerInventoryRef.doc();
-//         transaction.set(newItemRef, {
-//           itemId: listingData.itemId,
-//           name: listingData.name,
-//           icon: listingData.icon || "🔮",
-//           description: listingData.description || "",
-//           type: listingData.type || "general",
-//           quantity: listingData.quantity,
-//           restoredAt: admin.firestore.FieldValue.serverTimestamp(),
-//           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-//         });
-//       }
-// 
-//       // 마켓 리스팅 삭제
-//       transaction.delete(listingRef);
-//     });
-// 
-//     return {success: true, message: "판매가 취소되었습니다."};
-//   } catch (error) {
-//     logger.error(`[cancelMarketSale] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "판매 취소에 실패했습니다.");
-//   }
-// });
+  if (!listingId) {
+    throw new HttpsError("invalid-argument", "구매할 아이템 ID를 입력해야 합니다.");
+  }
 
-// exports.makeOffer = onCall({region: "asia-northeast3"}, async (request) => {
-//   const {uid, userData} = await checkAuthAndGetUserData(request);
-//   const {listingId, offerPrice, quantity = 1} = request.data;
-// 
-//   if (!listingId || !offerPrice || offerPrice <= 0) {
-//     throw new HttpsError("invalid-argument", "유효한 제안 가격을 입력해야 합니다.");
-//   }
-// 
-//   const listingRef = db.collection("marketListings").doc(listingId);
-//   const offersRef = db.collection("marketOffers");
-// 
-//   try {
-//     const listingDoc = await listingRef.get();
-// 
-//     if (!listingDoc.exists) {
-//       throw new Error("판매 정보를 찾을 수 없습니다.");
-//     }
-// 
-//     const listingData = listingDoc.data();
-// 
-//     if (listingData.status !== "active") {
-//       throw new Error("현재 판매 중인 아이템이 아닙니다.");
-//     }
-// 
-//     if (listingData.sellerId === uid) {
-//       throw new Error("자신이 판매한 아이템에는 제안할 수 없습니다.");
-//     }
-// 
-//     // 새 제안 생성
-//     const newOfferRef = offersRef.doc();
-//     await newOfferRef.set({
-//       listingId: listingId,
-//       buyerId: uid,
-//       buyerName: userData.name,
-//       sellerId: listingData.sellerId,
-//       sellerName: listingData.sellerName,
-//       itemId: listingData.itemId,
-//       itemName: listingData.name,
-//       originalPrice: listingData.price,
-//       offerPrice: offerPrice,
-//       quantity: quantity,
-//       status: "pending",
-//       createdAt: admin.firestore.FieldValue.serverTimestamp(),
-//     });
-// 
-//     return {success: true, message: "가격 제안이 전송되었습니다.", offerId: newOfferRef.id};
-//   } catch (error) {
-//     logger.error(`[makeOffer] Error for user ${uid}:`, error);
-//     throw new HttpsError("aborted", error.message || "가격 제안에 실패했습니다.");
-//   }
-// });
+  const listingRef = db.collection("marketListings").doc(listingId);
+  const buyerRef = db.collection("users").doc(uid);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const listingDoc = await transaction.get(listingRef);
+
+      if (!listingDoc.exists) {
+        throw new Error("판매 중인 아이템을 찾을 수 없습니다.");
+      }
+
+      const listingData = listingDoc.data();
+
+      if (listingData.status !== "active") {
+        throw new Error("이미 판매 완료되었거나 취소된 아이템입니다.");
+      }
+
+      if (listingData.sellerId === uid) {
+        throw new Error("자신이 판매한 아이템은 구매할 수 없습니다.");
+      }
+
+      const buyerDoc = await transaction.get(buyerRef);
+      if (!buyerDoc.exists) {
+        throw new Error("구매자 정보를 찾을 수 없습니다.");
+      }
+
+      const buyerData = buyerDoc.data();
+      const totalPrice = listingData.price * listingData.quantity;
+
+      if (buyerData.cash < totalPrice) {
+        throw new Error(`현금이 부족합니다. (필요: ${totalPrice.toLocaleString()}원, 보유: ${buyerData.cash.toLocaleString()}원)`);
+      }
+
+      // 구매자 현금 차감
+      transaction.update(buyerRef, {
+        cash: admin.firestore.FieldValue.increment(-totalPrice),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 판매자에게 현금 지급
+      const sellerRef = db.collection("users").doc(listingData.sellerId);
+      transaction.update(sellerRef, {
+        cash: admin.firestore.FieldValue.increment(totalPrice),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 구매자 인벤토리에 아이템 추가
+      const buyerInventoryRef = db.collection("users").doc(uid).collection("inventory");
+      const buyerItemQuery = await buyerInventoryRef.where("itemId", "==", listingData.itemId).get();
+
+      if (!buyerItemQuery.empty) {
+        const buyerItemDoc = buyerItemQuery.docs[0];
+        transaction.update(buyerItemDoc.ref, {
+          quantity: admin.firestore.FieldValue.increment(listingData.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        const newItemRef = buyerInventoryRef.doc();
+        transaction.set(newItemRef, {
+          itemId: listingData.itemId,
+          name: listingData.name,
+          icon: listingData.icon || "🔮",
+          description: listingData.description || "",
+          type: listingData.type || "general",
+          quantity: listingData.quantity,
+          purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 마켓 리스팅 상태 업데이트
+      transaction.update(listingRef, {
+        status: "sold",
+        buyerId: uid,
+        buyerName: userData.name,
+        soldAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    return {success: true, message: "아이템을 성공적으로 구매했습니다."};
+  } catch (error) {
+    logger.error(`[buyMarketItem] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 구매에 실패했습니다.");
+  }
+});
+
+exports.cancelMarketSale = onCall({
+  region: "asia-northeast3",
+  cors: true,
+}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {listingId} = request.data;
+
+  if (!listingId) {
+    throw new HttpsError("invalid-argument", "취소할 판매 ID를 입력해야 합니다.");
+  }
+
+  const listingRef = db.collection("marketListings").doc(listingId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const listingDoc = await transaction.get(listingRef);
+
+      if (!listingDoc.exists) {
+        throw new Error("판매 정보를 찾을 수 없습니다.");
+      }
+
+      const listingData = listingDoc.data();
+
+      if (listingData.sellerId !== uid) {
+        throw new Error("본인이 등록한 판매만 취소할 수 있습니다.");
+      }
+
+      if (listingData.status !== "active") {
+        throw new Error("이미 판매 완료되었거나 취소된 아이템입니다.");
+      }
+
+      // 판매자 인벤토리에 아이템 복원
+      const sellerInventoryRef = db.collection("users").doc(uid).collection("inventory");
+      const sellerItemQuery = await sellerInventoryRef.where("itemId", "==", listingData.itemId).get();
+
+      if (!sellerItemQuery.empty) {
+        const sellerItemDoc = sellerItemQuery.docs[0];
+        transaction.update(sellerItemDoc.ref, {
+          quantity: admin.firestore.FieldValue.increment(listingData.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      } else {
+        const newItemRef = sellerInventoryRef.doc();
+        transaction.set(newItemRef, {
+          itemId: listingData.itemId,
+          name: listingData.name,
+          icon: listingData.icon || "🔮",
+          description: listingData.description || "",
+          type: listingData.type || "general",
+          quantity: listingData.quantity,
+          restoredAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 마켓 리스팅 삭제
+      transaction.delete(listingRef);
+    });
+
+    return {success: true, message: "판매가 취소되었습니다."};
+  } catch (error) {
+    logger.error(`[cancelMarketSale] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "판매 취소에 실패했습니다.");
+  }
+});
+
+exports.makeOffer = onCall({
+  region: "asia-northeast3",
+  cors: true,
+}, async (request) => {
+  const {uid, userData} = await checkAuthAndGetUserData(request);
+  const {listingId, offerPrice, quantity = 1} = request.data;
+
+  if (!listingId || !offerPrice || offerPrice <= 0) {
+    throw new HttpsError("invalid-argument", "유효한 제안 가격을 입력해야 합니다.");
+  }
+
+  const listingRef = db.collection("marketListings").doc(listingId);
+  const offersRef = db.collection("marketOffers");
+
+  try {
+    const listingDoc = await listingRef.get();
+
+    if (!listingDoc.exists) {
+      throw new Error("판매 정보를 찾을 수 없습니다.");
+    }
+
+    const listingData = listingDoc.data();
+
+    if (listingData.status !== "active") {
+      throw new Error("현재 판매 중인 아이템이 아닙니다.");
+    }
+
+    if (listingData.sellerId === uid) {
+      throw new Error("자신이 판매한 아이템에는 제안할 수 없습니다.");
+    }
+
+    // 새 제안 생성
+    const newOfferRef = offersRef.doc();
+    await newOfferRef.set({
+      listingId: listingId,
+      buyerId: uid,
+      buyerName: userData.name,
+      sellerId: listingData.sellerId,
+      sellerName: listingData.sellerName,
+      itemId: listingData.itemId,
+      itemName: listingData.name,
+      originalPrice: listingData.price,
+      offerPrice: offerPrice,
+      quantity: quantity,
+      status: "pending",
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {success: true, message: "가격 제안이 전송되었습니다.", offerId: newOfferRef.id};
+  } catch (error) {
+    logger.error(`[makeOffer] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "가격 제안에 실패했습니다.");
+  }
+});
+
+exports.respondToOffer = onCall({
+  region: "asia-northeast3",
+  cors: true,
+}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {offerId, response} = request.data;
+
+  if (!offerId || !response || !['accept', 'reject'].includes(response)) {
+    throw new HttpsError("invalid-argument", "유효한 제안 ID와 응답(accept/reject)을 입력해야 합니다.");
+  }
+
+  const offerRef = db.collection("marketOffers").doc(offerId);
+
+  try {
+    await db.runTransaction(async (transaction) => {
+      const offerDoc = await transaction.get(offerRef);
+
+      if (!offerDoc.exists) {
+        throw new Error("제안 정보를 찾을 수 없습니다.");
+      }
+
+      const offerData = offerDoc.data();
+
+      if (offerData.sellerId !== uid) {
+        throw new Error("본인의 판매 아이템에 대한 제안만 응답할 수 있습니다.");
+      }
+
+      if (offerData.status !== "pending") {
+        throw new Error("이미 처리된 제안입니다.");
+      }
+
+      if (response === 'accept') {
+        // 제안 수락 - buyMarketItem과 유사한 로직
+        const listingRef = db.collection("marketListings").doc(offerData.listingId);
+        const buyerRef = db.collection("users").doc(offerData.buyerId);
+        const sellerRef = db.collection("users").doc(offerData.sellerId);
+
+        const listingDoc = await transaction.get(listingRef);
+        if (!listingDoc.exists || listingDoc.data().status !== "active") {
+          throw new Error("해당 판매 아이템을 찾을 수 없거나 이미 판매되었습니다.");
+        }
+
+        const buyerDoc = await transaction.get(buyerRef);
+        if (!buyerDoc.exists) {
+          throw new Error("구매자 정보를 찾을 수 없습니다.");
+        }
+
+        const totalPrice = offerData.offerPrice * offerData.quantity;
+        const buyerCash = buyerDoc.data().cash || 0;
+
+        if (buyerCash < totalPrice) {
+          throw new Error(`구매자의 현금이 부족합니다. (필요: ${totalPrice.toLocaleString()}원, 보유: ${buyerCash.toLocaleString()}원)`);
+        }
+
+        // 구매자 현금 차감
+        transaction.update(buyerRef, {
+          cash: admin.firestore.FieldValue.increment(-totalPrice),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 판매자에게 현금 지급
+        transaction.update(sellerRef, {
+          cash: admin.firestore.FieldValue.increment(totalPrice),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 구매자 인벤토리에 아이템 추가
+        const buyerInventoryRef = db.collection("users").doc(offerData.buyerId).collection("inventory");
+        const buyerItemQuery = await buyerInventoryRef.where("itemId", "==", offerData.itemId).get();
+
+        if (!buyerItemQuery.empty) {
+          const buyerItemDoc = buyerItemQuery.docs[0];
+          transaction.update(buyerItemDoc.ref, {
+            quantity: admin.firestore.FieldValue.increment(offerData.quantity),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          const newItemRef = buyerInventoryRef.doc();
+          transaction.set(newItemRef, {
+            itemId: offerData.itemId,
+            name: offerData.itemName,
+            icon: listingDoc.data().icon || "🔮",
+            description: listingDoc.data().description || "",
+            type: listingDoc.data().type || "general",
+            quantity: offerData.quantity,
+            purchasedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+
+        // 마켓 리스팅 상태 업데이트
+        transaction.update(listingRef, {
+          status: "sold",
+          buyerId: offerData.buyerId,
+          buyerName: offerData.buyerName,
+          soldAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        // 제안 상태 업데이트
+        transaction.update(offerRef, {
+          status: "accepted",
+          respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {success: true, message: "제안을 수락하여 거래가 완료되었습니다."};
+      } else {
+        // 제안 거절
+        transaction.update(offerRef, {
+          status: "rejected",
+          respondedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return {success: true, message: "제안을 거절했습니다."};
+      }
+    });
+
+    if (response === 'accept') {
+      return {success: true, message: "제안을 수락하여 거래가 완료되었습니다."};
+    } else {
+      return {success: true, message: "제안을 거절했습니다."};
+    }
+  } catch (error) {
+    logger.error(`[respondToOffer] Error for user ${uid}:`, error);
+    throw new HttpsError("aborted", error.message || "제안 응답에 실패했습니다.");
+  }
+});
 
 // ===================================================================================
 // 🏠 부동산 구매 함수
