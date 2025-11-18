@@ -83,6 +83,7 @@ export default function MyAssets() {
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
+  const [showAllTransactions, setShowAllTransactions] = useState(false); // 거래 내역 펼치기/접기 상태
 
   // 🔥 [수정 1] 안전한 timestamp 변환 함수
   const safeTimestampToDate = (timestamp) => {
@@ -446,6 +447,24 @@ export default function MyAssets() {
 
       // 🔥 [새로 추가] 목표 데이터도 함께 로드
       await loadGoalData();
+
+      // 🔥 거래 내역 로드
+      try {
+        const transactionsRef = query(
+          collection(db, "users", userId, "transactions"),
+          orderBy("timestamp", "desc"),
+          limit(20)
+        );
+        const transactionsSnap = await getDocs(transactionsRef);
+        const transactionsData = transactionsSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setTransactionHistory(transactionsData);
+      } catch (txError) {
+        console.log('[MyAssets] 거래 내역 로드 실패 (선택 사항):', txError);
+        // 거래 내역은 선택사항이므로 실패해도 계속 진행
+      }
 
     } catch (fallbackError) {
       console.error('[MyAssets] 🚨 클라이언트 측 직접 조회 실패:', fallbackError);
@@ -1005,6 +1024,12 @@ export default function MyAssets() {
   const renderAssetSummary = () => {
     const displayCash = Number(userDoc?.cash) || 0;
     const displayCoupons = Number(userDoc?.coupons) || 0;
+
+    // 거래 내역 표시 개수 결정
+    const displayedTransactions = showAllTransactions
+      ? transactionHistory
+      : transactionHistory.slice(0, 5);
+
     return (
       <div
         style={{
@@ -1034,7 +1059,8 @@ export default function MyAssets() {
             fontWeight: "800",
             color: "#ffffff",
             letterSpacing: "-1px",
-            marginBottom: "15px"
+            marginBottom: "15px",
+            textAlign: "right"
           }}>
             {displayCash.toLocaleString()} <span style={{ fontSize: "28px", fontWeight: "600" }}>원</span>
           </div>
@@ -1066,6 +1092,124 @@ export default function MyAssets() {
           </button>
         </div>
 
+        {/* 최근 입출금 내역 - 보유 현금 바로 밑에 배치 */}
+        <div style={{ marginBottom: "20px" }}>
+          <h4
+            style={{
+              fontSize: "15px",
+              color: "#374151",
+              fontWeight: "700",
+              marginBottom: "12px",
+            }}
+          >
+            💳 최근 입출금 내역
+          </h4>
+          {transactionHistory.length > 0 ? (
+            <div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {displayedTransactions.map((tx) => {
+                  let displayDate = "날짜 없음";
+                  try {
+                    const validDate = safeTimestampToDate(tx.timestamp);
+                    displayDate = validDate.toLocaleDateString("ko-KR", {
+                      month: "2-digit",
+                      day: "2-digit",
+                    });
+                  } catch (dateError) {
+                    displayDate = "오늘";
+                  }
+
+                  const txAmount = Number(tx.amount) || 0;
+                  const txDescription = String(tx.description) || "내역 없음";
+
+                  return (
+                    <div
+                      key={tx.id || Math.random()}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        fontSize: "14px",
+                        color: "#4b5563",
+                        padding: "14px 16px",
+                        backgroundColor: txAmount > 0 ? "#f0fdf4" : "#fef2f2",
+                        border: txAmount > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                        borderRadius: "10px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          flex: "1",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          marginRight: "10px",
+                          fontWeight: "500",
+                          color: "#374151"
+                        }}
+                      >
+                        {displayDate} • {txDescription}
+                      </span>
+                      <span
+                        style={{
+                          fontWeight: "700",
+                          fontSize: "15px",
+                          color: txAmount > 0 ? "#059669" : "#dc2626",
+                          minWidth: "110px",
+                          textAlign: "right",
+                        }}
+                      >
+                        {txAmount > 0 ? "+" : ""}
+                        {txAmount.toLocaleString()}원
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              {transactionHistory.length > 5 && (
+                <button
+                  onClick={() => setShowAllTransactions(!showAllTransactions)}
+                  style={{
+                    width: "100%",
+                    marginTop: "12px",
+                    padding: "12px",
+                    backgroundColor: "#f9fafb",
+                    color: "#6b7280",
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "10px",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                  onMouseOver={(e) => {
+                    e.target.style.backgroundColor = "#f3f4f6";
+                  }}
+                  onMouseOut={(e) => {
+                    e.target.style.backgroundColor = "#f9fafb";
+                  }}
+                >
+                  {showAllTransactions ? "▲ 접기" : `▼ ${transactionHistory.length - 5}개 더 보기`}
+                </button>
+              )}
+            </div>
+          ) : (
+            <div
+              style={{
+                fontSize: "13px",
+                color: "#9ca3af",
+                textAlign: "center",
+                padding: "20px",
+                backgroundColor: "#f9fafb",
+                borderRadius: "10px",
+                border: "1px dashed #e5e7eb"
+              }}
+            >
+              최근 거래 내역이 없습니다.
+            </div>
+          )}
+        </div>
+
         {/* 총 순자산 - 두 번째 강조 카드 */}
         <div
           style={{
@@ -1086,7 +1230,8 @@ export default function MyAssets() {
             fontSize: "38px",
             fontWeight: "800",
             color: "#ffffff",
-            letterSpacing: "-1px"
+            letterSpacing: "-1px",
+            textAlign: "right"
           }}>
             {Number(totalNetAssets).toLocaleString()} <span style={{ fontSize: "24px", fontWeight: "600" }}>원</span>
           </div>
@@ -1136,7 +1281,9 @@ export default function MyAssets() {
                   fontWeight: "800",
                   fontSize: "26px",
                   color: "#ffffff",
-                  letterSpacing: "-0.5px"
+                  letterSpacing: "-0.5px",
+                  textAlign: "right",
+                  display: "block"
                 }}
               >
                 {Number(parkingBalance).toLocaleString()}<span style={{ fontSize: "18px", fontWeight: "600" }}>원</span>
@@ -1189,12 +1336,13 @@ export default function MyAssets() {
               justifyContent: "space-between",
               alignItems: "center",
             }}>
-              <div>
+              <div style={{ width: "100%" }}>
                 <div style={{
                   fontSize: "26px",
                   fontWeight: "800",
                   color: "#ffffff",
-                  letterSpacing: "-0.5px"
+                  letterSpacing: "-0.5px",
+                  textAlign: "right"
                 }}>
                   {displayCoupons.toLocaleString()} <span style={{ fontSize: "18px", fontWeight: "600" }}>개</span>
                 </div>
@@ -1202,103 +1350,14 @@ export default function MyAssets() {
                   fontSize: "12px",
                   color: "rgba(255,255,255,0.85)",
                   fontWeight: "500",
-                  marginTop: "4px"
+                  marginTop: "4px",
+                  textAlign: "right"
                 }}>
                   1쿠폰 = {Number(couponValue).toLocaleString()}원
                 </div>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* 최근 입출금 내역 */}
-        <div>
-          <h4
-            style={{
-              fontSize: "15px",
-              color: "#374151",
-              fontWeight: "700",
-              marginBottom: "12px",
-            }}
-          >
-            💳 최근 입출금 내역
-          </h4>
-          {transactionHistory.length > 0 ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {transactionHistory.map((tx) => {
-                let displayDate = "날짜 없음";
-                try {
-                  const validDate = safeTimestampToDate(tx.timestamp);
-                  displayDate = validDate.toLocaleDateString("ko-KR", {
-                    month: "2-digit",
-                    day: "2-digit",
-                  });
-                } catch (dateError) {
-                  displayDate = "오늘";
-                }
-
-                const txAmount = Number(tx.amount) || 0;
-                const txDescription = String(tx.description) || "내역 없음";
-
-                return (
-                  <div
-                    key={tx.id || Math.random()}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      fontSize: "14px",
-                      color: "#4b5563",
-                      padding: "14px 16px",
-                      backgroundColor: txAmount > 0 ? "#f0fdf4" : "#fef2f2",
-                      border: txAmount > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
-                      borderRadius: "10px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        flex: "1",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        marginRight: "10px",
-                        fontWeight: "500",
-                        color: "#374151"
-                      }}
-                    >
-                      {displayDate} • {txDescription}
-                    </span>
-                    <span
-                      style={{
-                        fontWeight: "700",
-                        fontSize: "15px",
-                        color: txAmount > 0 ? "#059669" : "#dc2626",
-                        minWidth: "90px",
-                        textAlign: "right",
-                      }}
-                    >
-                      {txAmount > 0 ? "+" : ""}
-                      {txAmount.toLocaleString()}원
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div
-              style={{
-                fontSize: "13px",
-                color: "#9ca3af",
-                textAlign: "center",
-                padding: "20px",
-                backgroundColor: "#f9fafb",
-                borderRadius: "10px",
-                border: "1px dashed #e5e7eb"
-              }}
-            >
-              최근 거래 내역이 없습니다.
-            </div>
-          )}
         </div>
         </div>
       </div>
