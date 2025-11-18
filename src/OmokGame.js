@@ -585,6 +585,15 @@ const OmokGame = () => {
 
             const gameDocRef = await addDoc(collection(db, 'omokGames'), newGame);
             setGameId(gameDocRef.id);
+
+            // 낙관적 업데이트: 게임 객체를 즉시 설정하여 UI가 바로 전환되도록 함
+            setGame({
+                ...newGame,
+                id: gameDocRef.id,
+                createdAt: new Date(), // serverTimestamp 대신 임시로 현재 시간
+                turnStartTime: new Date()
+            });
+
             if (!isAiMode) {
                 setCreatedGameId(gameDocRef.id);
             }
@@ -639,28 +648,46 @@ const OmokGame = () => {
 
         const gameDocRef = doc(db, 'omokGames', gameId);
         try {
-            if (game.gameStatus === 'waiting' && game.host === user.uid) {
-                await deleteDoc(gameDocRef);
-            } else if (game.gameStatus === 'playing' && game.players[user.uid] && !game.winner) {
-                const opponentId = Object.keys(game.players).find(p => p !== user.uid);
-                if (opponentId) {
-                    if (game.aiMode) {
-                        // AI 모드에서 기권 시 패배 처리
-                        await updateDoc(gameDocRef, { winner: 'AI', gameStatus: 'finished', statsUpdated: true });
-                        await updateUserOmokRecord(user.uid, 'loss');
-                    } else {
-                        const gameStartTime = game.createdAt?.toDate().getTime();
-                        const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
+            // 호스트가 떠나는 경우 항상 방 삭제
+            if (game.host === user.uid) {
+                console.log('[LeaveGame] 호스트가 방을 떠남 - 방 삭제');
 
-                        const finalUpdate = { winner: opponentId, gameStatus: 'finished', statsUpdated: true };
-                        if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
-                        await updateDoc(gameDocRef, finalUpdate);
-
+                // 게임 진행 중이고 상대방이 있으면 전적 처리
+                if (game.gameStatus === 'playing' && !game.winner) {
+                    const opponentId = Object.keys(game.players).find(p => p !== user.uid);
+                    if (opponentId && !game.aiMode) {
+                        // 호스트 패배, 상대방 승리 처리
                         await updateUserOmokRecord(user.uid, 'loss');
                         await updateUserOmokRecord(opponentId, 'win');
 
-                        if (shouldAwardCoupon && addCouponsToUserById) await addCouponsToUserById(opponentId, 1);
+                        const gameStartTime = game.createdAt?.toDate().getTime();
+                        const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
+                        if (shouldAwardCoupon && addCouponsToUserById) {
+                            await addCouponsToUserById(opponentId, 1);
+                        }
+                    } else if (game.aiMode) {
+                        // AI 모드에서는 호스트 패배만 처리
+                        await updateUserOmokRecord(user.uid, 'loss');
                     }
+                }
+
+                // 방 삭제
+                await deleteDoc(gameDocRef);
+            } else if (game.gameStatus === 'playing' && game.players[user.uid] && !game.winner) {
+                // 호스트가 아닌 플레이어가 게임 중 떠나는 경우
+                const opponentId = Object.keys(game.players).find(p => p !== user.uid);
+                if (opponentId) {
+                    const gameStartTime = game.createdAt?.toDate().getTime();
+                    const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
+
+                    const finalUpdate = { winner: opponentId, gameStatus: 'finished', statsUpdated: true };
+                    if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
+                    await updateDoc(gameDocRef, finalUpdate);
+
+                    await updateUserOmokRecord(user.uid, 'loss');
+                    await updateUserOmokRecord(opponentId, 'win');
+
+                    if (shouldAwardCoupon && addCouponsToUserById) await addCouponsToUserById(opponentId, 1);
                 }
             }
         } catch (error) {
