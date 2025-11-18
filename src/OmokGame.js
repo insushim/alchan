@@ -449,15 +449,17 @@ const OmokGame = () => {
                 const opponentId = Object.keys(game.players).find(p => p !== user.uid);
                 if (opponentId) {
                     if (game.aiMode) {
+                        // AI 모드에서 기권 시 패배 처리
                         await updateDoc(gameDocRef, { winner: 'AI', gameStatus: 'finished', statsUpdated: true });
+                        await updateUserOmokRecord(user.uid, 'loss');
                     } else {
                         const gameStartTime = game.createdAt?.toDate().getTime();
                         const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
-                        
+
                         const finalUpdate = { winner: opponentId, gameStatus: 'finished', statsUpdated: true };
                         if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
                         await updateDoc(gameDocRef, finalUpdate);
-                        
+
                         await updateUserOmokRecord(user.uid, 'loss');
                         await updateUserOmokRecord(opponentId, 'win');
 
@@ -478,7 +480,6 @@ const OmokGame = () => {
     const checkForbiddenMove = (board, row, col, player) => false;
 
     const placeStone = async (row, col) => {
-        setIsThinking(false);
         const boardWithNewStone = [...game.board];
         boardWithNewStone[getIndex(row, col)] = game.players[user.uid];
 
@@ -486,7 +487,7 @@ const OmokGame = () => {
           const forbiddenMove = checkForbiddenMove(boardWithNewStone, row, col, 'black');
           if (forbiddenMove) {
               setError(`금수입니다: ${forbiddenMove}. 다른 곳에 두세요.`);
-              setIsThinking(true); setSelectedCell(null); return;
+              setSelectedCell(null); return;
           }
         }
 
@@ -494,6 +495,10 @@ const OmokGame = () => {
         const nextPlayer = Object.keys(game.players).find((p) => p !== user.uid);
         const moveData = { row, col, player: game.players[user.uid], timestamp: new Date() };
         const newHistory = [...(game.history || []), moveData];
+
+        // 낙관적 업데이트: UI 즉시 업데이트
+        setIsThinking(false);
+        setSelectedCell(null);
 
         try {
             const gameDocRef = doc(db, 'omokGames', gameId);
@@ -511,13 +516,18 @@ const OmokGame = () => {
                 const shouldAwardCoupon = gameStartTime && (Date.now() - gameStartTime > 15000);
                 if (shouldAwardCoupon) updateData.couponAwardedTo = user.uid;
             }
-            
+
             await updateDoc(gameDocRef, updateData);
             setLastMove({ row, col });
             setError('');
 
             if (winner) {
                 if (game.aiMode) {
+                    // AI 모드에서 승리 시 통계 업데이트 및 보상 카드 표시
+                    await updateUserOmokRecord(user.uid, 'win');
+                    await updateDoc(gameDocRef, { statsUpdated: true });
+                    setGameResult({ outcome: 'win', rpChange: RP_ON_WIN });
+
                     const cards = generateRewardCards(game.aiDifficulty);
                     setRewardCards(cards);
                     setShowRewardSelection(true);
@@ -528,18 +538,27 @@ const OmokGame = () => {
                     }
                 }
             }
+
+            // AI 모드이고 게임이 끝나지 않았으면 즉시 게임 데이터 다시 불러오기 (AI 턴 시작)
+            if (!winner && game.aiMode) {
+                if (refetchGameDataRef.current) {
+                    refetchGameDataRef.current();
+                }
+            }
         } catch (err) {
             console.error('움직임 처리 오류:', err);
             setError('움직임을 처리하는 중 오류가 발생했습니다.');
-        } finally {
-          setSelectedCell(null);
+            // 에러 시 다시 내 차례로 설정
+            setIsThinking(true);
         }
     };
 
     const handleCellClick = async (row, col) => {
         if (!game || game.winner || getBoardValue(game.board, row, col) ||
-            game.currentPlayer !== user.uid ||
-            Object.keys(game.players).length < 2 || !isThinking) return;
+            game.currentPlayer !== user.uid || !isThinking) return;
+
+        // AI 모드가 아닐 때만 2명 체크
+        if (!game.aiMode && Object.keys(game.players).length < 2) return;
 
         if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
             await placeStone(row, col);
@@ -593,7 +612,8 @@ const OmokGame = () => {
                 const gameData = docSnap.data();
                 setGame(gameData);
 
-                if (gameData.winner && !gameData.statsUpdated) {
+                if (gameData.winner && !gameData.statsUpdated && !gameData.aiMode) {
+                    // 플레이어 대전 모드에서만 여기서 통계 업데이트
                     const winnerId = gameData.winner;
                     const loserId = Object.keys(gameData.players).find(p => p !== winnerId);
 
@@ -720,15 +740,29 @@ const OmokGame = () => {
 
                     try {
                         const gameDocRef = doc(db, 'omokGames', gameId);
-                        await updateDoc(gameDocRef, {
+                        const updateData = {
                             board: boardWithNewStone,
                             currentPlayer: winner ? null : nextPlayer,
                             winner: winner ? 'AI' : null,
                             history: newHistory,
                             turnStartTime: serverTimestamp(),
                             gameStatus: winner ? 'finished' : 'playing'
-                        });
+                        };
+
+                        // AI가 이기면 사용자의 패배 기록 업데이트 예약
+                        if (winner) {
+                            updateData.statsUpdated = false;
+                        }
+
+                        await updateDoc(gameDocRef, updateData);
                         setLastMove({ row: r, col: c });
+
+                        // AI 승리 시 즉시 사용자 패배 기록 업데이트
+                        if (winner && user?.uid) {
+                            await updateUserOmokRecord(user.uid, 'loss');
+                            await updateDoc(gameDocRef, { statsUpdated: true });
+                            setGameResult({ outcome: 'loss', rpChange: -RP_ON_LOSS });
+                        }
                     } catch (err) {
                         console.error('AI 움직임 처리 오류:', err);
                     }
@@ -738,7 +772,7 @@ const OmokGame = () => {
         };
 
         makeAiMove();
-    }, [game, gameId]);
+    }, [game, gameId, user]);
 
     // 보상 카드 생성
     const generateRewardCards = (difficulty) => {
@@ -1059,7 +1093,7 @@ const OmokGame = () => {
                     </div>
                 ) : (
                     <div className="turn-info">
-                        현재 차례: {isMyTurn ? '당신' : (game.playerNames?.[game.currentPlayer] || '상대')}
+                        현재 차례: {isMyTurn ? '당신' : (game.currentPlayer === 'AI' ? 'AI' : (game.playerNames?.[game.currentPlayer] || '상대'))}
                         {Object.keys(game.players).length < 2 && !game.aiMode && <div className="waiting-player">상대방을 기다리고 있습니다...</div>}
                     </div>
                 )}

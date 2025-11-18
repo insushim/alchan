@@ -1,6 +1,7 @@
 // src/Banking.js
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
+import { useNavigate } from "react-router-dom";
 import ParkingAccount from "./ParkingAccount";
 import { getBankingProducts, updateBankingProducts, db } from "./firebase";
 import { collection, query, where, getDocs, collectionGroup, doc, deleteDoc } from "firebase/firestore";
@@ -40,6 +41,7 @@ const styles = {
 
 const Banking = () => {
   const auth = useAuth();
+  const navigate = useNavigate();
   const [message, setMessage] = useState(null);
   const [messageType, setMessageType] = useState("");
   const [activeView, setActiveView] = useState("parking");
@@ -454,6 +456,40 @@ const Banking = () => {
 
       <div className="header">
         <div className="header-content">
+          <button
+            onClick={() => navigate(-1)}
+            style={{
+              position: "absolute",
+              left: "20px",
+              top: "50%",
+              transform: "translateY(-50%)",
+              backgroundColor: "#0369a1",
+              color: "white",
+              border: "none",
+              borderRadius: "8px",
+              padding: "10px 20px",
+              fontSize: "16px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              transition: "all 0.2s ease",
+              zIndex: 10
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#075985";
+              e.currentTarget.style.transform = "translateY(-50%) translateX(-2px)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#0369a1";
+              e.currentTarget.style.transform = "translateY(-50%)";
+            }}
+          >
+            <span style={{ fontSize: "18px" }}>←</span>
+            <span>뒤로가기</span>
+          </button>
           <div className="logo-circle">B</div>
           <h1 className="bank-title">통합 금융 관리</h1>
         </div>

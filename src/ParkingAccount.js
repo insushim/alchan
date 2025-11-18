@@ -1044,7 +1044,8 @@ const ParkingAccount = ({
         gap: '10px',
         marginBottom: '24px',
         borderBottom: '2px solid #e5e7eb',
-        paddingBottom: '0'
+        paddingBottom: '0',
+        position: 'relative'
       }}>
         <button
           onClick={() => onViewChange && onViewChange('parking')}
