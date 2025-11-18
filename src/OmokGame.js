@@ -46,6 +46,60 @@ const getBoardValue = (board, row, col) => {
     return board[getIndex(row, col)];
 };
 
+// 패턴 평가: 열린/닫힌 상태를 고려한 정교한 평가
+const evaluatePattern = (board, row, col, color, dr, dc) => {
+    let count = 1; // 현재 위치
+    let openEnds = 0; // 열린 끝의 개수
+
+    // 양방향으로 같은 색 돌 개수 세기
+    let blocked = [false, false]; // [앞, 뒤] 방향의 막힘 여부
+
+    // 앞 방향 체크
+    for (let i = 1; i <= 4; i++) {
+        const nr = row + i * dr;
+        const nc = col + i * dc;
+        const val = getBoardValue(board, nr, nc);
+        if (val === color) {
+            count++;
+        } else {
+            if (val === undefined || val) blocked[0] = true;
+            else openEnds++; // 빈 칸
+            break;
+        }
+    }
+
+    // 뒤 방향 체크
+    for (let i = 1; i <= 4; i++) {
+        const nr = row - i * dr;
+        const nc = col - i * dc;
+        const val = getBoardValue(board, nr, nc);
+        if (val === color) {
+            count++;
+        } else {
+            if (val === undefined || val) blocked[1] = true;
+            else openEnds++; // 빈 칸
+            break;
+        }
+    }
+
+    // 패턴 기반 점수 계산
+    if (count >= 5) return 1000000; // 5목 완성
+    if (count === 4) {
+        if (openEnds === 2) return 100000; // 열린 4 (필승)
+        if (openEnds === 1) return 10000; // 반열린 4 (매우 위협적)
+    }
+    if (count === 3) {
+        if (openEnds === 2) return 5000; // 열린 3 (매우 좋음)
+        if (openEnds === 1) return 500; // 반열린 3
+    }
+    if (count === 2) {
+        if (openEnds === 2) return 100; // 열린 2
+        if (openEnds === 1) return 10; // 반열린 2
+    }
+
+    return count * openEnds;
+};
+
 const evaluateLine = (line) => {
     const counts = { black: 0, white: 0 };
     line.forEach(cell => {
@@ -85,6 +139,64 @@ const evaluateBoard = (board) => {
     return score;
 };
 
+// 5목 체크 함수
+const checkWin = (board, row, col, color) => {
+    const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
+    for (const dir of directions) {
+        let count = 1;
+        for (let i = 1; i < 5; i++) {
+            const nr = row + i * dir.y;
+            const nc = col + i * dir.x;
+            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+            if (getBoardValue(board, nr, nc) !== color) break;
+            count++;
+        }
+        for (let i = 1; i < 5; i++) {
+            const nr = row - i * dir.y;
+            const nc = col - i * dir.x;
+            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+            if (getBoardValue(board, nr, nc) !== color) break;
+            count++;
+        }
+        if (count >= 5) return true;
+    }
+    return false;
+};
+
+// 위치 평가: 새로운 패턴 기반 평가
+const evaluatePosition = (board, row, col, color, opponentColor, difficulty) => {
+    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    let myScore = 0;
+    let opponentScore = 0;
+
+    // 내 돌 평가
+    for (const [dr, dc] of directions) {
+        myScore += evaluatePattern(board, row, col, color, dr, dc);
+    }
+
+    // 상대방 돌 방어 평가 (상대가 이 위치에 놓았을 때의 점수)
+    for (const [dr, dc] of directions) {
+        opponentScore += evaluatePattern(board, row, col, opponentColor, dr, dc);
+    }
+
+    // 난이도별 가중치 조정
+    let attackWeight = 1.0;
+    let defenseWeight = 1.0;
+
+    if (difficulty === '초급') {
+        attackWeight = 0.8;
+        defenseWeight = 0.6; // 방어 약함
+    } else if (difficulty === '중급') {
+        attackWeight = 1.0;
+        defenseWeight = 0.9;
+    } else if (difficulty === '상급') {
+        attackWeight = 1.1;
+        defenseWeight = 1.0; // 방어도 중요하게
+    }
+
+    return myScore * attackWeight + opponentScore * defenseWeight;
+};
+
 const findBestMove = (board, aiColor, difficulty) => {
     // 돌이 놓인 위치 찾기
     const placedStones = [];
@@ -107,13 +219,21 @@ const findBestMove = (board, aiColor, difficulty) => {
         }
     }
 
-    // 이미 놓인 돌 주변 2칸 이내의 빈 자리만 탐색
+    const opponentColor = aiColor === 'black' ? 'white' : 'black';
+
+    // 난이도에 따라 탐색 범위 조정
+    let searchRange = 2;
+    if (difficulty === '초급') searchRange = 1;
+    else if (difficulty === '중급') searchRange = 2;
+    else if (difficulty === '상급') searchRange = 3;
+
+    // 이미 놓인 돌 주변 범위 이내의 빈 자리만 탐색
     const possibleMoves = [];
     const checkedPositions = new Set();
 
     for (const stone of placedStones) {
-        for (let dr = -2; dr <= 2; dr++) {
-            for (let dc = -2; dc <= 2; dc++) {
+        for (let dr = -searchRange; dr <= searchRange; dr++) {
+            for (let dc = -searchRange; dc <= searchRange; dc++) {
                 const r = stone.r + dr;
                 const c = stone.c + dc;
                 if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
@@ -130,52 +250,72 @@ const findBestMove = (board, aiColor, difficulty) => {
 
     if (possibleMoves.length === 0) return null;
 
+    // 1순위: 즉시 승리 수 찾기
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = aiColor;
+        if (checkWin(testBoard, move.r, move.c, aiColor)) {
+            return move; // 즉시 승리
+        }
+    }
+
+    // 2순위: 상대방의 승리 막기 (방어)
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = opponentColor;
+        if (checkWin(testBoard, move.r, move.c, opponentColor)) {
+            return move; // 필수 방어
+        }
+    }
+
+    // 3순위: 열린 4 찾기 (상대가 막을 수 없는 4)
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = aiColor;
+        const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+        for (const [dr, dc] of directions) {
+            const patternScore = evaluatePattern(testBoard, move.r, move.c, aiColor, dr, dc);
+            if (patternScore >= 100000) { // 열린 4
+                return move;
+            }
+        }
+    }
+
+    // 4순위: 상대의 열린 3 막기
+    if (difficulty !== '초급') { // 초급은 이 패턴을 잘 못 봄
+        for (const move of possibleMoves) {
+            const testBoard = [...board];
+            testBoard[getIndex(move.r, move.c)] = opponentColor;
+            const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+            for (const [dr, dc] of directions) {
+                const patternScore = evaluatePattern(testBoard, move.r, move.c, opponentColor, dr, dc);
+                if (patternScore >= 5000) { // 열린 3
+                    // 상급은 반드시 막음, 중급은 70% 확률로 막음
+                    if (difficulty === '상급' || (difficulty === '중급' && Math.random() > 0.3)) {
+                        return move;
+                    }
+                }
+            }
+        }
+    }
+
+    // 5순위: 가장 높은 점수의 수 선택
     let bestMove = null;
     let bestScore = -Infinity;
 
-    const opponentColor = aiColor === 'black' ? 'white' : 'black';
-
     for (const move of possibleMoves) {
-        const newBoard = [...board];
-        newBoard[getIndex(move.r, move.c)] = aiColor;
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = aiColor;
 
-        let score = evaluateBoard(newBoard);
+        let score = evaluatePosition(testBoard, move.r, move.c, aiColor, opponentColor, difficulty);
 
-        // 5목 체크 함수 (간단 버전)
-        const checkWin = (board, row, col, color) => {
-            const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
-            for (const dir of directions) {
-                let count = 1;
-                for (let i = 1; i < 5; i++) {
-                    const nr = row + i * dir.y;
-                    const nc = col + i * dir.x;
-                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
-                    if (board[getIndex(nr, nc)] !== color) break;
-                    count++;
-                }
-                for (let i = 1; i < 5; i++) {
-                    const nr = row - i * dir.y;
-                    const nc = col - i * dir.x;
-                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
-                    if (board[getIndex(nr, nc)] !== color) break;
-                    count++;
-                }
-                if (count >= 5) return true;
-            }
-            return false;
-        };
-
-        // 해당 위치에서 승리하는지 체크
-        if (checkWin(newBoard, move.r, move.c, aiColor)) {
-            return move; // 즉시 승리
+        // 난이도에 따른 랜덤성 추가 (초급은 더 많은 실수)
+        if (difficulty === '초급') {
+            score += (Math.random() - 0.5) * 1000; // 큰 랜덤성
+        } else if (difficulty === '중급') {
+            score += (Math.random() - 0.5) * 200; // 작은 랜덤성
         }
-
-        // 상대방이 이 위치에 놓으면 승리하는지 체크 (방어)
-        const opponentBoard = [...board];
-        opponentBoard[getIndex(move.r, move.c)] = opponentColor;
-        if (checkWin(opponentBoard, move.r, move.c, opponentColor)) {
-            score += 50000; // 방어 중요
-        }
+        // 상급은 랜덤성 없음
 
         if (score > bestScore) {
             bestScore = score;
@@ -306,7 +446,7 @@ const RankDisplay = ({ rankDetails, showProgress = false, size = 'normal' }) => 
 };
 
 const OmokGame = () => {
-    const { user, userDoc, addCouponsToUserById, isAdmin, updateUserCash, updateUserCoupons } = useAuth();
+    const { user, userDoc, addCouponsToUserById, isAdmin, addCash, optimisticUpdate } = useAuth();
     const [gameId, setGameId] = useState(null);
     const [game, setGame] = useState(null);
     const [error, setError] = useState('');
@@ -954,13 +1094,22 @@ const OmokGame = () => {
         });
 
         try {
+            // 낙관적 업데이트: 헤더에 즉시 반영
+            if (selectedCard.type === 'cash') {
+                optimisticUpdate({ cash: selectedCard.amount });
+                console.log('[Reward] 현금 낙관적 업데이트:', selectedCard.amount);
+            } else if (selectedCard.type === 'coupon') {
+                optimisticUpdate({ coupons: selectedCard.amount });
+                console.log('[Reward] 쿠폰 낙관적 업데이트:', selectedCard.amount);
+            }
+
             // Firestore 업데이트
             if (selectedCard.type === 'cash') {
                 console.log('[Reward] 현금 지급:', selectedCard.amount);
-                await updateUserCash(selectedCard.amount);
+                await addCash(selectedCard.amount, 'AI 오목 승리 보상');
             } else if (selectedCard.type === 'coupon') {
                 console.log('[Reward] 쿠폰 지급:', selectedCard.amount);
-                await updateUserCoupons(selectedCard.amount);
+                await addCouponsToUserById(user.uid, selectedCard.amount);
             }
 
             console.log('[Reward] 보상 지급 완료');
