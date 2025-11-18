@@ -521,6 +521,8 @@ const OmokGame = () => {
             setLastMove({ row, col });
             setError('');
 
+            console.log('[Player] 플레이어 돌 배치 완료. 다음 차례:', nextPlayer);
+
             if (winner) {
                 if (game.aiMode) {
                     // AI 모드에서 승리 시 통계 업데이트 및 보상 카드 표시
@@ -536,13 +538,6 @@ const OmokGame = () => {
                     if (updateData.couponAwardedTo && addCouponsToUserById) {
                         await addCouponsToUserById(user.uid, 1);
                     }
-                }
-            }
-
-            // AI 모드이고 게임이 끝나지 않았으면 즉시 게임 데이터 다시 불러오기 (AI 턴 시작)
-            if (!winner && game.aiMode) {
-                if (refetchGameDataRef.current) {
-                    refetchGameDataRef.current();
                 }
             }
         } catch (err) {
@@ -653,7 +648,9 @@ const OmokGame = () => {
         }
     }, [gameId, user]);
 
-    const { refetch: refetchGameData } = usePolling(fetchGameData, 30000, !!gameId);
+    // AI 모드일 때는 더 자주 폴링 (1초), 일반 모드는 5초
+    const pollingInterval = game?.aiMode ? 1000 : 5000;
+    const { refetch: refetchGameData } = usePolling(fetchGameData, pollingInterval, !!gameId);
     useEffect(() => { refetchGameDataRef.current = refetchGameData; }, [refetchGameData]);
 
     useEffect(() => {
@@ -718,61 +715,82 @@ const OmokGame = () => {
 
     // AI 턴 처리
     useEffect(() => {
-        const makeAiMove = async () => {
-            if (!game || !game.aiMode || game.currentPlayer !== 'AI' || game.winner) return;
+        // AI 모드가 아니거나 게임이 없으면 실행하지 않음
+        if (!game || !game.aiMode || game.winner || !gameId) return;
 
-            setIsAiThinking(true);
-            const thinkingTime = 500 + Math.random() * 1000;
+        // AI 차례가 아니면 실행하지 않음
+        if (game.currentPlayer !== 'AI') {
+            console.log('[AI] 현재 차례:', game.currentPlayer, '(AI 아님)');
+            setIsAiThinking(false);
+            return;
+        }
 
-            setTimeout(async () => {
+        console.log('[AI] AI 차례 시작');
+        setIsAiThinking(true);
+        const thinkingTime = 500 + Math.random() * 1000;
+
+        const timer = setTimeout(async () => {
+            try {
                 const aiColor = game.players['AI'];
+                console.log('[AI] AI 색상:', aiColor);
+
                 const bestMove = findBestMove(game.board, aiColor, game.aiDifficulty);
+                console.log('[AI] 최적의 수:', bestMove);
 
-                if (bestMove) {
-                    const { r, c } = bestMove;
-                    const boardWithNewStone = [...game.board];
-                    boardWithNewStone[getIndex(r, c)] = aiColor;
-
-                    const winner = checkWinner(boardWithNewStone, r, c, aiColor);
-                    const nextPlayer = Object.keys(game.players).find((p) => p !== 'AI');
-                    const moveData = { row: r, col: c, player: aiColor, timestamp: new Date() };
-                    const newHistory = [...(game.history || []), moveData];
-
-                    try {
-                        const gameDocRef = doc(db, 'omokGames', gameId);
-                        const updateData = {
-                            board: boardWithNewStone,
-                            currentPlayer: winner ? null : nextPlayer,
-                            winner: winner ? 'AI' : null,
-                            history: newHistory,
-                            turnStartTime: serverTimestamp(),
-                            gameStatus: winner ? 'finished' : 'playing'
-                        };
-
-                        // AI가 이기면 사용자의 패배 기록 업데이트 예약
-                        if (winner) {
-                            updateData.statsUpdated = false;
-                        }
-
-                        await updateDoc(gameDocRef, updateData);
-                        setLastMove({ row: r, col: c });
-
-                        // AI 승리 시 즉시 사용자 패배 기록 업데이트
-                        if (winner && user?.uid) {
-                            await updateUserOmokRecord(user.uid, 'loss');
-                            await updateDoc(gameDocRef, { statsUpdated: true });
-                            setGameResult({ outcome: 'loss', rpChange: -RP_ON_LOSS });
-                        }
-                    } catch (err) {
-                        console.error('AI 움직임 처리 오류:', err);
-                    }
+                if (!bestMove) {
+                    console.error('[AI] 유효한 수를 찾을 수 없음');
+                    setIsAiThinking(false);
+                    return;
                 }
-                setIsAiThinking(false);
-            }, thinkingTime);
-        };
 
-        makeAiMove();
-    }, [game, gameId, user]);
+                const { r, c } = bestMove;
+                const boardWithNewStone = [...game.board];
+                boardWithNewStone[getIndex(r, c)] = aiColor;
+
+                const winner = checkWinner(boardWithNewStone, r, c, aiColor);
+                const nextPlayer = Object.keys(game.players).find((p) => p !== 'AI');
+                const moveData = { row: r, col: c, player: aiColor, timestamp: new Date() };
+                const newHistory = [...(game.history || []), moveData];
+
+                const gameDocRef = doc(db, 'omokGames', gameId);
+                const updateData = {
+                    board: boardWithNewStone,
+                    currentPlayer: winner ? null : nextPlayer,
+                    winner: winner ? 'AI' : null,
+                    history: newHistory,
+                    turnStartTime: serverTimestamp(),
+                    gameStatus: winner ? 'finished' : 'playing'
+                };
+
+                // AI가 이기면 사용자의 패배 기록 업데이트 예약
+                if (winner) {
+                    updateData.statsUpdated = false;
+                }
+
+                console.log('[AI] Firestore 업데이트 시작');
+                await updateDoc(gameDocRef, updateData);
+                setLastMove({ row: r, col: c });
+                console.log('[AI] 돌 배치 완료:', r, c);
+
+                // AI 승리 시 즉시 사용자 패배 기록 업데이트
+                if (winner && user?.uid) {
+                    await updateUserOmokRecord(user.uid, 'loss');
+                    await updateDoc(gameDocRef, { statsUpdated: true });
+                    setGameResult({ outcome: 'loss', rpChange: -RP_ON_LOSS });
+                    console.log('[AI] AI 승리 처리 완료');
+                }
+
+                setIsAiThinking(false);
+            } catch (err) {
+                console.error('[AI] 움직임 처리 오류:', err);
+                setIsAiThinking(false);
+            }
+        }, thinkingTime);
+
+        return () => {
+            clearTimeout(timer);
+        };
+    }, [game?.currentPlayer, game?.aiMode, game?.winner, gameId, user]);
 
     // 보상 카드 생성
     const generateRewardCards = (difficulty) => {
