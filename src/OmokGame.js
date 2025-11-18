@@ -505,10 +505,6 @@ const OmokGame = () => {
 
         console.log('[Player] 승자 체크:', winner, '다음 플레이어:', nextPlayer);
 
-        // 낙관적 업데이트: UI 즉시 업데이트
-        setIsThinking(false);
-        setSelectedCell(null);
-
         try {
             const gameDocRef = doc(db, 'omokGames', gameId);
             const updateData = {
@@ -527,10 +523,23 @@ const OmokGame = () => {
             }
 
             console.log('[Player] Firestore 업데이트 시작...', updateData);
+
+            // 낙관적 업데이트: Firestore 업데이트 전에 즉시 UI 업데이트
+            setGame({
+                ...game,
+                board: boardWithNewStone,
+                currentPlayer: winner ? null : nextPlayer,
+                winner: winner ? user.uid : null,
+                history: newHistory,
+                gameStatus: winner ? 'finished' : 'playing'
+            });
+            setLastMove({ row, col });
+            setIsThinking(false);
+            setSelectedCell(null);
+
             await updateDoc(gameDocRef, updateData);
             console.log('[Player] Firestore 업데이트 완료!');
 
-            setLastMove({ row, col });
             setError('');
 
             console.log('[Player] 플레이어 돌 배치 완료. 다음 차례:', nextPlayer);
