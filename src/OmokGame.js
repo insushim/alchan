@@ -930,7 +930,12 @@ const OmokGame = () => {
 
     // 보상 선택 처리
     const handleRewardSelection = async (selectedCard) => {
-        if (!user || !gameId) return;
+        if (!user || !gameId) {
+            console.log('[Reward] user 또는 gameId 없음');
+            return;
+        }
+
+        console.log('[Reward] 보상 선택:', selectedCard);
 
         try {
             const userRef = doc(db, 'users', user.uid);
@@ -939,16 +944,30 @@ const OmokGame = () => {
 
             await runTransaction(db, async (transaction) => {
                 const userDocSnap = await transaction.get(userRef);
-                if (!userDocSnap.exists()) return;
+                if (!userDocSnap.exists()) {
+                    console.error('[Reward] 사용자 문서 없음');
+                    return;
+                }
 
                 const updateData = {};
                 if (selectedCard.type === 'cash') {
                     updateData.cash = increment(selectedCard.amount);
+                    console.log('[Reward] 현금 지급:', selectedCard.amount);
                 } else if (selectedCard.type === 'coupon') {
                     updateData.coupons = increment(selectedCard.amount);
+                    console.log('[Reward] 쿠폰 지급:', selectedCard.amount);
                 }
+
+                if (Object.keys(updateData).length === 0) {
+                    console.error('[Reward] updateData가 비어있음!');
+                    return;
+                }
+
+                console.log('[Reward] Firestore 업데이트:', updateData);
                 transaction.update(userRef, updateData);
             });
+
+            console.log('[Reward] 보상 지급 완료');
 
             const newCount = dailyPlayCount + 1;
             localStorage.setItem(storageKey, newCount.toString());
@@ -965,7 +984,7 @@ const OmokGame = () => {
             setTimeout(() => leaveGame(), 2000);
 
         } catch (error) {
-            console.error("Error applying reward:", error);
+            console.error("[Reward] Error applying reward:", error);
             setFeedback({ message: '보상 지급에 실패했습니다.', type: 'error' });
         }
     };
