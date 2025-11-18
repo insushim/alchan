@@ -306,7 +306,7 @@ const RankDisplay = ({ rankDetails, showProgress = false, size = 'normal' }) => 
 };
 
 const OmokGame = () => {
-    const { user, userDoc, addCouponsToUserById, isAdmin } = useAuth();
+    const { user, userDoc, addCouponsToUserById, isAdmin, updateUserCash, updateUserCoupons } = useAuth();
     const [gameId, setGameId] = useState(null);
     const [game, setGame] = useState(null);
     const [error, setError] = useState('');
@@ -937,55 +937,43 @@ const OmokGame = () => {
 
         console.log('[Reward] 보상 선택:', selectedCard);
 
+        // 낙관적 업데이트: 즉시 UI에 반영
+        const today = new Date().toDateString();
+        const storageKey = `omokPlayCount_${user.uid}_${today}`;
+        const newCount = dailyPlayCount + 1;
+
+        localStorage.setItem(storageKey, newCount.toString());
+        setDailyPlayCount(newCount);
+        setShowRewardSelection(false);
+
+        setFeedback({
+            message: selectedCard.type === 'cash'
+                ? `현금 ${selectedCard.amount.toLocaleString()}원을 획득했습니다!`
+                : `쿠폰 ${selectedCard.amount}개를 획득했습니다!`,
+            type: 'success'
+        });
+
         try {
-            const userRef = doc(db, 'users', user.uid);
-            const today = new Date().toDateString();
-            const storageKey = `omokPlayCount_${user.uid}_${today}`;
-
-            await runTransaction(db, async (transaction) => {
-                const userDocSnap = await transaction.get(userRef);
-                if (!userDocSnap.exists()) {
-                    console.error('[Reward] 사용자 문서 없음');
-                    return;
-                }
-
-                const updateData = {};
-                if (selectedCard.type === 'cash') {
-                    updateData.cash = increment(selectedCard.amount);
-                    console.log('[Reward] 현금 지급:', selectedCard.amount);
-                } else if (selectedCard.type === 'coupon') {
-                    updateData.coupons = increment(selectedCard.amount);
-                    console.log('[Reward] 쿠폰 지급:', selectedCard.amount);
-                }
-
-                if (Object.keys(updateData).length === 0) {
-                    console.error('[Reward] updateData가 비어있음!');
-                    return;
-                }
-
-                console.log('[Reward] Firestore 업데이트:', updateData);
-                transaction.update(userRef, updateData);
-            });
+            // Firestore 업데이트
+            if (selectedCard.type === 'cash') {
+                console.log('[Reward] 현금 지급:', selectedCard.amount);
+                await updateUserCash(selectedCard.amount);
+            } else if (selectedCard.type === 'coupon') {
+                console.log('[Reward] 쿠폰 지급:', selectedCard.amount);
+                await updateUserCoupons(selectedCard.amount);
+            }
 
             console.log('[Reward] 보상 지급 완료');
-
-            const newCount = dailyPlayCount + 1;
-            localStorage.setItem(storageKey, newCount.toString());
-            setDailyPlayCount(newCount);
-
-            setShowRewardSelection(false);
-            setFeedback({
-                message: selectedCard.type === 'cash'
-                    ? `현금 ${selectedCard.amount.toLocaleString()}원을 획득했습니다!`
-                    : `쿠폰 ${selectedCard.amount}개를 획득했습니다!`,
-                type: 'success'
-            });
-
             setTimeout(() => leaveGame(), 2000);
 
         } catch (error) {
             console.error("[Reward] Error applying reward:", error);
-            setFeedback({ message: '보상 지급에 실패했습니다.', type: 'error' });
+            setFeedback({ message: '보상 지급에 실패했습니다. 다시 시도해주세요.', type: 'error' });
+
+            // 에러 발생 시 롤백 (플레이 카운트만)
+            const rollbackCount = dailyPlayCount;
+            localStorage.setItem(storageKey, rollbackCount.toString());
+            setDailyPlayCount(rollbackCount);
         }
     };
 
