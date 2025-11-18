@@ -594,6 +594,12 @@ const OmokGame = () => {
                 turnStartTime: new Date()
             });
 
+            // AI 모드에서는 플레이어가 선공이므로 즉시 isThinking을 true로 설정
+            if (isAiMode) {
+                setIsThinking(true);
+                setTimeLeft(TURN_TIME_LIMIT);
+            }
+
             if (!isAiMode) {
                 setCreatedGameId(gameDocRef.id);
             }
