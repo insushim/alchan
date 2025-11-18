@@ -464,6 +464,40 @@ const OmokGame = () => {
     const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
     const [aiDifficulty, setAiDifficulty] = useState('중급'); // '하급', '중급', '상급'
     const [dailyPlayCount, setDailyPlayCount] = useState(0);
+
+    // 낙관적 전적 업데이트 헬퍼 함수
+    const optimisticOmokUpdate = useCallback((result) => {
+        if (!userDoc?.omok) return;
+
+        const currentOmok = userDoc.omok;
+        const currentWins = currentOmok.wins || 0;
+        const currentLosses = currentOmok.losses || 0;
+        const currentRP = currentOmok.totalRP !== undefined ? currentOmok.totalRP : BASE_RP;
+
+        let newWins = currentWins;
+        let newLosses = currentLosses;
+        let newRP = currentRP;
+
+        if (result === 'win') {
+            newWins += 1;
+            newRP += RP_ON_WIN;
+        } else if (result === 'loss') {
+            newLosses += 1;
+            newRP = Math.max(0, newRP - RP_ON_LOSS);
+        }
+
+        // optimisticUpdate는 증분 업데이트가 아니라 절대값 설정이므로
+        // omok 객체 전체를 새로 설정
+        optimisticUpdate({
+            omok: {
+                wins: newWins,
+                losses: newLosses,
+                totalRP: newRP
+            }
+        });
+
+        console.log('[Optimistic] 전적 낙관적 업데이트:', { result, newWins, newLosses, newRP });
+    }, [userDoc, optimisticUpdate]);
     const [showRewardSelection, setShowRewardSelection] = useState(false);
     const [rewardCards, setRewardCards] = useState([]);
     const [isAiThinking, setIsAiThinking] = useState(false);
@@ -663,6 +697,7 @@ const OmokGame = () => {
                     const opponentId = Object.keys(game.players).find(p => p !== user.uid);
                     if (opponentId && !game.aiMode) {
                         // 호스트 패배, 상대방 승리 처리
+                        optimisticOmokUpdate('loss'); // 낙관적 업데이트
                         await updateUserOmokRecord(user.uid, 'loss');
                         await updateUserOmokRecord(opponentId, 'win');
 
@@ -673,6 +708,7 @@ const OmokGame = () => {
                         }
                     } else if (game.aiMode) {
                         // AI 모드에서는 호스트 패배만 처리
+                        optimisticOmokUpdate('loss'); // 낙관적 업데이트
                         await updateUserOmokRecord(user.uid, 'loss');
                     }
                 }
@@ -690,6 +726,7 @@ const OmokGame = () => {
                     if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
                     await updateDoc(gameDocRef, finalUpdate);
 
+                    optimisticOmokUpdate('loss'); // 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'loss');
                     await updateUserOmokRecord(opponentId, 'win');
 
@@ -776,6 +813,7 @@ const OmokGame = () => {
             if (winner) {
                 if (game.aiMode) {
                     // AI 모드에서 승리 시 통계 업데이트 및 보상 카드 표시
+                    optimisticOmokUpdate('win'); // 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'win');
                     await updateDoc(gameDocRef, { statsUpdated: true });
                     setGameResult({ outcome: 'win', rpChange: RP_ON_WIN });
@@ -883,6 +921,13 @@ const OmokGame = () => {
                     const loserId = Object.keys(gameData.players).find(p => p !== winnerId);
 
                     if (loserId) {
+                        // 낙관적 업데이트
+                        if (user.uid === winnerId) {
+                            optimisticOmokUpdate('win');
+                        } else if (user.uid === loserId) {
+                            optimisticOmokUpdate('loss');
+                        }
+
                         await updateUserOmokRecord(winnerId, 'win');
                         await updateUserOmokRecord(loserId, 'loss');
                         await updateDoc(gameDocRef, { statsUpdated: true });
@@ -1068,6 +1113,7 @@ const OmokGame = () => {
 
                 // AI 승리 시 즉시 사용자 패배 기록 업데이트
                 if (winner && user?.uid) {
+                    optimisticOmokUpdate('loss'); // 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'loss');
                     await updateDoc(gameDocRef, { statsUpdated: true });
                     setGameResult({ outcome: 'loss', rpChange: -RP_ON_LOSS });
