@@ -809,8 +809,19 @@ const OmokGame = () => {
                 }
 
                 console.log('[AI] Firestore 업데이트 시작');
-                await updateDoc(gameDocRef, updateData);
+
+                // 낙관적 업데이트: Firestore 업데이트 전에 즉시 UI 업데이트
+                setGame(prevGame => ({
+                    ...prevGame,
+                    board: boardWithNewStone,
+                    currentPlayer: winner ? null : nextPlayer,
+                    winner: winner ? 'AI' : null,
+                    history: newHistory,
+                    gameStatus: winner ? 'finished' : 'playing'
+                }));
                 setLastMove({ row: r, col: c });
+
+                await updateDoc(gameDocRef, updateData);
                 console.log('[AI] 돌 배치 완료:', r, c);
 
                 // AI 승리 시 즉시 사용자 패배 기록 업데이트
