@@ -86,12 +86,45 @@ const evaluateBoard = (board) => {
 };
 
 const findBestMove = (board, aiColor, difficulty) => {
-    const possibleMoves = [];
+    // 돌이 놓인 위치 찾기
+    const placedStones = [];
     for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
-        if (!board[i]) {
-            const r = Math.floor(i / BOARD_SIZE);
-            const c = i % BOARD_SIZE;
-            possibleMoves.push({ r, c });
+        if (board[i]) {
+            placedStones.push({ r: Math.floor(i / BOARD_SIZE), c: i % BOARD_SIZE });
+        }
+    }
+
+    // 첫 수라면 중앙 근처에 놓기
+    if (placedStones.length === 1) {
+        const centerMoves = [
+            { r: 9, c: 9 }, { r: 9, c: 10 }, { r: 10, c: 9 }, { r: 10, c: 10 },
+            { r: 8, c: 9 }, { r: 9, c: 8 }, { r: 10, c: 8 }, { r: 8, c: 10 }
+        ];
+        for (const move of centerMoves) {
+            if (!board[getIndex(move.r, move.c)]) {
+                return move;
+            }
+        }
+    }
+
+    // 이미 놓인 돌 주변 2칸 이내의 빈 자리만 탐색
+    const possibleMoves = [];
+    const checkedPositions = new Set();
+
+    for (const stone of placedStones) {
+        for (let dr = -2; dr <= 2; dr++) {
+            for (let dc = -2; dc <= 2; dc++) {
+                const r = stone.r + dr;
+                const c = stone.c + dc;
+                if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE) {
+                    const idx = getIndex(r, c);
+                    const key = `${r},${c}`;
+                    if (!board[idx] && !checkedPositions.has(key)) {
+                        possibleMoves.push({ r, c });
+                        checkedPositions.add(key);
+                    }
+                }
+            }
         }
     }
 
@@ -100,25 +133,48 @@ const findBestMove = (board, aiColor, difficulty) => {
     let bestMove = null;
     let bestScore = -Infinity;
 
-    const searchDepth = { '하급': 1, '중급': 2, '상급': 2 }[difficulty] || 1; // 상급은 더 똑똑한 평가 로직 필요
+    const opponentColor = aiColor === 'black' ? 'white' : 'black';
 
     for (const move of possibleMoves) {
         const newBoard = [...board];
         newBoard[getIndex(move.r, move.c)] = aiColor;
-        
+
         let score = evaluateBoard(newBoard);
-        
-        // 상대방의 최선의 수를 고려 (Minimax의 1-ply)
-        if (searchDepth > 1) {
-            let opponentBestResponseScore = -Infinity;
-            const opponentColor = aiColor === 'black' ? 'white' : 'black';
-            for (const opponentMove of possibleMoves) {
-                if (opponentMove.r === move.r && opponentMove.c === move.c) continue;
-                const boardAfterOpponent = [...newBoard];
-                boardAfterOpponent[getIndex(opponentMove.r, opponentMove.c)] = opponentColor;
-                opponentBestResponseScore = Math.max(opponentBestResponseScore, evaluateBoard(boardAfterOpponent));
+
+        // 5목 체크 함수 (간단 버전)
+        const checkWin = (board, row, col, color) => {
+            const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
+            for (const dir of directions) {
+                let count = 1;
+                for (let i = 1; i < 5; i++) {
+                    const nr = row + i * dir.y;
+                    const nc = col + i * dir.x;
+                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+                    if (board[getIndex(nr, nc)] !== color) break;
+                    count++;
+                }
+                for (let i = 1; i < 5; i++) {
+                    const nr = row - i * dir.y;
+                    const nc = col - i * dir.x;
+                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
+                    if (board[getIndex(nr, nc)] !== color) break;
+                    count++;
+                }
+                if (count >= 5) return true;
             }
-            score -= opponentBestResponseScore;
+            return false;
+        };
+
+        // 해당 위치에서 승리하는지 체크
+        if (checkWin(newBoard, move.r, move.c, aiColor)) {
+            return move; // 즉시 승리
+        }
+
+        // 상대방이 이 위치에 놓으면 승리하는지 체크 (방어)
+        const opponentBoard = [...board];
+        opponentBoard[getIndex(move.r, move.c)] = opponentColor;
+        if (checkWin(opponentBoard, move.r, move.c, opponentColor)) {
+            score += 50000; // 방어 중요
         }
 
         if (score > bestScore) {
@@ -827,6 +883,12 @@ const OmokGame = () => {
                 });
                 setLastMove({ row: r, col: c });
                 setIsAiThinking(false);
+
+                // AI가 돌을 놓고 플레이어 차례가 되면 isThinking을 true로 설정
+                if (!winner && nextPlayer === user?.uid) {
+                    console.log('[AI] 플레이어 차례로 변경 - isThinking을 true로 설정');
+                    setIsThinking(true);
+                }
 
                 await updateDoc(gameDocRef, updateData);
                 console.log('[AI] 돌 배치 완료:', r, c);
