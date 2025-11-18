@@ -480,21 +480,30 @@ const OmokGame = () => {
     const checkForbiddenMove = (board, row, col, player) => false;
 
     const placeStone = async (row, col) => {
-        const boardWithNewStone = [...game.board];
-        boardWithNewStone[getIndex(row, col)] = game.players[user.uid];
+        console.log('[Player] placeStone 함수 시작:', { row, col, gameId, userId: user.uid });
 
-        if (game.players[user.uid] === 'black') {
+        const boardWithNewStone = [...game.board];
+        const myColor = game.players[user.uid];
+        boardWithNewStone[getIndex(row, col)] = myColor;
+
+        console.log('[Player] 내 색:', myColor, '위치:', getIndex(row, col));
+
+        if (myColor === 'black') {
           const forbiddenMove = checkForbiddenMove(boardWithNewStone, row, col, 'black');
           if (forbiddenMove) {
               setError(`금수입니다: ${forbiddenMove}. 다른 곳에 두세요.`);
-              setSelectedCell(null); return;
+              setSelectedCell(null);
+              console.log('[Player] 금수로 인해 중단');
+              return;
           }
         }
 
-        const winner = checkWinner(boardWithNewStone, row, col, game.players[user.uid]);
+        const winner = checkWinner(boardWithNewStone, row, col, myColor);
         const nextPlayer = Object.keys(game.players).find((p) => p !== user.uid);
-        const moveData = { row, col, player: game.players[user.uid], timestamp: new Date() };
+        const moveData = { row, col, player: myColor, timestamp: new Date() };
         const newHistory = [...(game.history || []), moveData];
+
+        console.log('[Player] 승자 체크:', winner, '다음 플레이어:', nextPlayer);
 
         // 낙관적 업데이트: UI 즉시 업데이트
         setIsThinking(false);
@@ -517,7 +526,10 @@ const OmokGame = () => {
                 if (shouldAwardCoupon) updateData.couponAwardedTo = user.uid;
             }
 
+            console.log('[Player] Firestore 업데이트 시작...', updateData);
             await updateDoc(gameDocRef, updateData);
+            console.log('[Player] Firestore 업데이트 완료!');
+
             setLastMove({ row, col });
             setError('');
 
@@ -549,16 +561,36 @@ const OmokGame = () => {
     };
 
     const handleCellClick = async (row, col) => {
+        console.log('[Click] 셀 클릭:', { row, col });
+        console.log('[Click] 상태 체크:', {
+            hasGame: !!game,
+            winner: game?.winner,
+            cellValue: getBoardValue(game?.board, row, col),
+            currentPlayer: game?.currentPlayer,
+            userId: user?.uid,
+            isMyTurn: game?.currentPlayer === user?.uid,
+            isThinking,
+            selectedCell
+        });
+
         if (!game || game.winner || getBoardValue(game.board, row, col) ||
-            game.currentPlayer !== user.uid || !isThinking) return;
+            game.currentPlayer !== user.uid || !isThinking) {
+            console.log('[Click] 클릭 무시됨');
+            return;
+        }
 
         // AI 모드가 아닐 때만 2명 체크
-        if (!game.aiMode && Object.keys(game.players).length < 2) return;
+        if (!game.aiMode && Object.keys(game.players).length < 2) {
+            console.log('[Click] 플레이어 2명 미만');
+            return;
+        }
 
         if (selectedCell && selectedCell.row === row && selectedCell.col === col) {
+            console.log('[Click] 두 번째 클릭 - 돌 배치 시작');
             await placeStone(row, col);
             setSelectedCell(null);
         } else {
+            console.log('[Click] 첫 번째 클릭 - 미리보기');
             setSelectedCell({ row, col });
         }
     };
