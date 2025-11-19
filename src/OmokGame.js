@@ -630,7 +630,7 @@ const OmokGame = () => {
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, []); // user 의존성 제거 - 필요 시 user는 클로저로 접근
 
     const deleteGameRoom = async (roomId, e) => {
         e.stopPropagation();
@@ -949,7 +949,20 @@ const OmokGame = () => {
 
 
 
-    useEffect(() => { if (user) fetchAvailableGames(); }, [user, fetchAvailableGames]);
+    // 로비 화면 진입 시 1회만 게임 목록 로드 (자동 폴링 제거)
+    const hasFetchedGamesRef = useRef(false);
+    useEffect(() => {
+        if (user && !gameId && !hasFetchedGamesRef.current) {
+            console.log('[Lobby] 게임 목록 최초 로드');
+            fetchAvailableGames();
+            hasFetchedGamesRef.current = true;
+        }
+
+        // 게임에 참여하면 플래그 리셋 (게임 종료 후 다시 로비로 돌아올 때 재로드)
+        if (gameId) {
+            hasFetchedGamesRef.current = false;
+        }
+    }, [user, gameId, fetchAvailableGames]);
 
     const fetchGameData = useCallback(async () => {
         if (!gameId) return;
