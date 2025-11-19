@@ -119,11 +119,21 @@
   display: grid;
   grid-template-columns: repeat(var(--board-size), var(--cell-size));
   grid-template-rows: repeat(var(--board-size), var(--cell-size));
+  position: relative;
+  /* The background and border are now handled by the ::before pseudo-element */
+}
+
+.omok-board::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--cell-size) / -2);
+  left: calc(var(--cell-size) / -2);
+  right: calc(var(--cell-size) / -2);
+  bottom: calc(var(--cell-size) / -2);
   background-color: var(--board-bg);
-  padding: calc(var(--board-padding) - var(--cell-size) / 2);
   border-radius: 10px;
   box-shadow: inset 0 5px 15px rgba(0,0,0,0.2);
-  position: relative;
+  z-index: -1; /* Place the background behind the grid lines */
 }
 
 /* 바둑판 셀과 선 */
