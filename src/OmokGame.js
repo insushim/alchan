@@ -1233,6 +1233,34 @@ const OmokGame = () => {
         const cells = [];
         const starPointCoords = [4, 10, 16];
 
+        // 가로선 그리기
+        const horizontalLines = [];
+        for (let i = 0; i < BOARD_SIZE; i++) {
+            horizontalLines.push(
+                <div
+                    key={`h-line-${i}`}
+                    className="grid-line horizontal"
+                    style={{
+                        top: `${(i / (BOARD_SIZE - 1)) * 100}%`,
+                    }}
+                />
+            );
+        }
+
+        // 세로선 그리기
+        const verticalLines = [];
+        for (let j = 0; j < BOARD_SIZE; j++) {
+            verticalLines.push(
+                <div
+                    key={`v-line-${j}`}
+                    className="grid-line vertical"
+                    style={{
+                        left: `${(j / (BOARD_SIZE - 1)) * 100}%`,
+                    }}
+                />
+            );
+        }
+
         for (let i = 0; i < BOARD_SIZE; i++) {
             for (let j = 0; j < BOARD_SIZE; j++) {
                 const cellValue = getBoardValue(game.board, i, j);
@@ -1245,6 +1273,10 @@ const OmokGame = () => {
                         key={`${i}-${j}`}
                         className={`omok-cell ${game.currentPlayer === user.uid && !cellValue ? 'clickable' : ''} ${isSelected ? 'preview' : ''}`}
                         onClick={() => handleCellClick(i, j)}
+                        style={{
+                            gridRow: i + 1,
+                            gridColumn: j + 1
+                        }}
                     >
                         {isStarPoint && <div className="star-point"></div>}
                         {cellValue && (
@@ -1258,7 +1290,13 @@ const OmokGame = () => {
         }
         return (
             <div className="omok-board-background">
-                <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>{cells}</div>
+                <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>
+                    <div className="grid-lines-container">
+                        {horizontalLines}
+                        {verticalLines}
+                    </div>
+                    {cells}
+                </div>
             </div>
         );
     };
