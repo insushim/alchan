@@ -521,7 +521,7 @@ const RankDisplay = ({ rankDetails, showProgress = false, size = 'normal' }) => 
 };
 
 const OmokGame = () => {
-    const { user, userDoc, addCouponsToUserById, isAdmin, addCash, optimisticUpdate } = useAuth();
+    const { user, userDoc, addCouponsToUserById, isAdmin, addCash } = useAuth();
     const [gameId, setGameId] = useState(null);
     const [game, setGame] = useState(null);
     const [error, setError] = useState('');
@@ -538,40 +538,43 @@ const OmokGame = () => {
     const [gameMode, setGameMode] = useState('player'); // 'player' or 'ai'
     const [aiDifficulty, setAiDifficulty] = useState('중급'); // '하급', '중급', '상급'
     const [dailyPlayCount, setDailyPlayCount] = useState(0);
+    const [omokStats, setOmokStats] = useState(userDoc?.omok);
 
-    // 낙관적 전적 업데이트 헬퍼 함수
-    const optimisticOmokUpdate = useCallback((result) => {
-        if (!userDoc?.omok) return;
+    useEffect(() => {
+        setOmokStats(userDoc?.omok);
+    }, [userDoc?.omok]);
 
-        const currentOmok = userDoc.omok;
-        const currentWins = currentOmok.wins || 0;
-        const currentLosses = currentOmok.losses || 0;
-        const currentRP = currentOmok.totalRP !== undefined ? currentOmok.totalRP : BASE_RP;
+    // 로컬 상태를 이용한 낙관적 전적 업데이트
+    const localOptimisticOmokUpdate = useCallback((result) => {
+        setOmokStats(prevStats => {
+            if (!prevStats) return null;
 
-        let newWins = currentWins;
-        let newLosses = currentLosses;
-        let newRP = currentRP;
+            const currentWins = prevStats.wins || 0;
+            const currentLosses = prevStats.losses || 0;
+            const currentRP = prevStats.totalRP !== undefined ? prevStats.totalRP : BASE_RP;
 
-        if (result === 'win') {
-            newWins += 1;
-            newRP += RP_ON_WIN;
-        } else if (result === 'loss') {
-            newLosses += 1;
-            newRP = Math.max(0, newRP - RP_ON_LOSS);
-        }
+            let newWins = currentWins;
+            let newLosses = currentLosses;
+            let newRP = currentRP;
 
-        // optimisticUpdate는 증분 업데이트가 아니라 절대값 설정이므로
-        // omok 객체 전체를 새로 설정
-        optimisticUpdate({
-            omok: {
+            if (result === 'win') {
+                newWins += 1;
+                newRP += RP_ON_WIN;
+            } else if (result === 'loss') {
+                newLosses += 1;
+                newRP = Math.max(0, newRP - RP_ON_LOSS);
+            }
+
+            const newStats = {
                 wins: newWins,
                 losses: newLosses,
                 totalRP: newRP
-            }
+            };
+            console.log('[LocalOptimistic] 전적 로컬 업데이트:', newStats);
+            return newStats;
         });
+    }, []);
 
-        console.log('[Optimistic] 전적 낙관적 업데이트:', { result, newWins, newLosses, newRP });
-    }, [userDoc, optimisticUpdate]);
     const [showRewardSelection, setShowRewardSelection] = useState(false);
     const [rewardCards, setRewardCards] = useState([]);
     const [isAiThinking, setIsAiThinking] = useState(false);
@@ -662,7 +665,7 @@ const OmokGame = () => {
         setLoading(true);
         const myName = userDoc.name || userDoc.nickname || user.displayName || '익명';
         const myClass = userDoc.classCode || '미설정';
-        const myRankDetails = getOmokRankDetails(userDoc.omok);
+        const myRankDetails = getOmokRankDetails(omokStats);
 
         const isAiMode = gameMode === 'ai';
         const playerColor = 'black';
@@ -726,7 +729,7 @@ const OmokGame = () => {
         setError('');
         const myName = userDoc.name || userDoc.nickname || user.displayName || '익명';
         const myClass = userDoc.classCode || '미설정';
-        const myRankDetails = getOmokRankDetails(userDoc.omok);
+        const myRankDetails = getOmokRankDetails(omokStats);
 
         try {
             const gameDocRef = doc(db, 'omokGames', id);
@@ -770,7 +773,7 @@ const OmokGame = () => {
                     const opponentId = Object.keys(game.players).find(p => p !== user.uid);
                     if (opponentId && !game.aiMode) {
                         // 호스트 패배, 상대방 승리 처리
-                        optimisticOmokUpdate('loss'); // 낙관적 업데이트
+                        localOptimisticOmokUpdate('loss'); // 로컬 낙관적 업데이트
                         await updateUserOmokRecord(user.uid, 'loss');
                         await updateUserOmokRecord(opponentId, 'win');
 
@@ -781,7 +784,7 @@ const OmokGame = () => {
                         }
                     } else if (game.aiMode) {
                         // AI 모드에서는 호스트 패배만 처리
-                        optimisticOmokUpdate('loss'); // 낙관적 업데이트
+                        localOptimisticOmokUpdate('loss'); // 로컬 낙관적 업데이트
                         await updateUserOmokRecord(user.uid, 'loss');
                     }
                 }
@@ -799,7 +802,7 @@ const OmokGame = () => {
                     if (shouldAwardCoupon) finalUpdate.couponAwardedTo = opponentId;
                     await updateDoc(gameDocRef, finalUpdate);
 
-                    optimisticOmokUpdate('loss'); // 낙관적 업데이트
+                    localOptimisticOmokUpdate('loss'); // 로컬 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'loss');
                     await updateUserOmokRecord(opponentId, 'win');
 
@@ -886,7 +889,7 @@ const OmokGame = () => {
             if (winner) {
                 if (game.aiMode) {
                     // AI 모드에서 승리 시 통계 업데이트 및 보상 카드 표시
-                    optimisticOmokUpdate('win'); // 낙관적 업데이트
+                    localOptimisticOmokUpdate('win'); // 로컬 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'win');
                     await updateDoc(gameDocRef, { statsUpdated: true });
                     setGameResult({ outcome: 'win', rpChange: RP_ON_WIN });
@@ -965,11 +968,11 @@ const OmokGame = () => {
                     const loserId = Object.keys(gameData.players).find(p => p !== winnerId);
 
                     if (loserId) {
-                        // 낙관적 업데이트
+                        // 로컬 낙관적 업데이트
                         if (user.uid === winnerId) {
-                            optimisticOmokUpdate('win');
+                            localOptimisticOmokUpdate('win');
                         } else if (user.uid === loserId) {
-                            optimisticOmokUpdate('loss');
+                            localOptimisticOmokUpdate('loss');
                         }
 
                         await updateUserOmokRecord(winnerId, 'win');
@@ -983,7 +986,7 @@ const OmokGame = () => {
 
                 const history = gameData.history || [];
                 if (history.length > 0) setLastMove({ row: history[history.length - 1].row, col: history[history.length - 1].col });
-                
+
                 if (gameData.currentPlayer === user.uid && gameData.gameStatus === 'playing') {
                     setIsThinking(true);
                 } else {
@@ -996,11 +999,13 @@ const OmokGame = () => {
             console.error('게임 데이터 로드 오류:', error);
             setError('게임 연결 중 오류가 발생했습니다.');
         }
-    }, [gameId, user]);
+    }, [gameId, user, localOptimisticOmokUpdate]);
 
-    // AI 모드일 때는 더 자주 폴링 (1초), 일반 모드는 5초
-    const pollingInterval = game?.aiMode ? 1000 : 5000;
-    const { refetch: refetchGameData } = usePolling(fetchGameData, pollingInterval, !!gameId);
+    // 폴링 활성화 조건: 게임 ID가 있고, 게임이 진행 중이며, AI 모드가 아닐 때만
+    // AI 모드에서는 로컬에서 즉시 처리하므로 폴링 불필요
+    const shouldPoll = !!gameId && game?.gameStatus === 'playing' && !game?.aiMode;
+    const pollingInterval = 3000; // 3초로 통일 (읽기 최소화)
+    const { refetch: refetchGameData } = usePolling(fetchGameData, pollingInterval, shouldPoll);
     useEffect(() => { refetchGameDataRef.current = refetchGameData; }, [refetchGameData]);
 
     useEffect(() => { if (showWinAnimation) { const timer = setTimeout(() => setShowWinAnimation(false), 3000); return () => clearTimeout(timer); } }, [showWinAnimation]);
@@ -1052,19 +1057,32 @@ const OmokGame = () => {
         }
     }, [game, user, resetGameForRematch]);
 
-    // AI 턴 처리
+    // AI 턴 처리 - useRef로 최신 game 참조하여 불필요한 재실행 방지
+    const aiTurnProcessedRef = useRef(false);
+
     useEffect(() => {
         // AI 모드가 아니거나 게임이 없으면 실행하지 않음
-        if (!game || !game.aiMode || game.winner || !gameId) return;
+        if (!game || !game.aiMode || game.winner || !gameId) {
+            aiTurnProcessedRef.current = false;
+            return;
+        }
 
         // AI 차례가 아니면 실행하지 않음
         if (game.currentPlayer !== 'AI') {
             console.log('[AI] 현재 차례:', game.currentPlayer, '(AI 아님)');
             setIsAiThinking(false);
+            aiTurnProcessedRef.current = false;
+            return;
+        }
+
+        // 이미 처리 중이면 중복 실행 방지
+        if (aiTurnProcessedRef.current) {
+            console.log('[AI] 이미 처리 중 - 중복 실행 방지');
             return;
         }
 
         console.log('[AI] AI 차례 시작');
+        aiTurnProcessedRef.current = true;
         setIsAiThinking(true);
         const thinkingTime = 500 + Math.random() * 1000;
 
@@ -1079,6 +1097,7 @@ const OmokGame = () => {
                 if (!bestMove) {
                     console.error('[AI] 유효한 수를 찾을 수 없음');
                     setIsAiThinking(false);
+                    aiTurnProcessedRef.current = false;
                     return;
                 }
 
@@ -1137,7 +1156,7 @@ const OmokGame = () => {
 
                 // AI 승리 시 즉시 사용자 패배 기록 업데이트
                 if (winner && user?.uid) {
-                    optimisticOmokUpdate('loss'); // 낙관적 업데이트
+                    localOptimisticOmokUpdate('loss'); // 로컬 낙관적 업데이트
                     await updateUserOmokRecord(user.uid, 'loss');
                     await updateDoc(gameDocRef, { statsUpdated: true });
                     setGameResult({ outcome: 'loss', rpChange: -RP_ON_LOSS });
@@ -1145,16 +1164,18 @@ const OmokGame = () => {
                 }
 
                 setIsAiThinking(false);
+                aiTurnProcessedRef.current = false;
             } catch (err) {
                 console.error('[AI] 움직임 처리 오류:', err);
                 setIsAiThinking(false);
+                aiTurnProcessedRef.current = false;
             }
         }, thinkingTime);
 
         return () => {
             clearTimeout(timer);
         };
-    }, [game?.currentPlayer, game?.aiMode, game?.winner, gameId, user]);
+    }, [game?.currentPlayer, game?.aiMode, game?.winner, gameId, user, localOptimisticOmokUpdate]);
 
     // 보상 카드 생성
     const generateRewardCards = (difficulty) => {
@@ -1199,10 +1220,10 @@ const OmokGame = () => {
         try {
             // 낙관적 업데이트: 헤더에 즉시 반영
             if (selectedCard.type === 'cash') {
-                optimisticUpdate({ cash: selectedCard.amount });
+                // optimisticUpdate({ cash: selectedCard.amount });
                 console.log('[Reward] 현금 낙관적 업데이트:', selectedCard.amount);
             } else if (selectedCard.type === 'coupon') {
-                optimisticUpdate({ coupons: selectedCard.amount });
+                // optimisticUpdate({ coupons: selectedCard.amount });
                 console.log('[Reward] 쿠폰 낙관적 업데이트:', selectedCard.amount);
             }
 
@@ -1315,7 +1336,7 @@ const OmokGame = () => {
     }, [user]);
 
     if (!gameId || !game) {
-        const myRankDetails = getOmokRankDetails(userDoc?.omok);
+        const myRankDetails = getOmokRankDetails(omokStats);
         return (
             <div className="game-page-container">
                 <div className="omok-header">
