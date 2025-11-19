@@ -149,28 +149,48 @@ const evaluateBoard = (board) => {
     return score;
 };
 
-// 5목 체크 함수
-const checkWin = (board, row, col, color) => {
-    const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
+// =======================
+// 새로운 통합 승리 판정 로직
+const checkForWin = (board, row, col, player) => {
+    const directions = [
+        { y: 0, x: 1 },  // 가로
+        { y: 1, x: 0 },  // 세로
+        { y: 1, x: 1 },  // 대각선 (\)
+        { y: 1, x: -1 }  // 대각선 (/)
+    ];
+
     for (const dir of directions) {
-        let count = 1;
-        for (let i = 1; i < 6; i++) { // 6목 방지를 위해 5개까지만 카운트
-            const nr = row + i * dir.y;
-            const nc = col + i * dir.x;
-            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
-            if (getBoardValue(board, nr, nc) !== color) break;
-            count++;
+        let count = 1; // 현재 놓은 돌 포함
+
+        // 정방향 탐색
+        for (let i = 1; i < 6; i++) {
+            const r = row + i * dir.y;
+            const c = col + i * dir.x;
+            if (getBoardValue(board, r, c) === player) {
+                count++;
+            } else {
+                break;
+            }
         }
-        for (let i = 1; i < 6; i++) { // 6목 방지를 위해 5개까지만 카운트
-            const nr = row - i * dir.y;
-            const nc = col - i * dir.x;
-            if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
-            if (getBoardValue(board, nr, nc) !== color) break;
-            count++;
+
+        // 역방향 탐색
+        for (let i = 1; i < 6; i++) {
+            const r = row - i * dir.y;
+            const c = col - i * dir.x;
+            if (getBoardValue(board, r, c) === player) {
+                count++;
+            } else {
+                break;
+            }
         }
-        if (count === 5) return true;
+
+        // 6목 이상은 승리가 아님
+        if (count === 5) {
+            return player;
+        }
     }
-    return false;
+
+    return null; // 승리하지 않음
 };
 
 // 위치 평가: 새로운 패턴 기반 평가 (1차원적 사고)
@@ -269,7 +289,7 @@ const findBestMove = (board, aiColor, difficulty) => {
     for (const move of possibleMoves) {
         const testBoard = [...board];
         testBoard[getIndex(move.r, move.c)] = aiColor;
-        if (checkWin(testBoard, move.r, move.c, aiColor)) {
+        if (checkForWin(testBoard, move.r, move.c, aiColor)) {
             return move; // 즉시 승리
         }
     }
@@ -278,7 +298,7 @@ const findBestMove = (board, aiColor, difficulty) => {
     for (const move of possibleMoves) {
         const testBoard = [...board];
         testBoard[getIndex(move.r, move.c)] = opponentColor;
-        if (checkWin(testBoard, move.r, move.c, opponentColor)) {
+        if (checkForWin(testBoard, move.r, move.c, opponentColor)) {
             return move; // 필수 방어
         }
     }
@@ -817,7 +837,7 @@ const OmokGame = () => {
           }
         }
 
-        const winner = checkWinner(boardWithNewStone, row, col, myColor);
+        const winner = checkForWin(boardWithNewStone, row, col, myColor);
         const nextPlayer = Object.keys(game.players).find((p) => p !== user.uid);
         const moveData = { row, col, player: myColor, timestamp: new Date() };
         const newHistory = [...(game.history || []), moveData];
@@ -924,22 +944,7 @@ const OmokGame = () => {
         }
     };
 
-    const checkWinner = (board, row, col, player) => {
-        const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
-        for (const dir of directions) {
-            let count = 1;
-            for (let i = 1; i < 6; i++) {
-                if (getBoardValue(board, row + i * dir.y, col + i * dir.x) !== player) break;
-                count++;
-            }
-            for (let i = 1; i < 6; i++) {
-                if (getBoardValue(board, row - i * dir.y, col - i * dir.x) !== player) break;
-                count++;
-            }
-            if (count === 5) return player; // 정확히 5개일 때만 승리
-        }
-        return null;
-    };
+
 
     useEffect(() => { if (user) fetchAvailableGames(); }, [user, fetchAvailableGames]);
 
@@ -1081,7 +1086,7 @@ const OmokGame = () => {
                 const boardWithNewStone = [...game.board];
                 boardWithNewStone[getIndex(r, c)] = aiColor;
 
-                const winner = checkWinner(boardWithNewStone, r, c, aiColor);
+                const winner = checkForWin(boardWithNewStone, r, c, aiColor);
                 const nextPlayer = Object.keys(game.players).find((p) => p !== 'AI');
                 const moveData = { row: r, col: c, player: aiColor, timestamp: new Date() };
                 const newHistory = [...(game.history || []), moveData];
@@ -1241,10 +1246,6 @@ const OmokGame = () => {
                         className={`omok-cell ${game.currentPlayer === user.uid && !cellValue ? 'clickable' : ''} ${isSelected ? 'preview' : ''}`}
                         onClick={() => handleCellClick(i, j)}
                     >
-                        <div className="board-lines">
-                            <div className="line vertical"></div>
-                            <div className="line horizontal"></div>
-                        </div>
                         {isStarPoint && <div className="star-point"></div>}
                         {cellValue && (
                             <div className={`omok-stone ${cellValue}`}>
