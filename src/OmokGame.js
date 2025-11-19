@@ -1462,12 +1462,7 @@ const OmokGame = () => {
                         <div className={`stone-indicator ${myColor}`}></div>
                     </div>
                     {isMyTurn && isThinking && !game.winner && (
-                        <div className="timer">
-                            <span className="time-left">{timeLeft}s</span>
-                            <div className="timer-bar">
-                                <div className="timer-fill" style={{ width: `${(timeLeft / 30) * 100}%` }}></div>
-                            </div>
-                        </div>
+                        <div className="opponent-thinking">당신 차례</div>
                     )}
                 </div>
 
