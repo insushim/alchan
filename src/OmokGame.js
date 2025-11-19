@@ -1233,7 +1233,7 @@ const OmokGame = () => {
         const cells = [];
         const starPointCoords = [4, 10, 16];
 
-        // 가로선 그리기
+        // 가로선 그리기 (각 셀의 중심을 지나도록)
         const horizontalLines = [];
         for (let i = 0; i < BOARD_SIZE; i++) {
             horizontalLines.push(
@@ -1241,13 +1241,13 @@ const OmokGame = () => {
                     key={`h-line-${i}`}
                     className="grid-line horizontal"
                     style={{
-                        top: `${(i / (BOARD_SIZE - 1)) * 100}%`,
+                        top: `calc((${i} + 0.5) * var(--cell-size))`,
                     }}
                 />
             );
         }
 
-        // 세로선 그리기
+        // 세로선 그리기 (각 셀의 중심을 지나도록)
         const verticalLines = [];
         for (let j = 0; j < BOARD_SIZE; j++) {
             verticalLines.push(
@@ -1255,7 +1255,7 @@ const OmokGame = () => {
                     key={`v-line-${j}`}
                     className="grid-line vertical"
                     style={{
-                        left: `${(j / (BOARD_SIZE - 1)) * 100}%`,
+                        left: `calc((${j} + 0.5) * var(--cell-size))`,
                     }}
                 />
             );
