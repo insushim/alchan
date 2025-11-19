@@ -36,8 +36,7 @@ const RP_ON_WIN = 15;
 const RP_ON_LOSS = 8;
 const BASE_RP = 1000;
 
-const BOARD_SIZE = 19;
-const TURN_TIME_LIMIT = 30; // 턴당 제한 시간 (초)
+const BOARD_SIZE = 21;
 
 // ===== 오목 AI 엔진 =====
 const getIndex = (row, col) => row * BOARD_SIZE + col;
@@ -46,58 +45,69 @@ const getBoardValue = (board, row, col) => {
     return board[getIndex(row, col)];
 };
 
-// 패턴 평가: 열린/닫힌 상태를 고려한 정교한 평가
-const evaluatePattern = (board, row, col, color, dr, dc) => {
-    let count = 1; // 현재 위치
-    let openEnds = 0; // 열린 끝의 개수
+// 패턴 평가: 새로운 통합 평가 함수
+const evaluatePattern = (board, row, col, color) => {
+    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
+    let totalScore = 0;
 
-    // 양방향으로 같은 색 돌 개수 세기
-    let blocked = [false, false]; // [앞, 뒤] 방향의 막힘 여부
+    for (const [dr, dc] of directions) {
+        let forward = 0;
+        let backward = 0;
 
-    // 앞 방향 체크
-    for (let i = 1; i <= 4; i++) {
-        const nr = row + i * dr;
-        const nc = col + i * dc;
-        const val = getBoardValue(board, nr, nc);
-        if (val === color) {
-            count++;
-        } else {
-            if (val === undefined || val) blocked[0] = true;
-            else openEnds++; // 빈 칸
-            break;
+        // 앞 방향으로 개수 세기
+        for (let i = 1; i < 5; i++) {
+            const r = row + i * dr;
+            const c = col + i * dc;
+            if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) break;
+            if (board[getIndex(r, c)] !== color) break;
+            forward++;
+        }
+
+        // 뒷 방향으로 개수 세기
+        for (let i = 1; i < 5; i++) {
+            const r = row - i * dr;
+            const c = col - i * dc;
+            if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) break;
+            if (board[getIndex(r, c)] !== color) break;
+            backward++;
+        }
+
+        const total = forward + backward + 1; // 현재 돌 포함
+
+        // 양 끝 상태 확인
+        const forwardR = row + (forward + 1) * dr;
+        const forwardC = col + (forward + 1) * dc;
+        const backwardR = row - (backward + 1) * dr;
+        const backwardC = col - (backward + 1) * dc;
+
+        let openEnds = 0;
+        // 앞쪽 끝이 열려있으면
+        if (forwardR >= 0 && forwardR < BOARD_SIZE && forwardC >= 0 && forwardC < BOARD_SIZE) {
+            if (board[getIndex(forwardR, forwardC)] === null) openEnds++;
+        }
+        // 뒤쪽 끝이 열려있으면
+        if (backwardR >= 0 && backwardR < BOARD_SIZE && backwardC >= 0 && backwardC < BOARD_SIZE) {
+            if (board[getIndex(backwardR, backwardC)] === null) openEnds++;
+        }
+
+        // 패턴에 따른 점수 부여
+        if (total >= 5) {
+            totalScore += 100000000; // 5목
+        } else if (total === 4) {
+            if (openEnds === 2) totalScore += 500000; // 열린 4 (필승)
+            else if (openEnds === 1) totalScore += 50000; // 닫힌 4
+        } else if (total === 3) {
+            if (openEnds === 2) totalScore += 10000; // 열린 3
+            else if (openEnds === 1) totalScore += 1000; // 닫힌 3
+        } else if (total === 2) {
+            if (openEnds === 2) totalScore += 500; // 열린 2
+            else if (openEnds === 1) totalScore += 50; // 닫힌 2
+        } else if (total === 1) {
+            if (openEnds === 2) totalScore += 10;
         }
     }
 
-    // 뒤 방향 체크
-    for (let i = 1; i <= 4; i++) {
-        const nr = row - i * dr;
-        const nc = col - i * dc;
-        const val = getBoardValue(board, nr, nc);
-        if (val === color) {
-            count++;
-        } else {
-            if (val === undefined || val) blocked[1] = true;
-            else openEnds++; // 빈 칸
-            break;
-        }
-    }
-
-    // 패턴 기반 점수 계산
-    if (count >= 5) return 1000000; // 5목 완성
-    if (count === 4) {
-        if (openEnds === 2) return 100000; // 열린 4 (필승)
-        if (openEnds === 1) return 10000; // 반열린 4 (매우 위협적)
-    }
-    if (count === 3) {
-        if (openEnds === 2) return 5000; // 열린 3 (매우 좋음)
-        if (openEnds === 1) return 500; // 반열린 3
-    }
-    if (count === 2) {
-        if (openEnds === 2) return 100; // 열린 2
-        if (openEnds === 1) return 10; // 반열린 2
-    }
-
-    return count * openEnds;
+    return totalScore;
 };
 
 const evaluateLine = (line) => {
@@ -163,21 +173,18 @@ const checkWin = (board, row, col, color) => {
     return false;
 };
 
-// 위치 평가: 새로운 패턴 기반 평가
+// 위치 평가: 새로운 패턴 기반 평가 (1차원적 사고)
 const evaluatePosition = (board, row, col, color, opponentColor, difficulty) => {
-    const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
-    let myScore = 0;
-    let opponentScore = 0;
+    // 해당 위치에 돌을 놓았다고 가정하고 평가
+    const tempBoard = [...board];
+    const idx = getIndex(row, col);
 
-    // 내 돌 평가
-    for (const [dr, dc] of directions) {
-        myScore += evaluatePattern(board, row, col, color, dr, dc);
-    }
+    tempBoard[idx] = color;
+    const myScore = evaluatePattern(tempBoard, row, col, color);
 
-    // 상대방 돌 방어 평가 (상대가 이 위치에 놓았을 때의 점수)
-    for (const [dr, dc] of directions) {
-        opponentScore += evaluatePattern(board, row, col, opponentColor, dr, dc);
-    }
+    // 상대방이 이 위치에 놓았을 때의 점수 (방어 가치)
+    tempBoard[idx] = opponentColor;
+    const opponentScore = evaluatePattern(tempBoard, row, col, opponentColor);
 
     // 난이도별 가중치 조정
     let attackWeight = 1.0;
@@ -190,8 +197,8 @@ const evaluatePosition = (board, row, col, color, opponentColor, difficulty) => 
         attackWeight = 1.0;
         defenseWeight = 0.9;
     } else if (difficulty === '상급') {
-        attackWeight = 1.1;
-        defenseWeight = 1.0; // 방어도 중요하게
+        attackWeight = 1.2;
+        defenseWeight = 1.1; // 방어도 중요하게
     }
 
     return myScore * attackWeight + opponentScore * defenseWeight;
@@ -207,10 +214,11 @@ const findBestMove = (board, aiColor, difficulty) => {
     }
 
     // 첫 수라면 중앙 근처에 놓기
-    if (placedStones.length === 1) {
+    if (placedStones.length <= 1) {
+        const center = Math.floor(BOARD_SIZE / 2);
         const centerMoves = [
-            { r: 9, c: 9 }, { r: 9, c: 10 }, { r: 10, c: 9 }, { r: 10, c: 10 },
-            { r: 8, c: 9 }, { r: 9, c: 8 }, { r: 10, c: 8 }, { r: 8, c: 10 }
+            { r: center, c: center }, { r: center, c: center + 1 }, { r: center + 1, c: center }, { r: center + 1, c: center + 1 },
+            { r: center - 1, c: center }, { r: center, c: center - 1 }, { r: center + 1, c: center - 1 }, { r: center - 1, c: center + 1 }
         ];
         for (const move of centerMoves) {
             if (!board[getIndex(move.r, move.c)]) {
@@ -248,7 +256,14 @@ const findBestMove = (board, aiColor, difficulty) => {
         }
     }
 
-    if (possibleMoves.length === 0) return null;
+    if (possibleMoves.length === 0) {
+        // 만약 탐색된 수가 없다면, 그냥 비어있는 첫번째 칸에 둔다 (예외 처리)
+        const firstEmpty = board.findIndex(cell => cell === null);
+        if (firstEmpty !== -1) {
+            return { r: Math.floor(firstEmpty / BOARD_SIZE), c: firstEmpty % BOARD_SIZE };
+        }
+        return null;
+    }
 
     // 1순위: 즉시 승리 수 찾기
     for (const move of possibleMoves) {
@@ -268,38 +283,72 @@ const findBestMove = (board, aiColor, difficulty) => {
         }
     }
 
-    // 3순위: 열린 4 찾기 (상대가 막을 수 없는 4)
+    // 3순위: 내 열린 4 찾기 (거의 필승)
     for (const move of possibleMoves) {
         const testBoard = [...board];
         testBoard[getIndex(move.r, move.c)] = aiColor;
-        const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
-        for (const [dr, dc] of directions) {
-            const patternScore = evaluatePattern(testBoard, move.r, move.c, aiColor, dr, dc);
-            if (patternScore >= 100000) { // 열린 4
-                return move;
+        const patternScore = evaluatePattern(testBoard, move.r, move.c, aiColor);
+        if (patternScore >= 500000) { // 열린 4
+            console.log('[AI] 내 열린 4 발견:', move);
+            return move;
+        }
+    }
+
+    // 4순위: 상대방 4 막기 (닫힌 4 포함)
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = opponentColor;
+        const patternScore = evaluatePattern(testBoard, move.r, move.c, opponentColor);
+        if (patternScore >= 50000) { // 닫힌 4 이상
+            console.log('[AI] 상대 4목 막기:', move, 'score:', patternScore);
+            return move;
+        }
+    }
+
+    // 5순위: 내 열린 3 만들기
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = aiColor;
+        const patternScore = evaluatePattern(testBoard, move.r, move.c, aiColor);
+        if (patternScore >= 10000) { // 열린 3
+            console.log('[AI] 내 열린 3 발견:', move);
+            return move;
+        }
+    }
+
+    // 6순위: 상대 열린 3 막기 (매우 중요!)
+    for (const move of possibleMoves) {
+        const testBoard = [...board];
+        testBoard[getIndex(move.r, move.c)] = opponentColor;
+        const patternScore = evaluatePattern(testBoard, move.r, move.c, opponentColor);
+        if (patternScore >= 10000) { // 열린 3
+            console.log('[AI] 상대 열린 3 막기:', move, 'score:', patternScore);
+            if (difficulty === '상급') {
+                return move; // 상급은 반드시 막음
+            } else if (difficulty === '중급' && Math.random() > 0.1) {
+                return move; // 중급은 90% 확률로 막음
             }
         }
     }
 
-    // 4순위: 상대의 열린 3 막기
-    if (difficulty !== '초급') { // 초급은 이 패턴을 잘 못 봄
+    // 7순위: 상대 닫힌 3 막기
+    if (difficulty !== '초급') {
         for (const move of possibleMoves) {
             const testBoard = [...board];
             testBoard[getIndex(move.r, move.c)] = opponentColor;
-            const directions = [[1, 0], [0, 1], [1, 1], [1, -1]];
-            for (const [dr, dc] of directions) {
-                const patternScore = evaluatePattern(testBoard, move.r, move.c, opponentColor, dr, dc);
-                if (patternScore >= 5000) { // 열린 3
-                    // 상급은 반드시 막음, 중급은 70% 확률로 막음
-                    if (difficulty === '상급' || (difficulty === '중급' && Math.random() > 0.3)) {
-                        return move;
-                    }
+            const patternScore = evaluatePattern(testBoard, move.r, move.c, opponentColor);
+            if (patternScore >= 1000) { // 닫힌 3
+                console.log('[AI] 상대 닫힌 3 막기:', move, 'score:', patternScore);
+                if (difficulty === '상급' && Math.random() > 0.3) {
+                    return move; // 상급은 70% 확률로 막음
+                } else if (difficulty === '중급' && Math.random() > 0.5) {
+                    return move; // 중급은 50% 확률로 막음
                 }
             }
         }
     }
 
-    // 5순위: 가장 높은 점수의 수 선택
+    // 8순위: 가장 높은 점수의 수 선택
     let bestMove = null;
     let bestScore = -Infinity;
 
@@ -309,11 +358,16 @@ const findBestMove = (board, aiColor, difficulty) => {
 
         let score = evaluatePosition(testBoard, move.r, move.c, aiColor, opponentColor, difficulty);
 
+        // 중앙 부근에 가중치 (초반에 유리)
+        const center = Math.floor(BOARD_SIZE / 2);
+        const centerDist = Math.abs(move.r - center) + Math.abs(move.c - center);
+        score += (BOARD_SIZE - centerDist) * 5;
+
         // 난이도에 따른 랜덤성 추가 (초급은 더 많은 실수)
         if (difficulty === '초급') {
-            score += (Math.random() - 0.5) * 1000; // 큰 랜덤성
+            score += (Math.random() - 0.5) * 3000; // 큰 랜덤성
         } else if (difficulty === '중급') {
-            score += (Math.random() - 0.5) * 200; // 작은 랜덤성
+            score += (Math.random() - 0.5) * 300; // 작은 랜덤성
         }
         // 상급은 랜덤성 없음
 
@@ -323,6 +377,7 @@ const findBestMove = (board, aiColor, difficulty) => {
         }
     }
 
+    console.log('[AI] 최종 선택:', bestMove);
     return bestMove;
 };
 // =======================
@@ -451,7 +506,6 @@ const OmokGame = () => {
     const [game, setGame] = useState(null);
     const [error, setError] = useState('');
     const [createdGameId, setCreatedGameId] = useState(null);
-    const [timeLeft, setTimeLeft] = useState(30);
     const [isThinking, setIsThinking] = useState(false);
     const [lastMove, setLastMove] = useState(null);
     const [showWinAnimation, setShowWinAnimation] = useState(false);
@@ -631,7 +685,6 @@ const OmokGame = () => {
             // AI 모드에서는 플레이어가 선공이므로 즉시 isThinking을 true로 설정
             if (isAiMode) {
                 setIsThinking(true);
-                setTimeLeft(TURN_TIME_LIMIT);
             }
 
             if (!isAiMode) {
@@ -888,20 +941,6 @@ const OmokGame = () => {
         return null;
     };
 
-    const handleTimeOut = useCallback(async () => {
-        if (!game || game.winner || game.currentPlayer !== user.uid) return;
-        const nextPlayer = Object.keys(game.players).find((p) => p !== user.uid);
-        try {
-            const gameDocRef = doc(db, 'omokGames', gameId);
-            await updateDoc(gameDocRef, { currentPlayer: nextPlayer, turnStartTime: serverTimestamp() });
-            setError('시간 초과! 차례가 넘어갑니다.');
-        } catch (err) {
-            console.error('시간 초과 처리 오류:', err);
-        } finally {
-            setIsThinking(false); setSelectedCell(null);
-        }
-    }, [game, user, gameId]);
-
     useEffect(() => { if (user) fetchAvailableGames(); }, [user, fetchAvailableGames]);
 
     const fetchGameData = useCallback(async () => {
@@ -942,15 +981,6 @@ const OmokGame = () => {
                 
                 if (gameData.currentPlayer === user.uid && gameData.gameStatus === 'playing') {
                     setIsThinking(true);
-                    if (gameData.turnStartTime) {
-                        const serverTimeOffset = (serverTimestamp().seconds - Math.floor(Date.now() / 1000)) * 1000;
-                        const startTime = gameData.turnStartTime.toDate().getTime() - serverTimeOffset;
-                        const elapsed = Date.now() - startTime;
-                        const newTimeLeft = Math.max(0, TURN_TIME_LIMIT - Math.floor(elapsed / 1000));
-                        setTimeLeft(newTimeLeft);
-                    } else {
-                        setTimeLeft(TURN_TIME_LIMIT);
-                    }
                 } else {
                     setIsThinking(false); setSelectedCell(null);
                 }
@@ -967,17 +997,6 @@ const OmokGame = () => {
     const pollingInterval = game?.aiMode ? 1000 : 5000;
     const { refetch: refetchGameData } = usePolling(fetchGameData, pollingInterval, !!gameId);
     useEffect(() => { refetchGameDataRef.current = refetchGameData; }, [refetchGameData]);
-
-    useEffect(() => {
-        if (!isThinking || !game || game.winner) return;
-        const timer = setInterval(() => {
-            setTimeLeft(prev => {
-                if (prev <= 1) { clearInterval(timer); handleTimeOut(); return 0; }
-                return prev - 1;
-            });
-        }, 1000);
-        return () => clearInterval(timer);
-    }, [isThinking, handleTimeOut, game]);
 
     useEffect(() => { if (showWinAnimation) { const timer = setTimeout(() => setShowWinAnimation(false), 3000); return () => clearTimeout(timer); } }, [showWinAnimation]);
 
@@ -1208,27 +1227,37 @@ const OmokGame = () => {
     const renderBoard = () => {
         const isMyTurn = game.currentPlayer === user.uid;
         const cells = [];
+        const starPointCoords = [4, 10, 16];
+
         for (let i = 0; i < BOARD_SIZE; i++) {
             for (let j = 0; j < BOARD_SIZE; j++) {
                 const cellValue = getBoardValue(game.board, i, j);
                 const isSelected = selectedCell && selectedCell.row === i && selectedCell.col === j;
+                const isLastMove = lastMove && lastMove.row === i && lastMove.col === j;
+                const isStarPoint = starPointCoords.includes(i) && starPointCoords.includes(j);
+
                 cells.push(
                     <div
                         key={`${i}-${j}`}
-                        className={`omok-cell ${isThinking && isMyTurn ? 'clickable' : ''} ${lastMove && lastMove.row === i && lastMove.col === j ? 'last-move' : ''} ${isSelected ? 'preview' : ''}`}
+                        className={`omok-cell ${isThinking && isMyTurn ? 'clickable' : ''} ${isSelected ? 'preview' : ''}`}
                         onClick={() => handleCellClick(i, j)}
+                        style={{ '--board-size': BOARD_SIZE }}
                     >
-                        {cellValue && <div className={`omok-stone ${cellValue}`}></div>}
                         <div className="board-lines">
-                            {(i < 18) && <div className="line vertical"></div>}
-                            {(j < 18) && <div className="line horizontal"></div>}
+                            {i > 0 && j > 0 && <div className="line-corner"></div>}
                         </div>
-                        {((i === 3 && (j === 3 || j === 9 || j === 15)) || (i === 9 && (j === 3 || j === 9 || j === 15)) || (i === 15 && (j === 3 || j === 9 || j === 15))) && <div className="star-point"></div>}
+                        {isStarPoint && <div className="star-point"></div>}
+                        
+                        {cellValue && (
+                            <div className={`omok-stone ${cellValue}`}>
+                                {isLastMove && <div className="last-move-indicator"></div>}
+                            </div>
+                        )}
                     </div>
                 );
             }
         }
-        return cells;
+        return <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>{cells}</div>;
     };
 
     useEffect(() => {
