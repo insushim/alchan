@@ -124,6 +124,15 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
         const data = { id: docSnap.id, ...docSnap.data() };
         setRoomData(data);
 
+        // Extract voting data from the main room document
+        const votingData = data.voting || null;
+        setVotingData(votingData);
+        if (votingData && !votingData.isActive) {
+          setMyVote(null);
+        } else if (!votingData) {
+          setMyVote(null);
+        }
+
         let currentRole = "spectator";
         if (data.judgeId === currentUser.id) {
           currentRole = "judge";
@@ -148,6 +157,8 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
         setLoading(false);
       } else {
         setLoading(false);
+        setRoomData(null); // Also clear room data
+        setVotingData(null); // And voting data
       }
     });
 
@@ -162,7 +173,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     };
   }, [roomId, classCode]);
 
-  // 채팅 메시지, 증거, 투표 데이터 실시간 구독
+  // 채팅 메시지, 증거 데이터 실시간 구독
   useEffect(() => {
     if (!roomId || !classCode) return;
 
@@ -180,25 +191,9 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
       setEvidence(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Voting
-    const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
-    const unsubscribeVoting = onSnapshot(votingRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const votingData = docSnap.data();
-        setVotingData(votingData);
-        if (!votingData.isActive) {
-          setMyVote(null);
-        }
-      } else {
-        setVotingData(null);
-        setMyVote(null);
-      }
-    });
-
     return () => {
       unsubscribeMessages();
       unsubscribeEvidence();
-      unsubscribeVoting();
     };
   }, [roomId, classCode]);
 
@@ -423,15 +418,18 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     if (userRole !== "judge") return;
     
     try {
-      const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
-      await setDoc(votingRef, {
-        question: question,
-        isAnonymous: isAnonymous,
-        isActive: true,
-        startedAt: serverTimestamp(),
-        votes: {},
-        guilty: 0,
-        notGuilty: 0,
+      const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
+      // Update the main room document with voting data
+      await updateDoc(roomRef, {
+        voting: {
+          question: question,
+          isAnonymous: isAnonymous,
+          isActive: true,
+          startedAt: serverTimestamp(),
+          votes: {},
+          guilty: 0,
+          notGuilty: 0,
+        }
       });
       
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
@@ -449,20 +447,22 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     if (userRole !== "jury" || !votingData?.isActive) return;
     
     try {
-      const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
+      const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
       let updateData = {};
       
       if (votingData.isAnonymous) {
-        updateData[vote] = (votingData[vote] || 0) + 1;
+        // For anonymous, we still need to increment a counter
+        updateData[`voting.${vote}`] = (roomData.voting[vote] || 0) + 1;
       } else {
-        updateData[`votes.${currentUser.id}`] = {
+        // For public, we set the specific user's vote
+        updateData[`voting.votes.${currentUser.id}`] = {
           vote: vote,
           voterName: currentUser.name || currentUser.displayName,
           timestamp: serverTimestamp(),
         };
       }
       
-      await updateDoc(votingRef, updateData);
+      await updateDoc(roomRef, updateData);
       setMyVote(vote);
       alert(`투표가 완료되었습니다: ${vote === "guilty" ? "유죄" : "무죄"}`);
     } catch (error) {
@@ -474,9 +474,11 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     if (userRole !== "judge" || !votingData?.isActive) return;
 
     try {
-      const votingRef = doc(db, "classes", classCode, "trialRooms", roomId, "voting", "current");
-      const votingDoc = await getDoc(votingRef);
-      const currentVotes = votingDoc.data();
+      const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
+      // We need to get the latest vote counts before declaring the result
+      const roomSnap = await getDoc(roomRef);
+      const latestRoomData = roomSnap.data();
+      const currentVotes = latestRoomData.voting;
 
       let resultText = `투표가 종료되었습니다. `;
       if (currentVotes.isAnonymous) {
@@ -487,9 +489,10 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
         resultText += `유죄: ${guiltyVotes}표, 무죄: ${notGuiltyVotes}표`;
       }
       
-      await updateDoc(votingRef, {
-        isActive: false,
-        endedAt: serverTimestamp(),
+      // Update the voting status within the main room document
+      await updateDoc(roomRef, {
+        "voting.isActive": false,
+        "voting.endedAt": serverTimestamp(),
       });
       
       const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");

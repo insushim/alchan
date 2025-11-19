@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useAuth } from "./AuthContext";
 import { functions, httpsCallable } from "./firebase";
+import { usePolling, POLLING_INTERVALS } from "./hooks/usePolling";
 
 export const ItemContext = createContext(null);
 
@@ -101,12 +102,12 @@ export const ItemProvider = ({ children }) => {
     }
   }, [userId, currentUserClassCode, getItemContextData]);
 
-  // Effect to fetch data when user is authenticated
-  useEffect(() => {
-    if (!authLoading) {
-      fetchData();
-    }
-  }, [authLoading, fetchData]);
+  // Effect to fetch data when user is authenticated, now using polling
+  usePolling(fetchData, {
+    interval: POLLING_INTERVALS.REALTIME, // 1분마다 자동 갱신
+    enabled: !authLoading && !!userId && !!currentUserClassCode,
+    deps: [authLoading, userId, currentUserClassCode]
+  });
 
   // Public refresh function
   const refreshData = useCallback(() => {

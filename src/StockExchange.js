@@ -13,6 +13,7 @@ import { applyStockTax } from "./utils/taxUtils";
 // 🔥 뉴스 생성: cron-job.org 스케줄러만 사용 (클라이언트 측 뉴스 생성 없음)
 // 🔥 자동 상장/폐지: Firebase Functions에서 처리 (10분마다)
 import { httpsCallable } from "firebase/functions";
+import { usePolling, POLLING_INTERVALS } from "./hooks/usePolling";
 import {
   collection,
   doc,
@@ -726,19 +727,19 @@ const StockExchange = () => {
   }, [portfolio]);
 
   // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
-  const fetchAllData = useCallback(async (forceRefresh = false) => {
+  const fetchAllData = useCallback(async (forceRefresh = true) => { // forceRefresh 기본값을 true로 변경
     if (!classCode || !user) return;
 
-    // 🔥 강제 새로고침일 때는 이전 fetching을 무시하고 새로 시작
     if (isFetchingRef.current && !forceRefresh) {
       console.log('[StockExchange] 이미 fetching 중이므로 대기');
       return;
     }
 
     const now = Date.now();
+    
+    // usePolling이 간격을 제어하므로, 시간 기반 캐시 체크 로직은 제거하거나 수정할 수 있지만,
+    // 수동 새로고침 시에도 동작해야 하므로 유지.
     const timeSinceLastBatch = now - lastFetchTimeRef.current.batchLoad;
-
-    // 강제 새로고침이거나 캐시가 만료된 경우에만 로드
     if (!forceRefresh && timeSinceLastBatch <= CACHE_TTL.BATCH_DATA) {
       return;
     }
@@ -747,6 +748,7 @@ const StockExchange = () => {
     setIsFetching(true);
 
     try {
+      // usePolling에서 호출 시 항상 최신 데이터를 가져오도록 forceRefresh를 true로 전달
       const batchResult = await batchDataLoader.loadBatchData(classCode, user.uid, forceRefresh);
 
       if (batchResult.errors && batchResult.errors.length > 0) {
@@ -771,20 +773,20 @@ const StockExchange = () => {
 
     } catch (error) {
       console.error('[StockExchange] 배치 로드 실패:', error);
-      alert('데이터를 불러오는 중 오류가 발생했습니다.');
+      // Polling 중에는 alert을 띄우지 않는 것이 사용자 경험에 좋음
+      // alert('데이터를 불러오는 중 오류가 발생했습니다.');
     } finally {
       isFetchingRef.current = false;
       setIsFetching(false);
     }
   }, [classCode, user]);
 
-  // === 초기 데이터 로드 ===
-  useEffect(() => {
-    if (!user || !firebaseReady || !classCode) return;
-
-    // 🔥 최적화: 초기 로드도 캐시 활용 (true → false, 불필요한 강제 읽기 제거)
-    fetchAllData(false);
-  }, [user, firebaseReady, classCode, fetchAllData]);
+  // === 데이터 자동 갱신 (Polling) ===
+  usePolling(fetchAllData, {
+    interval: POLLING_INTERVALS.REALTIME, // 1분마다 자동 갱신
+    enabled: firebaseReady && !!user && !!classCode,
+    deps: [classCode, user]
+  });
 
   // 🔥 FCM 푸시 알림 제거됨 (이유: 알림 스팸, 읽기 증가, 사용자 경험 악화)
   // 대신 30분 캐시 + 시간당 1회 자동 폴링으로 부드러운 업데이트 제공
