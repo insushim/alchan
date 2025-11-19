@@ -1225,7 +1225,6 @@ const OmokGame = () => {
     };
 
     const renderBoard = () => {
-        const isMyTurn = game.currentPlayer === user.uid;
         const cells = [];
         const starPointCoords = [4, 10, 16];
 
@@ -1239,15 +1238,14 @@ const OmokGame = () => {
                 cells.push(
                     <div
                         key={`${i}-${j}`}
-                        className={`omok-cell ${isThinking && isMyTurn ? 'clickable' : ''} ${isSelected ? 'preview' : ''}`}
+                        className={`omok-cell ${game.currentPlayer === user.uid && !cellValue ? 'clickable' : ''} ${isSelected ? 'preview' : ''}`}
                         onClick={() => handleCellClick(i, j)}
-                        style={{ '--board-size': BOARD_SIZE }}
                     >
                         <div className="board-lines">
-                            {i > 0 && j > 0 && <div className="line-corner"></div>}
+                            <div className="line vertical"></div>
+                            <div className="line horizontal"></div>
                         </div>
                         {isStarPoint && <div className="star-point"></div>}
-                        
                         {cellValue && (
                             <div className={`omok-stone ${cellValue}`}>
                                 {isLastMove && <div className="last-move-indicator"></div>}
