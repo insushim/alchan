@@ -1018,7 +1018,11 @@ const OmokGame = () => {
     // AI 모드에서는 로컬에서 즉시 처리하므로 폴링 불필요
     const shouldPoll = !!gameId && game?.gameStatus === 'playing' && !game?.aiMode;
     const pollingInterval = 3000; // 3초로 통일 (읽기 최소화)
-    const { refetch: refetchGameData } = usePolling(fetchGameData, pollingInterval, shouldPoll);
+    const { refetch: refetchGameData } = usePolling(fetchGameData, {
+        interval: pollingInterval,
+        enabled: shouldPoll,
+        deps: [gameId, game?.gameStatus, game?.aiMode]
+    });
     useEffect(() => { refetchGameDataRef.current = refetchGameData; }, [refetchGameData]);
 
     useEffect(() => { if (showWinAnimation) { const timer = setTimeout(() => setShowWinAnimation(false), 3000); return () => clearTimeout(timer); } }, [showWinAnimation]);
