@@ -154,21 +154,21 @@ const checkWin = (board, row, col, color) => {
     const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
     for (const dir of directions) {
         let count = 1;
-        for (let i = 1; i < 5; i++) {
+        for (let i = 1; i < 6; i++) { // 6목 방지를 위해 5개까지만 카운트
             const nr = row + i * dir.y;
             const nc = col + i * dir.x;
             if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
             if (getBoardValue(board, nr, nc) !== color) break;
             count++;
         }
-        for (let i = 1; i < 5; i++) {
+        for (let i = 1; i < 6; i++) { // 6목 방지를 위해 5개까지만 카운트
             const nr = row - i * dir.y;
             const nc = col - i * dir.x;
             if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) break;
             if (getBoardValue(board, nr, nc) !== color) break;
             count++;
         }
-        if (count >= 5) return true;
+        if (count === 5) return true;
     }
     return false;
 };
@@ -928,15 +928,15 @@ const OmokGame = () => {
         const directions = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 1 }, { x: 1, y: -1 }];
         for (const dir of directions) {
             let count = 1;
-            for (let i = 1; i < 5; i++) {
+            for (let i = 1; i < 6; i++) {
                 if (getBoardValue(board, row + i * dir.y, col + i * dir.x) !== player) break;
                 count++;
             }
-            for (let i = 1; i < 5; i++) {
+            for (let i = 1; i < 6; i++) {
                 if (getBoardValue(board, row - i * dir.y, col - i * dir.x) !== player) break;
                 count++;
             }
-            if (count >= 5) return player; // 5개 이상이면 승리
+            if (count === 5) return player; // 정확히 5개일 때만 승리
         }
         return null;
     };
@@ -1255,7 +1255,11 @@ const OmokGame = () => {
                 );
             }
         }
-        return <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>{cells}</div>;
+        return (
+            <div className="omok-board-background">
+                <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>{cells}</div>
+            </div>
+        );
     };
 
     useEffect(() => {
