@@ -96,7 +96,7 @@ const LawManagement = ({ classCode }) => {
   };
 
   // usePolling hook 사용 (30초 간격)
-  const { loading, refetch } = usePolling(fetchLaws, 30000);
+  const { loading, refetch } = usePolling(fetchLaws, { interval: 30000, enabled: !!classCode });
 
   // 법안 승인 핸들러
   const handleApprove = async (lawId) => {

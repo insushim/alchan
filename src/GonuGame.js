@@ -204,7 +204,7 @@ const GonuGame = () => {
         }
     }, [gameId]);
 
-    usePolling(fetchGameData, 30000, !!gameId);
+    usePolling(fetchGameData, { interval: 30000, enabled: !!gameId });
 
     useEffect(() => {
         if (feedback.message) {

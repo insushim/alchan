@@ -83,7 +83,7 @@ const SendReceive = ({ classCode }) => {
     }
   };
 
-  const { refetch: refetchTreasuryBalance } = usePolling(fetchTreasuryBalance, 30000);
+  const { refetch: refetchTreasuryBalance } = usePolling(fetchTreasuryBalance, { interval: 30000, enabled: !!classCode });
 
   useEffect(() => {
     setUserCash(userDoc?.cash || 0);

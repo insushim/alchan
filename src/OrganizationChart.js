@@ -79,7 +79,7 @@ const OrganizationChart = ({ classCode }) => {
     }
   }, [classCode]);
 
-  usePolling(fetchSettings, 30000);
+  usePolling(fetchSettings, { interval: 30000, enabled: !!classCode });
 
   // Firestore에서 법안 데이터 로드
   const fetchLaws = useCallback(async () => {
@@ -109,7 +109,7 @@ const OrganizationChart = ({ classCode }) => {
     }
   }, [classCode]);
 
-  usePolling(fetchLaws, 30000);
+  usePolling(fetchLaws, { interval: 30000, enabled: !!classCode });
 
   // 관리자 모드 토글
   const toggleAdminMode = () => {

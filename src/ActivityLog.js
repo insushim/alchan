@@ -39,7 +39,7 @@ const ActivityLog = () => {
   const debouncedRefresh = useDebouncedRefresh(refresh, 500);
 
   // 폴링 설정 (10분마다)
-  usePolling(refresh, 600000, !!userDoc?.classCode);
+  usePolling(refresh, { interval: 600000, enabled: !!userDoc?.classCode });
 
   // 🔥 [수정] 한국어 로그 타입들 - 인코딩 문제 해결
   const allowedLogTypes = useMemo(() => [

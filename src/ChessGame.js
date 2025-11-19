@@ -442,7 +442,7 @@ const ChessGame = () => {
         }
     }, [gameId]);
 
-    const { refetch } = usePolling(fetchGameData, 3000, !!gameId);
+    const { refetch } = usePolling(fetchGameData, { interval: 3000, enabled: !!gameId });
 
     useEffect(() => {
         refetchRef.current = refetch;

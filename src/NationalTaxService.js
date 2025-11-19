@@ -89,7 +89,7 @@ const NationalTaxService = ({ classCode }) => {
     }
   }, [classCode]);
 
-  const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, 30000);
+  const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, { interval: 30000, enabled: !!classCode });
 
   // 세금 정책 설정 폴링 (classCode 기반)
   const fetchTaxSettings = useCallback(async () => {
@@ -132,7 +132,7 @@ const NationalTaxService = ({ classCode }) => {
     }
   }, [classCode]);
 
-  const { refetch: refetchSettings } = usePolling(fetchTaxSettings, 30000);
+  const { refetch: refetchSettings } = usePolling(fetchTaxSettings, { interval: 30000, enabled: !!classCode });
 
   const handleSettingChange = (e) => {
     const { name, value } = e.target;
