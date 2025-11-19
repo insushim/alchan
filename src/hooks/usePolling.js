@@ -69,23 +69,36 @@ export const usePolling = (queryFn, options = {}) => {
   useEffect(() => {
     mountedRef.current = true;
 
+    // 기존 interval 정리
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // enabled가 false이거나 수동 모드면 폴링 중지
     if (!enabled || interval === POLLING_INTERVALS.MANUAL) {
       setLoading(false);
+      console.log('[usePolling] 폴링 비활성화 - enabled:', enabled, 'interval:', interval);
       return;
     }
+
+    console.log('[usePolling] 폴링 시작 - interval:', interval);
 
     // 즉시 한 번 실행
     fetchData();
 
     // Polling 시작 (interval이 null이면 수동 모드)
-    if (interval) {
+    if (interval && interval > 0) {
       intervalRef.current = setInterval(fetchData, interval);
+      console.log('[usePolling] setInterval 생성 - ID:', intervalRef.current);
     }
 
     return () => {
+      console.log('[usePolling] cleanup - interval ID:', intervalRef.current);
       mountedRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
   }, [fetchData, interval, enabled, ...deps]);
@@ -162,23 +175,36 @@ export const useMultiPolling = (queries, options = {}) => {
   useEffect(() => {
     mountedRef.current = true;
 
+    // 기존 interval 정리
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    // enabled가 false이거나 쿼리가 없거나 수동 모드면 폴링 중지
     if (!enabled || queries.length === 0 || interval === POLLING_INTERVALS.MANUAL) {
       setLoading(false);
+      console.log('[useMultiPolling] 폴링 비활성화 - enabled:', enabled, 'queries:', queries.length);
       return;
     }
+
+    console.log('[useMultiPolling] 폴링 시작 - interval:', interval);
 
     // 즉시 한 번 실행
     fetchAllData();
 
     // Polling 시작 (interval이 null이면 수동 모드)
-    if (interval) {
+    if (interval && interval > 0) {
       intervalRef.current = setInterval(fetchAllData, interval);
+      console.log('[useMultiPolling] setInterval 생성 - ID:', intervalRef.current);
     }
 
     return () => {
+      console.log('[useMultiPolling] cleanup - interval ID:', intervalRef.current);
       mountedRef.current = false;
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
     };
   }, [fetchAllData, interval, enabled, ...deps]);
