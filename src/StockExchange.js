@@ -1210,6 +1210,21 @@ const StockExchange = () => {
     return { totalValue, totalInvested, totalProfit, profitPercent };
   }, [portfolio, stocksMap]);
 
+  const categoryCounts = useMemo(() => {
+    const counts = { stocks: 0, etfs: 0, bonds: 0 };
+    stocks.forEach(s => {
+      if (!s.isListed) return;
+      if (s.productType === PRODUCT_TYPES.ETF) {
+        counts.etfs++;
+      } else if (s.productType === PRODUCT_TYPES.BOND) {
+        counts.bonds++;
+      } else {
+        counts.stocks++;
+      }
+    });
+    return counts;
+  }, [stocks]);
+
   const filteredStocks = useMemo(() => {
     return stocks.filter(s => {
       if (!s.isListed) return false;
@@ -1404,9 +1419,9 @@ const StockExchange = () => {
                 </div>
 
                 <div className="market-tabs">
-                    <button onClick={() => setActiveTab("stocks")} className={`tab-button ${activeTab === "stocks" ? "active" : ""}`}>주식</button>
-                    <button onClick={() => setActiveTab("etfs")} className={`tab-button ${activeTab === "etfs" ? "active" : ""}`}>ETF/지수</button>
-                    <button onClick={() => setActiveTab("bonds")} className={`tab-button ${activeTab === "bonds" ? "active" : ""}`}>채권</button>
+                    <button onClick={() => setActiveTab("stocks")} className={`tab-button ${activeTab === "stocks" ? "active" : ""}`}>주식 ({categoryCounts.stocks})</button>
+                    <button onClick={() => setActiveTab("etfs")} className={`tab-button ${activeTab === "etfs" ? "active" : ""}`}>ETF/지수 ({categoryCounts.etfs})</button>
+                    <button onClick={() => setActiveTab("bonds")} className={`tab-button ${activeTab === "bonds" ? "active" : ""}`}>채권 ({categoryCounts.bonds})</button>
                 </div>
 
                 <div className="market-grid">
