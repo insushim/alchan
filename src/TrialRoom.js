@@ -1,6 +1,6 @@
 import { processFineTransaction, transferCash } from "./firebase";
 // src/TrialRoom.js
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   doc,
   updateDoc,
@@ -16,11 +16,11 @@ import {
   writeBatch,
   getDocs,
   getDoc,
-  onSnapshot,
   setDoc,
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "./firebase";
+import { usePolling, POLLING_INTERVALS } from "./hooks/usePolling";
 import "./TrialRoom.css";
 
 // 개선된 아바타 컴포넌트
@@ -114,56 +114,55 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     scrollToBottom();
   }, [messages]);
 
-  // 재판방 데이터 실시간 구독 (onSnapshot 사용)
-  useEffect(() => {
-    if (!roomId || !classCode) return;
-
+  // 재판방 데이터 폴링(onSnapshot → polling)으로 읽기 비용 절감
+  const fetchRoomSnapshot = useCallback(async () => {
+    if (!roomId || !classCode) return null;
     const roomRef = doc(db, "classes", classCode, "trialRooms", roomId);
-    const unsubscribe = onSnapshot(roomRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = { id: docSnap.id, ...docSnap.data() };
-        setRoomData(data);
+    const docSnap = await getDoc(roomRef);
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+  }, [roomId, classCode]);
 
-        // Extract voting data from the main room document
-        const votingData = data.voting || null;
-        setVotingData(votingData);
-        if (votingData && !votingData.isActive) {
-          setMyVote(null);
-        } else if (!votingData) {
-          setMyVote(null);
-        }
+  const { data: polledRoom, loading: roomPolling } = usePolling(fetchRoomSnapshot, {
+    interval: POLLING_INTERVALS.REALTIME, // 1분 주기 폴링
+    enabled: !!roomId && !!classCode,
+    deps: [roomId, classCode],
+  });
 
-        let currentRole = "spectator";
-        if (data.judgeId === currentUser.id) {
-          currentRole = "judge";
-        } else if (data.complainantId === currentUser.id) {
-          currentRole = "complainant";
-        } else if (data.defendantId === currentUser.id) {
-          currentRole = "defendant";
-        } else if (data.prosecutorId === currentUser.id) {
-          currentRole = "prosecutor";
-        } else if (data.lawyerId === currentUser.id) {
-          currentRole = "lawyer";
-        } else if (data.juryIds?.includes(currentUser.id)) {
-          currentRole = "jury";
-        }
-        setUserRole(currentRole);
+  useEffect(() => {
+    if (roomPolling) return;
+    if (!polledRoom) {
+      setRoomData(null);
+      setVotingData(null);
+      setLoading(false);
+      return;
+    }
+    setRoomData(polledRoom);
 
-        if (data.silencedUsers?.includes(currentUser.id)) {
-          setIsSilenced(true);
-        } else {
-          setIsSilenced(false);
-        }
-        setLoading(false);
-      } else {
-        setLoading(false);
-        setRoomData(null); // Also clear room data
-        setVotingData(null); // And voting data
-      }
-    });
+    const voting = polledRoom.voting || null;
+    setVotingData(voting);
+    if (!voting || !voting.isActive) {
+      setMyVote(null);
+    }
 
-    return () => unsubscribe();
-  }, [roomId, classCode, currentUser.id]);
+    let currentRole = "spectator";
+    if (polledRoom.judgeId === currentUser.id) {
+      currentRole = "judge";
+    } else if (polledRoom.complainantId === currentUser.id) {
+      currentRole = "complainant";
+    } else if (polledRoom.defendantId === currentUser.id) {
+      currentRole = "defendant";
+    } else if (polledRoom.prosecutorId === currentUser.id) {
+      currentRole = "prosecutor";
+    } else if (polledRoom.lawyerId === currentUser.id) {
+      currentRole = "lawyer";
+    } else if (polledRoom.juryIds?.includes(currentUser.id)) {
+      currentRole = "jury";
+    }
+    setUserRole(currentRole);
+
+    setIsSilenced(Boolean(polledRoom.silencedUsers?.includes(currentUser.id)));
+    setLoading(false);
+  }, [polledRoom, roomPolling, currentUser.id]);
 
   useEffect(() => {
     if (!roomId || !classCode) return;
@@ -173,29 +172,42 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
     };
   }, [roomId, classCode]);
 
-  // 채팅 메시지, 증거 데이터 실시간 구독
-  useEffect(() => {
-    if (!roomId || !classCode) return;
-
-    // Messages
+  // 채팅/증거는 폴링으로 조회 (읽기 비용 절감)
+  const fetchMessages = useCallback(async () => {
+    if (!roomId || !classCode) return [];
     const messagesRef = collection(db, "classes", classCode, "trialRooms", roomId, "messages");
     const messagesQuery = query(messagesRef, orderBy("timestamp", "asc"), limit(100));
-    const unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-      setMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    // Evidence
-    const evidenceRef = collection(db, "classes", classCode, "trialRooms", roomId, "evidence");
-    const evidenceQuery = query(evidenceRef, orderBy("uploadedAt", "desc"));
-    const unsubscribeEvidence = onSnapshot(evidenceQuery, (snapshot) => {
-      setEvidence(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
-    });
-
-    return () => {
-      unsubscribeMessages();
-      unsubscribeEvidence();
-    };
+    const snapshot = await getDocs(messagesQuery);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
   }, [roomId, classCode]);
+
+  const fetchEvidence = useCallback(async () => {
+    if (!roomId || !classCode) return [];
+    const evidenceRef = collection(db, "classes", classCode, "trialRooms", roomId, "evidence");
+    const evidenceQuery = query(evidenceRef, orderBy("uploadedAt", "desc"), limit(50));
+    const snapshot = await getDocs(evidenceQuery);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  }, [roomId, classCode]);
+
+  const { data: polledMessages } = usePolling(fetchMessages, {
+    interval: POLLING_INTERVALS.REALTIME, // 1분 주기
+    enabled: !!roomId && !!classCode,
+    deps: [roomId, classCode],
+  });
+
+  const { data: polledEvidence } = usePolling(fetchEvidence, {
+    interval: POLLING_INTERVALS.NORMAL, // 5분 주기
+    enabled: !!roomId && !!classCode,
+    deps: [roomId, classCode],
+  });
+
+  useEffect(() => {
+    if (polledMessages) setMessages(polledMessages);
+  }, [polledMessages]);
+
+  useEffect(() => {
+    if (polledEvidence) setEvidence(polledEvidence);
+  }, [polledEvidence]);
 
   const handleJoinRoom = async () => {
     try {

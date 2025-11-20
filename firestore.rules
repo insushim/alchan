@@ -18,8 +18,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
+      // SuperAdmin은 관리자 권한을 모두 포함
       return isSignedIn() &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+             (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true ||
+              isSuperAdmin());
     }
 
     function isSuperAdmin() {

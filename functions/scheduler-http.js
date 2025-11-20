@@ -4,12 +4,12 @@
  * 기존 onSchedule 함수들의 로직을 HTTP 호출 가능하게 변환
  */
 
-const {onRequest, onCall, HttpsError} = require("firebase-functions/v2/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const {
-    checkAuthAndGetUserData,
-    db,
-    admin,
-    logger
+  checkAuthAndGetUserData,
+  db,
+  admin,
+  logger
 } = require("./utils");
 
 // 보안: 간단한 인증 토큰 체크 (GitHub Actions에서만 호출 가능)
@@ -168,7 +168,7 @@ function verifyAuth(req) {
 // 대체: simpleScheduler를 cron-job.org에서 사용 중
 
 // 🔥 수동 테스트용 엔드포인트 (관리자 전용)
-exports.manualUpdateStockMarket = onCall({region: "asia-northeast3"}, async (request) => {
+exports.manualUpdateStockMarket = onCall({ region: "asia-northeast3" }, async (request) => {
   await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
 
   logger.info("📈 [수동 실행] 주식 시장 업데이트 시작");
@@ -664,8 +664,9 @@ async function updateCentralStockMarketLogic() {
         bounceBoost = 0.02 * (1.2 - priceRatio) / 0.2; // 최대 +2% 추가 상승
       }
 
-      // 🔥 약한 상승 편향 랜덤 변동 (-0.8 ~ +1.2 범위, 평균 +0.2)
-      const randomChange = ((Math.random() * 2 - 0.8) * volatility) + bounceBoost;
+      // 🔥 약한 상승 편향 랜덤 변동 (-0.8 ~ +1.2 범위, 평균 +0.2) -> 대칭적 변동으로 수정
+      // -1.0 ~ +1.0 범위 (평균 0)
+      const randomChange = ((Math.random() * 2 - 1.0) * volatility) + bounceBoost;
       const volumeChange = direction * volumeImpact;
 
       // 뉴스 영향 계산 (개별 주식)
@@ -682,9 +683,9 @@ async function updateCentralStockMarketLogic() {
         logger.info(`[주가 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
       }
 
-      // 🔥 전체 변동 = 랜덤(상승편향) + 거래량 + 개별 뉴스 + 시장 상황(약함) + 기본 상승률
-      // 시장 상황 영향을 30%로 더 줄이고, 기본 +0.3% 상승률 추가
-      const baseGrowth = 0.003; // 기본 +0.3% 상승률 (장기적으로 완만한 상승)
+      // 🔥 전체 변동 = 랜덤 + 거래량 + 개별 뉴스 + 시장 상황 + 기본 성장
+      // 기본 상승률을 대폭 낮춤 (0.3% -> 0.05%)하여 무조건적인 상승 방지
+      const baseGrowth = 0.0005;
       const totalChange = randomChange + volumeChange + newsImpact + (marketImpact * 0.3) + baseGrowth;
 
       let newPrice = Math.round(currentPrice * (1 + totalChange));
@@ -1156,8 +1157,7 @@ async function collectWeeklyRentLogic() {
 
             classCollected += rentAmount;
             logger.info(
-              `[월세 징수] ${property.tenantName} → ${property.ownerName || "정부"}: ${rentAmount.toLocaleString()}원 ${
-                newTenantCash < 0 ? "(마이너스 발생)" : ""
+              `[월세 징수] ${property.tenantName} → ${property.ownerName || "정부"}: ${rentAmount.toLocaleString()}원 ${newTenantCash < 0 ? "(마이너스 발생)" : ""
               }`
             );
           });

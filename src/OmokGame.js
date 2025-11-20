@@ -1327,14 +1327,12 @@ const OmokGame = () => {
             }
         }
         return (
-            <div className="omok-board-background">
-                <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>
-                    <div className="grid-lines-container">
-                        {horizontalLines}
-                        {verticalLines}
-                    </div>
-                    {cells}
+            <div className="omok-board" style={{'--board-size': BOARD_SIZE}}>
+                <div className="grid-lines-container">
+                    {horizontalLines}
+                    {verticalLines}
                 </div>
+                {cells}
             </div>
         );
     };
@@ -1556,7 +1554,7 @@ const OmokGame = () => {
             </div>
 
             <div className="omok-board-container">
-                <div className="omok-board">{renderBoard()}</div>
+                {renderBoard()}
             </div>
 
             <div className="omok-status">

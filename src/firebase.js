@@ -2486,6 +2486,25 @@ export const getCacheStats = () => {
   return stats;
 };
 
+// 단건 문서를 캐시해 재사용 (설정/공통 목록 등 빈도 높은 읽기 비용 절감)
+export const getCachedDocument = async (collectionName, docId, ttl = CACHE_TTL) => {
+  if (!db) throw new Error("Firestore가 초기화되지 않았습니다");
+  if (!collectionName || !docId) return null;
+
+  const cacheKey = `doc_${collectionName}_${docId}`;
+  const cached = getCache(cacheKey);
+  if (cached) return cached;
+
+  const ref = doc(db, collectionName, docId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    return null;
+  }
+  const data = { id: snap.id, ...snap.data() };
+  setCache(cacheKey, data);
+  return data;
+};
+
 export { 
   app,
   db,

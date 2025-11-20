@@ -1,5 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { collection, getDocs, doc, updateDoc, deleteDoc, collectionGroup } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  collectionGroup,
+  query,
+  limit,
+  orderBy,
+  startAfter,
+  where
+} from 'firebase/firestore';
 import { db, functions } from './firebase';
 import { httpsCallable } from 'firebase/functions';
 import { useAuth } from './AuthContext';
@@ -12,78 +24,92 @@ const AdminUserManagement = () => {
   const [editFormData, setEditFormData] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [lastDocRef, setLastDocRef] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [remoteSearchTerm, setRemoteSearchTerm] = useState('');
 
   const isSuperAdmin = userDoc?.isSuperAdmin === true;
   const isAdmin = userDoc?.isAdmin === true;
   const classCode = userDoc?.classCode;
+  const PAGE_SIZE = 50;
+
+  const buildQueryConstraints = useCallback((baseRef, nextCursor, searchTerm) => {
+    const constraints = [orderBy('name'), limit(PAGE_SIZE)];
+    if (searchTerm) {
+      const term = searchTerm.trim();
+      constraints.push(startAt(term));
+      constraints.push(endAt(term + '\uf8ff'));
+    }
+    if (nextCursor) {
+      constraints.push(startAfter(nextCursor));
+    }
+    return constraints;
+  }, []);
+
+  const fetchUsers = useCallback(async (reset = false) => {
+    if (!userDoc) {
+      setIsLoading(false);
+      return;
+    }
+
+    const searchTerm = remoteSearchTerm.trim();
+    setIsLoading(reset);
+    try {
+      let usersData = [];
+      const nextCursor = reset ? null : lastDocRef;
+
+      if (isSuperAdmin) {
+        const baseRef = collectionGroup(db, 'students');
+        const constraints = buildQueryConstraints(baseRef, nextCursor, searchTerm);
+        const snapshot = await getDocs(query(baseRef, ...constraints));
+        usersData = snapshot.docs.map(studentDoc => {
+          const data = studentDoc.data();
+          return {
+            id: studentDoc.id,
+            classCode: data.classCode,
+            ...data,
+            money: data.money ?? 0,
+          };
+        });
+        setLastDocRef(snapshot.docs[snapshot.docs.length - 1] || null);
+        setHasMore(snapshot.size === PAGE_SIZE);
+      } else if (isAdmin && classCode) {
+        const studentsCollectionRef = collection(db, 'Class', classCode, 'students');
+        const constraints = buildQueryConstraints(studentsCollectionRef, nextCursor, searchTerm);
+        const querySnapshot = await getDocs(query(studentsCollectionRef, ...constraints));
+        usersData = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            classCode: classCode,
+            ...data,
+            money: data.money ?? 0,
+          };
+        });
+        setLastDocRef(querySnapshot.docs[querySnapshot.docs.length - 1] || null);
+        setHasMore(querySnapshot.size === PAGE_SIZE);
+      } else {
+        usersData = [];
+        setHasMore(false);
+      }
+
+      setUsers(prev => (reset ? usersData : [...prev, ...usersData]));
+    } catch (error) {
+      console.error("학생 정보를 불러오는 데 실패했습니다:", error);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [userDoc, isSuperAdmin, isAdmin, classCode, buildQueryConstraints, lastDocRef, remoteSearchTerm]);
 
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!userDoc) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-      try {
-        let usersData = [];
-
-        if (isSuperAdmin) {
-          // 슈퍼관리자: 모든 학급의 모든 학생 조회
-          console.log('[AdminUserManagement] 슈퍼관리자 - 모든 학생 조회');
-
-          // 모든 Class 문서 조회
-          const classesRef = collection(db, 'Class');
-          const classesSnapshot = await getDocs(classesRef);
-
-          // 각 학급의 students 조회
-          for (const classDoc of classesSnapshot.docs) {
-            const classCodeValue = classDoc.id;
-            const studentsRef = collection(db, 'Class', classCodeValue, 'students');
-            const studentsSnapshot = await getDocs(studentsRef);
-
-            studentsSnapshot.docs.forEach(studentDoc => {
-              const data = studentDoc.data();
-              usersData.push({
-                id: studentDoc.id,
-                classCode: classCodeValue,
-                ...data,
-                money: data.money !== undefined && data.money !== null ? data.money : 0,
-              });
-            });
-          }
-
-          console.log(`[AdminUserManagement] 슈퍼관리자 - 총 ${usersData.length}명 조회 완료`);
-        } else if (isAdmin && classCode) {
-          // 일반 관리자: 본인 학급의 학생만 조회
-          console.log(`[AdminUserManagement] 일반 관리자 - ${classCode} 학급 학생 조회`);
-
-          const studentsCollectionRef = collection(db, 'Class', classCode, 'students');
-          const querySnapshot = await getDocs(studentsCollectionRef);
-
-          usersData = querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              classCode: classCode,
-              ...data,
-              money: data.money !== undefined && data.money !== null ? data.money : 0,
-            };
-          });
-
-          console.log(`[AdminUserManagement] 일반 관리자 - ${usersData.length}명 조회 완료`);
-        }
-
-        setUsers(usersData);
-      } catch (error) {
-        console.error("학생 정보를 불러오는 데 실패했습니다:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchUsers();
-  }, [userDoc, isSuperAdmin, isAdmin, classCode]);
+    // 초기 로드 또는 관리자/클래스/검색어 변경 시 상태 리셋 후 재조회
+    setUsers([]);
+    setLastDocRef(null);
+    setHasMore(true);
+    fetchUsers(true);
+  }, [userDoc, isSuperAdmin, isAdmin, classCode, remoteSearchTerm, fetchUsers]);
 
   const handleRehabilitate = async (studentId, studentName, studentClassCode) => {
     if (window.confirm(`정말로 '${studentName}' 학생을 개인회생 처리하시겠습니까?\n해당 학생의 모든 자산(돈, 주식, 부동산 등)이 0으로 초기화되고 모든 빚이 청산됩니다. 이 작업은 되돌릴 수 없습니다.`)) {
@@ -281,7 +307,11 @@ const AdminUserManagement = () => {
             type="text"
             placeholder={isSuperAdmin ? "이름, 이메일 또는 학급 코드로 검색" : "이름 또는 이메일로 검색"}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchTerm(val);
+              setRemoteSearchTerm(val.trim());
+            }}
             className="search-input"
           />
         </div>
@@ -427,6 +457,20 @@ const AdminUserManagement = () => {
           </div>
         ))}
       </div>
+      {hasMore && (
+        <div className="pagination-controls">
+          <button
+            className="action-button load-more"
+            disabled={isLoadingMore}
+            onClick={() => {
+              setIsLoadingMore(true);
+              fetchUsers(false);
+            }}
+          >
+            {isLoadingMore ? '불러오는 중...' : '더 불러오기'}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,13 +1,13 @@
-// src/NationalTaxService.js
+﻿// src/NationalTaxService.js
 import React, { useState, useEffect, useCallback } from "react";
-import { db } from "./firebase";
+import { db, getCachedDocument, invalidateCache } from "./firebase";
 import {
   doc,
   getDoc,
   updateDoc,
   setDoc,
   serverTimestamp,
-  increment, // 국고 업데이트 시 사용
+  increment, // 援?퀬 ?낅뜲?댄듃 ???ъ슜
 } from "firebase/firestore";
 import { usePolling } from "./hooks/usePolling";
 
@@ -16,15 +16,15 @@ import { formatKoreanCurrency } from "./numberFormatter";
 const formatDate = (timestamp) => {
   if (!timestamp) return "-";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  if (isNaN(date.getTime())) return "유효하지 않은 날짜";
+  if (isNaN(date.getTime())) return "?좏슚?섏? ?딆? ?좎쭨";
   return date.toLocaleString("ko-KR");
 };
 
-// [수정] 기본 국고 데이터에 stockCommissionRevenue 추가
+// [?섏젙] 湲곕낯 援?퀬 ?곗씠?곗뿉 stockCommissionRevenue 異붽?
 const DEFAULT_TREASURY_DATA = {
   totalAmount: 0,
   stockTaxRevenue: 0,
-  stockCommissionRevenue: 0, // 주식 거래 수수료 수입
+  stockCommissionRevenue: 0, // 二쇱떇 嫄곕옒 ?섏닔猷??섏엯
   realEstateTransactionTaxRevenue: 0,
   vatRevenue: 0,
   auctionTaxRevenue: 0,
@@ -36,15 +36,15 @@ const DEFAULT_TREASURY_DATA = {
   lastUpdated: null,
 };
 
-// 기본 세금 정책 설정 (Firestore에 없을 경우 사용될 초기값)
+// 湲곕낯 ?멸툑 ?뺤콉 ?ㅼ젙 (Firestore???놁쓣 寃쎌슦 ?ъ슜??珥덇린媛?
 const DEFAULT_TAX_SETTINGS = {
-  stockTransactionTaxRate: 0.01, // 주식 거래세율 (1%)
-  realEstateTransactionTaxRate: 0.03, // 부동산 거래세율 (3%)
-  itemStoreVATRate: 0.1, // 아이템 상점 부가가치세율 (10%)
-  auctionTransactionTaxRate: 0.03, // 경매장 거래세율 (3%)
-  propertyHoldingTaxRate: 0.002, // 부동산 보유세율 (0.2%)
-  propertyHoldingTaxInterval: "weekly", // 부동산 보유세 징수 주기 (예: weekly, monthly)
-  itemMarketTransactionTaxRate: 0.03, // 아이템 시장 거래세율 (3%)
+  stockTransactionTaxRate: 0.01, // 二쇱떇 嫄곕옒?몄쑉 (1%)
+  realEstateTransactionTaxRate: 0.03, // 遺?숈궛 嫄곕옒?몄쑉 (3%)
+  itemStoreVATRate: 0.1, // ?꾩씠???곸젏 遺媛媛移섏꽭??(10%)
+  auctionTransactionTaxRate: 0.03, // 寃쎈ℓ??嫄곕옒?몄쑉 (3%)
+  propertyHoldingTaxRate: 0.002, // 遺?숈궛 蹂댁쑀?몄쑉 (0.2%)
+  propertyHoldingTaxInterval: "weekly", // 遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린 (?? weekly, monthly)
+  itemMarketTransactionTaxRate: 0.03, // ?꾩씠???쒖옣 嫄곕옒?몄쑉 (3%)
   lastUpdated: null,
 };
 
@@ -57,7 +57,7 @@ const NationalTaxService = ({ classCode }) => {
   const [editableSettings, setEditableSettings] =
     useState(DEFAULT_TAX_SETTINGS);
 
-  // 국고 데이터 폴링 (classCode 기반)
+  // 援?퀬 ?곗씠???대쭅 (classCode 湲곕컲)
   const fetchTreasuryData = useCallback(async () => {
     if (!classCode) {
       setLoadingTreasury(false);
@@ -67,16 +67,24 @@ const NationalTaxService = ({ classCode }) => {
     setLoadingTreasury(true);
     const treasuryRef = doc(db, "nationalTreasuries", classCode);
     try {
+      const cached = await getCachedDocument("nationalTreasuries", classCode, 5 * 60 * 1000);
+      if (cached) {
+        setTreasuryData({ ...DEFAULT_TREASURY_DATA, ...cached });
+        setLoadingTreasury(false);
+        return;
+      }
+
       const docSnap = await getDoc(treasuryRef);
       if (docSnap.exists()) {
-        // [수정] 기본값과 합쳐서 누락된 필드가 없도록 보장
         setTreasuryData({ ...DEFAULT_TREASURY_DATA, ...docSnap.data() });
+        invalidateCache(`doc_nationalTreasuries_${classCode}`);
       } else {
         await setDoc(treasuryRef, {
           ...DEFAULT_TREASURY_DATA,
-          createdAt: serverTimestamp(), // 생성 시점 추가
+          createdAt: serverTimestamp(),
           lastUpdated: serverTimestamp(),
         });
+        invalidateCache(`doc_nationalTreasuries_${classCode}`);
         setTreasuryData({
           ...DEFAULT_TREASURY_DATA,
           lastUpdated: new Date(),
@@ -91,7 +99,7 @@ const NationalTaxService = ({ classCode }) => {
 
   const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, { interval: 30000, enabled: !!classCode });
 
-  // 세금 정책 설정 폴링 (classCode 기반)
+  // ?멸툑 ?뺤콉 ?ㅼ젙 ?대쭅 (classCode 湲곕컲)
   const fetchTaxSettings = useCallback(async () => {
     if (!classCode) {
       setLoadingSettings(false);
@@ -100,28 +108,31 @@ const NationalTaxService = ({ classCode }) => {
       return;
     }
     setLoadingSettings(true);
-    const settingsRef = doc(db, "governmentSettings", classCode); // 세율은 governmentSettings에 통합
+    const settingsRef = doc(db, "governmentSettings", classCode);
     try {
-      const docSnap = await getDoc(settingsRef);
-      if (docSnap.exists() && docSnap.data().taxSettings) {
-        const newSettings = {
-          ...DEFAULT_TAX_SETTINGS,
-          ...docSnap.data().taxSettings,
-        }; // taxSettings 하위 객체로 관리
+      const cached = await getCachedDocument("governmentSettings", classCode, 5 * 60 * 1000);
+      if (cached?.taxSettings) {
+        const newSettings = { ...DEFAULT_TAX_SETTINGS, ...cached.taxSettings };
         setTaxSettings(newSettings);
         setEditableSettings(newSettings);
+        setLoadingSettings(false);
+        return;
+      }
+
+      const docSnap = await getDoc(settingsRef);
+      if (docSnap.exists() && docSnap.data().taxSettings) {
+        const newSettings = { ...DEFAULT_TAX_SETTINGS, ...docSnap.data().taxSettings };
+        setTaxSettings(newSettings);
+        setEditableSettings(newSettings);
+        invalidateCache(`doc_governmentSettings_${classCode}`);
       } else {
-        // 기본 설정값으로 문서 생성 (taxSettings 하위 객체 포함)
-        await setDoc(
-          settingsRef,
-          {
-            taxSettings: {
-              ...DEFAULT_TAX_SETTINGS,
-              lastUpdated: serverTimestamp(),
-            },
+        await setDoc(settingsRef, {
+          taxSettings: {
+            ...DEFAULT_TAX_SETTINGS,
+            lastUpdated: serverTimestamp(),
           },
-          { merge: true }
-        );
+        }, { merge: true });
+        invalidateCache(`doc_governmentSettings_${classCode}`);
         setTaxSettings(DEFAULT_TAX_SETTINGS);
         setEditableSettings(DEFAULT_TAX_SETTINGS);
       }
@@ -136,7 +147,7 @@ const NationalTaxService = ({ classCode }) => {
 
   const handleSettingChange = (e) => {
     const { name, value } = e.target;
-    // 입력값을 숫자로 변환 (비율이므로 소수점 허용)
+    // ?낅젰媛믪쓣 ?レ옄濡?蹂??(鍮꾩쑉?대?濡??뚯닔???덉슜)
     const numericValue = value === "" ? "" : parseFloat(value);
     setEditableSettings((prev) => ({
       ...prev,
@@ -154,7 +165,7 @@ const NationalTaxService = ({ classCode }) => {
 
   const saveTaxSettings = async () => {
     if (!classCode) return;
-    // 유효성 검사 (0 ~ 1 사이의 값 등)
+    // ?좏슚??寃??(0 ~ 1 ?ъ씠??媛???
     for (const key in editableSettings) {
       if (
         key.endsWith("Rate") &&
@@ -164,9 +175,9 @@ const NationalTaxService = ({ classCode }) => {
           editableSettings[key] !== "" &&
           !(key === "itemStoreVATRate" && editableSettings[key] > 1)
         ) {
-          //부가세는 100% 넘을수도? 일단 보류
+          //遺媛?몃뒗 100% ?섏쓣?섎룄? ?쇰떒 蹂대쪟
           alert(
-            `${key} 세율은 0과 1 사이의 값이어야 합니다 (예: 3%는 0.03). 현재값: ${editableSettings[key]}`
+            `${key} ?몄쑉? 0怨?1 ?ъ씠??媛믪씠?댁빞 ?⑸땲??(?? 3%??0.03). ?꾩옱媛? ${editableSettings[key]}`
           );
           return;
         }
@@ -177,16 +188,16 @@ const NationalTaxService = ({ classCode }) => {
     try {
       await updateDoc(settingsRef, {
         taxSettings: {
-          // taxSettings 하위 객체로 업데이트
+          // taxSettings ?섏쐞 媛앹껜濡??낅뜲?댄듃
           ...editableSettings,
           lastUpdated: serverTimestamp(),
         },
       });
       refetchSettings();
-      alert("세금 정책이 성공적으로 업데이트되었습니다.");
+      alert("?멸툑 ?뺤콉???깃났?곸쑝濡??낅뜲?댄듃?섏뿀?듬땲??");
     } catch (error) {
-      console.error("세금 정책 업데이트 실패:", error);
-      alert("세금 정책 업데이트 중 오류가 발생했습니다.");
+      console.error("?멸툑 ?뺤콉 ?낅뜲?댄듃 ?ㅽ뙣:", error);
+      alert("?멸툑 ?뺤콉 ?낅뜲?댄듃 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
     }
   };
 
@@ -199,9 +210,9 @@ const NationalTaxService = ({ classCode }) => {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        <h2>학급 코드가 제공되지 않았습니다.</h2>
+        <h2>?숆툒 肄붾뱶媛 ?쒓났?섏? ?딆븯?듬땲??</h2>
         <p>
-          정부 메뉴에서 국세청 기능을 사용하려면 학급에 먼저 참여해야 합니다.
+          ?뺣? 硫붾돱?먯꽌 援?꽭泥?湲곕뒫???ъ슜?섎젮硫??숆툒??癒쇱? 李몄뿬?댁빞 ?⑸땲??
         </p>
       </div>
     );
@@ -219,13 +230,13 @@ const NationalTaxService = ({ classCode }) => {
           fontFamily: "Arial, sans-serif",
         }}
       >
-        국세청 데이터를 불러오는 중 (학급: {classCode})...
+        援?꽭泥??곗씠?곕? 遺덈윭?ㅻ뒗 以?(?숆툒: {classCode})...
       </div>
     );
   }
 
-  // ✨ --- 핵심 수정 사항 --- ✨
-  // 모든 세금 수입 항목을 더하여 '순수 세수 총합'을 계산합니다.
+  // ??--- ?듭떖 ?섏젙 ?ы빆 --- ??
+  // 紐⑤뱺 ?멸툑 ?섏엯 ??ぉ???뷀븯??'?쒖닔 ?몄닔 珥앺빀'??怨꾩궛?⑸땲??
   const totalTaxRevenue = Object.keys(treasuryData)
     .filter((key) => key.endsWith("Revenue") && key !== "totalAmount")
     .reduce((sum, key) => sum + (treasuryData[key] || 0), 0);
@@ -233,7 +244,7 @@ const NationalTaxService = ({ classCode }) => {
   const taxPolicyFields = [
     {
       name: "stockTransactionTaxRate",
-      label: "주식 거래세율",
+      label: "二쇱떇 嫄곕옒?몄쑉",
       type: "number",
       step: "0.001",
       min: "0",
@@ -241,7 +252,7 @@ const NationalTaxService = ({ classCode }) => {
     },
     {
       name: "realEstateTransactionTaxRate",
-      label: "부동산 거래세율",
+      label: "遺?숈궛 嫄곕옒?몄쑉",
       type: "number",
       step: "0.001",
       min: "0",
@@ -249,15 +260,15 @@ const NationalTaxService = ({ classCode }) => {
     },
     {
       name: "itemStoreVATRate",
-      label: "아이템 상점 부가세율",
+      label: "?꾩씠???곸젏 遺媛?몄쑉",
       type: "number",
       step: "0.01",
       min: "0",
       max: "1",
-    }, // 예: 10%는 0.1
+    }, // ?? 10%??0.1
     {
       name: "auctionTransactionTaxRate",
-      label: "경매장 거래세율",
+      label: "寃쎈ℓ??嫄곕옒?몄쑉",
       type: "number",
       step: "0.001",
       min: "0",
@@ -265,7 +276,7 @@ const NationalTaxService = ({ classCode }) => {
     },
     {
       name: "propertyHoldingTaxRate",
-      label: "부동산 보유세율",
+      label: "遺?숈궛 蹂댁쑀?몄쑉",
       type: "number",
       step: "0.0001",
       min: "0",
@@ -273,14 +284,14 @@ const NationalTaxService = ({ classCode }) => {
     },
     {
       name: "propertyHoldingTaxInterval",
-      label: "부동산 보유세 징수 주기",
+      label: "遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린",
       type: "select",
       options: ["daily", "weekly", "monthly"],
       current_value: editableSettings.propertyHoldingTaxInterval,
     },
     {
       name: "itemMarketTransactionTaxRate",
-      label: "아이템 시장 거래세율",
+      label: "?꾩씠???쒖옣 嫄곕옒?몄쑉",
       type: "number",
       step: "0.001",
       min: "0",
@@ -308,10 +319,10 @@ const NationalTaxService = ({ classCode }) => {
         }}
       >
         <h1 style={{ margin: 0, fontSize: "2.5em", fontWeight: "bold" }}>
-          🏛️ {classCode} 학급 국세청
+          ?룢截?{classCode} ?숆툒 援?꽭泥?
         </h1>
         <p style={{ margin: "10px 0 0 0", fontSize: "1.2em", opacity: 0.9 }}>
-          세금 정책 관리 및 국고 운영
+          ?멸툑 ?뺤콉 愿由?諛?援?퀬 ?댁쁺
         </p>
       </div>
 
@@ -340,10 +351,10 @@ const NationalTaxService = ({ classCode }) => {
               transition: "all 0.3s ease",
             }}
           >
-            {tabId === "overview" && "📊 개요"}
-            {tabId === "revenue" && "💰 세수 현황"}
-            {tabId === "policy" && "📋 세금 정책"}
-            {tabId === "analytics" && "📈 분석"}
+            {tabId === "overview" && "?뱤 媛쒖슂"}
+            {tabId === "revenue" && "?뮥 ?몄닔 ?꾪솴"}
+            {tabId === "policy" && "?뱥 ?멸툑 ?뺤콉"}
+            {tabId === "analytics" && "?뱢 遺꾩꽍"}
           </button>
         ))}
       </div>
@@ -374,7 +385,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                💰 총 국고
+                ?뮥 珥?援?퀬
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.totalAmount)}
@@ -396,13 +407,13 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                📈 주식 거래세 수입
+                ?뱢 二쇱떇 嫄곕옒???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.stockTaxRevenue)}
               </p>
             </div>
-            {/* [신규] 주식 거래 수수료 카드 */}
+            {/* [?좉퇋] 二쇱떇 嫄곕옒 ?섏닔猷?移대뱶 */}
             <div
               style={{
                 background: "linear-gradient(135deg, #3F51B5, #303F9F)",
@@ -419,7 +430,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                📋 주식 거래 수수료 수입
+                ?뱥 二쇱떇 嫄곕옒 ?섏닔猷??섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.stockCommissionRevenue)}
@@ -441,7 +452,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                🏡 부동산 거래세 수입
+                ?룪 遺?숈궛 嫄곕옒???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}
@@ -463,7 +474,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                🛒 아이템 부가세 수입
+                ?썟 ?꾩씠??遺媛???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.vatRevenue)}
@@ -485,7 +496,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                ⚖️ 경매장 거래세 수입
+                ?뽳툘 寃쎈ℓ??嫄곕옒???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.auctionTaxRevenue)}
@@ -507,7 +518,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                🏘️ 부동산 보유세 수입
+                ?룜截?遺?숈궛 蹂댁쑀???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}
@@ -529,7 +540,7 @@ const NationalTaxService = ({ classCode }) => {
                   opacity: 0.9,
                 }}
               >
-                ♻️ 아이템 시장 거래세 수입
+                ?삼툘 ?꾩씠???쒖옣 嫄곕옒???섏엯
               </h3>
               <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
                 {formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}
@@ -545,10 +556,10 @@ const NationalTaxService = ({ classCode }) => {
             }}
           >
             <h3 style={{ margin: "0 0 15px 0", color: "#495057" }}>
-              📅 최근 업데이트
+              ?뱟 理쒓렐 ?낅뜲?댄듃
             </h3>
             <p style={{ margin: 0, color: "#6c757d", fontSize: "16px" }}>
-              국고 마지막 업데이트: {formatDate(treasuryData.lastUpdated)}
+              援?퀬 留덉?留??낅뜲?댄듃: {formatDate(treasuryData.lastUpdated)}
             </p>
             <p
               style={{
@@ -557,7 +568,7 @@ const NationalTaxService = ({ classCode }) => {
                 fontSize: "16px",
               }}
             >
-              세금 정책 마지막 업데이트: {formatDate(taxSettings.lastUpdated)}
+              ?멸툑 ?뺤콉 留덉?留??낅뜲?댄듃: {formatDate(taxSettings.lastUpdated)}
             </p>
           </div>
         </div>
@@ -566,7 +577,7 @@ const NationalTaxService = ({ classCode }) => {
       {activeTab === "revenue" && (
         <div>
           <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            💰 세수 현황 분석
+            ?뮥 ?몄닔 ?꾪솴 遺꾩꽍
           </h2>
           <div
             style={{
@@ -577,7 +588,7 @@ const NationalTaxService = ({ classCode }) => {
               marginBottom: "20px",
             }}
           >
-            {/* ✨ --- 수정된 부분 --- ✨ */}
+            {/* ??--- ?섏젙??遺遺?--- ??*/}
             <div
               style={{
                 display: "flex",
@@ -586,10 +597,10 @@ const NationalTaxService = ({ classCode }) => {
                 marginBottom: "25px",
               }}
             >
-              <h3 style={{ margin: 0, color: "#333" }}>세수 구성</h3>
+              <h3 style={{ margin: 0, color: "#333" }}>?몄닔 援ъ꽦</h3>
               <div style={{ textAlign: "right" }}>
                 <span style={{ color: "#666", fontSize: "1em" }}>
-                  세수 총합
+                  ?몄닔 珥앺빀
                 </span>
                 <p
                   style={{
@@ -607,60 +618,20 @@ const NationalTaxService = ({ classCode }) => {
               style={{ display: "flex", flexDirection: "column", gap: "15px" }}
             >
               {[
-                {
-                  label: "주식세",
-                  amount: treasuryData.stockTaxRevenue,
-                  color: "#2196F3",
-                },
-                {
-                  label: "주식 수수료",
-                  amount: treasuryData.stockCommissionRevenue,
-                  color: "#3F51B5",
-                },
-                {
-                  label: "부동산 거래세",
-                  amount: treasuryData.realEstateTransactionTaxRevenue,
-                  color: "#FFC107",
-                },
-                {
-                  label: "아이템 부가세",
-                  amount: treasuryData.vatRevenue,
-                  color: "#E91E63",
-                },
-                {
-                  label: "경매장 거래세",
-                  amount: treasuryData.auctionTaxRevenue,
-                  color: "#00BCD4",
-                },
-                {
-                  label: "부동산 보유세",
-                  amount: treasuryData.propertyHoldingTaxRevenue,
-                  color: "#8BC34A",
-                },
-                {
-                  label: "아이템 시장세",
-                  amount: treasuryData.itemMarketTaxRevenue,
-                  color: "#FF9800",
-                },
-                {
-                  label: "소득세 (기타)",
-                  amount: treasuryData.incomeTaxRevenue,
-                  color: "#9C27B0",
-                },
-                {
-                  label: "법인세 (기타)",
-                  amount: treasuryData.corporateTaxRevenue,
-                  color: "#795548",
-                },
-                {
-                  label: "기타 세수",
-                  amount: treasuryData.otherTaxRevenue,
-                  color: "#607D8B",
-                },
+                { label: "Stock Tax", amount: treasuryData.stockTaxRevenue, color: "#2196F3" },
+                { label: "Stock Fee", amount: treasuryData.stockCommissionRevenue, color: "#3F51B5" },
+                { label: "Real Estate Tax", amount: treasuryData.realEstateTransactionTaxRevenue, color: "#FFC107" },
+                { label: "VAT", amount: treasuryData.vatRevenue, color: "#E91E63" },
+                { label: "Auction Tax", amount: treasuryData.auctionTaxRevenue, color: "#00BCD4" },
+                { label: "Holding Tax", amount: treasuryData.propertyHoldingTaxRevenue, color: "#8BC34A" },
+                { label: "Item Market Tax", amount: treasuryData.itemMarketTaxRevenue, color: "#FF9800" },
+                { label: "Income Tax", amount: treasuryData.incomeTaxRevenue, color: "#9C27B0" },
+                { label: "Corporate Tax", amount: treasuryData.corporateTaxRevenue, color: "#795548" },
+                { label: "Other Tax", amount: treasuryData.otherTaxRevenue, color: "#607D8B" },
               ].map((item) => {
-                // ✨ --- 핵심 수정 사항 --- ✨
-                // 비율 계산의 기준을 'totalTaxRevenue' (순수 세수 총합)으로 변경합니다.
-                const totalTaxForPercentage = totalTaxRevenue || 1; // 0으로 나누는 것 방지
+                // ??--- ?듭떖 ?섏젙 ?ы빆 --- ??
+                // 鍮꾩쑉 怨꾩궛??湲곗???'totalTaxRevenue' (?쒖닔 ?몄닔 珥앺빀)?쇰줈 蹂寃쏀빀?덈떎.
+                const totalTaxForPercentage = totalTaxRevenue || 1; // 0?쇰줈 ?섎늻??寃?諛⑹?
                 const itemAmount = item.amount || 0;
                 const percentage =
                   totalTaxForPercentage > 0
@@ -710,7 +681,7 @@ const NationalTaxService = ({ classCode }) => {
       {activeTab === "policy" && (
         <div>
           <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            📋 현행 세금 정책 (학급: {classCode})
+            ?뱥 ?꾪뻾 ?멸툑 ?뺤콉 (?숆툒: {classCode})
           </h2>
           <div
             style={{
@@ -722,7 +693,7 @@ const NationalTaxService = ({ classCode }) => {
             }}
           >
             <h3 style={{ color: "#333", marginBottom: "15px" }}>
-              세율 설정 (관리자)
+              ?몄쑉 ?ㅼ젙 (愿由ъ옄)
             </h3>
             {taxPolicyFields.map((field) => (
               <div key={field.name} style={{ marginBottom: "15px" }}>
@@ -734,7 +705,7 @@ const NationalTaxService = ({ classCode }) => {
                     fontWeight: "bold",
                   }}
                 >
-                  {field.label} (현재:{" "}
+                  {field.label} (?꾩옱:{" "}
                   {field.type === "select"
                     ? taxSettings[field.name]
                     : `${((taxSettings[field.name] || 0) * 100).toFixed(
@@ -779,7 +750,7 @@ const NationalTaxService = ({ classCode }) => {
                     min={field.min || "0"}
                     max={field.max || "1"}
                     placeholder={`예: ${
-                      field.label.includes("부가세") ? "0.1 (10%)" : "0.03 (3%)"
+                      field.label.includes("부가") ? "0.1 (10%)" : "0.03 (3%)"
                     }`}
                     style={{
                       width: "100%",
@@ -793,19 +764,19 @@ const NationalTaxService = ({ classCode }) => {
                   style={{ display: "block", marginTop: "3px", color: "#666" }}
                 >
                   {field.name === "stockTransactionTaxRate" &&
-                    "주식 매도 시 수익에 대해 부과 (0.01 = 1%)"}
+                    "二쇱떇 留ㅻ룄 ???섏씡?????遺怨?(0.01 = 1%)"}
                   {field.name === "realEstateTransactionTaxRate" &&
-                    "부동산 거래 시 거래 금액에 대해 부과 (0.03 = 3%)"}
+                    "遺?숈궛 嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
                   {field.name === "itemStoreVATRate" &&
-                    "아이템 상점 구매 시 아이템 가격에 부과 (0.1 = 10%)"}
+                    "?꾩씠???곸젏 援щℓ ???꾩씠??媛寃⑹뿉 遺怨?(0.1 = 10%)"}
                   {field.name === "auctionTransactionTaxRate" &&
-                    "경매장 거래 시 거래 금액에 대해 부과 (0.03 = 3%)"}
+                    "寃쎈ℓ??嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
                   {field.name === "propertyHoldingTaxRate" &&
-                    "부동산 가치에 대해 주기적으로 부과 (0.002 = 0.2%)"}
+                    "遺?숈궛 媛移섏뿉 ???二쇨린?곸쑝濡?遺怨?(0.002 = 0.2%)"}
                   {field.name === "propertyHoldingTaxInterval" &&
-                    "부동산 보유세 징수 주기 (예: weekly)"}
+                    "遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린 (?? weekly)"}
                   {field.name === "itemMarketTransactionTaxRate" &&
-                    "아이템 시장 거래 시 거래 금액에 대해 부과 (0.03 = 3%)"}
+                    "?꾩씠???쒖옣 嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
                 </small>
               </div>
             ))}
@@ -822,7 +793,7 @@ const NationalTaxService = ({ classCode }) => {
                 fontWeight: "bold",
               }}
             >
-              세금 정책 저장
+              ?멸툑 ?뺤콉 ???
             </button>
           </div>
           <div
@@ -834,12 +805,12 @@ const NationalTaxService = ({ classCode }) => {
             }}
           >
             <h3 style={{ color: "#2196F3", marginBottom: "15px" }}>
-              🎯 세금 정책 목표
+              ?렞 ?멸툑 ?뺤콉 紐⑺몴
             </h3>
             <ul style={{ color: "#6c757d", lineHeight: "1.8" }}>
-              <li>공정한 시장 경제 질서 확립</li>
-              <li>안정적인 학급 재정 확보 및 공공 서비스 투자</li>
-              <li>경제 활동 참여자 간의 형평성 제고</li>
+              <li>怨듭젙???쒖옣 寃쎌젣 吏덉꽌 ?뺣┰</li>
+              <li>?덉젙?곸씤 ?숆툒 ?ъ젙 ?뺣낫 諛?怨듦났 ?쒕퉬???ъ옄</li>
+              <li>寃쎌젣 ?쒕룞 李몄뿬??媛꾩쓽 ?뺥룊???쒓퀬</li>
             </ul>
           </div>
         </div>
@@ -848,11 +819,11 @@ const NationalTaxService = ({ classCode }) => {
       {activeTab === "analytics" && (
         <div>
           <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            📈 세수 분석 (학급: {classCode})
+            ?뱢 ?몄닔 遺꾩꽍 (?숆툒: {classCode})
           </h2>
-          {/* 분석 내용은 기존과 유사하게 유지하되, 새로운 세수 항목들을 포함하여 구성할 수 있습니다. */}
-          <p>이곳에 다양한 세수 분석 차트나 통계 정보가 표시될 수 있습니다.</p>
-          <p>예: 시간에 따른 세수 변화, 각 세목별 기여도 변화 등.</p>
+          {/* 遺꾩꽍 ?댁슜? 湲곗〈怨??좎궗?섍쾶 ?좎??섎릺, ?덈줈???몄닔 ??ぉ?ㅼ쓣 ?ы븿?섏뿬 援ъ꽦?????덉뒿?덈떎. */}
+          <p>?닿납???ㅼ뼇???몄닔 遺꾩꽍 李⑦듃???듦퀎 ?뺣낫媛 ?쒖떆?????덉뒿?덈떎.</p>
+          <p>?? ?쒓컙???곕Ⅸ ?몄닔 蹂?? 媛??몃ぉ蹂?湲곗뿬??蹂????</p>
         </div>
       )}
     </div>
@@ -860,3 +831,6 @@ const NationalTaxService = ({ classCode }) => {
 };
 
 export default NationalTaxService;
+
+
+
