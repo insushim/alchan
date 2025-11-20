@@ -1,5 +1,5 @@
 /* src/TypingPracticeGame.css */
-/* 한글 타자연습 미니게임 스타일 */
+/* ?��? ?�?�연??미니게임 ?��???*/
 
 .typing-game-container {
   position: fixed;
@@ -31,7 +31,7 @@
   }
 }
 
-/* 공통 헤더 */
+/* 공통 ?�더 */
 .game-header {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 15px;
@@ -77,14 +77,14 @@
   transform: translateY(-2px);
 }
 
-/* 메뉴 화면 */
+/* 메뉴 ?�면 */
 .typing-game-menu {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-/* 일일 정보 */
+/* ?�일 ?�보 */
 .daily-info {
   background: rgba(255, 255, 255, 0.95);
   padding: 20px;
@@ -166,7 +166,7 @@
   font-size: 14px;
 }
 
-/* 난이도 선택 */
+/* ?�이???�택 */
 .difficulty-selection {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -273,7 +273,7 @@
   cursor: not-allowed;
 }
 
-/* 게임 플레이 화면 */
+/* 게임 ?�레???�면 */
 .typing-game-play {
   width: 100%;
   max-width: 900px;
@@ -471,7 +471,7 @@
   color: #742a2a;
 }
 
-/* 완료 화면 */
+/* ?�료 ?�면 */
 .typing-game-completed {
   width: 100%;
   max-width: 700px;
@@ -626,7 +626,7 @@
   font-weight: 500;
 }
 
-/* 카드 선택 화면 */
+/* 카드 ?�택 ?�면 */
 .card-selection-screen {
   width: 100%;
   max-width: 900px;
@@ -813,7 +813,7 @@
   font-weight: 600;
 }
 
-/* 보상 획득 화면 */
+/* 보상 ?�득 ?�면 */
 .typing-game-reward {
   width: 100%;
   max-width: 600px;
@@ -897,7 +897,7 @@
   justify-content: center;
 }
 
-/* 로딩 및 에러 화면 */
+/* 로딩 �??�러 ?�면 */
 .loading-screen, .error-screen {
   text-align: center;
   background: rgba(255, 255, 255, 0.95);
@@ -951,7 +951,7 @@
   transform: translateY(-2px);
 }
 
-/* 반응형 디자인 */
+/* 반응???�자??*/
 @media (max-width: 768px) {
   .typing-game-container {
     padding: 10px;
@@ -1039,4 +1039,53 @@
   .reward-text {
     font-size: 36px;
   }
+}
+
+.back-button {
+  background: #a0aec0;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.back-button:hover {
+  background: #718096;
+  transform: translateY(-2px);
+}
+
+.back-button-small {
+  background: #a0aec0;
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.back-button-small:hover {
+  background: #718096;
+}
+
+.exit-btn {
+  background: #a0aec0;
+  color: white;
+  box-shadow: 0 4px 15px rgba(160, 174, 192, 0.3);
+}
+
+.exit-btn:hover {
+  background: #718096;
+}
+
+.game-header-buttons {
+  display: flex;
+  gap: 10px;
+  align-items: center;
 }

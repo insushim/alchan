@@ -215,7 +215,7 @@ const TypingPracticeGame = ({ onClose }) => {
             <h2>⌨️ 한글 타자연습</h2>
             <p className="subtitle">빠르고 정확하게 입력하세요!</p>
           </div>
-          {onClose && <button className="close-btn" onClick={onClose}>✕</button>}
+          {onClose && <button className="back-button" onClick={onClose}>← 뒤로가기</button>}
         </div>
 
         <div className="daily-info minigame-info">
@@ -290,7 +290,10 @@ const TypingPracticeGame = ({ onClose }) => {
             <span className="info-chip timer">⏱️ {timeLeft}초</span>
             <span className="info-chip">📊 {currentIndex}/{sentences.length}</span>
           </div>
-          <button className="menu-btn-small" onClick={() => setGameState("menu")}>← 메뉴</button>
+          <div className="game-header-buttons">
+            <button className="menu-btn-small" onClick={() => setGameState("menu")}>← 메뉴</button>
+            {onClose && <button className="back-button-small" onClick={onClose}>나가기</button>}
+          </div>
         </div>
 
         <div className="progress-bar minigame-progress">
@@ -383,6 +386,7 @@ const TypingPracticeGame = ({ onClose }) => {
             <button className="retry-btn" onClick={() => startGame(difficulty)}>
               다시 도전
             </button>
+            {onClose && <button className="exit-btn menu-btn" onClick={onClose}>나가기</button>}
           </div>
         </div>
       </div>
@@ -396,6 +400,7 @@ const TypingPracticeGame = ({ onClose }) => {
         <div className="card-selection-header">
           <h2>🎁 보상 카드를 선택하세요!</h2>
           <p>하나의 카드를 선택하면 랜덤 보상이 공개됩니다</p>
+          {onClose && <button className="back-button" onClick={() => setGameState("completed")}>← 결과로</button>}
         </div>
 
         <div className="reward-cards">
@@ -488,6 +493,7 @@ const TypingPracticeGame = ({ onClose }) => {
               다시 도전
             </button>
           )}
+          {onClose && <button className="exit-btn menu-btn" onClick={onClose}>나가기</button>}
         </div>
       </div>
     );
