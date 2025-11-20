@@ -632,22 +632,22 @@ async function updateCentralStockMarketLogic() {
     // [시장 현실성 강화] 실제 시장처럼 상승/하락이 고르게 분포되도록 수정 (v2 - 변동성 완화)
     const PRODUCT_BEHAVIOR = {
       stock: {
-        volatilityMultiplier: 1.5,      // 변동성 (1.8 -> 1.5)
-        correctionBase: 0.20,           // 조정 확률 (0.30 -> 0.20)
-        correctionRange: [0.05, 0.15],  // 조정 시 하락폭 (0.07-0.20 -> 0.05-0.15)
-        flashCrashProb: 0.03,           // 급락 확률 (0.10 -> 0.03)
-        flashCrashRange: [0.10, 0.20],  // 급락 시 하락폭 (0.15-0.30 -> 0.10-0.20)
-        delistRisk: 0.005,              // 상장폐지 위험 (5% -> 0.5%)
-        driftRange: [-0.0004, 0.0004]   // 기본 성장률 범위 (±0.0005 -> ±0.0004)
+        volatilityMultiplier: 1.5,
+        correctionBase: 0.15,           // 조정 확률 (0.20 -> 0.15)
+        correctionRange: [0.03, 0.10],  // 조정 시 하락폭 (0.05-0.15 -> 0.03-0.10)
+        flashCrashProb: 0.01,           // 급락 확률 (0.03 -> 0.01)
+        flashCrashRange: [0.05, 0.12],  // 급락 시 하락폭 (0.10-0.20 -> 0.05-0.12)
+        delistRisk: 0.005,
+        driftRange: [-0.0002, 0.0005]   // 기본 성장률 범위 ([-0.0004, 0.0004] -> [-0.0002, 0.0005])
       },
       etf: {
         volatilityMultiplier: 1.1,
-        correctionBase: 0.15,
-        correctionRange: [0.04, 0.10],
-        flashCrashProb: 0.02,
-        flashCrashRange: [0.08, 0.15],
-        delistRisk: 0.001,              // 상장폐지 위험 (2% -> 0.1%)
-        driftRange: [-0.0002, 0.0003]
+        correctionBase: 0.10,           // (0.15 -> 0.10)
+        correctionRange: [0.02, 0.08],  // (0.04-0.10 -> 0.02-0.08)
+        flashCrashProb: 0.005,          // (0.02 -> 0.005)
+        flashCrashRange: [0.04, 0.10],  // (0.08-0.15 -> 0.04-0.10)
+        delistRisk: 0.001,
+        driftRange: [-0.0001, 0.0004]   // ([-0.0002, 0.0003] -> [-0.0001, 0.0004])
       },
       bond: {
         volatilityMultiplier: 0.6,
@@ -655,7 +655,7 @@ async function updateCentralStockMarketLogic() {
         correctionRange: [0.03, 0.06],
         flashCrashProb: 0.01,
         flashCrashRange: [0.04, 0.08],
-        delistRisk: 0.001,             // 채권 상폐 위험 (0.5% -> 0.1%)
+        delistRisk: 0.001,
         drift: 0.0001
       },
     };
