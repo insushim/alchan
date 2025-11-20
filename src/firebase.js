@@ -305,7 +305,6 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
 
   const cacheKey = `classmates_${classCode}`;
 
-  // 강제 새로고침이 아닐 때만 캐시 확인
   if (!forceRefresh) {
     const cached = getCache(cacheKey);
     if (cached) {
@@ -315,23 +314,22 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
   }
 
   try {
-    console.log(`[firebase.js] 학급 구성원 조회 시작 (${classCode}), forceRefresh: ${forceRefresh}`);
+    console.log(`[firebase.js] 학급 구성원 DB 조회 시작 (${classCode}), forceRefresh: ${forceRefresh}`);
+    
+    // [수정] 직접 쿼리를 사용하여 해당 학급의 사용자만 조회합니다.
+    const usersRef = collection(db, "users");
+    const q = originalFirebaseQuery(usersRef, originalFirebaseWhere("classCode", "==", classCode));
+    const querySnapshot = await getDocs(q);
 
-    // 🔥 [최적화] getAllUsersDocuments 활용 - 중복 읽기 방지
-    // 기존: 별도 쿼리로 33개 문서 읽기
-    // 개선: getAllUsersDocuments 캐시 활용 후 필터링
-    const allUsers = await getAllUsersDocuments(!forceRefresh);
-    const classMembers = allUsers
-      .filter(user => user.classCode === classCode)
-      .map(user => ({
-        ...user,
-        uid: user.id, // AuthContext에서 uid도 사용하므로 추가
-      }));
+    const classMembers = querySnapshot.docs.map(doc => ({
+      id: doc.id,
+      uid: doc.id, // AuthContext 호환성을 위해 uid 추가
+      ...doc.data()
+    }));
 
-    // 캐시에 저장 (강제 새로고침 시에도 저장)
     setCache(cacheKey, classMembers);
 
-    console.log(`[firebase.js] 학급 구성원 조회 완료 (${classCode}): ${classMembers.length}명 (중복 읽기 방지)`);
+    console.log(`[firebase.js] 학급 구성원 조회 완료 (${classCode}): ${classMembers.length}명 (DB 직접 쿼리)`);
     return classMembers;
 
   } catch (error) {
