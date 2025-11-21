@@ -204,67 +204,12 @@ exports.simpleScheduler = onRequest({
       return;
     }
 
-    const now = new Date();
-    const kstOffset = 9 * 60; // KST = UTC+9
-    const kstTime = new Date(now.getTime() + kstOffset * 60 * 1000);
-    const hour = kstTime.getUTCHours();
-    const day = kstTime.getUTCDay(); // 0=일요일, 1=월요일, ..., 6=토요일
+    // 🔥 최적화: 이 스케줄러는 더 이상 사용되지 않음 (deprecated)
+    // stockPriceScheduler가 동일한 역할을 수행하므로, 중복 실행을 막기 위해 즉시 종료
+    logger.info(`[simpleScheduler] 호출됨 - Deprecated. 아무 작업도 수행하지 않고 종료합니다.`);
+    res.json({ success: true, message: 'Scheduler is deprecated and no longer in use.' });
+    return;
 
-    logger.info(`[simpleScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
-
-    // 평일(1-5) 8시-15시 KST 시장 시간 체크
-    const isWeekday = day >= 1 && day <= 5;
-    const isMarketHours = hour >= 8 && hour < 15;
-
-    if (!isWeekday || !isMarketHours) {
-      logger.info(`[simpleScheduler] 시장 시간 아님 (평일: ${isWeekday}, 시간: ${hour}시) - 작업 건너뜀`);
-      res.json({
-        success: true,
-        message: '시장 시간 아님 - 작업 건너뜀',
-        kstHour: hour,
-        day: day
-      });
-      return;
-    }
-
-    // 시장 시간이면 모든 작업 실행
-    logger.info(`[simpleScheduler] 시장 시간 - 모든 작업 실행 시작`);
-
-    const results = {};
-
-    try {
-      await updateMarketConditionLogic();
-      results.updateMarketCondition = 'success';
-    } catch (error) {
-      logger.error('[simpleScheduler] updateMarketCondition 오류:', error);
-      results.updateMarketCondition = `error: ${error.message}`;
-    }
-
-    try {
-      await updateCentralStockMarketLogic();
-      results.updateCentralStockMarket = 'success';
-    } catch (error) {
-      logger.error('[simpleScheduler] updateCentralStockMarket 오류:', error);
-      results.updateCentralStockMarket = `error: ${error.message}`;
-    }
-
-    // 뉴스 생성은 별도 스케줄러에서 처리 (30분마다)
-    // 주식 가격 업데이트와 분리하여 비용 최적화
-
-    try {
-      await autoManageStocksLogic();
-      results.autoManageStocks = 'success';
-    } catch (error) {
-      logger.error('[simpleScheduler] autoManageStocks 오류:', error);
-      results.autoManageStocks = `error: ${error.message}`;
-    }
-
-    logger.info(`[simpleScheduler] 작업 완료:`, results);
-
-    // FCM 알림 제거: 푸시 알림은 사용자 경험을 해치고 이탈률을 증가시킴
-    // 클라이언트는 30초 캐시와 자동 폴링으로 충분한 실시간성을 받음
-
-    res.json({ success: true, results, kstHour: hour });
   } catch (error) {
     logger.error('[simpleScheduler] 전체 오류:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -369,19 +314,15 @@ exports.stockPriceScheduler = onRequest({
     }
 
     try {
-      await updateCentralStockMarketLogic();
+      const stocksSnapshot = await updateCentralStockMarketLogic();
       results.updateCentralStockMarket = 'success';
-    } catch (error) {
-      logger.error('[stockPriceScheduler] updateCentralStockMarket 오류:', error);
-      results.updateCentralStockMarket = `error: ${error.message}`;
-    }
 
-    try {
-      await autoManageStocksLogic();
+      // 🔥 최적화: 읽어온 데이터를 다음 함수에 전달하여 중복 읽기 방지
+      await autoManageStocksLogic(stocksSnapshot);
       results.autoManageStocks = 'success';
     } catch (error) {
-      logger.error('[stockPriceScheduler] autoManageStocks 오류:', error);
-      results.autoManageStocks = `error: ${error.message}`;
+      logger.error('[stockPriceScheduler] updateCentralStockMarket 또는 autoManageStocks 오류:', error);
+      results.updateCentralStockMarket = `error: ${error.message}`;
     }
 
     logger.info(`[stockPriceScheduler] 작업 완료:`, results);
@@ -783,13 +724,14 @@ async function updateCentralStockMarketLogic() {
     await batch.commit();
     logger.info(`→ 주식 가격 업데이트 완료 - 총 ${totalStocks}건 중 ${updateCount}건 업데이트, ${skippedCount}건 건너뜀, ${delistCount}건 상장폐지 (시장 상황: ${marketConditionName})`);
     logger.info(`[주식 업데이트 통계] 읽기: ${totalStocks + (marketConditionDoc.exists ? 1 : 0) + activeNews.length}건, 쓰기: ${updateCount + delistCount}건`);
+    return stocksSnapshot; // 🔥 최적화: 읽은 데이터를 반환하여 재사용
   } catch (error) {
     logger.error("→ 주식 가격 업데이트 중 오류:", error);
     throw error;
   }
 }
 
-async function autoManageStocksLogic() {
+async function autoManageStocksLogic(stocksSnapshotFromPrev = null) {
   logger.info(">>> [스케줄러] 자동 주식 상장/폐지 관리 시작");
   try {
     const now = Date.now();
@@ -797,9 +739,11 @@ async function autoManageStocksLogic() {
     let relistCount = 0;
 
     // 1. 최소 상장가에 도달한 주식 자동 폐지
-    const listedStocksSnapshot = await db.collection("CentralStocks")
-      .where("isListed", "==", true)
-      .get();
+    // 🔥 최적화: 이전 함수에서 데이터를 받아왔으면 재사용, 아니면 새로 fetch
+    const listedStocksSnapshot = stocksSnapshotFromPrev ? stocksSnapshotFromPrev : 
+      await db.collection("CentralStocks")
+        .where("isListed", "==", true)
+        .get();
 
     const batch1 = db.batch();
 
@@ -832,8 +776,10 @@ async function autoManageStocksLogic() {
     }
 
     // 2. 폐지된 지 5분이 지난 주식 재상장 (초기 가격으로 리셋)
+    const relistTime = now - (5 * 60 * 1000);
     const delistedStocksSnapshot = await db.collection("CentralStocks")
       .where("isListed", "==", false)
+      .where("delistedTimestamp", "<=", relistTime)
       .get();
 
     const batch2 = db.batch();

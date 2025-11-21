@@ -80,6 +80,20 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "CentralStocks",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "isListed",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "delistedTimestamp",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
       "collectionGroup": "marketItems",
       "queryScope": "COLLECTION",
       "fields": [
