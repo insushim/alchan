@@ -727,7 +727,7 @@ const StockExchange = () => {
   }, [portfolio]);
 
   // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
-  const fetchAllData = useCallback(async (forceRefresh = true) => { // forceRefresh 기본값을 true로 변경
+  const fetchAllData = useCallback(async (forceRefresh = false) => { // forceRefresh 기본값을 false로 되돌려 캐시 활성화
     if (!classCode || !user) return;
 
     if (isFetchingRef.current && !forceRefresh) {
