@@ -90,21 +90,29 @@ const batchDataLoader = {
   _loadStocks: async function(classCode) {
     try {
       // 우선 스냅샷 문서(단일 읽기)에서 불러와 읽기 비용 최소화
-      const cacheRef = doc(db, "Settings", "centralStocksCache");
-      const cacheDoc = await getDoc(cacheRef);
-      const cacheData = cacheDoc.exists() ? cacheDoc.data() : null;
+      try {
+        const cacheRef = doc(db, "Settings", "centralStocksCache");
+        const cacheDoc = await getDoc(cacheRef);
+        const cacheData = cacheDoc.exists() ? cacheDoc.data() : null;
 
-      if (cacheData && Array.isArray(cacheData.stocks) && cacheData.stocks.length > 0) {
-        console.log(`[Firebase 읽기] Stock snapshot: ${cacheData.stocks.length}개 항목 (단일 문서)`);
-        return cacheData.stocks;
+        if (cacheData && Array.isArray(cacheData.stocks) && cacheData.stocks.length > 0) {
+          console.log(`[Firebase 읽기] Stock snapshot: ${cacheData.stocks.length}개 항목 (단일 문서)`);
+          return cacheData.stocks;
+        }
+      } catch (snapshotError) {
+        console.warn('[batchDataLoader] 스냅샷 문서 읽기 실패, 폴백 시도:', snapshotError);
       }
 
-      // 스냅샷이 없거나 비어 있으면 Cloud Function을 호출해 생성+조회 (단일 문서 읽기)
-      const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
-      const result = await getSnapshotFn({});
-      if (result.data && Array.isArray(result.data.stocks)) {
-        console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
-        return result.data.stocks;
+      // 스냅샷이 없거나 읽기 권한이 없으면 Cloud Function을 호출해 생성+조회 (단일 읽기)
+      try {
+        const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
+        const result = await getSnapshotFn({});
+        if (result.data && Array.isArray(result.data.stocks) && result.data.stocks.length > 0) {
+          console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
+          return result.data.stocks;
+        }
+      } catch (fnError) {
+        console.warn('[batchDataLoader] 스냅샷 함수 호출 실패, 최종 폴백 쿼리 사용:', fnError);
       }
 
       // 함수 호출 실패 시에만 폴백 쿼리 (예외적 케이스)
@@ -856,7 +864,8 @@ const StockExchange = () => {
 
   // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
   const fetchAllData = useCallback(async (forceRefresh = false) => { // forceRefresh 기본값을 false로 되돌려 캐시 활성화
-    if (!classCode || !user) return;
+    if (!user) return;
+    if (!classCode && !isAdmin()) return;
 
     if (isFetchingRef.current && !forceRefresh) {
       console.log('[StockExchange] 이미 fetching 중이므로 대기');
@@ -902,13 +911,13 @@ const StockExchange = () => {
       isFetchingRef.current = false;
       setIsFetching(false);
     }
-  }, [classCode, user]);
+  }, [classCode, user, isAdmin]);
 
   // === 데이터 자동 갱신 (Polling) ===
   usePolling(fetchAllData, {
     interval: POLLING_INTERVALS.REALTIME, // 1분마다 자동 갱신
-    enabled: firebaseReady && !!user && !!classCode,
-    deps: [classCode, user]
+    enabled: firebaseReady && !!user,
+    deps: [user, classCode, isAdmin]
   });
 
   // 🔥 FCM 푸시 알림 제거됨 (이유: 알림 스팸, 읽기 증가, 사용자 경험 악화)
