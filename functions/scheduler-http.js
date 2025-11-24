@@ -19,7 +19,8 @@ const {
   updateExchangeRate,
   getCurrentExchangeRate,
   DEFAULT_REAL_STOCKS,
-  updateCentralStocksSnapshot
+  updateCentralStocksSnapshot,
+  getCentralStocksSnapshot
 } = require("./realStockService");
 
 // 보안: 간단한 인증 토큰 체크 (GitHub Actions에서 호출 가능)
@@ -352,6 +353,23 @@ exports.updateStocksSnapshotFunction = onCall({ region: "asia-northeast3" }, asy
   } catch (error) {
     logger.error("[updateStocksSnapshot] 오류:", error);
     throw new HttpsError("internal", error.message || "스냅샷 갱신 실패");
+  }
+});
+
+// 🔥 스냅샷 조회 (사용자용) - 없으면 생성 후 반환
+exports.getStocksSnapshotFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, false); // 일반 사용자도 가능
+  logger.info("[getStocksSnapshot] 스냅샷 조회 요청");
+
+  try {
+    const snapshot = await getCentralStocksSnapshot();
+    return {
+      success: true,
+      ...snapshot
+    };
+  } catch (error) {
+    logger.error("[getStocksSnapshot] 오류:", error);
+    throw new HttpsError("internal", error.message || "스냅샷 조회 실패");
   }
 });
 

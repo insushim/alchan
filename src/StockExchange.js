@@ -101,7 +101,15 @@ const batchDataLoader = {
         return cacheData.stocks;
       }
 
-      // 스냅샷이 없거나 비어 있으면 기존 쿼리로 폴백
+      // 스냅샷이 없거나 비어 있으면 Cloud Function을 호출해 생성+조회 (단일 문서 읽기)
+      const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
+      const result = await getSnapshotFn({});
+      if (result.data && Array.isArray(result.data.stocks)) {
+        console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
+        return result.data.stocks;
+      }
+
+      // 함수 호출 실패 시에만 폴백 쿼리 (예외적 케이스)
       const stocksRef = collection(db, "CentralStocks");
       const q = query(stocksRef, where("isListed", "==", true));
       const querySnapshot = await getDocs(q);
@@ -143,18 +151,8 @@ const batchDataLoader = {
   },
 
   _loadMarketCondition: async function() {
-    try {
-      const marketConditionRef = doc(db, "MarketCondition", "current");
-      const marketConditionDoc = await getDoc(marketConditionRef);
-
-      if (marketConditionDoc.exists()) {
-        return marketConditionDoc.data();
-      }
-      return null;
-    } catch (error) {
-      console.error('[batchDataLoader] Market condition load error:', error);
-      return null;
-    }
+    // 시장 시뮬레이션/뉴스 비활성화: 불필요한 읽기 제거
+    return null;
   }
 };
 
@@ -771,7 +769,7 @@ const StockExchange = () => {
   const [classCode, setClassCode] = useState(null);
   const [stocks, setStocks] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
-  const [marketCondition, setMarketCondition] = useState({ index: 1000, trend: "neutral", volatility: "normal" });
+  const [marketCondition, setMarketCondition] = useState(null);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [buyQuantities, setBuyQuantities] = useState({});
   const [sellQuantities, setSellQuantities] = useState({});
@@ -930,14 +928,7 @@ const StockExchange = () => {
   // 클라이언트에서는 별도 스케줄러 불필요
 
   // === 시장 지수 계산 ===
-  useEffect(() => {
-    if (!stocks || stocks.length === 0) return;
-    const index = calculateMarketIndex(stocks);
-    let trend = "neutral";
-    if (index > 1100) trend = "bull";
-    else if (index < 900) trend = "bear";
-    setMarketCondition({ index, trend, volatility: "normal" });
-  }, [stocks]);
+  // 시장 상태 시뮬레이션 비활성화
 
   // 중앙 주식 스냅샷 문서 강제 갱신 (관리자 작업 후 읽기 최적화 유지)
   const refreshStocksSnapshot = useCallback(async () => {
@@ -1467,6 +1458,33 @@ const StockExchange = () => {
 
   if (authLoading || !firebaseReady) return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
   if (!user || !userDoc) return <div className="loading-message">로그인이 필요합니다.</div>;
+
+  // 학생 사용자가 학급에 배정되지 않은 경우 안내 메시지 표시
+  if (!isAdmin() && (!classCode || classCode === '미지정')) {
+    return (
+      <div className="stock-exchange-container">
+        <header className="stock-header">
+          <div className="stock-header-content">
+            <div className="logo-title">
+              <BarChart3 size={32} color="white" /><h1>투자 거래소</h1>
+            </div>
+          </div>
+        </header>
+        <main className="market-section" style={{justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
+          <div style={{textAlign: 'center', padding: '20px', background: '#fff', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>
+            <h2>학급 미배정 안내</h2>
+            <p style={{marginTop: '10px', fontSize: '1rem', color: '#333'}}>
+              소속된 학급이 없어 주식 시장을 이용할 수 없습니다.
+            </p>
+            <p style={{marginTop: '5px', fontSize: '0.9rem', color: '#666'}}>
+              담당 선생님께 문의하여 학급에 등록해주세요.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
   if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onCreateRealStocks={createRealStocks} onUpdateRealStocks={updateRealStocks} onAddSingleRealStock={addSingleRealStock} onDeleteSimulationStocks={deleteSimulationStocks} />; 
 
@@ -1489,77 +1507,19 @@ const StockExchange = () => {
             </div>
         </header>
         <main className="market-section">
-            <section className="asset-summary">
-                <div className="asset-cards">
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div><div className="asset-card-icon blue">📊</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div><div className="asset-card-icon purple">💎</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div><div className={`asset-card-icon ${portfolioStats.totalProfit >= 0 ? 'red' : 'blue'}`}>{portfolioStats.totalProfit >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div><div className={`asset-card-icon ${portfolioStats.profitPercent >= 0 ? 'red' : 'blue'}`}>{portfolioStats.profitPercent >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
+            <section className="portfolio-section" style={{width: '100%', maxWidth: '1200px', margin: '0 auto'}}>
+                <div className="section-header" style={{paddingBottom: '1rem'}}>
+                    <h2 className="section-title">💼 내 자산 현황</h2>
                 </div>
-                
-                {/* 성능 통계 표시 (관리자 전용) */}
-                {isAdmin() && (
-                    <div style={{ 
-                        marginTop: '10px', 
-                        padding: '8px 12px', 
-                        background: '#f0f9ff', 
-                        borderRadius: '6px', 
-                        fontSize: '0.8rem', 
-                        color: '#0369a1',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <div>
-                            🚀 성능 최적화 상태: 캐시 적중 {cacheStatus.hits}회, 누락 {cacheStatus.misses}회 
-                            (절약률: {cacheStatus.hits + cacheStatus.misses > 0 ? Math.round((cacheStatus.hits / (cacheStatus.hits + cacheStatus.misses)) * 100) : 0}%)
-                        </div>
-                        {lastBatchLoad && (
-                            <div>마지막 배치로드: {lastBatchLoad.toLocaleTimeString()}</div>
-                        )}
-                    </div>
-                )}
+                <div className="asset-cards compact">
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>계좌 잔고</h3><p className="value">{formatCurrency(userDoc.cash)}</p></div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div></div></div>
+                </div>
             </section>
 
-            {/* 시장 전체 상황 표시 */}
-            {marketCondition && marketCondition.name && (
-                <section className="market-condition-section" style={{
-                    background: marketCondition.impact > 0 ? 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)' :
-                                marketCondition.impact < 0 ? 'linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%)' :
-                                '#f5f5f5',
-                    border: `2px solid ${marketCondition.impact > 0 ? '#4caf50' : marketCondition.impact < 0 ? '#f44336' : '#9e9e9e'}`,
-                    borderRadius: '12px',
-                    padding: '16px',
-                    marginBottom: '20px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
-                }}>
-                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-                        <div>
-                            <h3 style={{
-                                margin: 0,
-                                fontSize: '1.2rem',
-                                color: marketCondition.impact > 0 ? '#2e7d32' : marketCondition.impact < 0 ? '#c62828' : '#424242',
-                                fontWeight: 'bold'
-                            }}>
-                                📊 시장 상황: {marketCondition.name}
-                            </h3>
-                            <p style={{margin: '8px 0 0 0', color: '#666', fontSize: '0.9rem'}}>
-                                {marketCondition.description}
-                            </p>
-                        </div>
-                        <div style={{
-                            fontSize: '2rem',
-                            fontWeight: 'bold',
-                            color: marketCondition.impact > 0 ? '#2e7d32' : marketCondition.impact < 0 ? '#c62828' : '#424242'
-                        }}>
-                            {marketCondition.impact > 0 ? '📈' : marketCondition.impact < 0 ? '📉' : '➡️'}
-                            <span style={{fontSize: '1.5rem', marginLeft: '8px'}}>
-                                {marketCondition.impact > 0 ? '+' : ''}{(marketCondition.impact * 100).toFixed(1)}%
-                            </span>
-                        </div>
-                    </div>
-                </section>
-            )}
 
             <section className="market-list-section">
                 <div className="section-header">

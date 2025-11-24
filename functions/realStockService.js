@@ -475,6 +475,26 @@ async function updateCentralStocksSnapshot() {
 }
 
 /**
+ * 스냅샷 문서를 읽어서 반환. 없으면 생성 후 반환.
+ * @returns {Promise<{stocks: Array, count: number}>}
+ */
+async function getCentralStocksSnapshot() {
+  const cacheRef = db.collection("Settings").doc("centralStocksCache");
+  const docSnap = await cacheRef.get();
+
+  if (docSnap.exists) {
+    const data = docSnap.data() || {};
+    return { stocks: data.stocks || [], count: data.count || 0 };
+  }
+
+  // 스냅샷이 없으면 새로 생성
+  const result = await updateCentralStocksSnapshot();
+  const newDoc = await cacheRef.get();
+  const data = newDoc.exists ? newDoc.data() : {};
+  return { stocks: data.stocks || [], count: result.count || 0 };
+}
+
+/**
  * 초기 실제 주식 데이터 생성 (관리자용)
  * @param {Array} stockConfigs - 추가할 실제 주식 설정 배열
  * @returns {Promise<{created: number}>}
@@ -723,6 +743,7 @@ module.exports = {
   fetchMultipleStockPrices,
   updateRealStockPrices,
   updateCentralStocksSnapshot,
+  getCentralStocksSnapshot,
   createRealStocks,
   addSingleRealStock,
   getAvailableSymbols,
