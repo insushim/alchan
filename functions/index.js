@@ -26,12 +26,24 @@ const { initialStocks } = require("./initialStocks");
 const scheduler = require("./scheduler-http");
 exports.manualUpdateStockMarket = scheduler.manualUpdateStockMarket; // 관리자 수동 업데이트
 exports.simpleScheduler = scheduler.simpleScheduler; // 레거시 통합 스케줄러 (하위 호환성)
-exports.newsScheduler = scheduler.newsScheduler; // 뉴스 생성 스케줄러 (30분마다)
 exports.stockPriceScheduler = scheduler.stockPriceScheduler; // 주식 가격 업데이트 스케줄러 (15분마다)
-exports.deleteAllNews = scheduler.deleteAllNews; // 모든 뉴스 삭제 (초기화용)
 exports.midnightReset = scheduler.midnightReset; // 자정 리셋용 엔드포인트
 exports.weeklySalary = scheduler.weeklySalary; // 주급 지급용 엔드포인트
 exports.weeklyRent = scheduler.weeklyRent; // 월세 징수용 엔드포인트
+
+// 🔥 실제 주식 관리 함수 (관리자용)
+exports.createRealStocks = scheduler.createRealStocksFunction; // 실제 주식 생성 (기본 목록)
+exports.updateRealStocks = scheduler.updateRealStocksFunction; // 실제 주식 가격 수동 업데이트
+exports.addSingleRealStock = scheduler.addSingleRealStockFunction; // 개별 실제 주식 추가
+exports.updateStocksSnapshot = scheduler.updateStocksSnapshotFunction; // 스냅샷 강제 갱신
+exports.getAvailableSymbols = scheduler.getAvailableSymbolsFunction; // 사용 가능한 심볼 목록
+
+// 🔥 환율 관리 함수
+exports.updateExchangeRate = scheduler.updateExchangeRateFunction; // 환율 수동 업데이트
+exports.exchangeRateScheduler = scheduler.exchangeRateScheduler; // 환율 자동 업데이트 (하루 1회)
+
+// 🔥 시뮬레이션 주식 삭제 (관리자용)
+exports.deleteSimulationStocks = scheduler.deleteSimulationStocksFunction; // 시뮬레이션 주식 완전 삭제
 
 // 초기 설정 함수들 (관리자 전용)
 const initSettings = require("./initializeSettings");

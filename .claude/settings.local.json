@@ -57,7 +57,10 @@
       "Bash(dir:*)",
       "Bash(if exist nul del /f nul)",
       "Bash(git reset:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(TZ=Asia/Seoul date:*)",
+      "Bash(TZ=America/New_York date:*)",
+      "Bash(python3:*)"
     ],
     "deny": [],
     "ask": []

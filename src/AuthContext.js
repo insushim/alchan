@@ -84,6 +84,8 @@ export const AuthProvider = ({ children }) => {
   const CLASSMATES_CACHE_TTL = 60 * 60 * 1000; // 🔥 [최적화] 학급 구성원 캐시 1시간 (Firebase 읽기 최적화)
   const USER_DOC_CACHE_TTL = 4 * 60 * 60 * 1000; // 🔥 [최적화] 4시간 (2시간에서 증가)
   const LASTLOGIN_UPDATE_COOLDOWN = 24 * 60 * 60 * 1000; // 24시간 (6시간에서 증가)
+  const LAST_ACTIVE_UPDATE_INTERVAL = 5 * 60 * 1000; // 🔥 [최적화] 활성 상태 업데이트 5분 간격
+  const lastActiveUpdateRef = useRef(0); // 마지막 활성 상태 업데이트 시간
 
   // Firebase 초기화 확인 (한 번만 실행)
   useEffect(() => {
@@ -208,6 +210,29 @@ export const AuthProvider = ({ children }) => {
       }
     },
     [firebaseReady, calculateClassMembers]
+  );
+
+  // 🔥 [최적화] 활성 사용자 추적 - stockPriceScheduler 비용 절감용
+  const updateLastActiveAt = useCallback(
+    async (firebaseUid) => {
+      if (!firebaseUid || !firebaseReady) return;
+
+      const now = Date.now();
+      // 5분 이내에 이미 업데이트했으면 건너뛰기
+      if (now - lastActiveUpdateRef.current < LAST_ACTIVE_UPDATE_INTERVAL) {
+        return;
+      }
+
+      try {
+        await updateUserDocument(firebaseUid, {
+          lastActiveAt: serverTimestamp(),
+        });
+        lastActiveUpdateRef.current = now;
+      } catch (error) {
+        // 네트워크 오류 등은 무시 (중요하지 않음)
+      }
+    },
+    [firebaseReady]
   );
 
   // 최적화: lastLogin 업데이트 - 더 긴 간격으로 업데이트
@@ -382,10 +407,28 @@ export const AuthProvider = ({ children }) => {
               );
             }, 10000); // 10초 후에 실행
 
-            // 🔥 [최적화] 폴링 제거 - 필요할 때만 수동으로 새로고침하도록 변경
-            // Visibility API를 사용하여 브라우저가 백그라운드에 있을 때는 아무것도 하지 않음
+            // 🔥 [최적화] 활성 상태 즉시 업데이트 (로그인 시)
+            updateLastActiveAt(firebaseAuthUser.uid);
 
-            firestoreUnsubscribeRef.current = () => {}; // 빈 정리 함수
+            // 🔥 [최적화] Visibility API를 사용하여 활성 상태 추적
+            if (visibilityChangeHandlerRef.current) {
+              document.removeEventListener('visibilitychange', visibilityChangeHandlerRef.current);
+            }
+
+            visibilityChangeHandlerRef.current = () => {
+              if (document.visibilityState === 'visible' && firebaseAuthUser?.uid) {
+                updateLastActiveAt(firebaseAuthUser.uid);
+              }
+            };
+
+            document.addEventListener('visibilitychange', visibilityChangeHandlerRef.current);
+
+            firestoreUnsubscribeRef.current = () => {
+              if (visibilityChangeHandlerRef.current) {
+                document.removeEventListener('visibilitychange', visibilityChangeHandlerRef.current);
+                visibilityChangeHandlerRef.current = null;
+              }
+            };
           }
           
           setLoading(false);

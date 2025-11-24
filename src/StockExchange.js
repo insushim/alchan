@@ -10,7 +10,6 @@ import { formatKoreanCurrency } from './numberFormatter';
 import { useAuth } from "./AuthContext";
 import { db, functions } from "./firebase";
 import { applyStockTax } from "./utils/taxUtils";
-// 🔥 뉴스 생성: cron-job.org 스케줄러만 사용 (클라이언트 측 뉴스 생성 없음)
 // 🔥 자동 상장/폐지: Firebase Functions에서 처리 (10분마다)
 import { httpsCallable } from "firebase/functions";
 import { usePolling, POLLING_INTERVALS } from "./hooks/usePolling";
@@ -67,8 +66,8 @@ const batchDataLoader = {
 
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 10 * 60 * 1000); // 🔥 최적화: 10분 캐시 (읽기 비용 절감)
-      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (10분)');
+      globalCache.set(batchKey, result, 15 * 60 * 1000); // 🔥 실제 주가 갱신 주기에 맞춘 15분 캐시로 읽기 횟수 추가 절감
+      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (15분)');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -76,17 +75,15 @@ const batchDataLoader = {
   },
 
   _executeBatchLoad: async function(classCode, userId) {
-    const [stocks, portfolio, news, marketCondition] = await Promise.all([
+    const [stocks, portfolio, marketCondition] = await Promise.all([
       this._loadStocks(classCode),
       this._loadPortfolio(userId, classCode),
-      this._loadNews(classCode),
       this._loadMarketCondition()
     ]);
 
     return {
       stocks: stocks || [],
       portfolio: portfolio || [],
-      news: news || [],
       marketCondition: marketCondition || null,
       errors: []
     };
@@ -94,11 +91,22 @@ const batchDataLoader = {
 
   _loadStocks: async function(classCode) {
     try {
+      // 우선 스냅샷 문서(단일 읽기)에서 불러와 읽기 비용 최소화
+      const cacheRef = doc(db, "Settings", "centralStocksCache");
+      const cacheDoc = await getDoc(cacheRef);
+      const cacheData = cacheDoc.exists() ? cacheDoc.data() : null;
+
+      if (cacheData && Array.isArray(cacheData.stocks) && cacheData.stocks.length > 0) {
+        console.log(`[Firebase 읽기] Stock snapshot: ${cacheData.stocks.length}개 항목 (단일 문서)`);
+        return cacheData.stocks;
+      }
+
+      // 스냅샷이 없거나 비어 있으면 기존 쿼리로 폴백
       const stocksRef = collection(db, "CentralStocks");
       const q = query(stocksRef, where("isListed", "==", true));
       const querySnapshot = await getDocs(q);
 
-      console.log(`[Firebase 읽기] Stocks: ${querySnapshot.docs.length}개 문서 읽음`);
+      console.log(`[Firebase 읽기] Stocks: ${querySnapshot.docs.length}개 문서 읽음 (폴백)`); // fallback path
 
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -130,46 +138,6 @@ const batchDataLoader = {
       });
     } catch (error) {
       console.error('[batchDataLoader] Portfolio load error:', error);
-      return [];
-    }
-  },
-
-  _loadNews: async function(classCode) {
-    try {
-      const allNews = [];
-
-      // 중앙 뉴스만 가져오기 (인덱스 없이 작동하도록 orderBy 제거) - 정확히 2개의 뉴스만 표시
-      try {
-        const centralNewsRef = collection(db, "CentralNews");
-        const centralActiveQuery = query(
-          centralNewsRef,
-          where("isActive", "==", true),
-          limit(2)
-        );
-        const centralSnapshot = await getDocs(centralActiveQuery);
-
-        console.log(`[Firebase 읽기] News: ${centralSnapshot.docs.length}개 문서 읽음`);
-
-        centralSnapshot.docs.forEach(doc => {
-          const data = doc.data();
-          allNews.push({
-            id: doc.id,
-            ...data,
-            timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : new Date(data.timestamp || Date.now()),
-            source: 'central'
-          });
-        });
-      } catch (centralError) {
-        console.warn('[batchDataLoader] Central news load failed:', centralError);
-      }
-
-      // 🔥 최적화: 클라이언트 측에서 시간순으로 정렬하고 최신 2개만 반환
-      return allNews
-        .sort((a, b) => b.timestamp - a.timestamp)
-        .slice(0, 2);
-
-    } catch (error) {
-      console.error('[batchDataLoader] News load error:', error);
       return [];
     }
   },
@@ -248,10 +216,9 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 5, // 🔥 최적화: 5분 캐시 (뉴스가 30분마다 생성되므로 5분이면 새 뉴스를 빠르게 확인 가능)
-  STOCKS: 1000 * 60 * 5, // 5분 (주가가 자주 변동되므로)
-  PORTFOLIO: 1000 * 60 * 5, // 🔥 최적화: 5분 캐시
-  NEWS: 1000 * 60 * 5, // 5분 (뉴스가 30분마다 생성되므로)
+  BATCH_DATA: 1000 * 60 * 15, // 🔥 실시간 주가가 15분 주기로만 변하므로 조회 간격도 15분으로 완화
+  STOCKS: 1000 * 60 * 15, // 15분 (가격 반영 주기와 동일)
+  PORTFOLIO: 1000 * 60 * 15, // 🔥 거래 시 forceRefresh로 즉시 무효화하므로 기본 주기는 15분
   MARKET_STATUS: 1000 * 60 * 60, // 60분 (시장 상태는 거의 변경되지 않음)
 };
 
@@ -420,11 +387,135 @@ const invalidateCache = (pattern) => {
   }
 };
 
+// === 개별 실제 주식 추가 컴포넌트 ===
+const RealStockAdder = React.memo(({ onAddStock }) => {
+  const [showForm, setShowForm] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [formData, setFormData] = useState({ name: '', symbol: '', sector: 'TECH', productType: 'stock' });
+
+  const commonStocks = [
+    { name: '삼성전자', symbol: '005930.KS', type: '한국 주식' },
+    { name: 'SK하이닉스', symbol: '000660.KS', type: '한국 주식' },
+    { name: 'LG에너지솔루션', symbol: '373220.KS', type: '한국 주식' },
+    { name: 'NAVER', symbol: '035420.KS', type: '한국 주식' },
+    { name: '카카오', symbol: '035720.KS', type: '한국 주식' },
+    { name: '현대차', symbol: '005380.KS', type: '한국 주식' },
+    { name: 'Apple', symbol: 'AAPL', type: '미국 주식' },
+    { name: 'Microsoft', symbol: 'MSFT', type: '미국 주식' },
+    { name: 'Google', symbol: 'GOOGL', type: '미국 주식' },
+    { name: 'Tesla', symbol: 'TSLA', type: '미국 주식' },
+    { name: 'NVIDIA', symbol: 'NVDA', type: '미국 주식' },
+    { name: 'Amazon', symbol: 'AMZN', type: '미국 주식' },
+    { name: 'KODEX 200', symbol: '069500.KS', type: '한국 ETF' },
+    { name: 'KODEX 레버리지', symbol: '122630.KS', type: '한국 ETF' },
+    { name: 'TIGER 미국S&P500', symbol: '360750.KS', type: '한국 ETF' },
+    { name: 'SPY', symbol: 'SPY', type: '미국 ETF (S&P500)' },
+    { name: 'QQQ', symbol: 'QQQ', type: '미국 ETF (나스닥100)' },
+    { name: 'TLT', symbol: 'TLT', type: '채권 ETF (미국 장기국채)' },
+    { name: 'GLD', symbol: 'GLD', type: '원자재 ETF (금)' },
+  ];
+
+  const handleQuickAdd = async (stock) => {
+    if (isAdding) return;
+    setIsAdding(true);
+    try {
+      await onAddStock({ name: stock.name, symbol: stock.symbol });
+      alert(`${stock.name} 추가 완료!`);
+    } catch (error) {
+      alert('추가 실패: ' + error.message);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleCustomAdd = async () => {
+    if (!formData.name || !formData.symbol) {
+      alert('이름과 심볼을 모두 입력해주세요.');
+      return;
+    }
+    if (isAdding) return;
+    setIsAdding(true);
+    try {
+      await onAddStock(formData);
+      alert(`${formData.name} 추가 완료!`);
+      setFormData({ name: '', symbol: '', sector: 'TECH', productType: 'stock' });
+      setShowForm(false);
+    } catch (error) {
+      alert('추가 실패: ' + error.message);
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '10px' }}>
+      <button onClick={() => setShowForm(!showForm)} className="btn btn-secondary" style={{ width: '100%', marginBottom: '10px' }}>
+        {showForm ? '접기' : '➕ 개별 주식/ETF 추가'}
+      </button>
+      {showForm && (
+        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '10px' }}>
+            📌 빠른 추가 (클릭하면 바로 추가됩니다)
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '15px' }}>
+            {commonStocks.map(stock => (
+              <button
+                key={stock.symbol}
+                onClick={() => handleQuickAdd(stock)}
+                disabled={isAdding}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '0.75rem',
+                  background: stock.type.includes('ETF') ? '#dbeafe' : stock.type.includes('채권') ? '#fef3c7' : stock.type.includes('원자재') ? '#fce7f3' : '#f0fdf4',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+                title={`${stock.type} - ${stock.symbol}`}
+              >
+                {stock.name}
+              </button>
+            ))}
+          </div>
+          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>
+            ✏️ 직접 입력 (Yahoo Finance 심볼 사용)
+          </p>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              placeholder="이름 (예: 삼성전자)"
+              value={formData.name}
+              onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
+              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+            />
+            <input
+              type="text"
+              placeholder="심볼 (예: 005930.KS)"
+              value={formData.symbol}
+              onChange={e => setFormData(p => ({ ...p, symbol: e.target.value }))}
+              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+            />
+            <button onClick={handleCustomAdd} disabled={isAdding} className="btn btn-success" style={{ padding: '8px 16px' }}>
+              {isAdding ? '추가 중...' : '추가'}
+            </button>
+          </div>
+          <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '8px' }}>
+            💡 한국 주식: 종목코드.KS (예: 005930.KS) | 미국 주식: 티커 (예: AAPL, TSLA)
+          </p>
+        </div>
+      )}
+    </div>
+  );
+});
+
 // === 관리자 패널 컴포넌트 ===
-const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate, onDeleteAllNews }) => {
+const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate, onCreateRealStocks, onUpdateRealStocks, onAddSingleRealStock, onDeleteSimulationStocks }) => {
     const [showAddForm, setShowAddForm] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
-    const [isDeletingNews, setIsDeletingNews] = useState(false);
+    const [isCreatingRealStocks, setIsCreatingRealStocks] = useState(false);
+    const [isUpdatingRealStocks, setIsUpdatingRealStocks] = useState(false);
+    const [isDeletingSimulation, setIsDeletingSimulation] = useState(false);
     const [newStock, setNewStock] = useState({
         name: "",
         price: "",
@@ -441,7 +532,7 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
         setIsUpdating(true);
         try {
             await onManualUpdate();
-            alert("주식 가격 및 뉴스 업데이트 완료!");
+            alert("주식 가격 업데이트 완료!");
         } catch (error) {
             alert("업데이트 실패: " + error.message);
         } finally {
@@ -449,19 +540,48 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
         }
     };
 
-    const handleDeleteAllNews = async () => {
-        if (!window.confirm("정말로 모든 뉴스를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+    const handleCreateRealStocks = async () => {
+        if (!window.confirm("실제 주식 데이터(삼성전자, 애플 등)를 생성하시겠습니까?\n(Yahoo Finance에서 실시간 가격을 가져옵니다)")) {
             return;
         }
-        if (isDeletingNews) return;
-        setIsDeletingNews(true);
+        if (isCreatingRealStocks) return;
+        setIsCreatingRealStocks(true);
         try {
-            await onDeleteAllNews();
-            alert("모든 뉴스가 삭제되었습니다!");
+            await onCreateRealStocks();
+            alert("실제 주식이 생성되었습니다! 15분마다 자동으로 가격이 업데이트됩니다.");
         } catch (error) {
-            alert("뉴스 삭제 실패: " + error.message);
+            alert("실제 주식 생성 실패: " + error.message);
         } finally {
-            setIsDeletingNews(false);
+            setIsCreatingRealStocks(false);
+        }
+    };
+
+    const handleUpdateRealStocks = async () => {
+        if (isUpdatingRealStocks) return;
+        setIsUpdatingRealStocks(true);
+        try {
+            await onUpdateRealStocks();
+            alert("실제 주식 가격이 업데이트되었습니다!");
+        } catch (error) {
+            alert("실제 주식 업데이트 실패: " + error.message);
+        } finally {
+            setIsUpdatingRealStocks(false);
+        }
+    };
+
+    const handleDeleteSimulationStocks = async () => {
+        if (!window.confirm("⚠️ 모든 시뮬레이션 주식을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.\n(실제 주식은 유지됩니다)")) {
+            return;
+        }
+        if (isDeletingSimulation) return;
+        setIsDeletingSimulation(true);
+        try {
+            await onDeleteSimulationStocks();
+            alert("시뮬레이션 주식이 삭제되었습니다!");
+        } catch (error) {
+            alert("삭제 실패: " + error.message);
+        } finally {
+            setIsDeletingSimulation(false);
         }
     };
 
@@ -514,28 +634,45 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
             </div>
             <div className="admin-content">
                 <div className="admin-section">
-                    <h3>🔄 시장 관리</h3>
-                    <div style={{ marginBottom: '20px', padding: '15px', background: '#f0f9ff', borderRadius: '8px' }}>
-                        <p style={{ marginBottom: '10px', color: '#0369a1' }}>
-                            📊 주식/ETF/채권 가격을 즉시 업데이트하고 뉴스를 생성합니다.<br/>
-                            ⏰ 자동 업데이트: cron-job.org 스케줄러를 통해 정기적으로 실행됩니다.
+                    <h3>📊 실제 주식 관리 (Yahoo Finance)</h3>
+                    <div style={{ marginBottom: '20px', padding: '15px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #10b981' }}>
+                        <p style={{ marginBottom: '10px', color: '#047857', fontSize: '0.9rem' }}>
+                            🌐 실제 주식 데이터를 Yahoo Finance에서 가져옵니다.<br/>
+                            📈 삼성전자, SK하이닉스, 애플, 테슬라, ETF, 채권 ETF 등 지원<br/>
+                            ⏰ 15분마다 자동으로 가격이 업데이트됩니다. | 💱 환율: 하루 1회 자동 업데이트
                         </p>
-                        <button
-                            onClick={handleManualUpdate}
-                            disabled={isUpdating}
-                            className="btn btn-success"
-                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold', marginBottom: '10px' }}
-                        >
-                            {isUpdating ? '⏳ 업데이트 중...' : '🚀 지금 즉시 가격 & 뉴스 업데이트'}
-                        </button>
-                        <button
-                            onClick={handleDeleteAllNews}
-                            disabled={isDeletingNews}
-                            className="btn btn-danger"
-                            style={{ width: '100%', padding: '12px', fontSize: '1rem', fontWeight: 'bold' }}
-                        >
-                            {isDeletingNews ? '⏳ 삭제 중...' : '🗑️ 모든 뉴스 강제 삭제'}
-                        </button>
+                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                            <button
+                                onClick={handleCreateRealStocks}
+                                disabled={isCreatingRealStocks}
+                                className="btn btn-success"
+                                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
+                            >
+                                {isCreatingRealStocks ? '⏳ 생성 중...' : '🏢 기본 주식 생성'}
+                            </button>
+                            <button
+                                onClick={handleUpdateRealStocks}
+                                disabled={isUpdatingRealStocks}
+                                className="btn btn-primary"
+                                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
+                            >
+                                {isUpdatingRealStocks ? '⏳ 업데이트 중...' : '🔄 가격 즉시 업데이트'}
+                            </button>
+                        </div>
+                        <RealStockAdder onAddStock={onAddSingleRealStock} />
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #d1d5db' }}>
+                            <button
+                                onClick={handleDeleteSimulationStocks}
+                                disabled={isDeletingSimulation}
+                                className="btn btn-danger"
+                                style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
+                            >
+                                {isDeletingSimulation ? '⏳ 삭제 중...' : '🗑️ 시뮬레이션 주식 전체 삭제'}
+                            </button>
+                            <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '5px', textAlign: 'center' }}>
+                                ⚠️ 실제 주식(실시간)만 남기고 가상 주식을 모두 삭제합니다
+                            </p>
+                        </div>
                     </div>
                 </div>
                 <div className="admin-section">
@@ -544,9 +681,12 @@ const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDelet
                         {stocks.map(stock => (
                             <div key={stock.id} className="admin-stock-item">
                                 <div className="admin-stock-info">
-                                    <span className="stock-name">{getProductIcon(stock.productType)} {stock.name}</span>
+                                    <span className="stock-name">
+                                        {getProductIcon(stock.productType)} {stock.name}
+                                        {stock.isRealStock && <span style={{marginLeft: '6px', background: '#10b981', color: 'white', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold'}}>실시간</span>}
+                                    </span>
                                     <span className="stock-details">
-                                        {formatCurrency(stock.price)} | {SECTORS[stock.sector]?.name || '기타'} | {stock.isListed ? '상장' : '상장폐지'} | {stock.isManual ? '수동' : '자동'}
+                                        {formatCurrency(stock.price)} | {SECTORS[stock.sector]?.name || '기타'} | {stock.isListed ? '상장' : '상장폐지'} | {stock.isManual ? '수동' : stock.isRealStock ? '실시간' : '자동'}
                                         {stock.productType === PRODUCT_TYPES.BOND && ` | 만기: ${stock.maturityYears}년 | 이자율: ${stock.couponRate}%`}
                                     </span>
                                 </div>
@@ -632,17 +772,14 @@ const StockExchange = () => {
   const [stocks, setStocks] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
   const [marketCondition, setMarketCondition] = useState({ index: 1000, trend: "neutral", volatility: "normal" });
-  const [newsFeed, setNewsFeed] = useState([]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [buyQuantities, setBuyQuantities] = useState({});
   const [sellQuantities, setSellQuantities] = useState({});
   const [isTrading, setIsTrading] = useState(false);
-  const [showNews, setShowNews] = useState(true);
   const [lockTimers, setLockTimers] = useState({});
   const [activeTab, setActiveTab] = useState("stocks");
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
-  const [showAllNews, setShowAllNews] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
   
   // 성능 최적화를 위한 상태 추가
@@ -652,7 +789,6 @@ const StockExchange = () => {
   const lastFetchTimeRef = useRef({
     stocks: 0,
     portfolio: 0,
-    news: 0,
     marketStatus: 0,
     batchLoad: 0
   });
@@ -757,7 +893,6 @@ const StockExchange = () => {
 
       setStocks(batchResult.stocks || []);
       setPortfolio(batchResult.portfolio || []);
-      setNewsFeed(batchResult.news || []);
       if (batchResult.marketCondition) {
         setMarketCondition(batchResult.marketCondition);
       }
@@ -765,7 +900,6 @@ const StockExchange = () => {
       lastFetchTimeRef.current.batchLoad = now;
       lastFetchTimeRef.current.stocks = now;
       lastFetchTimeRef.current.portfolio = now;
-      lastFetchTimeRef.current.news = now;
       lastFetchTimeRef.current.marketStatus = now;
 
       setLastBatchLoad(new Date());
@@ -805,6 +939,17 @@ const StockExchange = () => {
     setMarketCondition({ index, trend, volatility: "normal" });
   }, [stocks]);
 
+  // 중앙 주식 스냅샷 문서 강제 갱신 (관리자 작업 후 읽기 최적화 유지)
+  const refreshStocksSnapshot = useCallback(async () => {
+    try {
+      const updateSnapshotFn = httpsCallable(functions, 'updateStocksSnapshot');
+      await updateSnapshotFn({});
+      console.log('[updateStocksSnapshot] 스냅샷 갱신 완료');
+    } catch (error) {
+      console.error('[updateStocksSnapshot] 스냅샷 갱신 실패:', error);
+    }
+  }, [functions]);
+
   // === 거래 함수들 (최적화된 캐시 무효화) ===
   const addStock = useCallback(async (stockData) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
@@ -824,6 +969,8 @@ const StockExchange = () => {
         volatility: stockData.volatility || 0.02
       });
 
+      await refreshStocksSnapshot();
+
       // 캐시 무효화
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
@@ -834,13 +981,15 @@ const StockExchange = () => {
     } catch (error) {
       alert("상품 추가 중 오류가 발생했습니다.");
     }
-  }, [classCode, user, fetchAllData]);
+  }, [classCode, user, fetchAllData, refreshStocksSnapshot]);
 
   const deleteStock = useCallback(async (stockId, stockName) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     if (window.confirm(`'${stockName}' 상품을 정말로 삭제하시겠습니까?`)) {
       try {
         await deleteDoc(doc(db, "CentralStocks", stockId));
+
+        await refreshStocksSnapshot();
 
         // 캐시 무효화
         const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
@@ -853,7 +1002,7 @@ const StockExchange = () => {
         alert("상품 삭제 중 오류가 발생했습니다.");
       }
     }
-  }, [classCode, user, fetchAllData]);
+  }, [classCode, user, fetchAllData, refreshStocksSnapshot]);
 
   const editStock = useCallback(async (stockId) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
@@ -868,6 +1017,8 @@ const StockExchange = () => {
         priceHistory: [...(stock.priceHistory || []).slice(-19), newPrice]
       });
 
+      await refreshStocksSnapshot();
+
       // 캐시 무효화
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
@@ -878,7 +1029,7 @@ const StockExchange = () => {
     } catch (error) {
       alert("가격 수정 중 오류가 발생했습니다.");
     }
-  }, [stocks, classCode, user, fetchAllData]);
+  }, [stocks, classCode, user, fetchAllData, refreshStocksSnapshot]);
 
   const toggleManualStock = useCallback(async (stockId, currentIsListed) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
@@ -912,6 +1063,8 @@ const StockExchange = () => {
           await batch.commit();
         }
 
+        await refreshStocksSnapshot();
+
         // 캐시 무효화
         const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
         globalCache.invalidate(batchKey);
@@ -924,7 +1077,7 @@ const StockExchange = () => {
         alert(`${action} 처리 중 오류가 발생했습니다.`);
       }
     }
-  }, [stocks, classCode, user, fetchAllData]);
+  }, [stocks, classCode, user, fetchAllData, refreshStocksSnapshot]);
 
   const buyStock = useCallback(async (stockId, quantityString) => {
     if (!marketOpen) return alert("주식시장이 마감되었습니다. 운영 시간: 월-금 오전 8시-오후 3시");
@@ -1145,47 +1298,109 @@ const StockExchange = () => {
     }
   }, [functions, classCode, user, fetchAllData]);
 
-  // 🔥 모든 뉴스 강제 삭제 (관리자 전용)
-  const deleteAllNews = useCallback(async () => {
-    if (!classCode || !user) {
-      throw new Error("클래스 정보가 없습니다.");
+  // 🔥 실제 주식 생성 (관리자 전용)
+  const createRealStocks = useCallback(async () => {
+    if (!functions || !classCode || !user) {
+      throw new Error("Firebase Functions가 초기화되지 않았습니다.");
     }
 
     try {
-      console.log('[deleteAllNews] 모든 뉴스 삭제 시작');
+      console.log('[createRealStocks] 실제 주식 생성 시작');
+      const createRealStocksFunction = httpsCallable(functions, 'createRealStocks');
+      const result = await createRealStocksFunction({});
 
-      // CentralNews 컬렉션의 모든 문서 가져오기
-      const centralNewsRef = collection(db, "CentralNews");
-      const snapshot = await getDocs(centralNewsRef);
-
-      console.log(`[deleteAllNews] ${snapshot.size}개의 뉴스 발견`);
-
-      // 배치로 삭제 (최대 500개씩)
-      const batch = writeBatch(db);
-      let count = 0;
-
-      snapshot.docs.forEach(doc => {
-        batch.delete(doc.ref);
-        count++;
-      });
-
-      if (count > 0) {
-        await batch.commit();
-        console.log(`[deleteAllNews] ${count}개의 뉴스 삭제 완료`);
-      }
+      console.log('[createRealStocks] 생성 성공:', result.data);
 
       // 캐시 무효화 및 데이터 새로고침
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
-      invalidateCache(`NEWS_${classCode}`);
+      invalidateCache(`STOCKS_${classCode}`);
       await fetchAllData(true);
 
-      return { deletedCount: count };
+      return result.data;
     } catch (error) {
-      console.error('[deleteAllNews] 뉴스 삭제 실패:', error);
+      console.error('[createRealStocks] 생성 실패:', error);
       throw error;
     }
-  }, [classCode, user, fetchAllData]);
+  }, [functions, classCode, user, fetchAllData]);
+
+  // 🔥 실제 주식 가격 수동 업데이트 (관리자 전용)
+  const updateRealStocks = useCallback(async () => {
+    if (!functions || !classCode || !user) {
+      throw new Error("Firebase Functions가 초기화되지 않았습니다.");
+    }
+
+    try {
+      console.log('[updateRealStocks] 실제 주식 업데이트 시작');
+      const updateRealStocksFunction = httpsCallable(functions, 'updateRealStocks');
+      const result = await updateRealStocksFunction({});
+
+      console.log('[updateRealStocks] 업데이트 성공:', result.data);
+
+      // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.invalidate(batchKey);
+      invalidateCache(`STOCKS_${classCode}`);
+      await fetchAllData(true);
+
+      return result.data;
+    } catch (error) {
+      console.error('[updateRealStocks] 업데이트 실패:', error);
+      throw error;
+    }
+  }, [functions, classCode, user, fetchAllData]);
+
+  // 🔥 개별 실제 주식 추가 (관리자 전용)
+  const addSingleRealStock = useCallback(async ({ name, symbol, sector, productType }) => {
+    if (!functions || !classCode || !user) {
+      throw new Error("Firebase Functions가 초기화되지 않았습니다.");
+    }
+
+    try {
+      console.log('[addSingleRealStock] 개별 실제 주식 추가 시작:', name);
+      const addSingleRealStockFunction = httpsCallable(functions, 'addSingleRealStock');
+      const result = await addSingleRealStockFunction({ name, symbol, sector, productType });
+
+      console.log('[addSingleRealStock] 추가 성공:', result.data);
+
+      // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.invalidate(batchKey);
+      invalidateCache(`STOCKS_${classCode}`);
+      await fetchAllData(true);
+
+      return result.data;
+    } catch (error) {
+      console.error('[addSingleRealStock] 추가 실패:', error);
+      throw error;
+    }
+  }, [functions, classCode, user, fetchAllData]);
+
+  // 🔥 시뮬레이션 주식 전체 삭제 (관리자 전용)
+  const deleteSimulationStocks = useCallback(async () => {
+    if (!functions || !classCode || !user) {
+      throw new Error("Firebase Functions가 초기화되지 않았습니다.");
+    }
+
+    try {
+      console.log('[deleteSimulationStocks] 시뮬레이션 주식 삭제 시작');
+      const deleteSimulationStocksFunction = httpsCallable(functions, 'deleteSimulationStocks');
+      const result = await deleteSimulationStocksFunction({});
+
+      console.log('[deleteSimulationStocks] 삭제 성공:', result.data);
+
+      // 캐시 무효화 및 데이터 새로고침
+      const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+      globalCache.invalidate(batchKey);
+      invalidateCache(`STOCKS_${classCode}`);
+      await fetchAllData(true);
+
+      return result.data;
+    } catch (error) {
+      console.error('[deleteSimulationStocks] 삭제 실패:', error);
+      throw error;
+    }
+  }, [functions, classCode, user, fetchAllData]);
 
   // === stocks 데이터를 Map으로 변환하여 조회 성능 향상 ===
   const stocksMap = useMemo(() => {
@@ -1241,10 +1456,6 @@ const StockExchange = () => {
     return showAllStocks ? filteredStocks : filteredStocks.slice(0, 20);
   }, [filteredStocks, showAllStocks]);
 
-  const displayedNews = useMemo(() => {
-    return showAllNews ? newsFeed : newsFeed.slice(0, 3);
-  }, [newsFeed, showAllNews]);
-
   // === 수동 새로고침 함수 ===
   const handleManualRefresh = useCallback(() => {
     if (!classCode || !user) return;
@@ -1257,7 +1468,7 @@ const StockExchange = () => {
   if (authLoading || !firebaseReady) return <div className="loading-message">데이터를 불러오는 중입니다...</div>;
   if (!user || !userDoc) return <div className="loading-message">로그인이 필요합니다.</div>;
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
-  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onDeleteAllNews={deleteAllNews} />; 
+  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onCreateRealStocks={createRealStocks} onUpdateRealStocks={updateRealStocks} onAddSingleRealStock={addSingleRealStock} onDeleteSimulationStocks={deleteSimulationStocks} />; 
 
    
 
@@ -1350,62 +1561,6 @@ const StockExchange = () => {
                 </section>
             )}
 
-            <section className="news-section">
-                <div className="news-header" onClick={() => setShowNews(!showNews)}>
-                    <h3 className="news-title">📰 최신 뉴스</h3>
-                    <div className={`news-toggle ${showNews ? 'expanded' : ''}`}>
-                        {showNews ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                    </div>
-                </div>
-                <div className={`news-content ${showNews ? 'expanded' : ''}`}>
-                    {displayedNews.length > 0 ? (
-                        <>
-                            {displayedNews.map(news => {
-                                // 안전한 타임스탬프 처리
-                                const newsTime = news.timestamp instanceof Date
-                                    ? news.timestamp
-                                    : new Date(news.timestamp || Date.now());
-
-                                return (
-                                    <div key={news.id} className="news-item">
-                                        <div className="news-meta">
-                                            <span className="news-time">
-                                                {newsTime.toLocaleTimeString('ko-KR', {
-                                                    hour: '2-digit',
-                                                    minute: '2-digit',
-                                                    second: '2-digit',
-                                                    hour12: true
-                                                })}
-                                            </span>
-                                            {news.source && (
-                                                <span className={`news-source ${news.source}`}>
-                                                    {news.source === 'central' ? '🌐 중앙' : '🏫 클래스'}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="news-headline">
-                                            <strong>{news.title || '제목 없음'}</strong>
-                                            {news.content && <span className="news-content"> - {news.content}</span>}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {newsFeed.length > 3 && (
-                                <button
-                                    onClick={() => setShowAllNews(!showAllNews)}
-                                    className="btn btn-secondary"
-                                    style={{ marginTop: '10px', width: '100%' }}
-                                >
-                                    {showAllNews ? `접기` : `더보기 (${newsFeed.length - 3}개 더)`}
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        <p>새로운 뉴스가 없습니다.</p>
-                    )}
-                </div>
-            </section>
-
             <section className="market-list-section">
                 <div className="section-header">
                     <h2 className="section-title">📈 투자 시장</h2>
@@ -1428,12 +1583,26 @@ const StockExchange = () => {
                     {displayedStocks.map(stock => {
                         const priceHistory = stock.priceHistory || [stock.price];
                         const priceChange = priceHistory.length >= 2 ? ((priceHistory.slice(-1)[0] - priceHistory.slice(-2)[0]) / priceHistory.slice(-2)[0]) * 100 : 0;
+                        const isRealStock = stock.isRealStock === true;
                         return (
-                            <div key={stock.id} className={`stock-card ${priceChange > 0 ? 'price-up' : priceChange < 0 ? 'price-down' : ''}`}>
+                            <div key={stock.id} className={`stock-card ${priceChange > 0 ? 'price-up' : priceChange < 0 ? 'price-down' : ''} ${isRealStock ? 'real-stock' : ''}`}>
                                 <div className="stock-card-header">
                                     <div className="stock-info">
                                         <h3>{getProductIcon(stock.productType)} {stock.name}</h3>
                                         <div className="stock-badges">
+                                            {isRealStock && (
+                                                <span className="stock-badge real" style={{
+                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                    color: 'white',
+                                                    fontWeight: 'bold',
+                                                    fontSize: '0.7rem',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px',
+                                                    marginRight: '4px'
+                                                }}>
+                                                    실시간
+                                                </span>
+                                            )}
                                             <span className={`stock-badge ${getProductBadgeClass(stock.productType)}`}>
                                                 {stock.productType === PRODUCT_TYPES.BOND ? `${stock.maturityYears}년 ${stock.couponRate}%` : SECTORS[stock.sector]?.name || '기타'}
                                             </span>
@@ -1444,6 +1613,15 @@ const StockExchange = () => {
                                         <div className={`stock-change ${priceChange > 0 ? 'up' : 'down'}`}>
                                             <span>{formatPercent(priceChange)}</span>
                                         </div>
+                                        {isRealStock && stock.realStockData && (
+                                            <div style={{fontSize: '0.7rem', color: '#6b7280', marginTop: '2px'}}>
+                                                {stock.realStockData.marketState === 'REGULAR' ? '장중' :
+                                                 stock.realStockData.marketState === 'PRE' ? '장전' :
+                                                 stock.realStockData.marketState === 'PREPRE' ? '장전' :
+                                                 stock.realStockData.marketState === 'POST' ? '장후' :
+                                                 stock.realStockData.marketState === 'POSTPOST' ? '장후' : '장마감'}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="stock-actions">

@@ -11,145 +11,21 @@ const {
   admin,
   logger
 } = require("./utils");
+const {
+  updateRealStockPrices,
+  createRealStocks,
+  addSingleRealStock,
+  getAvailableSymbols,
+  updateExchangeRate,
+  getCurrentExchangeRate,
+  DEFAULT_REAL_STOCKS,
+  updateCentralStocksSnapshot
+} = require("./realStockService");
 
 // 보안: 간단한 인증 토큰 체크 (GitHub Actions에서 호출 가능)
 const AUTH_TOKEN = process.env.SCHEDULER_AUTH_TOKEN || "github-actions-scheduler-2024";
 
-// 섹터별 뉴스 템플릿 (주식 이름 등이 동적으로 제공)
-const SECTOR_NEWS_TEMPLATES = {
-  TECH: {
-    strong_bull: [
-      "IT 업계, 혁신적인 기술 개발 소식에 투자 심리 급등",
-      "기술주 전반에 걸친 강세장 전망",
-      "클라우드 및 AI 산업 성장 가속화",
-    ],
-    bull: [
-      "기술 기업들의 실적 개선 기대감 확산",
-      "디지털 전환 가속화로 IT 업계 수혜 전망",
-      "소프트웨어 산업 성장세 지속",
-    ],
-    bear: [
-      "기술주 투자 심리 위축, 조정 국면 진입",
-      "IT 업계 규제 강화 우려 확산",
-      "기술 기업 실적 부진 우려",
-    ],
-    strong_bear: [
-      "기술주 급락, 투자자 이탈 현상 심화",
-      "IT 산업 전반 침체 우려 고조",
-      "글로벌 기업들의 수익성 악화 전망",
-    ]
-  },
-  FINANCE: {
-    strong_bull: [
-      "금융주, 규제 완화 전망에 투자 심리 개선",
-      "은행 및 증권사 실적 호조 기대",
-      "금융 산업 수익성 개선 신호 포착",
-    ],
-    bull: [
-      "금리 상승기, 투자 마진 개선 기대",
-      "자산 관리 산업 성장세 지속",
-      "금융권 디지털 전환 성과 가시화",
-    ],
-    bear: [
-      "금융주 약세, 대출 수요 감소 우려",
-      "금융 시장 건전성 지표 악화 조짐",
-      "은행 및 증권사 수익성 압박",
-    ],
-    strong_bear: [
-      "금융 산업 전반 급락, 시스템 리스크 우려",
-      "금융권 부실 우려 확산",
-      "우량주 투자 심리 급격히 냉각",
-    ]
-  },
-  BIO: {
-    strong_bull: [
-      "제약·바이오 산업, 신약 개발 성공 소식",
-      "헬스케어 기업들의 임상 결과 호조",
-      "바이오 산업 투자 활황 전망",
-    ],
-    bull: [
-      "제약 업계 실적 개선 기대감",
-      "바이오 기업들의 연구개발 성과 가시화",
-      "헬스케어 시장 성장세 지속",
-    ],
-    bear: [
-      "제약·바이오주 조정, 임상 결과 불확실성",
-      "바이오 기업 투자 심리 위축",
-      "헬스케어 산업 규제 강화 우려",
-    ],
-    strong_bear: [
-      "제약·바이오 산업 급락, 신약 개발 실패 소식",
-      "바이오 기업들의 자금 압박 심화",
-      "헬스케어 투자 심리 급격히 악화",
-    ]
-  },
-  ENERGY: {
-    strong_bull: [
-      "에너지 산업 수요 급증, 가격 상승 전망",
-      "친환경 에너지 투자 활황 기대",
-      "전력 및 신재생에너지 산업 호황",
-    ],
-    bull: [
-      "에너지 기업 실적 개선 기대",
-      "전력 수요 증가세 지속",
-      "신재생에너지 산업 성장 가속화",
-    ],
-    bear: [
-      "에너지 가격 하락, 업계 수익성 압박",
-      "전력 산업 투자 심리 위축",
-      "에너지 기업 실적 부진 우려",
-    ],
-    strong_bear: [
-      "에너지 산업 급락, 수요 감소 우려 확산",
-      "전력 기업 수익성 악화 전망",
-      "에너지주 투자 심리 급격히 냉각",
-    ]
-  },
-  CONSUMER: {
-    strong_bull: [
-      "소비재 산업 판매 급증, 실적 호조 전망",
-      "유통 업계 매출 성장세 지속",
-      "소비 심리 개선으로 유통주 강세",
-    ],
-    bull: [
-      "소비재 기업 실적 개선 기대",
-      "유통 산업 성장세 지속",
-      "온라인 쇼핑 활성화로 유통업 수혜",
-    ],
-    bear: [
-      "소비 심리 위축, 유통업 매출 감소 우려",
-      "소비재 기업 수익성 압박",
-      "유통주 투자 심리 냉각",
-    ],
-    strong_bear: [
-      "소비재 산업 급락, 소비 심리 급격히 악화",
-      "유통 업계 실적 부진 우려 확산",
-      "소비주 투자자 이탈 현상 심화",
-    ]
-  },
-  INDUSTRIAL: {
-    strong_bull: [
-      "제조업 경기 회복 조짐, 산업재 강세",
-      "건설 및 중공업 수주 증가 전망",
-      "산업재 기업들의 실적 개선 기대",
-    ],
-    bull: [
-      "제조업 지표 개선, 산업재주 상승세",
-      "건설 경기 회복 기대감",
-      "중공업 수주 증가세 지속",
-    ],
-    bear: [
-      "제조업 경기 둔화, 산업재 약세",
-      "건설 업계 수주 감소 우려",
-      "중공업 기업 수익성 압박",
-    ],
-    strong_bear: [
-      "산업재 급락, 제조업 침체 우려 확산",
-      "건설 및 중공업 업황 악화 전망",
-      "산업재주 투자 심리 급격히 냉각",
-    ]
-  }
-};
+// [삭제됨] SECTOR_NEWS_TEMPLATES - 뉴스 기능 제거됨
 
 function verifyAuth(req) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -175,14 +51,10 @@ exports.manualUpdateStockMarket = onCall({ region: "asia-northeast3" }, async (r
 
   try {
     await updateCentralStockMarketLogic();
-    // 수동 실행 시에는 뉴스 생성 조건(활성 뉴스 3개 미만)을 무시하고 강제로 1개 생성
-    await createCentralMarketNewsLogic(true);
-
-    // FCM 알림 제거: 클라이언트는 다음 폴링 때 자동으로 업데이트됨
 
     return {
       success: true,
-      message: "주식 가격 업데이트 및 뉴스 생성 완료"
+      message: "주식 가격 업데이트 완료"
     };
   } catch (error) {
     logger.error(">> [수동 실행] 오류:", error);
@@ -216,56 +88,8 @@ exports.simpleScheduler = onRequest({
   }
 });
 
-// 뉴스 전용 스케줄러 (30분마다 실행 - cron-job.org)
-exports.newsScheduler = onRequest({
-  region: "asia-northeast3",
-  timeoutSeconds: 540,
-  invoker: 'public',
-}, async (req, res) => {
-  try {
-    const token = req.query.token;
-    if (token !== AUTH_TOKEN) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
-      return;
-    }
-
-    const now = new Date();
-    const kstOffset = 9 * 60;
-    const kstTime = new Date(now.getTime() + kstOffset * 60 * 1000);
-    const hour = kstTime.getUTCHours();
-    const day = kstTime.getUTCDay();
-
-    logger.info(`[newsScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
-
-    // 평일(1-5) 8시-15시 KST 시장 시간 체크
-    const isWeekday = day >= 1 && day <= 5;
-    const isMarketHours = hour >= 8 && hour < 15;
-
-    if (!isWeekday || !isMarketHours) {
-      logger.info(`[newsScheduler] 시장 시간 아님 - 작업 건너뜀`);
-      res.json({
-        success: true,
-        message: '시장 시간 아님 - 작업 건너뜀',
-        kstHour: hour,
-        day: day
-      });
-      return;
-    }
-
-    logger.info(`[newsScheduler] 뉴스 생성 시작`);
-
-    await createCentralMarketNewsLogic();
-
-    logger.info(`[newsScheduler] 뉴스 생성 완료`);
-
-    res.json({ success: true, message: '뉴스 2건 생성 완료', kstHour: hour });
-  } catch (error) {
-    logger.error('[newsScheduler] 오류:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // 주식 가격 업데이트용 스케줄러 (15분마다 실행 - cron-job.org)
+// 🔥 최적화: 실제 주식만 업데이트 (시뮬레이션 로직 제거)
 exports.stockPriceScheduler = onRequest({
   region: "asia-northeast3",
   timeoutSeconds: 540,
@@ -286,9 +110,9 @@ exports.stockPriceScheduler = onRequest({
 
     logger.info(`[stockPriceScheduler] 호출됨 - KST ${hour}시, 요일: ${day}`);
 
-    // 평일(1-5) 8시-15시 KST 시장 시간 체크
+    // 평일(1-5) 8시-18시 KST (한국+미국 시장 커버)
     const isWeekday = day >= 1 && day <= 5;
-    const isMarketHours = hour >= 8 && hour < 15;
+    const isMarketHours = hour >= 8 && hour < 18;
 
     if (!isWeekday || !isMarketHours) {
       logger.info(`[stockPriceScheduler] 시장 시간 아님 - 작업 건너뜀`);
@@ -301,28 +125,47 @@ exports.stockPriceScheduler = onRequest({
       return;
     }
 
-    logger.info(`[stockPriceScheduler] 주식 가격 업데이트 시작`);
+    // 🔥 최적화: 최근 30분 내 활성 사용자가 있는지 확인 (force=true로 우회 가능)
+    const forceUpdate = req.query.force === 'true';
+
+    if (!forceUpdate) {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      const activeUsersSnapshot = await db.collection("users")
+        .where("lastActiveAt", ">=", thirtyMinutesAgo)
+        .limit(1)
+        .get();
+
+      if (activeUsersSnapshot.empty) {
+        logger.info(`[stockPriceScheduler] 활성 사용자 없음 - 작업 건너뜀 (읽기 비용 절감)`);
+        res.json({
+          success: true,
+          message: '활성 사용자 없음 - 작업 건너뜀',
+          kstHour: hour,
+          skippedReason: 'no_active_users'
+        });
+        return;
+      }
+    } else {
+      logger.info(`[stockPriceScheduler] force=true - 활성 사용자 체크 건너뜀`);
+    }
+
+    logger.info(`[stockPriceScheduler] 활성 사용자 있음 - 실제 주식 가격 업데이트 시작`);
 
     const results = {};
 
+    // 🔥 실제 주식 데이터만 업데이트 (Yahoo Finance)
     try {
-      await updateMarketConditionLogic();
-      results.updateMarketCondition = 'success';
-    } catch (error) {
-      logger.error('[stockPriceScheduler] updateMarketCondition 오류:', error);
-      results.updateMarketCondition = `error: ${error.message}`;
-    }
+      const realStockResult = await updateRealStockPrices();
+      results.updateRealStocks = `success (updated: ${realStockResult.updated}, failed: ${realStockResult.failed})`;
+      logger.info(`[stockPriceScheduler] 실제 주식 업데이트 완료:`, realStockResult);
 
-    try {
-      const stocksSnapshot = await updateCentralStockMarketLogic();
-      results.updateCentralStockMarket = 'success';
-
-      // 🔥 최적화: 읽어온 데이터를 다음 함수에 전달하여 중복 읽기 방지
-      await autoManageStocksLogic(stocksSnapshot);
-      results.autoManageStocks = 'success';
+      // 업데이트된 가격을 기반으로 스냅샷 문서도 갱신하여 클라이언트 읽기 횟수 절감
+      const snapshotResult = await updateCentralStocksSnapshot();
+      results.updateStocksSnapshot = `success (count: ${snapshotResult.count})`;
+      logger.info(`[stockPriceScheduler] 중앙 스톡 스냅샷 갱신 완료:`, snapshotResult);
     } catch (error) {
-      logger.error('[stockPriceScheduler] updateCentralStockMarket 또는 autoManageStocks 오류:', error);
-      results.updateCentralStockMarket = `error: ${error.message}`;
+      logger.error('[stockPriceScheduler] 가격/스냅샷 업데이트 오류:', error);
+      results.updateRealStocks = `error: ${error.message}`;
     }
 
     logger.info(`[stockPriceScheduler] 작업 완료:`, results);
@@ -330,54 +173,6 @@ exports.stockPriceScheduler = onRequest({
     res.json({ success: true, results, kstHour: hour });
   } catch (error) {
     logger.error('[stockPriceScheduler] 전체 오류:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// 모든 뉴스 삭제 (초기화용 - 관리자용)
-exports.deleteAllNews = onRequest({
-  region: "asia-northeast3",
-  timeoutSeconds: 540,
-  invoker: 'public',
-}, async (req, res) => {
-  try {
-    const token = req.query.token;
-    if (token !== AUTH_TOKEN) {
-      res.status(401).json({ success: false, error: 'Unauthorized' });
-      return;
-    }
-
-    logger.info(`[deleteAllNews] 모든 뉴스 삭제 시작`);
-
-    // CentralNews 컬렉션의 모든 문서 가져오기
-    const allNewsSnapshot = await db.collection("CentralNews").get();
-
-    if (allNewsSnapshot.empty) {
-      logger.info('[deleteAllNews] 삭제할 뉴스가 없습니다.');
-      res.json({ success: true, message: '삭제할 뉴스가 없습니다.', deletedCount: 0 });
-      return;
-    }
-
-    // 배치로 모든 뉴스 삭제
-    const batch = db.batch();
-    let deleteCount = 0;
-
-    allNewsSnapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-      deleteCount++;
-    });
-
-    await batch.commit();
-
-    logger.info(`[deleteAllNews] ${deleteCount}개의 뉴스 삭제 완료`);
-
-    res.json({
-      success: true,
-      message: `모든 뉴스 삭제 완료 (${deleteCount}건)`,
-      deletedCount: deleteCount
-    });
-  } catch (error) {
-    logger.error('[deleteAllNews] 오류:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -458,8 +253,243 @@ exports.weeklyRent = onRequest({
 // 이유: simpleScheduler의 cleanupExpiredCentralNews와 중복
 // 또한 simpleScheduler가 15분마다 자동으로 만료된 뉴스를 정리함
 
+// 🔥 실제 주식 생성 (관리자용 Cloud Function)
+exports.createRealStocksFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  const { stocks } = request.data;
+
+  logger.info("[createRealStocks] 실제 주식 생성 요청 - 관리자 호출");
+
+  try {
+    // 사용자가 지정한 주식 목록이 있으면 사용, 없으면 기본 목록 사용
+    const stocksToCreate = stocks && stocks.length > 0 ? stocks : DEFAULT_REAL_STOCKS;
+
+    const result = await createRealStocks(stocksToCreate);
+    const snapshotResult = await updateCentralStocksSnapshot();
+
+    return {
+      success: true,
+      message: `실제 주식 ${result.created}개 생성 완료 (스냅샷 ${snapshotResult.count}개)`,
+      created: result.created,
+      snapshot: snapshotResult
+    };
+  } catch (error) {
+    logger.error("[createRealStocks] 오류:", error);
+    throw new HttpsError("internal", error.message || "실제 주식 생성 실패");
+  }
+});
+
+// 🔥 실제 주식 가격 수동 업데이트 (관리자용 Cloud Function)
+exports.updateRealStocksFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("[updateRealStocks] 실제 주식 가격 수동 업데이트 요청 - 관리자 호출");
+
+  try {
+    const result = await updateRealStockPrices();
+    const snapshotResult = await updateCentralStocksSnapshot();
+
+    return {
+      success: true,
+      message: `실제 주식 업데이트 완료 - 성공: ${result.updated}, 실패: ${result.failed} (스냅샷 ${snapshotResult.count}개)`,
+      ...result,
+      snapshot: snapshotResult
+    };
+  } catch (error) {
+    logger.error("[updateRealStocks] 오류:", error);
+    throw new HttpsError("internal", error.message || "실제 주식 업데이트 실패");
+  }
+});
+
+// 🔥 개별 실제 주식/ETF 추가 (관리자용 Cloud Function)
+exports.addSingleRealStockFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  const { name, symbol, sector, productType } = request.data;
+
+  if (!name) {
+    throw new HttpsError("invalid-argument", "주식 이름이 필요합니다.");
+  }
+
+  logger.info(`[addSingleRealStock] 개별 실제 주식 추가 요청: ${name}`);
+
+  try {
+    const result = await addSingleRealStock({ name, symbol, sector, productType });
+
+    if (!result.success) {
+      throw new HttpsError("failed-precondition", result.error);
+    }
+
+    const snapshotResult = await updateCentralStocksSnapshot();
+
+    return {
+      success: true,
+      message: `${name} 추가 완료! (스냅샷 ${snapshotResult.count}개)`,
+      stock: result.stock,
+      snapshot: snapshotResult
+    };
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    logger.error("[addSingleRealStock] 오류:", error);
+    throw new HttpsError("internal", error.message || "주식 추가 실패");
+  }
+});
+
+// 🔥 스냅샷만 별도로 갱신 (관리자용)
+exports.updateStocksSnapshotFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+  logger.info("[updateStocksSnapshot] 스냅샷 갱신 요청 - 관리자 호출");
+
+  try {
+    const snapshotResult = await updateCentralStocksSnapshot();
+
+    return {
+      success: true,
+      message: `스냅샷 갱신 완료 - ${snapshotResult.count}개`,
+      ...snapshotResult
+    };
+  } catch (error) {
+    logger.error("[updateStocksSnapshot] 오류:", error);
+    throw new HttpsError("internal", error.message || "스냅샷 갱신 실패");
+  }
+});
+
+// 🔥 사용 가능한 실제 주식 심볼 목록 조회
+exports.getAvailableSymbolsFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("[getAvailableSymbols] 사용 가능한 심볼 목록 조회");
+
+  try {
+    const symbols = getAvailableSymbols();
+    const currentRate = getCurrentExchangeRate();
+
+    return {
+      success: true,
+      symbols: symbols,
+      exchangeRate: currentRate
+    };
+  } catch (error) {
+    logger.error("[getAvailableSymbols] 오류:", error);
+    throw new HttpsError("internal", error.message || "심볼 목록 조회 실패");
+  }
+});
+
+// 🔥 환율 수동 업데이트 (관리자용 Cloud Function)
+exports.updateExchangeRateFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("[updateExchangeRate] 환율 수동 업데이트 요청");
+
+  try {
+    const result = await updateExchangeRate();
+
+    return {
+      success: true,
+      message: `환율 업데이트 완료: 1 USD = ${result.rate} KRW`,
+      rate: result.rate,
+      updated: result.updated
+    };
+  } catch (error) {
+    logger.error("[updateExchangeRate] 오류:", error);
+    throw new HttpsError("internal", error.message || "환율 업데이트 실패");
+  }
+});
+
+// 🔥 환율 자동 업데이트 스케줄러 (하루 1회 - cron-job.org용)
+exports.exchangeRateScheduler = onRequest({
+  region: "asia-northeast3",
+  timeoutSeconds: 60,
+  invoker: 'public',
+}, async (req, res) => {
+  try {
+    const token = req.query.token;
+    if (token !== AUTH_TOKEN) {
+      res.status(401).json({ success: false, error: 'Unauthorized' });
+      return;
+    }
+
+    logger.info(`[exchangeRateScheduler] 환율 자동 업데이트 시작`);
+
+    const result = await updateExchangeRate();
+
+    logger.info(`[exchangeRateScheduler] 환율 업데이트 완료: ${result.rate}원`);
+
+    res.json({
+      success: true,
+      message: `환율 업데이트 완료`,
+      rate: result.rate,
+      updated: result.updated
+    });
+  } catch (error) {
+    logger.error('[exchangeRateScheduler] 오류:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 🔥 시뮬레이션 주식 삭제 (관리자용 Cloud Function)
+exports.deleteSimulationStocksFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  logger.info("[deleteSimulationStocks] 시뮬레이션 주식 삭제 요청");
+
+  try {
+    // isRealStock이 없거나 false인 주식 가져오기
+    const simulationStocksSnapshot = await db.collection("CentralStocks")
+      .where("isRealStock", "!=", true)
+      .get();
+
+    // isRealStock 필드가 없는 주식도 포함
+    const allStocksSnapshot = await db.collection("CentralStocks").get();
+
+    const stocksToDelete = [];
+    allStocksSnapshot.docs.forEach(doc => {
+      const data = doc.data();
+      if (!data.isRealStock) {
+        stocksToDelete.push(doc);
+      }
+    });
+
+    if (stocksToDelete.length === 0) {
+      return {
+        success: true,
+        message: '삭제할 시뮬레이션 주식이 없습니다.',
+        deletedCount: 0
+      };
+    }
+
+    // 배치로 삭제 (500개씩)
+    let deletedCount = 0;
+    const batchSize = 500;
+
+    for (let i = 0; i < stocksToDelete.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = stocksToDelete.slice(i, i + batchSize);
+
+      chunk.forEach(doc => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+
+      await batch.commit();
+    }
+
+    logger.info(`[deleteSimulationStocks] ${deletedCount}개의 시뮬레이션 주식 삭제 완료`);
+
+    return {
+      success: true,
+      message: `시뮬레이션 주식 ${deletedCount}개 삭제 완료`,
+      deletedCount: deletedCount
+    };
+  } catch (error) {
+    logger.error("[deleteSimulationStocks] 오류:", error);
+    throw new HttpsError("internal", error.message || "시뮬레이션 주식 삭제 실패");
+  }
+});
+
 // ===================================================================================
-// 실제 로직 함수들
+// 실제 로직 함수들 (대부분 Deprecated - 실제 주식만 사용)
 // ===================================================================================
 
 /**
@@ -491,460 +521,14 @@ exports.weeklyRent = onRequest({
 //   }
 // }
 
-// 시장 상황 업데이트 (5분마다 가중치 기반 생성)
-async function updateMarketConditionLogic() {
-  logger.info(">>> [스케줄러] 시장 상황 업데이트 시작");
-  try {
-    // [밸런스 조정] 상승/하락 확률 50:50으로 변경
-    // 가중치: 초강세(10%), 강세(20%), 강보합(20%), 약보합(20%), 약세(20%), 초약세(10%)
-    const marketConditions = [
-      { type: "super_bull", name: "초강세장", impact: 0.05, description: "시장 전체가 매우 강한 상승세를 보이고 있습니다", weight: 10 },
-      { type: "strong_bull", name: "강세장", impact: 0.03, description: "시장이 강한 상승세를 보이고 있습니다", weight: 20 },
-      { type: "bull", name: "강보합", impact: 0.01, description: "시장이 소폭 상승하고 있습니다", weight: 20 },
-      { type: "bear", name: "약보합", impact: -0.01, description: "시장이 소폭 하락하고 있습니다", weight: 20 },
-      { type: "strong_bear", name: "약세장", impact: -0.03, description: "시장이 강한 하락세를 보이고 있습니다", weight: 20 },
-      { type: "super_bear", name: "초약세장", impact: -0.05, description: "시장 전체가 매우 강한 하락세를 보이고 있습니다", weight: 10 }
-    ];
+// [삭제됨] 시뮬레이션 로직 - 실제 주식만 사용
+// updateMarketConditionLogic, updateCentralStockMarketLogic, autoManageStocksLogic 등 제거됨
 
-    // 가중치 기반 랜덤 선택
-    const totalWeight = marketConditions.reduce((sum, condition) => sum + condition.weight, 0);
-    let random = Math.random() * totalWeight;
-    let randomCondition = marketConditions[0];
-
-    for (const condition of marketConditions) {
-      random -= condition.weight;
-      if (random <= 0) {
-        randomCondition = condition;
-        break;
-      }
-    }
-
-    // Firestore에 저장
-    const marketConditionRef = db.collection("MarketCondition").doc("current");
-    await marketConditionRef.set({
-      type: randomCondition.type,
-      name: randomCondition.name,
-      impact: randomCondition.impact,
-      description: randomCondition.description,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + 5 * 60 * 1000) // 5분 후 만료
-    });
-
-    logger.info(`→ 시장 상황 업데이트 완료: ${randomCondition.name} (${randomCondition.impact * 100}%)`);
-  } catch (error) {
-    logger.error("→ 시장 상황 업데이트 중 오류:", error);
-    throw error;
-  }
-}
-
+// 하위 호환성을 위한 빈 함수 (manualUpdateStockMarket에서 호출)
 async function updateCentralStockMarketLogic() {
-  logger.info("<<<<< AUTOMATIC STOCK UPDATE CHECK - THIS IS A TEST LOG >>>>>");
-  logger.info(">>> [스케줄러] 주식 시장 가격 업데이트 시작");
-  try {
-    const stocksSnapshot = await db.collection("CentralStocks").where("isListed", "==", true).get();
-
-    if (stocksSnapshot.empty) {
-      logger.info("상장된 주식이 없습니다.");
-      return;
-    }
-
-    // 현재 시장 상황 가져오기
-    const marketConditionDoc = await db.collection("MarketCondition").doc("current").get();
-    let marketImpact = 0;
-    let marketConditionName = "보통";
-
-    if (marketConditionDoc.exists) {
-      const marketData = marketConditionDoc.data();
-      marketImpact = marketData.impact || 0;
-      marketConditionName = marketData.name || "보통";
-      logger.info(`[시장 상황] ${marketConditionName} (${marketImpact * 100}%) - 모든 주식에 영향 적용`);
-    }
-
-    // 활성 뉴스 가져오기
-    const activeNewsSnapshot = await db.collection("CentralNews").where("isActive", "==", true).get();
-    const activeNews = activeNewsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    const batch = db.batch();
-    let updateCount = 0;
-    let skippedCount = 0;
-    let delistCount = 0;
-    const totalStocks = stocksSnapshot.docs.length;
-    
-    // [시장 현실성 강화] 실제 시장처럼 상승/하락이 고르게 분포되도록 수정 (v2 - 변동성 완화)
-    const PRODUCT_BEHAVIOR = {
-      stock: {
-        volatilityMultiplier: 1.5,
-        correctionBase: 0.15,           // 조정 확률 (0.20 -> 0.15)
-        correctionRange: [0.03, 0.10],  // 조정 시 하락폭 (0.05-0.15 -> 0.03-0.10)
-        flashCrashProb: 0.01,           // 급락 확률 (0.03 -> 0.01)
-        flashCrashRange: [0.05, 0.12],  // 급락 시 하락폭 (0.10-0.20 -> 0.05-0.12)
-        delistRisk: 0.005,
-        driftRange: [-0.0002, 0.0005]   // 기본 성장률 범위 ([-0.0004, 0.0004] -> [-0.0002, 0.0005])
-      },
-      etf: {
-        volatilityMultiplier: 1.1,
-        correctionBase: 0.10,           // (0.15 -> 0.10)
-        correctionRange: [0.02, 0.08],  // (0.04-0.10 -> 0.02-0.08)
-        flashCrashProb: 0.005,          // (0.02 -> 0.005)
-        flashCrashRange: [0.04, 0.10],  // (0.08-0.15 -> 0.04-0.10)
-        delistRisk: 0.001,
-        driftRange: [-0.0001, 0.0004]   // ([-0.0002, 0.0003] -> [-0.0001, 0.0004])
-      },
-      bond: {
-        volatilityMultiplier: 0.6,
-        correctionBase: 0.12,
-        correctionRange: [0.03, 0.06],
-        flashCrashProb: 0.01,
-        flashCrashRange: [0.04, 0.08],
-        delistRisk: 0.001,
-        drift: 0.0001
-      },
-    };
-
-    for (const stockDoc of stocksSnapshot.docs) {
-      const stockData = stockDoc.data();
-
-      // 수동 관리 주식은 건너뛰기
-      if (stockData.isManual) {
-        logger.info(`[주식 업데이트] ${stockData.name} - 수동 관리 주식이므로 건너뜁니다.`);
-        skippedCount++;
-        continue;
-      }
-
-      const currentPrice = stockData.price || 0;
-      const minPrice = stockData.minListingPrice || 1000;
-      const priceHistory = stockData.priceHistory || [currentPrice];
-      const behavior = PRODUCT_BEHAVIOR[stockData.productType] || PRODUCT_BEHAVIOR.stock;
-
-      // [신규] 상장폐지 위험도 적용 (채권 제외)
-      if (behavior.delistRisk && Math.random() < behavior.delistRisk && stockData.productType !== 'bond') {
-        logger.info(`[상장 폐지] ${stockData.name} - 랜덤 상장폐지 위험 발동 (위험도: ${behavior.delistRisk * 100}%)`);
-        batch.update(stockDoc.ref, {
-          isListed: false,
-          delistedAt: admin.firestore.FieldValue.serverTimestamp(),
-          delistedTimestamp: Date.now(),
-          delistReason: '시장 위험 증가로 인한 임의 상장폐지',
-          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-        });
-        delistCount++;
-        continue; // 상장 폐지된 주식은 가격 업데이트를 건너뜁니다.
-      }
-
-      // 거래량 기반 변동성 계산
-      const buyVolume = stockData.recentBuyVolume || 0;
-      const sellVolume = stockData.recentSellVolume || 0;
-      const netVolume = buyVolume - sellVolume;
-
-      let volatility = (stockData.volatility || 0.03) * behavior.volatilityMultiplier;
-      if (stockData.productType === "bond") {
-        volatility = Math.min(volatility, 0.01); // 채권의 변동폭은 제한
-      }
-
-      // 거래량에 따른 변동성 조정
-      const volumeImpact = Math.min(Math.abs(netVolume) * 0.0001, 0.03);
-      const direction = netVolume > 0 ? 1 : netVolume < 0 ? -1 : 0;
-
-      const priceRatio = currentPrice / minPrice;
-      const bounceBoost = 0; // 최저가 근처에서의 반등 비활성화
-
-      // 단기 과열/과매도 감지 및 하락 충격 추가
-      const recentWindow = priceHistory.slice(-5);
-      const recentAvg = recentWindow.length > 0
-        ? recentWindow.reduce((sum, p) => sum + p, 0) / recentWindow.length
-        : currentPrice;
-      const momentum = recentAvg > 0 ? (currentPrice - recentAvg) / recentAvg : 0;
-      
-      let correctionProbability = behavior.correctionBase;
-      if (priceRatio > 1.5) correctionProbability += 0.05; // 큰 상승 후 되돌림
-      if (momentum > 0.08) correctionProbability += 0.05;  // 최근 급등 시 조정 가능성 증가
-      
-      let correctionShock = 0;
-      if (Math.random() < correctionProbability) {
-        const [minDrop, maxDrop] = behavior.correctionRange;
-        correctionShock = -(minDrop + Math.random() * (maxDrop - minDrop));
-      }
-      
-      let flashCrashShock = 0;
-      if (Math.random() < behavior.flashCrashProb) {
-        const [minCrash, maxCrash] = behavior.flashCrashRange;
-        flashCrashShock = -(minCrash + Math.random() * (maxCrash - minCrash));
-      }
-
-      const randomChange = ((Math.random() * 2 - 1.0) * volatility) + bounceBoost;
-      const volumeChange = direction * volumeImpact;
-
-      // 뉴스 영향 계산 (개별 주식)
-      let newsImpact = 0;
-      const relatedNews = activeNews.find(news => news.relatedStocks && news.relatedStocks.includes(stockDoc.id));
-
-      if (relatedNews) {
-        switch (relatedNews.category) {
-          case "strong_bull": newsImpact = 0.03; break;
-          case "bull": newsImpact = 0.015; break;
-          case "bear": newsImpact = -0.015; break;
-          case "strong_bear": newsImpact = -0.03; break;
-        }
-        logger.info(`[주식 업데이트] ${stockData.name}에 뉴스(${relatedNews.title}) 효과 ${newsImpact * 100}% 적용`);
-      }
-
-      // 기본 성장률(drift) 계산
-      let baseGrowth;
-      if (behavior.driftRange) {
-        const [minDrift, maxDrift] = behavior.driftRange;
-        baseGrowth = minDrift + Math.random() * (maxDrift - minDrift);
-      } else {
-        baseGrowth = behavior.drift || 0;
-      }
-      
-      const totalChange = randomChange + volumeChange + newsImpact + (marketImpact * 0.3) + baseGrowth + correctionShock + flashCrashShock;
-
-      let newPrice = Math.round(currentPrice * (1 + totalChange));
-
-      // 최소 가격 방어
-      if (newPrice < minPrice) {
-        newPrice = minPrice;
-      }
-
-      const updatedHistory = [...priceHistory.slice(-19), newPrice];
-
-      const changePercent = ((newPrice - currentPrice) / currentPrice) * 100;
-      logger.info(`[주식 업데이트] ${stockData.name}: ${currentPrice.toLocaleString()}원 → ${newPrice.toLocaleString()}원 (${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%)`);
-
-      batch.update(stockDoc.ref, {
-        price: newPrice,
-        priceHistory: updatedHistory,
-        recentBuyVolume: 0,
-        recentSellVolume: 0,
-        lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      updateCount++;
-    }
-
-    await batch.commit();
-    logger.info(`→ 주식 가격 업데이트 완료 - 총 ${totalStocks}건 중 ${updateCount}건 업데이트, ${skippedCount}건 건너뜀, ${delistCount}건 상장폐지 (시장 상황: ${marketConditionName})`);
-    logger.info(`[주식 업데이트 통계] 읽기: ${totalStocks + (marketConditionDoc.exists ? 1 : 0) + activeNews.length}건, 쓰기: ${updateCount + delistCount}건`);
-    return stocksSnapshot; // 🔥 최적화: 읽은 데이터를 반환하여 재사용
-  } catch (error) {
-    logger.error("→ 주식 가격 업데이트 중 오류:", error);
-    throw error;
-  }
-}
-
-async function autoManageStocksLogic(stocksSnapshotFromPrev = null) {
-  logger.info(">>> [스케줄러] 자동 주식 상장/폐지 관리 시작");
-  try {
-    const now = Date.now();
-    let delistCount = 0;
-    let relistCount = 0;
-
-    // 1. 최소 상장가에 도달한 주식 자동 폐지
-    // 🔥 최적화: 이전 함수에서 데이터를 받아왔으면 재사용, 아니면 새로 fetch
-    const listedStocksSnapshot = stocksSnapshotFromPrev ? stocksSnapshotFromPrev : 
-      await db.collection("CentralStocks")
-        .where("isListed", "==", true)
-        .get();
-
-    const batch1 = db.batch();
-
-    for (const stockDoc of listedStocksSnapshot.docs) {
-      const stockData = stockDoc.data();
-
-      if (stockData.isManual) {
-        continue;
-      }
-
-      const currentPrice = stockData.price || 0;
-      const minPrice = stockData.minListingPrice || 1000;
-
-      if (currentPrice <= minPrice) {
-        batch1.update(stockDoc.ref, {
-          isListed: false,
-          delistedAt: admin.firestore.FieldValue.serverTimestamp(),
-          delistedTimestamp: now,
-          delistReason: '가격 급락 (최소 상장가 도달)',
-          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-        });
-        delistCount++;
-        logger.info(`[상장 폐지] ${stockData.name} - 현재가: ${currentPrice}원, 최소가: ${minPrice}원`);
-      }
-    }
-
-    if (delistCount > 0) {
-      await batch1.commit();
-      logger.info(`→ ${delistCount}건 주식 상장 폐지 완료`);
-    }
-
-    // 2. 폐지된 지 5분이 지난 주식 재상장 (초기 가격으로 리셋)
-    const relistTime = now - (5 * 60 * 1000);
-    const delistedStocksSnapshot = await db.collection("CentralStocks")
-      .where("isListed", "==", false)
-      .where("delistedTimestamp", "<=", relistTime)
-      .get();
-
-    const batch2 = db.batch();
-
-    for (const stockDoc of delistedStocksSnapshot.docs) {
-      const stockData = stockDoc.data();
-
-      if (stockData.isManual) {
-        continue;
-      }
-
-      const delistedTimestamp = stockData.delistedTimestamp;
-
-      if (delistedTimestamp && (now - delistedTimestamp >= 5 * 60 * 1000)) {
-        const initialPrice = stockData.initialPrice || stockData.minListingPrice || 1000;
-
-        batch2.update(stockDoc.ref, {
-          isListed: true,
-          price: initialPrice,
-          priceHistory: [initialPrice],
-          relistedAt: admin.firestore.FieldValue.serverTimestamp(),
-          delistedAt: admin.firestore.FieldValue.delete(),
-          delistedTimestamp: admin.firestore.FieldValue.delete(),
-          delistReason: admin.firestore.FieldValue.delete(),
-          lastUpdated: admin.firestore.FieldValue.serverTimestamp()
-        });
-        relistCount++;
-        logger.info(`[재상장] ${stockData.name} - 초기 가격 리셋: ${initialPrice}원`);
-      }
-    }
-
-    if (relistCount > 0) {
-      await batch2.commit();
-      logger.info(`→ ${relistCount}건 주식 재상장 완료 (초기 가격으로 리셋)`);
-    }
-
-    logger.info(`→ 자동 관리 완료 - 폐지: ${delistCount}건, 재상장: ${relistCount}건`);
-    logger.info(`[자동 관리 통계] 읽기: ${listedStocksSnapshot.docs.length + delistedStocksSnapshot.docs.length}건, 쓰기: ${delistCount + relistCount}건`);
-  } catch (error) {
-    logger.error("→ 자동 주식 관리 중 오류:", error);
-    throw error;
-  }
-}
-
-async function cleanupWorthlessStocksLogic() {
-  logger.info(">>> [스케줄러] 무가치 주식 정리 시작");
-  // 필요시 추후에 구현
-}
-
-async function createCentralMarketNewsLogic(force = false) {
-  logger.info(`>>> [스케줄러] 중앙 시장 뉴스 생성 시작 (강제: ${force})`);
-  try {
-    const stocksSnapshot = await db.collection("CentralStocks")
-      .where("isListed", "==", true)
-      .get();
-
-    if (stocksSnapshot.empty) {
-      logger.info("상장된 주식이 없어 뉴스를 생성하지 않습니다.");
-      return;
-    }
-
-    // 섹터별로 주식 그룹화
-    const stocksBySector = {};
-    for (const stockDoc of stocksSnapshot.docs) {
-      const stockData = stockDoc.data();
-      const sector = stockData.sector || "TECH";
-      if (!stocksBySector[sector]) {
-        stocksBySector[sector] = [];
-      }
-      stocksBySector[sector].push(stockDoc.id);
-    }
-
-    const batch = db.batch();
-    const now = admin.firestore.Timestamp.now();
-    const allSectors = Object.keys(SECTOR_NEWS_TEMPLATES);
-    const newsCategories = ["strong_bull", "bull", "bear", "strong_bear"];
-
-    // 1단계: 기존 모든 활성 뉴스 삭제
-    const activeNewsSnapshot = await db.collection("CentralNews")
-      .where("isActive", "==", true)
-      .get();
-
-    logger.info(`[뉴스 생성] 기존 활성 뉴스 ${activeNewsSnapshot.size}건 삭제`);
-
-    for (const doc of activeNewsSnapshot.docs) {
-      batch.delete(doc.ref);
-    }
-
-    // 2단계: 새로운 뉴스 정확히 2건 생성
-    logger.info(`[뉴스 생성] 새로운 뉴스 2건 생성`);
-
-    for (let i = 0; i < 2; i++) {
-      const randomSector = allSectors[Math.floor(Math.random() * allSectors.length)];
-      const randomCategory = newsCategories[Math.floor(Math.random() * newsCategories.length)];
-      const templates = SECTOR_NEWS_TEMPLATES[randomSector][randomCategory];
-      const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
-
-      const relatedStockIds = stocksBySector[randomSector] || [];
-
-      logger.info(`[뉴스 생성] 뉴스 ${i + 1}: ${randomSector} 섹터 (${randomCategory}) - ${randomTemplate}`);
-
-      const newsRef = db.collection("CentralNews").doc();
-      batch.set(newsRef, {
-        title: randomTemplate,
-        content: "투자 판단에 신중한 분석이 필요합니다.",
-        relatedStocks: relatedStockIds,
-        sector: randomSector,
-        category: randomCategory,
-        isActive: true,
-        timestamp: now,
-        expiresAt: admin.firestore.Timestamp.fromMillis(now.toMillis() + 30 * 60 * 1000), // 30분 수명
-        createdAt: now,
-      });
-    }
-
-    // 3단계: 배치 커밋 (기존 뉴스 삭제 + 새 뉴스 2건 생성)
-    await batch.commit();
-
-    logger.info(`→ 뉴스 교체 완료: 기존 ${activeNewsSnapshot.size}건 삭제, 새로 2건 생성 (30분 수명)`);
-    logger.info(`[뉴스 생성 통계] 읽기: ${stocksSnapshot.docs.length + activeNewsSnapshot.size}건, 쓰기: ${activeNewsSnapshot.size + 2}건 (삭제 ${activeNewsSnapshot.size} + 생성 2)`);
-  } catch (error) {
-    logger.error("→ 뉴스 생성 중 오류:", error);
-    throw error;
-  }
-}
-
-async function cleanupExpiredCentralNewsLogic() {
-  logger.info(">>> [스케줄러] 만료된 중앙 뉴스 정리 시작");
-  try {
-    const now = admin.firestore.Timestamp.now();
-
-    // 최적화: 만료된 뉴스를 사전 삭제 (읽기 비용 절감 + 깔끔한 DB 관리)
-    const expiredNewsSnapshot = await db.collection("CentralNews")
-      .where("expiresAt", "<=", now)
-      .limit(50) // 최대 50개까지만 처리
-      .get();
-
-    if (expiredNewsSnapshot.empty) {
-      logger.info("만료된 뉴스가 없습니다.");
-      return;
-    }
-
-    const batch = db.batch();
-    for (const newsDoc of expiredNewsSnapshot.docs) {
-      // isActive=false 대신 문서 삭제
-      batch.delete(newsDoc.ref);
-      logger.info(`[뉴스 삭제] ${newsDoc.data().title} (만료 시간: ${newsDoc.data().expiresAt?.toDate?.()?.toLocaleString('ko-KR')})`);
-    }
-
-    await batch.commit();
-    logger.info(`→ ${expiredNewsSnapshot.size}개의 만료된 뉴스 삭제 완료 (읽기: ${expiredNewsSnapshot.size}건, 삭제: ${expiredNewsSnapshot.size}건)`);
-  } catch (error) {
-    logger.error("→ 뉴스 정리 중 오류:", error);
-    throw error;
-  }
-}
-
-async function syncCentralNewsToClassesLogic() {
-  logger.info(">>> [스케줄러] 중앙 뉴스를 클래스로 동기화 시작");
-  // 현재는 중앙 뉴스를 사용하므로 비워둠
-}
-
-async function cleanupExpiredClassNewsLogic() {
-  logger.info(">>> [스케줄러] 만료된 클래스 뉴스 정리 시작");
-  // 현재는 중앙 뉴스를 사용하므로 비워둠
+  logger.info(">>> [스케줄러] 시뮬레이션 로직 비활성화됨 - 실제 주식만 사용");
+  // 실제 주식 가격은 stockPriceScheduler에서 Yahoo Finance를 통해 업데이트됨
+  return null;
 }
 
 async function resetTasksForClass(classCode) {
@@ -1230,10 +814,6 @@ async function aggregateActivityLogsLogic() {
 // ===================================================================================
 // 외부에서 사용될 수 있도록 로직 함수들 export
 // ===================================================================================
-module.exports.updateCentralStockMarketLogic = updateCentralStockMarketLogic;
-module.exports.createCentralMarketNewsLogic = createCentralMarketNewsLogic;
-module.exports.autoManageStocksLogic = autoManageStocksLogic;
-module.exports.cleanupExpiredCentralNewsLogic = cleanupExpiredCentralNewsLogic;
+module.exports.updateCentralStockMarketLogic = updateCentralStockMarketLogic; // 하위 호환성용 빈 함수
 module.exports.resetDailyTasksLogic = resetDailyTasksLogic;
-module.exports.updateMarketConditionLogic = updateMarketConditionLogic;
 module.exports.resetTasksForClass = resetTasksForClass;
