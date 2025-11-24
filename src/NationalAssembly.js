@@ -40,7 +40,8 @@ const NationalAssembly = () => {
       }));
     },
     {
-      interval: 60000,
+      // 🔥 [최적화] 1분 → 5분으로 변경 (읽기 비용 절감)
+      interval: 300000,
       enabled: !!currentUser?.classCode,
       deps: [currentUser?.classCode],
     }
@@ -120,7 +121,7 @@ const NationalAssembly = () => {
       }
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
       defaultValue: { totalStudents: 25 },
@@ -164,7 +165,7 @@ const NationalAssembly = () => {
       }
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode && !adminSettingsLoading,
       deps: [classCode, adminSettings?.totalStudents, adminSettingsLoading],
       defaultValue: {
@@ -210,7 +211,7 @@ const NationalAssembly = () => {
       }));
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
       defaultValue: [],
@@ -242,7 +243,7 @@ const NationalAssembly = () => {
       }
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode && !!currentUser?.id,
       deps: [classCode, currentUser?.id],
       defaultValue: {},

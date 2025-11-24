@@ -6,8 +6,6 @@ import {
   db,
   addActivityLog,
   addTransaction,
-  // ⭐️ [추가] 시세 조회를 위한 함수 import
-  subscribeToMarketSummary,
 } from "./firebase";
 
 import {
@@ -21,7 +19,6 @@ import {
   deleteDoc,
   query,
   orderBy,
-  onSnapshot,
   where,
   getDoc,
   getDocs,

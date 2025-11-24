@@ -96,7 +96,7 @@ const Investment = ({ classCode }) => {
         }
       }
     },
-    { interval: 30000, enabled: !!classCode && !!treasuryRef, deps: [classCode] }
+    { interval: 300000, enabled: !!classCode && !!treasuryRef, deps: [classCode] }
   );
 
   // 최근 거래 내역 폴링
@@ -115,7 +115,7 @@ const Investment = ({ classCode }) => {
         ...doc.data(),
       }));
     },
-    { interval: 30000, enabled: !!classCode && !!treasuryTransactionsColRef, deps: [classCode] }
+    { interval: 300000, enabled: !!classCode && !!treasuryTransactionsColRef, deps: [classCode] }
   );
 
   // treasuryData와 transactionsData를 state에 반영

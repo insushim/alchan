@@ -103,8 +103,9 @@ export const ItemProvider = ({ children }) => {
   }, [userId, currentUserClassCode, getItemContextData]);
 
   // Effect to fetch data when user is authenticated, now using polling
+  // 🔥 [최적화] 아이템 데이터는 자주 변경되지 않으므로 10분 간격으로 변경 (읽기 비용 90% 절감)
   usePolling(fetchData, {
-    interval: POLLING_INTERVALS.REALTIME, // 1분마다 자동 갱신
+    interval: 30 * 60 * 1000, // 🔥 [최적화] 30분마다 자동 갱신 (10분에서 변경)
     enabled: !authLoading && !!userId && !!currentUserClassCode,
     deps: [authLoading, userId, currentUserClassCode]
   });

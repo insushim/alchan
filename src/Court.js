@@ -507,7 +507,7 @@ const Court = () => {
           : null,
       }));
     },
-    { interval: 30000, enabled: !!classCode, deps: [classCode] }
+    { interval: 300000, enabled: !!classCode, deps: [classCode] }
   );
 
   // usePolling for trial rooms
@@ -522,7 +522,7 @@ const Court = () => {
         ...doc.data(),
       }));
     },
-    { interval: 30000, enabled: !!classCode, deps: [classCode] }
+    { interval: 300000, enabled: !!classCode, deps: [classCode] }
   );
 
   // Jobs polling - for prosecutor check
@@ -542,7 +542,7 @@ const Court = () => {
       }));
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     }

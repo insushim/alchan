@@ -123,7 +123,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
   }, [roomId, classCode]);
 
   const { data: polledRoom, loading: roomPolling } = usePolling(fetchRoomSnapshot, {
-    interval: POLLING_INTERVALS.REALTIME, // 1분 주기 폴링
+    interval: 300000, // 1분 주기 폴링
     enabled: !!roomId && !!classCode,
     deps: [roomId, classCode],
   });
@@ -190,7 +190,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
   }, [roomId, classCode]);
 
   const { data: polledMessages } = usePolling(fetchMessages, {
-    interval: POLLING_INTERVALS.REALTIME, // 1분 주기
+    interval: 300000, // 1분 주기
     enabled: !!roomId && !!classCode,
     deps: [roomId, classCode],
   });

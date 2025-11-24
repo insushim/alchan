@@ -1017,7 +1017,7 @@ const OmokGame = () => {
     // 폴링 활성화 조건: 게임 ID가 있고, 게임이 진행 중이며, AI 모드가 아닐 때만
     // AI 모드에서는 로컬에서 즉시 처리하므로 폴링 불필요
     const shouldPoll = !!gameId && game?.gameStatus === 'playing' && !game?.aiMode;
-    const pollingInterval = 3000; // 3초로 통일 (읽기 최소화)
+    const pollingInterval = 10000; // 🔥 [최적화] 3초 → 10초 (읽기 비용 절감)
     const { refetch: refetchGameData } = usePolling(fetchGameData, {
         interval: pollingInterval,
         enabled: shouldPoll,

@@ -171,7 +171,8 @@ const GonuGame = () => {
     useEffect(() => {
         if (showCreateRoom && user) {
             fetchAvailableRooms();
-            const interval = setInterval(fetchAvailableRooms, 5000);
+            // 🔥 [최적화] 5초 → 60초로 변경 (읽기 비용 절감)
+            const interval = setInterval(fetchAvailableRooms, 60000);
             return () => clearInterval(interval);
         }
     }, [showCreateRoom, user, fetchAvailableRooms]);
@@ -204,7 +205,8 @@ const GonuGame = () => {
         }
     }, [gameId]);
 
-    usePolling(fetchGameData, { interval: 30000, enabled: !!gameId });
+    // 🔥 [최적화] 30초 → 60초로 변경 (읽기 비용 절감)
+    usePolling(fetchGameData, { interval: 60000, enabled: !!gameId });
 
     useEffect(() => {
         if (feedback.message) {

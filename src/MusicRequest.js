@@ -28,7 +28,7 @@ const MusicRequest = ({ user }) => {
             setIsAdmin(isAdminUser);
             return isAdminUser;
         },
-        { interval: 60000, enabled: !!user, deps: [user] }
+        { interval: 300000, enabled: !!user, deps: [user] } // 🔥 [최적화] 1분 → 5분
     );
 
     // 관리자/슈퍼관리자: 모든 방 목록, 학생: 모든 방 목록을 폴링으로 가져옵니다.
@@ -39,7 +39,7 @@ const MusicRequest = ({ user }) => {
             const snap = await getDocs(collection(db, "musicRooms"));
             return snap.docs.map(d => ({ id: d.id, ...d.data() }));
         },
-        { interval: 30000, enabled: !!user, deps: [user] }
+        { interval: 300000, enabled: !!user, deps: [user] }
     );
 
     // 방이 삭제되었을 경우를 대비하여, 현재 보고 있는 createdRoom이 실제로 존재하는지 확인합니다.
@@ -52,7 +52,7 @@ const MusicRequest = ({ user }) => {
             }
             return docSnap.exists();
         },
-        { interval: 30000, enabled: !!createdRoom, deps: [createdRoom] }
+        { interval: 300000, enabled: !!createdRoom, deps: [createdRoom] }
     );
 
 

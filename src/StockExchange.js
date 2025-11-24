@@ -89,7 +89,19 @@ const batchDataLoader = {
 
   _loadStocks: async function(classCode) {
     try {
-      // 우선 스냅샷 문서(단일 읽기)에서 불러와 읽기 비용 최소화
+      // 1) Cloud Function 우선: Firestore Rules 우회 + 단일 호출
+      try {
+        const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
+        const result = await getSnapshotFn({});
+        if (result.data && Array.isArray(result.data.stocks) && result.data.stocks.length > 0) {
+          console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
+          return result.data.stocks;
+        }
+      } catch (fnError) {
+        console.warn('[batchDataLoader] 스냅샷 함수 호출 실패, 문서/쿼리 폴백 시도:', fnError);
+      }
+
+      // 2) 스냅샷 문서 직접 읽기 (권한 허용 시)
       try {
         const cacheRef = doc(db, "Settings", "centralStocksCache");
         const cacheDoc = await getDoc(cacheRef);
@@ -100,22 +112,10 @@ const batchDataLoader = {
           return cacheData.stocks;
         }
       } catch (snapshotError) {
-        console.warn('[batchDataLoader] 스냅샷 문서 읽기 실패, 폴백 시도:', snapshotError);
+        console.warn('[batchDataLoader] 스냅샷 문서 읽기 실패:', snapshotError);
       }
 
-      // 스냅샷이 없거나 읽기 권한이 없으면 Cloud Function을 호출해 생성+조회 (단일 읽기)
-      try {
-        const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
-        const result = await getSnapshotFn({});
-        if (result.data && Array.isArray(result.data.stocks) && result.data.stocks.length > 0) {
-          console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
-          return result.data.stocks;
-        }
-      } catch (fnError) {
-        console.warn('[batchDataLoader] 스냅샷 함수 호출 실패, 최종 폴백 쿼리 사용:', fnError);
-      }
-
-      // 함수 호출 실패 시에만 폴백 쿼리 (예외적 케이스)
+      // 3) 최종 폴백: 컬렉션 쿼리
       const stocksRef = collection(db, "CentralStocks");
       const q = query(stocksRef, where("isListed", "==", true));
       const querySnapshot = await getDocs(q);
@@ -159,7 +159,64 @@ const batchDataLoader = {
 
 };
 
+// 🔥 [최적화] 실시간 marketState 계산 함수 (서버 데이터 의존성 제거)
+// 주식 심볼을 기반으로 현재 시간에서 장중/장마감 상태를 계산
+const getRealtimeMarketState = (stock) => {
+  if (!stock?.realStockSymbol) return null; // 실제 주식이 아니면 null
 
+  const symbol = stock.realStockSymbol;
+  const isKoreanStock = symbol.endsWith('.KS') || symbol.endsWith('.KQ');
+
+  const now = new Date();
+
+  if (isKoreanStock) {
+    // 한국 주식: KST 기준 09:00 ~ 15:30
+    const kst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+    const day = kst.getDay();
+    const hour = kst.getHours();
+    const minute = kst.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    const isWeekday = day >= 1 && day <= 5;
+    const isMarketHours = totalMinutes >= 9 * 60 && totalMinutes < 15 * 60 + 30; // 09:00 ~ 15:30
+
+    if (!isWeekday) return 'CLOSED';
+    if (isMarketHours) return 'REGULAR';
+    return 'CLOSED';
+  } else {
+    // 미국 주식: EST/EDT 기준 09:30 ~ 16:00
+    const est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+    const day = est.getDay();
+    const hour = est.getHours();
+    const minute = est.getMinutes();
+    const totalMinutes = hour * 60 + minute;
+
+    const isWeekday = day >= 1 && day <= 5;
+    const preMarketStart = 4 * 60; // 04:00
+    const marketOpen = 9 * 60 + 30; // 09:30
+    const marketClose = 16 * 60; // 16:00
+    const postMarketEnd = 20 * 60; // 20:00
+
+    if (!isWeekday) return 'CLOSED';
+    if (totalMinutes >= marketOpen && totalMinutes < marketClose) return 'REGULAR';
+    if (totalMinutes >= preMarketStart && totalMinutes < marketOpen) return 'PRE';
+    if (totalMinutes >= marketClose && totalMinutes < postMarketEnd) return 'POST';
+    return 'CLOSED';
+  }
+};
+
+// marketState를 한글로 변환
+const getMarketStateLabel = (stock) => {
+  const state = getRealtimeMarketState(stock);
+  if (!state) return null;
+
+  switch (state) {
+    case 'REGULAR': return '장중';
+    case 'PRE': return '장전';
+    case 'POST': return '장후';
+    default: return '장마감';
+  }
+};
 
 // === 아이콘 컴포넌트들 ===
 const TrendingUp = ({ size = 24, color = "currentColor" }) => (
@@ -865,7 +922,7 @@ const StockExchange = () => {
   // === 최적화된 데이터 가져오기 함수 (배치 처리 사용) ===
   const fetchAllData = useCallback(async (forceRefresh = false) => { // forceRefresh 기본값을 false로 되돌려 캐시 활성화
     if (!user) return;
-    if (!classCode && !isAdmin()) return;
+    if (!classCode) return; // classCode가 없으면 데이터 로드하지 않음
 
     if (isFetchingRef.current && !forceRefresh) {
       console.log('[StockExchange] 이미 fetching 중이므로 대기');
@@ -914,11 +971,16 @@ const StockExchange = () => {
   }, [classCode, user, isAdmin]);
 
   // === 데이터 자동 갱신 (Polling) ===
+  // 🔥 [최적화] onSnapshot 리스너가 실시간 주식 업데이트를 처리하므로, 폴링은 포트폴리오만 갱신 (10분 간격)
   usePolling(fetchAllData, {
-    interval: POLLING_INTERVALS.REALTIME, // 1분마다 자동 갱신
-    enabled: firebaseReady && !!user,
+    interval: 30 * 60 * 1000, // 🔥 [최적화] 30분마다 포트폴리오 갱신
+    enabled: firebaseReady && !!user && !!classCode,
     deps: [user, classCode, isAdmin]
   });
+
+  // 🔥 [최적화] onSnapshot 리스너 제거 - 읽기 비용 절감
+  // 대신 10분마다 fetchAllData가 최신 데이터를 가져옴
+  // 사용자가 필요시 수동 새로고침 가능
 
   // 🔥 FCM 푸시 알림 제거됨 (이유: 알림 스팸, 읽기 증가, 사용자 경험 악화)
   // 대신 30분 캐시 + 시간당 1회 자동 폴링으로 부드러운 업데이트 제공
@@ -945,20 +1007,9 @@ const StockExchange = () => {
   const addStock = useCallback(async (stockData) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
     try {
-      const stockRef = doc(collection(db, "CentralStocks"));
-      await setDoc(stockRef, {
-        ...stockData,
-        initialPrice: stockData.price,
-        priceHistory: [stockData.price],
-        createdAt: serverTimestamp(),
-        holderCount: 0,
-        tradingVolume: 1000,
-        buyVolume: 0,
-        sellVolume: 0,
-        recentBuyVolume: 0,
-        recentSellVolume: 0,
-        volatility: stockData.volatility || 0.02
-      });
+      // 관리자 권한으로 Cloud Function 먼저 시도 (Rules 우회)
+      const addStockFn = httpsCallable(functions, 'addStockDoc');
+      await addStockFn({ stock: stockData });
 
       await refreshStocksSnapshot();
 
@@ -970,9 +1021,37 @@ const StockExchange = () => {
 
       alert(`${stockData.name} 상품이 추가되었습니다.`);
     } catch (error) {
-      alert("상품 추가 중 오류가 발생했습니다.");
+      console.error('[addStock] 함수 추가 실패, Firestore 직접 시도:', error);
+      try {
+        const stockRef = doc(collection(db, "CentralStocks"));
+        await setDoc(stockRef, {
+          ...stockData,
+          initialPrice: stockData.price,
+          priceHistory: [stockData.price],
+          createdAt: serverTimestamp(),
+          holderCount: 0,
+          tradingVolume: 1000,
+          buyVolume: 0,
+          sellVolume: 0,
+          recentBuyVolume: 0,
+          recentSellVolume: 0,
+          volatility: stockData.volatility || 0.02
+        });
+
+        await refreshStocksSnapshot();
+
+        const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
+        globalCache.invalidate(batchKey);
+        invalidateCache(`STOCKS_${classCode}`);
+        await fetchAllData(true);
+
+        alert(`${stockData.name} 상품이 추가되었습니다.`);
+      } catch (innerError) {
+        console.error('[addStock] Firestore 직접 추가 실패:', innerError);
+        alert("상품 추가 중 오류가 발생했습니다. 관리자 권한/Rules를 확인해주세요.");
+      }
     }
-  }, [classCode, user, fetchAllData, refreshStocksSnapshot]);
+  }, [classCode, user, fetchAllData, refreshStocksSnapshot, functions]);
 
   const deleteStock = useCallback(async (stockId, stockName) => {
     if (!classCode || !user) return alert("클래스 정보가 없습니다.");
@@ -1589,13 +1668,9 @@ const StockExchange = () => {
                                         <div className={`stock-change ${priceChange > 0 ? 'up' : 'down'}`}>
                                             <span>{formatPercent(priceChange)}</span>
                                         </div>
-                                        {isRealStock && stock.realStockData && (
+                                        {isRealStock && (
                                             <div style={{fontSize: '0.7rem', color: '#6b7280', marginTop: '2px'}}>
-                                                {stock.realStockData.marketState === 'REGULAR' ? '장중' :
-                                                 stock.realStockData.marketState === 'PRE' ? '장전' :
-                                                 stock.realStockData.marketState === 'PREPRE' ? '장전' :
-                                                 stock.realStockData.marketState === 'POST' ? '장후' :
-                                                 stock.realStockData.marketState === 'POSTPOST' ? '장후' : '장마감'}
+                                                {getMarketStateLabel(stock) || '장마감'}
                                             </div>
                                         )}
                                     </div>

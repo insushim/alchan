@@ -453,7 +453,7 @@ service cloud.firestore {
     // ========================================================
     // ⚙️ 전역 설정 (settings)
     // ========================================================
-    match /settings/{documentId} {
+    match /Settings/{documentId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

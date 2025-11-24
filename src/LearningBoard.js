@@ -158,7 +158,7 @@ const LearningBoard = () => {
       loading: boardsLoading,
       refetch: refetchBoards,
     } = usePolling(boardsQueryFn, {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     });
@@ -212,7 +212,7 @@ const LearningBoard = () => {
       loading: postsLoading,
       refetch: refetchPosts,
     } = usePolling(postsQueryFn, {
-      interval: 30000,
+      interval: 300000,
       enabled: !!selectedBoard && !!classCode,
       deps: [selectedBoard?.id, classCode],
     });

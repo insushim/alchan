@@ -97,7 +97,7 @@ const NationalTaxService = ({ classCode }) => {
     }
   }, [classCode]);
 
-  const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, { interval: 30000, enabled: !!classCode });
+  const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, { interval: 300000, enabled: !!classCode });
 
   // ?멸툑 ?뺤콉 ?ㅼ젙 ?대쭅 (classCode 湲곕컲)
   const fetchTaxSettings = useCallback(async () => {
@@ -143,7 +143,7 @@ const NationalTaxService = ({ classCode }) => {
     }
   }, [classCode]);
 
-  const { refetch: refetchSettings } = usePolling(fetchTaxSettings, { interval: 30000, enabled: !!classCode });
+  const { refetch: refetchSettings } = usePolling(fetchTaxSettings, { interval: 300000, enabled: !!classCode });
 
   const handleSettingChange = (e) => {
     const { name, value } = e.target;

@@ -50,7 +50,8 @@ const LawManagement = ({ classCode }) => {
       }));
     },
     {
-      interval: 60000,
+      // 🔥 [최적화] 1분 → 5분으로 변경 (읽기 비용 절감)
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     }
@@ -96,7 +97,7 @@ const LawManagement = ({ classCode }) => {
   };
 
   // usePolling hook 사용 (30초 간격)
-  const { loading, refetch } = usePolling(fetchLaws, { interval: 30000, enabled: !!classCode });
+  const { loading, refetch } = usePolling(fetchLaws, { interval: 300000, enabled: !!classCode });
 
   // 법안 승인 핸들러
   const handleApprove = async (lawId) => {

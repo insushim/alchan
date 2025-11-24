@@ -580,7 +580,7 @@ const PoliceStation = () => {
       }));
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!usersQuery && !auth.loading,
       deps: [classCode, auth.loading, usersQuery],
     }
@@ -636,7 +636,7 @@ const PoliceStation = () => {
       }));
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     }
@@ -686,7 +686,7 @@ const PoliceStation = () => {
       return balance;
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode && !auth.loading,
       deps: [classCode, auth.loading, hasPoliceAdminRights],
     }
@@ -714,7 +714,7 @@ const PoliceStation = () => {
       }));
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     }
@@ -748,7 +748,7 @@ const PoliceStation = () => {
       return reasons;
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode, hasPoliceAdminRights],
     }
@@ -801,7 +801,7 @@ const PoliceStation = () => {
       });
     },
     {
-      interval: 30000,
+      interval: 300000,
       enabled: !!classCode,
       deps: [classCode],
     }

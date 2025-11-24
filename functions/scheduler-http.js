@@ -126,17 +126,16 @@ exports.stockPriceScheduler = onRequest({
       return;
     }
 
-    // 🔥 최적화: 최근 30분 내 활성 사용자가 있는지 확인 (force=true로 우회 가능)
+    // 🔥 최적화: 캐시된 활성 사용자 상태 사용 (읽기 최소화)
     const forceUpdate = req.query.force === 'true';
 
     if (!forceUpdate) {
+      // 🔥 Settings 문서에서 마지막 활성 시간 확인 (1회 읽기로 최적화)
+      const settingsDoc = await db.doc("Settings/activeStatus").get();
+      const lastActiveTime = settingsDoc.exists ? settingsDoc.data()?.lastActiveAt?.toDate() : null;
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-      const activeUsersSnapshot = await db.collection("users")
-        .where("lastActiveAt", ">=", thirtyMinutesAgo)
-        .limit(1)
-        .get();
 
-      if (activeUsersSnapshot.empty) {
+      if (!lastActiveTime || lastActiveTime < thirtyMinutesAgo) {
         logger.info(`[stockPriceScheduler] 활성 사용자 없음 - 작업 건너뜀 (읽기 비용 절감)`);
         res.json({
           success: true,
@@ -370,6 +369,49 @@ exports.getStocksSnapshotFunction = onCall({ region: "asia-northeast3" }, async 
   } catch (error) {
     logger.error("[getStocksSnapshot] 오류:", error);
     throw new HttpsError("internal", error.message || "스냅샷 조회 실패");
+  }
+});
+
+// 🔥 관리자용 단일 주식 추가 (규칙 우회용)
+exports.addStockDocFunction = onCall({ region: "asia-northeast3" }, async (request) => {
+  await checkAuthAndGetUserData(request, true); // 관리자만 실행 가능
+
+  const { stock } = request.data || {};
+  if (!stock || !stock.name || !stock.price || !stock.minListingPrice) {
+    throw new HttpsError("invalid-argument", "stock(name, price, minListingPrice)이 필요합니다.");
+  }
+
+  try {
+    const stockRef = db.collection("CentralStocks").doc();
+    const stockData = {
+      ...stock,
+      initialPrice: stock.price,
+      priceHistory: [stock.price],
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      holderCount: 0,
+      tradingVolume: 1000,
+      buyVolume: 0,
+      sellVolume: 0,
+      recentBuyVolume: 0,
+      recentSellVolume: 0,
+      volatility: stock.volatility || (stock.productType === "bond" ? 0.005 : 0.02),
+      isListed: stock.isListed !== undefined ? stock.isListed : true,
+      isManual: !!stock.isManual,
+      sector: stock.sector || "TECH",
+      productType: stock.productType || "stock",
+    };
+
+    await stockRef.set(stockData);
+    const snapshotResult = await updateCentralStocksSnapshot();
+
+    return {
+      success: true,
+      id: stockRef.id,
+      snapshot: snapshotResult
+    };
+  } catch (error) {
+    logger.error("[addStockDocFunction] 오류:", error);
+    throw new HttpsError("internal", error.message || "주식 추가 실패");
   }
 });
 

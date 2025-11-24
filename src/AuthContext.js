@@ -227,6 +227,12 @@ export const AuthProvider = ({ children }) => {
         await updateUserDocument(firebaseUid, {
           lastActiveAt: serverTimestamp(),
         });
+        // 🔥 [최적화] 전역 활성 상태 문서도 업데이트 (스케줄러 읽기 최소화)
+        const { doc, setDoc, serverTimestamp: fsServerTimestamp } = await import("firebase/firestore");
+        const { db } = await import("./firebase");
+        await setDoc(doc(db, "Settings", "activeStatus"), {
+          lastActiveAt: fsServerTimestamp(),
+        }, { merge: true });
         lastActiveUpdateRef.current = now;
       } catch (error) {
         // 네트워크 오류 등은 무시 (중요하지 않음)

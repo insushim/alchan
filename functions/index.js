@@ -37,6 +37,7 @@ exports.updateRealStocks = scheduler.updateRealStocksFunction; // 실제 주식 
 exports.addSingleRealStock = scheduler.addSingleRealStockFunction; // 개별 실제 주식 추가
 exports.updateStocksSnapshot = scheduler.updateStocksSnapshotFunction; // 스냅샷 강제 갱신
 exports.getStocksSnapshot = scheduler.getStocksSnapshotFunction; // 스냅샷 조회 (없으면 생성)
+exports.addStockDoc = scheduler.addStockDocFunction; // 관리자용 주식 추가 (규칙 우회)
 exports.getAvailableSymbols = scheduler.getAvailableSymbolsFunction; // 사용 가능한 심볼 목록
 
 // 🔥 환율 관리 함수

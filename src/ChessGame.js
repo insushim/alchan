@@ -410,7 +410,8 @@ const ChessGame = () => {
     useEffect(() => {
         if (showCreateRoom && user) {
             fetchAvailableRooms();
-            const interval = setInterval(fetchAvailableRooms, 5000);
+            // 🔥 [최적화] 5초 → 60초로 변경 (읽기 비용 절감)
+            const interval = setInterval(fetchAvailableRooms, 60000);
             return () => clearInterval(interval);
         }
     }, [showCreateRoom, user, fetchAvailableRooms]);
@@ -442,7 +443,8 @@ const ChessGame = () => {
         }
     }, [gameId]);
 
-    const { refetch } = usePolling(fetchGameData, { interval: 3000, enabled: !!gameId });
+    // 🔥 [최적화] 30초 → 60초로 변경 (읽기 비용 절감)
+    const { refetch } = usePolling(fetchGameData, { interval: 60000, enabled: !!gameId });
 
     useEffect(() => {
         refetchRef.current = refetch;

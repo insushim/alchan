@@ -9,6 +9,24 @@ export const POLLING_INTERVALS = {
   MANUAL: null          // 수동 새로고침만
 };
 
+// 🔥 [최적화] 전역 초기 로드 디바운싱 - 여러 폴링이 동시에 실행되지 않도록
+let globalInitialLoadQueue = [];
+let isProcessingQueue = false;
+
+const processInitialLoadQueue = async () => {
+  if (isProcessingQueue || globalInitialLoadQueue.length === 0) return;
+  isProcessingQueue = true;
+
+  while (globalInitialLoadQueue.length > 0) {
+    const fetchFn = globalInitialLoadQueue.shift();
+    await fetchFn();
+    // 각 요청 사이에 100ms 간격 추가
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+
+  isProcessingQueue = false;
+};
+
 /**
  * Firestore 실시간 리스너(onSnapshot)를 Polling으로 대체하는 Hook
  *
@@ -78,19 +96,16 @@ export const usePolling = (queryFn, options = {}) => {
     // enabled가 false이거나 수동 모드면 폴링 중지
     if (!enabled || interval === POLLING_INTERVALS.MANUAL) {
       setLoading(false);
-      console.log('[usePolling] 폴링 비활성화 - enabled:', enabled, 'interval:', interval);
       return;
     }
 
-    console.log('[usePolling] 폴링 시작 - interval:', interval);
-
-    // 즉시 한 번 실행
-    fetchData();
+    // 🔥 [최적화] 초기 로드를 큐에 추가하여 순차 실행
+    globalInitialLoadQueue.push(fetchData);
+    processInitialLoadQueue();
 
     // Polling 시작 (interval이 null이면 수동 모드)
     if (interval && interval > 0) {
       intervalRef.current = setInterval(fetchData, interval);
-      console.log('[usePolling] setInterval 생성 - ID:', intervalRef.current);
     }
 
     return () => {
