@@ -75,16 +75,14 @@ const batchDataLoader = {
   },
 
   _executeBatchLoad: async function(classCode, userId) {
-    const [stocks, portfolio, marketCondition] = await Promise.all([
+    const [stocks, portfolio] = await Promise.all([
       this._loadStocks(classCode),
       this._loadPortfolio(userId, classCode),
-      this._loadMarketCondition()
     ]);
 
     return {
       stocks: stocks || [],
       portfolio: portfolio || [],
-      marketCondition: marketCondition || null,
       errors: []
     };
   },
@@ -150,10 +148,7 @@ const batchDataLoader = {
     }
   },
 
-  _loadMarketCondition: async function() {
-    // 시장 시뮬레이션/뉴스 비활성화: 불필요한 읽기 제거
-    return null;
-  }
+
 };
 
 
@@ -769,7 +764,6 @@ const StockExchange = () => {
   const [classCode, setClassCode] = useState(null);
   const [stocks, setStocks] = useState([]);
   const [portfolio, setPortfolio] = useState([]);
-  const [marketCondition, setMarketCondition] = useState(null);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [buyQuantities, setBuyQuantities] = useState({});
   const [sellQuantities, setSellQuantities] = useState({});
@@ -891,9 +885,6 @@ const StockExchange = () => {
 
       setStocks(batchResult.stocks || []);
       setPortfolio(batchResult.portfolio || []);
-      if (batchResult.marketCondition) {
-        setMarketCondition(batchResult.marketCondition);
-      }
 
       lastFetchTimeRef.current.batchLoad = now;
       lastFetchTimeRef.current.stocks = now;
@@ -1488,8 +1479,6 @@ const StockExchange = () => {
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
   if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onCreateRealStocks={createRealStocks} onUpdateRealStocks={updateRealStocks} onAddSingleRealStock={addSingleRealStock} onDeleteSimulationStocks={deleteSimulationStocks} />; 
 
-   
-
   return (
     <div className="stock-exchange-container">
         <header className="stock-header">
@@ -1507,19 +1496,37 @@ const StockExchange = () => {
             </div>
         </header>
         <main className="market-section">
-            <section className="portfolio-section" style={{width: '100%', maxWidth: '1200px', margin: '0 auto'}}>
-                <div className="section-header" style={{paddingBottom: '1rem'}}>
-                    <h2 className="section-title">💼 내 자산 현황</h2>
+            <section className="asset-summary">
+                <div className="asset-cards">
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div><div className="asset-card-icon blue">📊</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div><div className="asset-card-icon purple">💎</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div><div className={`asset-card-icon ${portfolioStats.totalProfit >= 0 ? 'red' : 'blue'}`}>{portfolioStats.totalProfit >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
+                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div><div className={`asset-card-icon ${portfolioStats.profitPercent >= 0 ? 'red' : 'blue'}`}>{portfolioStats.profitPercent >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
                 </div>
-                <div className="asset-cards compact">
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>계좌 잔고</h3><p className="value">{formatCurrency(userDoc.cash)}</p></div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div></div></div>
-                </div>
+                
+                {/* 성능 통계 표시 (관리자 전용) */}
+                {isAdmin() && (
+                    <div style={{ 
+                        marginTop: '10px', 
+                        padding: '8px 12px', 
+                        background: '#f0f9ff', 
+                        borderRadius: '6px', 
+                        fontSize: '0.8rem', 
+                        color: '#0369a1',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <div>
+                            🚀 성능 최적화 상태: 캐시 적중 {cacheStatus.hits}회, 누락 {cacheStatus.misses}회 
+                            (절약률: {cacheStatus.hits + cacheStatus.misses > 0 ? Math.round((cacheStatus.hits / (cacheStatus.hits + cacheStatus.misses)) * 100) : 0}%)
+                        </div>
+                        {lastBatchLoad && (
+                            <div>마지막 배치로드: {lastBatchLoad.toLocaleTimeString()}</div>
+                        )}
+                    </div>
+                )}
             </section>
-
 
             <section className="market-list-section">
                 <div className="section-header">
