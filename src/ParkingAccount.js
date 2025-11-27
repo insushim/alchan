@@ -4,6 +4,7 @@ import { db, doc, getDoc, setDoc, serverTimestamp, updateDoc, increment, runTran
 import { format, isToday, differenceInDays, isPast } from 'date-fns';
 import { PiggyBank, Landmark, HandCoins, Wallet, X, TrendingUp } from 'lucide-react';
 import { formatKoreanCurrency } from './numberFormatter';
+import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 
 // --- Styles ---
 const styles = {
@@ -726,7 +727,27 @@ const ParkingAccount = ({
       });
 
       displayMessage("상품 가입이 완료되었습니다.", "success");
-      
+
+      // 🔥 활동 로그 기록 (예금/적금/대출 가입)
+      const activityType = type === 'deposits' ? ACTIVITY_TYPES.DEPOSIT_CREATE
+        : type === 'savings' ? ACTIVITY_TYPES.DEPOSIT_CREATE
+        : ACTIVITY_TYPES.LOAN_CREATE;
+      logActivity(db, {
+        classCode: userDoc?.classCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: activityType,
+        description: `${product.name} 가입 (${formatCurrency(amount)}원)`,
+        amount: cashChangeAmount,
+        metadata: {
+          productName: product.name,
+          productType: type,
+          termInDays: product.termInDays,
+          dailyRate: product.dailyRate,
+          maturityDate: maturityDate.toISOString()
+        }
+      });
+
       // 서버 데이터로 다시 로드하여 낙관적 업데이트 결과 교체
       await loadAllData();
       if (refreshUserDocument) refreshUserDocument();
@@ -803,6 +824,23 @@ const ParkingAccount = ({
 
         displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
 
+        // 🔥 활동 로그 기록 (예금 만기)
+        logActivity(db, {
+          classCode: userDoc?.classCode,
+          userId: userId,
+          userName: userDoc?.name || '사용자',
+          type: ACTIVITY_TYPES.DEPOSIT_MATURITY,
+          description: `${name} 만기 수령 (원금: ${formatCurrency(balance)}, 이자: ${formatCurrency(interest)})`,
+          amount: total,
+          metadata: {
+            productName: name,
+            productType: type,
+            principal: balance,
+            interest,
+            total
+          }
+        });
+
         // 백그라운드에서 userDoc 갱신
         if (refreshUserDocument) {
           console.log("userDoc 갱신 시작");
@@ -810,7 +848,7 @@ const ParkingAccount = ({
             console.log("[ParkingAccount] 만기 수령 후 userDoc 갱신 완료");
           });
         }
-        
+
         console.log("전체 데이터 다시 로드");
         await loadAllData();
 
@@ -903,6 +941,25 @@ const ParkingAccount = ({
 
         displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료. 원금 ${formatCurrency(balance)}원이 반환되었습니다.`, "success");
 
+        // 🔥 활동 로그 기록 (중도 해지 / 대출 상환)
+        const activityType = isLoan ? ACTIVITY_TYPES.LOAN_REPAY : ACTIVITY_TYPES.DEPOSIT_WITHDRAW;
+        logActivity(db, {
+          classCode: userDoc?.classCode,
+          userId: userId,
+          userName: userDoc?.name || '사용자',
+          type: activityType,
+          description: isLoan
+            ? `대출 상환: ${name} (${formatCurrency(balance)}원)`
+            : `중도 해지: ${name} (원금 ${formatCurrency(balance)}원 반환)`,
+          amount: cashChangeAmount,
+          metadata: {
+            productName: name,
+            productType: type,
+            principal: balance,
+            isEarlyCancellation: true
+          }
+        });
+
         // 백그라운드에서 userDoc 갱신
         if (refreshUserDocument) {
           console.log("userDoc 갱신 시작");
@@ -957,6 +1014,17 @@ const ParkingAccount = ({
 
       displayMessage(`${formatCurrency(amount)}원 입금 완료.`, "success");
 
+      // 🔥 활동 로그 기록 (파킹통장 입금)
+      logActivity(db, {
+        classCode: userDoc?.classCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: ACTIVITY_TYPES.PARKING_DEPOSIT,
+        description: `파킹통장 입금 ${formatCurrency(amount)}원`,
+        amount: -amount,
+        metadata: { parkingBalance: parkingBalance + amount }
+      });
+
       await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {
       displayMessage(`처리 오류: ${error.message}`, "error");
@@ -997,6 +1065,17 @@ const ParkingAccount = ({
       }
 
       displayMessage(`${formatCurrency(amount)}원 출금 완료.`, "success");
+
+      // 🔥 활동 로그 기록 (파킹통장 출금)
+      logActivity(db, {
+        classCode: userDoc?.classCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: ACTIVITY_TYPES.PARKING_WITHDRAW,
+        description: `파킹통장 출금 ${formatCurrency(amount)}원`,
+        amount: amount,
+        metadata: { parkingBalance: parkingBalance - amount }
+      });
 
       await loadAllData(); // Reconcile parkingBalance and other products
     } catch (error) {

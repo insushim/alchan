@@ -33,6 +33,7 @@ import {
 } from "firebase/firestore";
 
 import { globalCache, cacheStats } from "./services/globalCacheService";
+import { logActivity, ACTIVITY_TYPES } from "./utils/firestoreHelpers";
 
 // === 배치 데이터 로딩 시스템 ===
 const batchDataLoader = {
@@ -66,8 +67,8 @@ const batchDataLoader = {
 
     try {
       const result = await batchPromise;
-      globalCache.set(batchKey, result, 15 * 60 * 1000); // 🔥 실제 주가 갱신 주기에 맞춘 15분 캐시로 읽기 횟수 추가 절감
-      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (15분)');
+      globalCache.set(batchKey, result, 30 * 60 * 1000); // 🔥 [최적화] 30분 캐시 - 거래 시 강제 무효화되므로 안전
+      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (30분)');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -162,47 +163,18 @@ const batchDataLoader = {
 // 🔥 [최적화] 실시간 marketState 계산 함수 (서버 데이터 의존성 제거)
 // 주식 심볼을 기반으로 현재 시간에서 장중/장마감 상태를 계산
 const getRealtimeMarketState = (stock) => {
-  if (!stock?.realStockSymbol) return null; // 실제 주식이 아니면 null
-
-  const symbol = stock.realStockSymbol;
-  const isKoreanStock = symbol.endsWith('.KS') || symbol.endsWith('.KQ');
-
-  const now = new Date();
-
-  if (isKoreanStock) {
-    // 한국 주식: KST 기준 09:00 ~ 15:30
-    const kst = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-    const day = kst.getDay();
-    const hour = kst.getHours();
-    const minute = kst.getMinutes();
-    const totalMinutes = hour * 60 + minute;
-
-    const isWeekday = day >= 1 && day <= 5;
-    const isMarketHours = totalMinutes >= 9 * 60 && totalMinutes < 15 * 60 + 30; // 09:00 ~ 15:30
-
-    if (!isWeekday) return 'CLOSED';
-    if (isMarketHours) return 'REGULAR';
-    return 'CLOSED';
-  } else {
-    // 미국 주식: EST/EDT 기준 09:30 ~ 16:00
-    const est = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
-    const day = est.getDay();
-    const hour = est.getHours();
-    const minute = est.getMinutes();
-    const totalMinutes = hour * 60 + minute;
-
-    const isWeekday = day >= 1 && day <= 5;
-    const preMarketStart = 4 * 60; // 04:00
-    const marketOpen = 9 * 60 + 30; // 09:30
-    const marketClose = 16 * 60; // 16:00
-    const postMarketEnd = 20 * 60; // 20:00
-
-    if (!isWeekday) return 'CLOSED';
-    if (totalMinutes >= marketOpen && totalMinutes < marketClose) return 'REGULAR';
-    if (totalMinutes >= preMarketStart && totalMinutes < marketOpen) return 'PRE';
-    if (totalMinutes >= marketClose && totalMinutes < postMarketEnd) return 'POST';
-    return 'CLOSED';
+  // 실시간 주식이 아니면 null 반환
+  if (!stock?.isRealStock) {
+    return null;
   }
+
+  // realStockData에 이미 서버에서 계산된 marketState가 있으면 그것을 사용
+  if (stock.realStockData?.marketState) {
+    return stock.realStockData.marketState;
+  }
+
+  // realStockData가 없으면 null 반환
+  return null;
 };
 
 // marketState를 한글로 변환
@@ -274,10 +246,10 @@ const TAX_RATE = 0.22;
 const BOND_TAX_RATE = 0.154;
 
 const CACHE_TTL = {
-  BATCH_DATA: 1000 * 60 * 15, // 🔥 실시간 주가가 15분 주기로만 변하므로 조회 간격도 15분으로 완화
-  STOCKS: 1000 * 60 * 15, // 15분 (가격 반영 주기와 동일)
-  PORTFOLIO: 1000 * 60 * 15, // 🔥 거래 시 forceRefresh로 즉시 무효화하므로 기본 주기는 15분
-  MARKET_STATUS: 1000 * 60 * 60, // 60분 (시장 상태는 거의 변경되지 않음)
+  BATCH_DATA: 1000 * 60 * 30, // 🔥 [최적화] 30분 캐시 - 실시간 주가가 15분 주기이므로 2사이클 캐시
+  STOCKS: 1000 * 60 * 30, // 30분 (가격 반영 주기 2배)
+  PORTFOLIO: 1000 * 60 * 30, // 🔥 거래 시 forceRefresh로 즉시 무효화하므로 기본 주기는 30분
+  MARKET_STATUS: 1000 * 60 * 120, // 120분 (시장 상태는 거의 변경되지 않음)
 };
 
 // === 유틸리티 함수들 ===
@@ -442,6 +414,27 @@ const invalidateCache = (pattern) => {
   // globalCache.invalidatePattern 메서드 사용 (더 안전함)
   if (globalCache && typeof globalCache.invalidatePattern === 'function') {
     globalCache.invalidatePattern(pattern);
+  }
+};
+
+// 🔥 [최적화] localStorage BATCH 캐시 일괄 삭제 헬퍼
+const clearLocalStorageBatchCache = () => {
+  try {
+    const keysToDelete = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.includes('BATCH')) {
+        keysToDelete.push(key);
+      }
+    }
+    keysToDelete.forEach(key => {
+      localStorage.removeItem(key);
+    });
+    if (keysToDelete.length > 0) {
+      console.log('[캐시] localStorage BATCH 캐시 삭제:', keysToDelete.length, '개');
+    }
+  } catch (error) {
+    console.warn('[캐시] localStorage 정리 오류:', error);
   }
 };
 
@@ -857,12 +850,27 @@ const StockExchange = () => {
   useEffect(() => {
     const checkMarketStatus = () => {
       const now = new Date();
+
+      // 한국 시장 시간 체크 (09:00 ~ 15:30 KST)
       const koreaTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
-      const day = koreaTime.getDay(); // 0: 일요일, 1: 월요일, ..., 6: 토요일
-      const hour = koreaTime.getHours();
-      const isWeekday = day >= 1 && day <= 5;
-      const isOpenHour = hour >= 8 && hour < 15;
-      setMarketOpen(isWeekday && isOpenHour);
+      const kstDay = koreaTime.getDay();
+      const kstHour = koreaTime.getHours();
+      const kstMinute = koreaTime.getMinutes();
+      const kstTotalMinutes = kstHour * 60 + kstMinute;
+      const isKoreaWeekday = kstDay >= 1 && kstDay <= 5;
+      const isKoreaMarketOpen = isKoreaWeekday && kstTotalMinutes >= 9 * 60 && kstTotalMinutes < 15 * 60 + 30;
+
+      // 미국 시장 시간 체크 (09:30 ~ 16:00 EST/EDT)
+      const usTime = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+      const usDay = usTime.getDay();
+      const usHour = usTime.getHours();
+      const usMinute = usTime.getMinutes();
+      const usTotalMinutes = usHour * 60 + usMinute;
+      const isUsWeekday = usDay >= 1 && usDay <= 5;
+      const isUsMarketOpen = isUsWeekday && usTotalMinutes >= 9 * 60 + 30 && usTotalMinutes < 16 * 60;
+
+      // 한국 또는 미국 시장 중 하나라도 열려있으면 true
+      setMarketOpen(isKoreaMarketOpen || isUsMarketOpen);
     };
 
     checkMarketStatus(); // 초기 로드 시 즉시 확인
@@ -971,9 +979,9 @@ const StockExchange = () => {
   }, [classCode, user, isAdmin]);
 
   // === 데이터 자동 갱신 (Polling) ===
-  // 🔥 [최적화] onSnapshot 리스너가 실시간 주식 업데이트를 처리하므로, 폴링은 포트폴리오만 갱신 (10분 간격)
+  // 🔥 [최적화] 폴링 간격을 60분으로 완화 - 거래 시 forceRefresh로 즉시 갱신되므로 자동 갱신은 최소화
   usePolling(fetchAllData, {
-    interval: 30 * 60 * 1000, // 🔥 [최적화] 30분마다 포트폴리오 갱신
+    interval: 60 * 60 * 1000, // 🔥 [최적화] 60분마다 포트폴리오 갱신 (Firestore 읽기 최소화)
     enabled: firebaseReady && !!user && !!classCode,
     deps: [user, classCode, isAdmin]
   });
@@ -1186,33 +1194,58 @@ const StockExchange = () => {
         console.log('[buyStock] 현금 정확한 값으로 업데이트:', result.data.newBalance);
       }
 
-      // 캐시 무효화 및 데이터 새로고침
+      // 🔥 [최적화] 캐시 무효화 (통합)
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
-      invalidateCache(`STOCKS_${classCode}`);
+      clearLocalStorageBatchCache();
 
-      // 🔥 [수정] localStorage에서 BATCH 관련 키 직접 삭제
-      try {
-        const keysToDelete = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.includes('BATCH')) {
-            keysToDelete.push(key);
-          }
+      // 🔥 [최적화] 포트폴리오만 로컬에서 업데이트 - 전체 fetchAllData 호출 제거
+      // 서버에서 반환된 데이터로 포트폴리오 상태 직접 업데이트
+      setPortfolio(prev => {
+        const existingIndex = prev.findIndex(h => h.stockId === stockId);
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const newQuantity = existing.quantity + quantity;
+          const newAvgPrice = ((existing.averagePrice * existing.quantity) + (stock.price * quantity)) / newQuantity;
+          return [
+            ...prev.slice(0, existingIndex),
+            { ...existing, quantity: newQuantity, averagePrice: newAvgPrice, lastBuyTime: new Date() },
+            ...prev.slice(existingIndex + 1)
+          ];
+        } else {
+          return [...prev, {
+            id: `temp_${Date.now()}`,
+            stockId,
+            stockName: stock.name,
+            quantity,
+            averagePrice: stock.price,
+            classCode,
+            lastBuyTime: new Date()
+          }];
         }
-        keysToDelete.forEach(key => {
-          localStorage.removeItem(key);
-          console.log('[거래] localStorage 캐시 삭제:', key);
-        });
-      } catch (error) {
-        console.warn('[거래] localStorage 정리 오류:', error);
-      }
-
-      // 주식 데이터 새로고침
-      await fetchAllData(true);
+      });
 
       setBuyQuantities(prev => ({ ...prev, [stockId]: "" }));
+
+      // 🔥 활동 로그 기록 (주식 매수)
+      logActivity(db, {
+        classCode,
+        userId: user.uid,
+        userName: userDoc?.name || user.displayName || '사용자',
+        type: ACTIVITY_TYPES.STOCK_BUY,
+        description: `${stock.name} ${quantity}주 매수 (${formatCurrency(totalCost)})`,
+        amount: -totalCost,
+        metadata: {
+          stockId,
+          stockName: stock.name,
+          quantity,
+          pricePerShare: stock.price,
+          commission,
+          taxAmount,
+          totalCost
+        }
+      });
 
       alert(`${stock.name} ${quantity}주 매수 완료!\n수수료: ${formatCurrency(commission)}`);
     } catch (error) {
@@ -1278,35 +1311,56 @@ const StockExchange = () => {
         console.log('[sellStock] 현금 정확한 값으로 업데이트:', result.data.newBalance);
       }
 
-      // 캐시 무효화 및 데이터 새로고침
+      // 🔥 [최적화] 캐시 무효화 (통합)
       const batchKey = globalCache.generateKey('BATCH', { classCode, userId: user.uid });
       globalCache.invalidate(batchKey);
       invalidateCache(`PORTFOLIO_user_${user.uid}`);
-      invalidateCache(`STOCKS_${classCode}`);
+      clearLocalStorageBatchCache();
 
-      // 🔥 [수정] localStorage에서 BATCH 관련 키 직접 삭제
-      try {
-        const keysToDelete = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const key = localStorage.key(i);
-          if (key && key.includes('BATCH')) {
-            keysToDelete.push(key);
+      // 🔥 [최적화] 포트폴리오 로컬 업데이트 - fetchAllData 호출 제거
+      setPortfolio(prev => {
+        const existingIndex = prev.findIndex(h => h.id === holdingId);
+        if (existingIndex >= 0) {
+          const existing = prev[existingIndex];
+          const newQuantity = existing.quantity - quantity;
+          if (newQuantity <= 0) {
+            // 전량 매도 시 포트폴리오에서 제거
+            return [...prev.slice(0, existingIndex), ...prev.slice(existingIndex + 1)];
+          } else {
+            return [
+              ...prev.slice(0, existingIndex),
+              { ...existing, quantity: newQuantity },
+              ...prev.slice(existingIndex + 1)
+            ];
           }
         }
-        keysToDelete.forEach(key => {
-          localStorage.removeItem(key);
-          console.log('[거래] localStorage 캐시 삭제:', key);
-        });
-      } catch (error) {
-        console.warn('[거래] localStorage 정리 오류:', error);
-      }
-
-      // 주식 데이터 새로고침
-      await fetchAllData(true);
+        return prev;
+      });
 
       setSellQuantities(prev => ({ ...prev, [holdingId]: "" }));
 
       const { stockName, sellPrice: actualSellPrice, commission: actualCommission, totalTax: actualTax, profit: actualProfit, netRevenue } = result.data;
+
+      // 🔥 활동 로그 기록 (주식 매도)
+      logActivity(db, {
+        classCode,
+        userId: user.uid,
+        userName: userDoc?.name || user.displayName || '사용자',
+        type: ACTIVITY_TYPES.STOCK_SELL,
+        description: `${stockName} ${quantity}주 매도 (순수익: ${formatCurrency(netRevenue)})`,
+        amount: netRevenue,
+        metadata: {
+          holdingId,
+          stockName,
+          quantity,
+          sellPrice: actualSellPrice,
+          commission: actualCommission,
+          tax: actualTax,
+          profit: actualProfit,
+          netRevenue
+        }
+      });
+
       const taxInfo = actualTax > 0 ? `\n세금: ${formatCurrency(actualTax)}` : '';
       alert(`${stockName} ${quantity}주 매도 완료!\n수익: ${formatCurrency(actualProfit)}${taxInfo}\n수수료: ${formatCurrency(actualCommission)}\n순수익: ${formatCurrency(netRevenue)}`);
     } catch (error) {

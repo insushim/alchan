@@ -143,7 +143,7 @@ const RealEstateRegistry = () => {
     };
 
     fetchSettings(); // 초기 로드
-    const interval = setInterval(fetchSettings, 300000); // 5분마다 폴링
+    const interval = setInterval(fetchSettings, 15 * 60 * 1000); // 🔥 [최적화] 15분마다 폴링 (Firestore 읽기 최소화)
 
     return () => {
       mounted = false;
@@ -230,7 +230,7 @@ const RealEstateRegistry = () => {
     };
 
     fetchProperties(); // 초기 로드
-    const interval = setInterval(fetchProperties, 600000); // 🔥 [최적화] 10분마다 폴링 (5분에서 증가)
+    const interval = setInterval(fetchProperties, 15 * 60 * 1000); // 🔥 [최적화] 15분마다 폴링 (Firestore 읽기 최소화)
 
     return () => {
       mounted = false;

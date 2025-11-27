@@ -642,6 +642,14 @@ service cloud.firestore {
         allow update: if isAdmin();
         allow delete: if isAdmin();
       }
+
+      // 🔥 활동 로그 서브컬렉션 (classes/{classCode}/activityLogs/{logId})
+      match /activityLogs/{logId} {
+        allow read: if isSameClass(classCode) || isAdmin();
+        allow create: if isSignedIn() && isSameClass(classCode);
+        allow update: if false; // 로그는 수정 불가
+        allow delete: if isAdmin();
+      }
     }
 
     // ========================================================

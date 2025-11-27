@@ -83,7 +83,7 @@ const SystemMonitoring = ({ isSuperAdmin }) => {
 
     const intervalId = setInterval(() => {
       fetchSystemStatus();
-    }, 30000); // 30초
+    }, 2 * 60 * 1000); // 🔥 [최적화] 2분 (관리자 전용 페이지이므로 30초에서 증가)
 
     return () => clearInterval(intervalId);
   }, [autoRefresh, isSuperAdmin, fetchSystemStatus]);

@@ -525,8 +525,8 @@ function Dashboard({ adminTabMode }) {
     // 즉시 한 번 실행
     await pollData();
 
-    // 5분마다 실행 (30초에서 5분으로 변경 - Firebase 읽기 최적화)
-    const intervalId = setInterval(pollData, 300000);
+    // 🔥 [최적화] 15분마다 실행 (5분에서 15분으로 변경 - Firestore 읽기 최소화)
+    const intervalId = setInterval(pollData, 15 * 60 * 1000);
 
     // Cleanup 함수 저장
     realtimeManager.current.addListener('polling', () => clearInterval(intervalId));
@@ -571,8 +571,8 @@ function Dashboard({ adminTabMode }) {
       return fetchPromise.current;
     }
 
-    // 최소 요청 간격 보장 (30초)
-    if (!forceRefresh && now - lastFetchTime.current < 300000) {
+    // 🔥 [최적화] 최소 요청 간격 보장 (15분)
+    if (!forceRefresh && now - lastFetchTime.current < 15 * 60 * 1000) {
       setAppLoading(false);
       return;
     }

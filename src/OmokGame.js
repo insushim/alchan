@@ -18,6 +18,7 @@ import {
 import { db } from './firebase';
 import { useAuth } from './AuthContext';
 import { usePolling } from './hooks/usePolling';
+import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import './OmokGame.css';
 import './GamePage.css';
 
@@ -1252,6 +1253,24 @@ const OmokGame = () => {
                 console.log('[Reward] 쿠폰 지급:', selectedCard.amount);
                 await addCouponsToUserById(user.uid, selectedCard.amount);
             }
+
+            // 🔥 활동 로그 기록 (AI 오목 승리 보상)
+            logActivity(db, {
+                classCode: userDoc?.classCode,
+                userId: user.uid,
+                userName: userDoc?.name || '사용자',
+                type: ACTIVITY_TYPES.GAME_WIN,
+                description: `오목 AI(${game?.aiDifficulty || '중급'}) 승리 - ${selectedCard.type === 'cash' ? `현금 ${selectedCard.amount.toLocaleString()}원` : `쿠폰 ${selectedCard.amount}개`} 획득`,
+                amount: selectedCard.type === 'cash' ? selectedCard.amount : 0,
+                couponAmount: selectedCard.type === 'coupon' ? selectedCard.amount : 0,
+                metadata: {
+                    gameType: 'omok',
+                    opponent: 'AI',
+                    difficulty: game?.aiDifficulty || '중급',
+                    rewardType: selectedCard.type,
+                    rewardAmount: selectedCard.amount
+                }
+            });
 
             console.log('[Reward] 보상 지급 완료');
             setTimeout(() => leaveGame(), 2000);

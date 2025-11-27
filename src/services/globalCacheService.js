@@ -27,13 +27,13 @@ class GlobalCacheService {
     this.subscribers = new Map();
     this.pendingRequests = new Map();
 
-    // 🔥 [최적화] 캐시 TTL 설정 (대폭 증가 - Firebase 읽기 최적화)
-    this.DEFAULT_TTL = 30 * 60 * 1000; // 30분 (10분에서 증가)
-    this.USER_TTL = 2 * 60 * 60 * 1000; // 2시간 (60분에서 증가)
-    this.ACTIVITY_LOG_TTL = 10 * 60 * 1000; // 10분 (5분에서 증가)
-    this.ITEMS_TTL = 60 * 60 * 1000; // 60분 (30분에서 증가)
-    this.CLASS_DATA_TTL = 2 * 60 * 60 * 1000; // 2시간 (60분에서 증가)
-    this.SETTINGS_TTL = 4 * 60 * 60 * 1000; // 4시간 (2시간에서 증가)
+    // 🔥 [최적화] 캐시 TTL 설정 (대폭 증가 - Firestore 읽기 최소화)
+    this.DEFAULT_TTL = 45 * 60 * 1000; // 45분 (거래 시 강제 무효화됨)
+    this.USER_TTL = 3 * 60 * 60 * 1000; // 3시간 (거래 시 강제 무효화됨)
+    this.ACTIVITY_LOG_TTL = 15 * 60 * 1000; // 15분 (활동 로그는 자주 변경됨)
+    this.ITEMS_TTL = 2 * 60 * 60 * 1000; // 2시간 (아이템 데이터는 거의 변경 안됨)
+    this.CLASS_DATA_TTL = 3 * 60 * 60 * 1000; // 3시간 (학급 데이터는 거의 변경 안됨)
+    this.SETTINGS_TTL = 6 * 60 * 60 * 1000; // 6시간 (설정은 거의 변경 안됨)
 
     // 재시도 설정
     this.MAX_RETRIES = 3;

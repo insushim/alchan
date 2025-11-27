@@ -17,6 +17,7 @@ import {
     deleteDoc,
     // ✨ updateUserChessResult import 구문을 여기서 제거했습니다.
 } from './firebase';
+import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import './ChessGame.css';
 
 const PIECES = {
@@ -715,6 +716,24 @@ const ChessGame = () => {
                     ? `현금 ${selectedCard.amount.toLocaleString()}원을 획득했습니다!`
                     : `쿠폰 ${selectedCard.amount}개를 획득했습니다!`,
                 type: 'success'
+            });
+
+            // 🔥 활동 로그 기록 (AI 체스 승리 보상)
+            logActivity(db, {
+                classCode: userDoc?.classCode,
+                userId: user.uid,
+                userName: userDoc?.name || '사용자',
+                type: ACTIVITY_TYPES.GAME_WIN,
+                description: `체스 AI(${aiDifficulty}) 승리 - ${selectedCard.type === 'cash' ? `현금 ${selectedCard.amount.toLocaleString()}원` : `쿠폰 ${selectedCard.amount}개`} 획득`,
+                amount: selectedCard.type === 'cash' ? selectedCard.amount : 0,
+                couponAmount: selectedCard.type === 'coupon' ? selectedCard.amount : 0,
+                metadata: {
+                    gameType: 'chess',
+                    opponent: 'AI',
+                    difficulty: aiDifficulty,
+                    rewardType: selectedCard.type,
+                    rewardAmount: selectedCard.amount
+                }
             });
 
             // 게임 나가기

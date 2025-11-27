@@ -123,7 +123,7 @@ const TrialRoom = ({ roomId, classCode, currentUser, users, onClose }) => {
   }, [roomId, classCode]);
 
   const { data: polledRoom, loading: roomPolling } = usePolling(fetchRoomSnapshot, {
-    interval: 300000, // 1분 주기 폴링
+    interval: 10 * 60 * 1000, // 🔥 [최적화] 10분 주기 폴링 (Firestore 읽기 최소화)
     enabled: !!roomId && !!classCode,
     deps: [roomId, classCode],
   });

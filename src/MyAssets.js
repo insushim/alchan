@@ -17,8 +17,9 @@ import {
   functions,
   httpsCallable,
 } from "./firebase";
-import { orderBy, limit, runTransaction } from "firebase/firestore";
+import { limit, runTransaction } from "firebase/firestore";
 import { formatKoreanCurrency } from './numberFormatter';
+import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import LoginWarning from "./LoginWarning";
 import TransferModal from "./TransferModal";
 
@@ -59,7 +60,7 @@ export default function MyAssets() {
   const giftCouponFunction = httpsCallable(functions, 'giftCoupon');
 
   // 🔥 [최적화 4] 캐시 유효 시간 설정
-  const CACHE_DURATION = 15 * 60 * 1000; // 🔥 [최적화] 15분 (5분에서 증가)
+  const CACHE_DURATION = 30 * 60 * 1000; // 🔥 [최적화] 30분 (Firestore 읽기 최소화)
 
   const currentGoalId = currentUserClassCode
     ? `${currentUserClassCode}_goal` 
@@ -448,23 +449,54 @@ export default function MyAssets() {
       // 🔥 [새로 추가] 목표 데이터도 함께 로드
       await loadGoalData();
 
-      // 🔥 거래 내역 로드
+      // 🔥 거래 내역 로드 - activity_logs만 사용 (최적화됨)
+      let activityData = [];
+
+      // 1. 새로운 활동 로그에서 현금 관련 활동 가져오기 (실패해도 계속 진행)
       try {
-        const transactionsRef = query(
-          collection(db, "users", userId, "transactions"),
-          orderBy("timestamp", "desc"),
-          limit(20)
+        const activityLogsRef = query(
+          collection(db, "activity_logs"),
+          where("classCode", "==", currentUserClassCode),
+          where("userId", "==", userId),
+          limit(30)
         );
-        const transactionsSnap = await getDocs(transactionsRef);
-        const transactionsData = transactionsSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setTransactionHistory(transactionsData);
-      } catch (txError) {
-        console.log('[MyAssets] 거래 내역 로드 실패 (선택 사항):', txError);
-        // 거래 내역은 선택사항이므로 실패해도 계속 진행
+        const activityLogsSnap = await getDocs(activityLogsRef);
+        activityData = activityLogsSnap.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              amount: data.amount || 0,
+              description: data.description || data.type || '거래 내역',
+              timestamp: data.timestamp,
+              type: data.type,
+              couponAmount: data.couponAmount || 0,
+            };
+          })
+          // 현금 변동이 있는 항목만 필터링
+          .filter(tx => tx.amount !== 0);
+        console.log('[MyAssets] 활동 로그 로드:', activityData.length, '개');
+      } catch (activityError) {
+        console.log('[MyAssets] 활동 로그 로드 실패 (무시):', activityError.message);
       }
+
+      // 🔥 [최적화] 기존 transactions 컬렉션 조회 제거
+      // activity_logs에 모든 거래가 기록되므로 중복 조회 불필요
+      // Firestore 읽기 ~50% 절감
+
+      // 활동 로그만 사용
+      const allTransactions = [...activityData];
+
+      // timestamp 기준으로 정렬
+      allTransactions.sort((a, b) => {
+        const dateA = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(a.timestamp?.seconds * 1000 || 0);
+        const dateB = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(b.timestamp?.seconds * 1000 || 0);
+        return dateB - dateA;
+      });
+
+      // 최근 20개만 유지
+      setTransactionHistory(allTransactions.slice(0, 20));
+      console.log('[MyAssets] 거래 내역 총:', allTransactions.length, '개');
 
     } catch (fallbackError) {
       console.error('[MyAssets] 🚨 클라이언트 측 직접 조회 실패:', fallbackError);
@@ -637,6 +669,21 @@ export default function MyAssets() {
 
       // 4. 트랜잭션 기록
       await addTransaction(userId, -donationAmount * couponValue, `학급 목표에 ${donationAmount}쿠폰 기부`);
+
+      // 🔥 활동 로그 기록 (쿠폰 기부)
+      logActivity(db, {
+        classCode: currentUserClassCode,
+        userId: userId,
+        userName: userName,
+        type: ACTIVITY_TYPES.COUPON_DONATE,
+        description: `학급 목표에 쿠폰 ${donationAmount}개 기부`,
+        couponAmount: -donationAmount,
+        metadata: {
+          goalId: currentGoalId,
+          goalProgress: goalProgress + donationAmount,
+          message: memo || ''
+        }
+      });
 
       // 🔥 5. 캐시 무효화 (모든 관련 캐시 삭제)
       const cacheKey = `goal_${currentGoalId}`;
@@ -849,6 +896,22 @@ export default function MyAssets() {
     try {
       await sellCouponFunction({ amount });
 
+      // 🔥 활동 로그 기록 (쿠폰 판매)
+      logActivity(db, {
+        classCode: currentUserClassCode,
+        userId: userId,
+        userName: userName,
+        type: ACTIVITY_TYPES.COUPON_USE,
+        description: `쿠폰 ${amount}개 판매 (${cashGained.toLocaleString()}원)`,
+        amount: cashGained,
+        couponAmount: -amount,
+        metadata: {
+          couponsSold: amount,
+          cashReceived: cashGained,
+          couponValue: couponValue
+        }
+      });
+
       alert(`${amount}개 쿠폰을 판매했습니다.`);
       setShowSellCouponModal(false);
       setSellAmount("");
@@ -888,6 +951,34 @@ export default function MyAssets() {
       setAssetsLoading(true);
       try {
         await giftCouponFunction({ recipientId: recipientUser.id, amount, message: "" });
+
+        // 🔥 활동 로그 기록 (쿠폰 선물 발송)
+        logActivity(db, {
+          classCode: currentUserClassCode,
+          userId: userId,
+          userName: userName,
+          type: ACTIVITY_TYPES.COUPON_GIFT_SEND,
+          description: `${recipientUser.name}님에게 쿠폰 ${amount}개 선물`,
+          couponAmount: -amount,
+          metadata: {
+            recipientId: recipientUser.id,
+            recipientName: recipientUser.name
+          }
+        });
+
+        // 🔥 활동 로그 기록 (쿠폰 선물 수신) - 받는 사람도 기록
+        logActivity(db, {
+          classCode: currentUserClassCode,
+          userId: recipientUser.id,
+          userName: recipientUser.name,
+          type: ACTIVITY_TYPES.COUPON_GIFT_RECEIVE,
+          description: `${userName}님으로부터 쿠폰 ${amount}개 수신`,
+          couponAmount: amount,
+          metadata: {
+            senderId: userId,
+            senderName: userName
+          }
+        });
 
         alert("쿠폰 선물이 완료되었습니다.");
         setShowGiftCouponModal(false);
@@ -952,6 +1043,34 @@ export default function MyAssets() {
       if (deductSuccess) {
         const addSuccess = await addCashToUserById(recipientUser.id, amount, `${userName}님으로부터 입금`);
         if (addSuccess) {
+          // 🔥 활동 로그 기록 (송금 발송)
+          logActivity(db, {
+            classCode: currentUserClassCode,
+            userId: userId,
+            userName: userName,
+            type: ACTIVITY_TYPES.TRANSFER_SEND,
+            description: `${recipientName}님에게 ${amount.toLocaleString()}원 송금`,
+            amount: -amount,
+            metadata: {
+              recipientId: recipientUser.id,
+              recipientName: recipientName
+            }
+          });
+
+          // 🔥 활동 로그 기록 (송금 수신) - 받는 사람도 기록
+          logActivity(db, {
+            classCode: currentUserClassCode,
+            userId: recipientUser.id,
+            userName: recipientName,
+            type: ACTIVITY_TYPES.TRANSFER_RECEIVE,
+            description: `${userName}님으로부터 ${amount.toLocaleString()}원 입금`,
+            amount: amount,
+            metadata: {
+              senderId: userId,
+              senderName: userName
+            }
+          });
+
           alert("송금이 완료되었습니다.");
           setShowTransferModal(false);
           setTransferRecipient("");

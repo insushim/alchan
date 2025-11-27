@@ -1,12 +1,12 @@
 // src/hooks/usePolling.js - onSnapshot 대체용 Polling Hook (최적화 버전)
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-// 페이지별 폴링 간격 상수
+// 🔥 [최적화] 페이지별 폴링 간격 상수 - Firestore 읽기 최소화
 export const POLLING_INTERVALS = {
-  REALTIME: 60000,      // 1분 - 실시간성이 중요한 페이지 (주식거래소, 경매)
-  NORMAL: 300000,       // 5분 - 일반 페이지 (대시보드, 자산)
-  LOW: 600000,          // 10분 - 거의 변화없는 페이지 (학습자료)
-  MANUAL: null          // 수동 새로고침만
+  REALTIME: 5 * 60 * 1000,   // 5분 - 실시간성이 중요한 페이지 (주식거래소, 경매)
+  NORMAL: 15 * 60 * 1000,    // 15분 - 일반 페이지 (대시보드, 자산)
+  LOW: 30 * 60 * 1000,       // 30분 - 거의 변화없는 페이지 (학습자료)
+  MANUAL: null               // 수동 새로고침만
 };
 
 // 🔥 [최적화] 전역 초기 로드 디바운싱 - 여러 폴링이 동시에 실행되지 않도록
@@ -40,7 +40,7 @@ const processInitialLoadQueue = async () => {
  */
 export const usePolling = (queryFn, options = {}) => {
   const {
-    interval = POLLING_INTERVALS.NORMAL, // 기본값을 5분으로 변경
+    interval = POLLING_INTERVALS.NORMAL, // 🔥 [최적화] 기본값 15분
     enabled = true,
     deps = []
   } = options;
@@ -131,7 +131,7 @@ export const usePolling = (queryFn, options = {}) => {
  */
 export const useMultiPolling = (queries, options = {}) => {
   const {
-    interval = POLLING_INTERVALS.NORMAL, // 기본값을 5분으로 변경
+    interval = POLLING_INTERVALS.NORMAL, // 🔥 [최적화] 기본값 15분
     enabled = true,
     deps = []
   } = options;

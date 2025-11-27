@@ -91,8 +91,8 @@ if (process.env.NODE_ENV === 'development') {
 
 // 🔥 [최적화] 강화된 인메모리 캐시 - TTL 연장 및 용량 관리
 const cache = new Map();
-const CACHE_TTL = 20 * 60 * 1000; // 20분으로 연장
-const MAX_CACHE_SIZE = 200; // 최대 캐시 항목 수
+const CACHE_TTL = 30 * 60 * 1000; // 🔥 [최적화] 30분으로 연장 (20분 → 30분)
+const MAX_CACHE_SIZE = 300; // 최대 캐시 항목 수 (200 → 300)
 
 const setCache = (key, data) => {
   // 캐시 용량 관리

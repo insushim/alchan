@@ -16,6 +16,7 @@ import {
     deleteDoc
 } from 'firebase/firestore';
 import { usePolling } from './hooks/usePolling';
+import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import './GonuGame.css';
 
 const BOARD_SIZE = 5;
@@ -371,6 +372,21 @@ const GonuGame = () => {
                 if (winner) {
                     const userDocRef = doc(db, 'users', user.uid);
                     transaction.update(userDocRef, { coupons: increment(1) });
+
+                    // 🔥 활동 로그 기록 (고누 승리)
+                    logActivity(db, {
+                        classCode: userDoc?.classCode,
+                        userId: user.uid,
+                        userName: userDoc?.name || '사용자',
+                        type: ACTIVITY_TYPES.GAME_WIN,
+                        description: `${gameData.gameName || '고누'} 승리 - 쿠폰 1개 획득`,
+                        couponAmount: 1,
+                        metadata: {
+                            gameType: 'gonu',
+                            gameVariant: gameData.gameType,
+                            gameName: gameData.gameName
+                        }
+                    });
                 }
             });
             setSelectedPiece(null);

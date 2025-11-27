@@ -7,8 +7,9 @@ import React, {
   useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { functions, httpsCallable } from "./firebase";
+import { functions, httpsCallable, db } from "./firebase";
 import { usePolling, POLLING_INTERVALS } from "./hooks/usePolling";
+import { logActivity, ACTIVITY_TYPES } from "./utils/firestoreHelpers";
 
 export const ItemContext = createContext(null);
 
@@ -260,6 +261,23 @@ export const ItemProvider = ({ children }) => {
           oldStock: originalStock
         });
 
+        // 🔥 활동 로그 기록 (아이템 구매)
+        logActivity(db, {
+          classCode: currentUserClassCode,
+          userId: userId,
+          userName: userDoc?.name || '사용자',
+          type: ACTIVITY_TYPES.ITEM_PURCHASE,
+          description: `${itemToPurchase.name} ${quantity}개 구매 (${totalPrice.toLocaleString()}원)`,
+          amount: -totalPrice,
+          metadata: {
+            itemId,
+            itemName: itemToPurchase.name,
+            quantity,
+            pricePerItem: itemToPurchase.price,
+            totalPrice
+          }
+        });
+
         if (itemToPurchase.stock !== undefined) {
           setItems(prevItems =>
             prevItems.map(item => {
@@ -309,8 +327,28 @@ export const ItemProvider = ({ children }) => {
 
   const useItem = useCallback(async (inventoryItemId, quantity = 1) => {
     if (!userId) return { success: false, message: "로그인 필요" };
+
+    // 🔥 아이템 정보를 먼저 저장 (Firebase 호출 전에)
+    const itemToUse = userItems.find(item => item.id === inventoryItemId || item.itemId === inventoryItemId);
+    const itemName = itemToUse?.name || itemToUse?.itemName || '아이템';
+
     try {
       await firebaseFunctions.useUserItem({ itemId: inventoryItemId, quantityToUse: quantity, sourceCollection: 'inventory' });
+
+      // 🔥 활동 로그 기록 (아이템 사용)
+      logActivity(db, {
+        classCode: currentUserClassCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: ACTIVITY_TYPES.ITEM_USE,
+        description: `${itemName} ${quantity}개 사용`,
+        metadata: {
+          itemId: inventoryItemId,
+          itemName: itemName,
+          quantity
+        }
+      });
+
       refreshData();
       return { success: true };
     } catch (error) {
@@ -320,12 +358,33 @@ export const ItemProvider = ({ children }) => {
       }
       return { success: false, message: error.message };
     }
-  }, [userId, firebaseFunctions, refreshData]);
+  }, [userId, userItems, currentUserClassCode, userDoc, firebaseFunctions, refreshData]);
 
   const listItemForSale = useCallback(async ({ itemId, quantity, price }) => {
     if (!userId) return { success: false, message: "로그인 필요" };
+
+    // 🔥 아이템 정보를 먼저 저장 (Firebase 호출 전에)
+    const itemToSell = userItems.find(item => item.id === itemId || item.itemId === itemId);
+    const itemName = itemToSell?.name || itemToSell?.itemName || '아이템';
+
     try {
       await firebaseFunctions.listUserItemForSale({ inventoryItemId: itemId, quantity, price, sourceCollection: 'inventory' });
+
+      // 🔥 활동 로그 기록 (아이템 시장 등록)
+      logActivity(db, {
+        classCode: currentUserClassCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: ACTIVITY_TYPES.ITEM_MARKET_LIST,
+        description: `${itemName} ${quantity}개 시장 등록 (${price.toLocaleString()}원)`,
+        metadata: {
+          itemId,
+          itemName: itemName,
+          quantity,
+          price
+        }
+      });
+
       refreshData();
       return { success: true };
     } catch (error) {
@@ -391,6 +450,25 @@ export const ItemProvider = ({ children }) => {
       const result = await firebaseFunctions.buyMarketItem({ listingId });
       if (result.data.success) {
         console.log('[ItemContext] 구매 성공, 서버 데이터로 동기화');
+
+        // 🔥 활동 로그 기록 (아이템 시장 구매)
+        logActivity(db, {
+          classCode: currentUserClassCode,
+          userId: userId,
+          userName: userDoc?.name || '사용자',
+          type: ACTIVITY_TYPES.ITEM_MARKET_BUY,
+          description: `${itemToBuy.itemName} ${itemToBuy.quantity || 1}개 시장 구매 (${itemPrice.toLocaleString()}원)`,
+          amount: -itemPrice,
+          metadata: {
+            listingId,
+            itemName: itemToBuy.itemName,
+            quantity: itemToBuy.quantity || 1,
+            sellerId: itemToBuy.sellerId,
+            sellerName: itemToBuy.sellerName,
+            price: itemPrice
+          }
+        });
+
         // 🎯 성공: refreshData로 정확한 데이터 동기화
         refreshData();
         return { success: true };

@@ -58,7 +58,7 @@ class IndexedDBCacheService {
     return this.initPromise;
   }
 
-  async set(key, data, ttlSeconds = 1200) { // 기본 20분
+  async set(key, data, ttlSeconds = 2700) { // 🔥 [최적화] 기본 45분 (Firestore 읽기 최소화)
     if (!this.isSupported) return false;
 
     try {
