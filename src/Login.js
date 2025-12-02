@@ -1,44 +1,61 @@
-// src/Login.js
+// src/LoginNew.js
+// 새로운 로그인 시스템 - 선생님 가입, 학생 로그인
+
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import "./Login.css";
 import { useAuth } from "./AuthContext";
 import {
   registerWithEmailAndPassword,
   updateUserProfile,
   addUserDocument,
-  verifyClassCode,
-  serverTimestamp, // serverTimestamp를 firebase.js에서 가져옴
+  serverTimestamp,
+  db,
 } from "./firebase";
+import { doc, setDoc, getDoc, collection } from "firebase/firestore";
+import {
+  User,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  School,
+  ChevronRight,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Users,
+  BookOpen,
+} from "lucide-react";
 
-// Firebase 오류 코드에 따른 한글 메시지 변환 함수
+// Firebase 오류 메시지 변환
 const getFirebaseErrorMessage = (error) => {
-  if (!error || !error.code) {
-    return "알 수 없는 오류가 발생했습니다. 잠시 후 다시 시도해주세요.";
-  }
-  switch (error.code) {
-    case "auth/user-not-found":
-    case "auth/invalid-credential":
-      return "등록되지 않은 아이디이거나 잘못된 비밀번호입니다.";
-    case "auth/wrong-password":
-      return "잘못된 비밀번호입니다.";
-    case "auth/invalid-email":
-      return "유효하지 않은 이메일 형식입니다. (아이디는 이메일 형식이어야 합니다)";
-    case "auth/too-many-requests":
-      return "너무 많은 로그인 시도를 하셨습니다. 잠시 후 다시 시도해주세요.";
-    case "auth/network-request-failed":
-      return "네트워크 오류가 발생했습니다. 인터넷 연결을 확인해주세요.";
-    case "auth/email-already-in-use":
-      return "이미 사용 중인 이메일입니다. 다른 이메일을 사용하세요.";
-    default:
-      console.error("Unhandled Firebase Auth Error:", error);
-      return (
-        "처리 중 오류가 발생했습니다: " + (error.message || "알 수 없는 오류")
-      );
-  }
+  if (!error?.code) return "알 수 없는 오류가 발생했습니다.";
+
+  const errorMessages = {
+    "auth/user-not-found": "등록되지 않은 계정입니다.",
+    "auth/invalid-credential": "이메일 또는 비밀번호가 올바르지 않습니다.",
+    "auth/wrong-password": "비밀번호가 올바르지 않습니다.",
+    "auth/invalid-email": "유효하지 않은 이메일 형식입니다.",
+    "auth/too-many-requests": "너무 많은 시도입니다. 잠시 후 다시 시도해주세요.",
+    "auth/network-request-failed": "네트워크 오류입니다. 인터넷 연결을 확인해주세요.",
+    "auth/email-already-in-use": "이미 사용 중인 이메일입니다.",
+  };
+
+  return errorMessages[error.code] || `오류: ${error.message}`;
 };
 
-const Login = () => {
+// 학급 코드 생성 함수
+const generateClassCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
+const LoginNew = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -51,424 +68,546 @@ const Login = () => {
     logout: contextLogout,
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState("login");
+  // 탭 상태: 'student' | 'teacher' | 'register'
+  const [activeTab, setActiveTab] = useState("student");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // 로그인 상태
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [saveId, setSaveId] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-  const [loginId, setLoginId] = useState("");
-  const [loginPassword, setLoginPassword] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
+  // 선생님 가입 상태
   const [registerName, setRegisterName] = useState("");
-  const [registerId, setRegisterId] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerConfirmPassword, setRegisterConfirmPassword] = useState("");
-  const [registerClassCode, setRegisterClassCode] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [registerError, setRegisterError] = useState("");
+  const [schoolName, setSchoolName] = useState("");
+  const [className, setClassName] = useState("");
 
   const from = location.state?.from?.pathname || "/dashboard/tasks";
 
+  // 이미 로그인된 경우 리디렉션
   useEffect(() => {
-    if (!loading && user) {
-      if (userDoc) {
-        console.log(
-          "[Login.js] 이미 로그인 및 userDoc 로드됨, 리디렉션:",
-          from,
-          userDoc
-        );
-        navigate(from, { replace: true });
-      } else {
-        console.log("[Login.js] 이미 로그인되었으나 userDoc 대기 중...");
-      }
+    if (!loading && user && userDoc) {
+      navigate(from, { replace: true });
     }
   }, [user, userDoc, loading, navigate, from]);
 
+  // 저장된 아이디 불러오기
   useEffect(() => {
-    const savedLoginIdFromStorage = localStorage.getItem("savedLoginId");
-    if (savedLoginIdFromStorage) {
-      setLoginId(savedLoginIdFromStorage);
+    const savedId = localStorage.getItem("savedLoginId");
+    if (savedId) {
+      setEmail(savedId);
       setSaveId(true);
     }
   }, []);
 
   const handleTabChange = (tab) => {
     setActiveTab(tab);
-    setErrorMessage("");
-    setRegisterError("");
+    setError("");
+    setSuccess("");
   };
 
+  // 로그인 처리
   const handleLogin = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
-    setRegisterError("");
-    const emailToLogin = loginId.trim();
+    setError("");
 
-    if (!emailToLogin || !loginPassword) {
-      setErrorMessage("아이디(이메일)와 비밀번호를 모두 입력해주세요.");
+    if (!email.trim() || !password) {
+      setError("이메일과 비밀번호를 모두 입력해주세요.");
       return;
     }
+
     if (!firebaseReady) {
-      setErrorMessage(
-        "인증 서비스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
-      );
+      setError("서비스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
       return;
     }
-    setIsLoggingIn(true);
+
+    setIsLoading(true);
     try {
-      const firebaseUser = await loginWithEmailPassword(
-        emailToLogin,
-        loginPassword
-      );
+      const firebaseUser = await loginWithEmailPassword(email.trim(), password);
       if (firebaseUser) {
         if (saveId) {
-          localStorage.setItem("savedLoginId", emailToLogin);
+          localStorage.setItem("savedLoginId", email.trim());
         } else {
           localStorage.removeItem("savedLoginId");
         }
       }
     } catch (error) {
-      setErrorMessage(getFirebaseErrorMessage(error));
+      setError(getFirebaseErrorMessage(error));
     } finally {
-      setIsLoggingIn(false);
+      setIsLoading(false);
     }
   };
 
-  const handleRegister = async (e) => {
+  // 선생님 가입 처리
+  const handleTeacherRegister = async (e) => {
     e.preventDefault();
-    setRegisterError("");
-    setErrorMessage("");
+    setError("");
 
-    if (
-      !registerName.trim() ||
-      !registerId.trim() ||
-      !registerPassword ||
-      !registerConfirmPassword
-    ) {
-      setRegisterError("학급 코드를 제외한 모든 필수 필드를 입력해주세요.");
+    // 유효성 검사
+    if (!registerName.trim() || !registerEmail.trim() || !registerPassword || !registerConfirmPassword) {
+      setError("모든 필수 항목을 입력해주세요.");
       return;
     }
+
     if (registerPassword !== registerConfirmPassword) {
-      setRegisterError("비밀번호가 일치하지 않습니다.");
-      return;
-    }
-    if (registerPassword.length < 6) {
-      setRegisterError("비밀번호는 최소 6자 이상이어야 합니다.");
-      return;
-    }
-    if (!firebaseReady || !auth) {
-      setRegisterError(
-        "인증 서비스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요."
-      );
+      setError("비밀번호가 일치하지 않습니다.");
       return;
     }
 
-    setIsRegistering(true);
-    const trimmedClassCode = registerClassCode.trim();
+    if (registerPassword.length < 6) {
+      setError("비밀번호는 6자 이상이어야 합니다.");
+      return;
+    }
+
+    if (!firebaseReady || !auth) {
+      setError("서비스가 준비되지 않았습니다. 잠시 후 다시 시도해주세요.");
+      return;
+    }
+
+    setIsLoading(true);
 
     try {
-      // [수정] 회원가입 시 학급 코드 유효성 검사 로직을 제거했습니다.
-      // 사용자가 입력한 코드를 그대로 사용하여 가입을 진행하도록 변경하여
-      // '유효하지 않은 학급 코드' 오류를 해결했습니다.
+      // 1. Firebase Auth로 계정 생성
       const userCredential = await registerWithEmailAndPassword(
         auth,
-        registerId.trim(),
+        registerEmail.trim(),
         registerPassword
       );
       const newUser = userCredential.user;
-      console.log(
-        "[Login.js] Firebase Auth registration successful:",
-        newUser.uid
-      );
 
+      // 2. 프로필 업데이트
       await updateUserProfile(newUser, registerName.trim());
-      console.log("[Login.js] User profile updated with displayName.");
 
+      // 3. 학급 코드 생성
+      const classCode = generateClassCode();
+
+      // 4. 사용자 문서 생성 (선생님)
       const userData = {
         name: registerName.trim(),
         nickname: registerName.trim(),
-        email: registerId.trim().toLowerCase(),
-        classCode: trimmedClassCode || "미지정", // 코드가 없으면 "미지정"
-        isAdmin: false,
+        email: registerEmail.trim().toLowerCase(),
+        classCode: classCode,
+        isAdmin: true, // 선생님은 관리자
         isSuperAdmin: false,
-        cash: 100000,
-        coupons: 10,
+        isTeacher: true, // 선생님 표시
+        cash: 0,
+        coupons: 0,
         selectedJobIds: [],
         myContribution: 0,
+        schoolName: schoolName.trim() || '',
+        className: className.trim() || '',
         createdAt: serverTimestamp(),
       };
-      console.log(
-        "[Login.js] User data to be saved in Firestore:",
-        userData
-      );
 
       await addUserDocument(newUser.uid, userData);
-      console.log(
-        "[Login.js] User document added to Firestore for UID:",
-        newUser.uid
-      );
 
+      // 5. 학급 정보 문서 생성
+      const classDocRef = doc(db, "classes", classCode);
+      await setDoc(classDocRef, {
+        code: classCode,
+        teacherId: newUser.uid,
+        teacherName: registerName.trim(),
+        schoolName: schoolName.trim() || '',
+        className: className.trim() || '',
+        createdAt: serverTimestamp(),
+        studentCount: 0,
+        settings: {
+          initialCash: 100000,
+          initialCoupons: 10,
+        },
+      });
+
+      // 6. settings/classCodes에 학급 코드 등록
+      const classCodesRef = doc(db, "settings", "classCodes");
+      const classCodesDoc = await getDoc(classCodesRef);
+      const existingCodes = classCodesDoc.exists() ? (classCodesDoc.data().codes || []) : [];
+      await setDoc(classCodesRef, {
+        codes: [...existingCodes, classCode],
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      // 7. 로그아웃 후 성공 메시지
       if (contextLogout) {
         await contextLogout();
       } else if (auth?.signOut) {
         await auth.signOut();
       }
 
-      alert(
-        "회원가입이 완료되었습니다. 생성한 아이디와 비밀번호로 로그인해주세요."
-      );
-      setActiveTab("login");
+      setSuccess(`가입 완료! 학급 코드: ${classCode}`);
+      setActiveTab("teacher");
+
+      // 폼 초기화
       setRegisterName("");
-      setRegisterId("");
+      setRegisterEmail("");
       setRegisterPassword("");
       setRegisterConfirmPassword("");
-      setRegisterClassCode("");
+      setSchoolName("");
+      setClassName("");
+
     } catch (error) {
-      console.error("[Login.js] Registration error:", error);
-      setRegisterError(getFirebaseErrorMessage(error));
+      console.error("Teacher registration error:", error);
+      setError(getFirebaseErrorMessage(error));
     } finally {
-      setIsRegistering(false);
+      setIsLoading(false);
     }
   };
 
+  // 로딩 화면
   if (loading || !firebaseReady) {
     return (
-      <div className="login-wrapper">
-        <div className="login-container">
-          <div className="login-header">
-            <h1 className="app-title">
-              Ineconomy<span className="highlight-text">s</span>U Clas
-              <span className="highlight-text">S</span>
-            </h1>
-          </div>
-          <p className="loading-text">인증 서비스 로딩 중...</p>
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
+          <p className="text-gray-600 dark:text-gray-400">로딩 중...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="login-wrapper">
-      <div className="login-container">
-        <div className="login-header">
-          <h1 className="app-title">
-            Ineconomy<span className="highlight-text">s</span>U Clas
-            <span className="highlight-text">S</span>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* 로고/타이틀 */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
+            <BookOpen className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            알찬
           </h1>
-          <div className="divider"></div>
-          <p className="app-description">학급 경제 교육 시스템</p>
+          <p className="text-gray-600 dark:text-gray-400">
+            학급 경제 시뮬레이션
+          </p>
         </div>
 
-        <div className="login-tabs">
-          <button
-            className={`tab-button ${activeTab === "login" ? "active" : ""}`}
-            onClick={() => handleTabChange("login")}
-            disabled={isLoggingIn || isRegistering}
-          >
-            로그인
-          </button>
-          <button
-            className={`tab-button ${
-              activeTab === "register" ? "active" : ""
-            }`}
-            onClick={() => handleTabChange("register")}
-            disabled={isLoggingIn || isRegistering}
-          >
-            가입하기
-          </button>
-        </div>
-
-        {activeTab === "login" && errorMessage && (
-          <p className="error-message">{errorMessage}</p>
-        )}
-        {activeTab === "register" && registerError && (
-          <p className="error-message">{registerError}</p>
-        )}
-
-        {activeTab === "login" && (
-          <div className="login-form-container">
-            <form className="login-form" onSubmit={handleLogin}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="loginIdInput">
-                  아이디 (이메일)
-                </label>
-                <input
-                  id="loginIdInput"
-                  type="email"
-                  className="form-input"
-                  placeholder="이메일 주소 입력"
-                  value={loginId}
-                  onChange={(e) => setLoginId(e.target.value)}
-                  required
-                  disabled={isLoggingIn}
-                  aria-describedby={
-                    errorMessage ? "loginErrorGlobal" : undefined
-                  }
-                />
+        {/* 메인 카드 */}
+        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
+          {/* 탭 버튼 */}
+          <div className="flex border-b border-gray-100 dark:border-gray-700">
+            <button
+              onClick={() => handleTabChange("student")}
+              className={`flex-1 py-4 text-sm font-medium transition-colors relative ${
+                activeTab === "student"
+                  ? "text-indigo-600 dark:text-indigo-400"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <User size={18} />
+                학생 로그인
               </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="loginPasswordInput">
-                  비밀번호
-                </label>
-                <input
-                  id="loginPasswordInput"
-                  type="password"
-                  className="form-input"
-                  placeholder="비밀번호 입력"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  required
-                  disabled={isLoggingIn}
-                  aria-describedby={
-                    errorMessage ? "loginErrorGlobal" : undefined
-                  }
-                />
+              {activeTab === "student" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
+              )}
+            </button>
+            <button
+              onClick={() => handleTabChange("teacher")}
+              className={`flex-1 py-4 text-sm font-medium transition-colors relative ${
+                activeTab === "teacher"
+                  ? "text-indigo-600 dark:text-indigo-400"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <GraduationCap size={18} />
+                선생님 로그인
               </div>
-              <div className="checkbox-container">
-                <div className="checkbox-group">
+              {activeTab === "teacher" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
+              )}
+            </button>
+          </div>
+
+          {/* 에러/성공 메시지 */}
+          {error && (
+            <div className="mx-6 mt-6 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="mx-6 mt-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-emerald-600 dark:text-emerald-400">
+                <p className="font-semibold">{success}</p>
+                <p className="mt-1">학생들에게 이 코드를 알려주세요!</p>
+              </div>
+            </div>
+          )}
+
+          {/* 학생/선생님 로그인 폼 */}
+          {(activeTab === "student" || activeTab === "teacher") && (
+            <form onSubmit={handleLogin} className="p-6 space-y-5">
+              {/* 이메일 입력 */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  이메일
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <input
-                    type="checkbox"
-                    id="saveId"
-                    checked={saveId}
-                    onChange={(e) => setSaveId(e.target.checked)}
-                    disabled={isLoggingIn}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="이메일을 입력하세요"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    disabled={isLoading}
                   />
-                  <label htmlFor="saveId">아이디 저장</label>
                 </div>
               </div>
-              <button
-                type="submit"
-                className="login-button"
-                disabled={isLoggingIn}
-              >
-                {isLoggingIn ? "로그인 중..." : "로그인"}
-              </button>
-            </form>
-          </div>
-        )}
 
-        {activeTab === "register" && (
-          <div className="login-form-container">
-            <form className="login-form" onSubmit={handleRegister}>
-              <div className="form-group">
-                <label className="form-label" htmlFor="registerName">
-                  이름
-                </label>
-                <input
-                  id="registerName"
-                  type="text"
-                  className="form-input"
-                  placeholder="실명 입력"
-                  value={registerName}
-                  onChange={(e) => setRegisterName(e.target.value)}
-                  required
-                  disabled={isRegistering}
-                  aria-describedby={
-                    registerError ? "registerErrorSpecific" : undefined
-                  }
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="registerId">
-                  아이디 (이메일)
-                </label>
-                <input
-                  id="registerId"
-                  type="email"
-                  className="form-input"
-                  placeholder="이메일 주소 입력"
-                  value={registerId}
-                  onChange={(e) => setRegisterId(e.target.value)}
-                  required
-                  disabled={isRegistering}
-                  aria-describedby={
-                    registerError ? "registerErrorSpecific" : undefined
-                  }
-                />
-              </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="registerPassword">
+              {/* 비밀번호 입력 */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   비밀번호
                 </label>
-                <input
-                  id="registerPassword"
-                  type="password"
-                  className="form-input"
-                  placeholder="6자 이상 입력"
-                  value={registerPassword}
-                  onChange={(e) => setRegisterPassword(e.target.value)}
-                  required
-                  disabled={isRegistering}
-                  aria-describedby={
-                    registerError ? "registerErrorSpecific" : undefined
-                  }
-                />
+                <div className="relative">
+                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="비밀번호를 입력하세요"
+                    className="w-full pl-12 pr-12 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    disabled={isLoading}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  </button>
+                </div>
               </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="registerConfirmPassword">
-                  비밀번호 확인
+
+              {/* 아이디 저장 */}
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={saveId}
+                    onChange={(e) => setSaveId(e.target.checked)}
+                    className="w-4 h-4 text-indigo-500 border-gray-300 rounded focus:ring-indigo-500"
+                  />
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    아이디 저장
+                  </span>
                 </label>
-                <input
-                  id="registerConfirmPassword"
-                  type="password"
-                  className="form-input"
-                  placeholder="비밀번호 재입력"
-                  value={registerConfirmPassword}
-                  onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                  required
-                  disabled={isRegistering}
-                  aria-describedby={
-                    registerError ? "registerErrorSpecific" : undefined
-                  }
-                />
               </div>
-              <div className="form-group">
-                <label className="form-label" htmlFor="registerClassCode">
-                  학급 코드 (선택)
-                </label>
-                <input
-                  id="registerClassCode"
-                  type="text"
-                  className="form-input"
-                  placeholder="교사가 제공한 코드 입력 (선택사항)"
-                  value={registerClassCode}
-                  onChange={(e) => setRegisterClassCode(e.target.value)}
-                  disabled={isRegistering}
-                  aria-describedby={
-                    registerError ? "registerErrorSpecific" : undefined
-                  }
-                />
-                <small className="form-helper-text">
-                  학급 코드가 없으면 '미지정' 상태로 가입됩니다.
-                </small>
-              </div>
+
+              {/* 로그인 버튼 */}
               <button
                 type="submit"
-                className="login-button"
-                disabled={isRegistering}
+                disabled={isLoading}
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                {isRegistering ? "가입 처리 중..." : "가입하기"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    로그인 중...
+                  </>
+                ) : (
+                  <>
+                    로그인
+                    <ChevronRight size={20} />
+                  </>
+                )}
+              </button>
+
+              {/* 선생님 가입 링크 (선생님 탭에서만) */}
+              {activeTab === "teacher" && (
+                <div className="text-center pt-4 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                    아직 계정이 없으신가요?
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleTabChange("register")}
+                    className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+                  >
+                    선생님 계정 만들기
+                  </button>
+                </div>
+              )}
+
+              {/* 학생 안내 (학생 탭에서만) */}
+              {activeTab === "student" && (
+                <div className="text-center pt-4 border-t border-gray-100 dark:border-gray-700">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    계정이 없나요? 선생님께 문의하세요.
+                  </p>
+                </div>
+              )}
+            </form>
+          )}
+
+          {/* 선생님 가입 폼 */}
+          {activeTab === "register" && (
+            <form onSubmit={handleTeacherRegister} className="p-6 space-y-4">
+              <div className="flex items-center gap-2 pb-4 border-b border-gray-100 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("teacher")}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5 rotate-180 text-gray-500" />
+                </button>
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                  선생님 계정 만들기
+                </h2>
+              </div>
+
+              {/* 이름 */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  이름 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    value={registerName}
+                    onChange={(e) => setRegisterName(e.target.value)}
+                    placeholder="선생님 성함"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              {/* 이메일 */}
+              <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  이메일 <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="email"
+                    value={registerEmail}
+                    onChange={(e) => setRegisterEmail(e.target.value)}
+                    placeholder="이메일 주소"
+                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              {/* 비밀번호 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    비밀번호 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={registerPassword}
+                    onChange={(e) => setRegisterPassword(e.target.value)}
+                    placeholder="6자 이상"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    비밀번호 확인 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    value={registerConfirmPassword}
+                    onChange={(e) => setRegisterConfirmPassword(e.target.value)}
+                    placeholder="비밀번호 재입력"
+                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+              </div>
+
+              {/* 학교/학급 정보 */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    학교명
+                  </label>
+                  <div className="relative">
+                    <School className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={schoolName}
+                      onChange={(e) => setSchoolName(e.target.value)}
+                      placeholder="○○초등학교"
+                      className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    학급
+                  </label>
+                  <div className="relative">
+                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={className}
+                      onChange={(e) => setClassName(e.target.value)}
+                      placeholder="6학년 1반"
+                      className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      disabled={isLoading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 안내 메시지 */}
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
+                <p className="text-sm text-indigo-700 dark:text-indigo-300">
+                  가입 시 <strong>학급 코드</strong>가 자동 생성됩니다.
+                  이 코드로 학생 계정을 일괄 생성할 수 있습니다.
+                </p>
+              </div>
+
+              {/* 가입 버튼 */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    가입 처리 중...
+                  </>
+                ) : (
+                  <>
+                    <GraduationCap size={20} />
+                    선생님 계정 만들기
+                  </>
+                )}
               </button>
             </form>
-          </div>
-        )}
-        {errorMessage && activeTab === "login" && (
-          <div id="loginErrorGlobal" role="alert" style={{ display: "none" }}>
-            {errorMessage}
-          </div>
-        )}
-        {registerError && activeTab === "register" && (
-          <div
-            id="registerErrorSpecific"
-            role="alert"
-            style={{ display: "none" }}
-          >
-            {registerError}
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* 하단 정보 */}
+        <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
+          알찬 - 학급 경제 시뮬레이션 v2.0
+        </p>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default LoginNew;

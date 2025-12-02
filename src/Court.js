@@ -1,4 +1,4 @@
-// src/Court.js
+// src/Court.js - Tailwind UI 리팩토링
 import React, { useState, useEffect, useContext, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
@@ -8,6 +8,14 @@ import SubmitComplaint from "./SubmitComplaint";
 import ComplaintStatus from "./ComplaintStatus";
 import TrialRoom from "./TrialRoom";
 import { usePolling } from "./hooks/usePolling";
+import {
+  PageContainer,
+  PageHeader,
+  LoadingState,
+  EmptyState,
+  ActionButton,
+} from "./components/PageWrapper";
+import { Scale, FileText, Clock, Gavel } from "lucide-react";
 
 import {
   collection,
@@ -1094,16 +1102,40 @@ const Court = () => {
   };
 
   if (auth.loading || usersLoading || jobsLoading) {
-    return <div className="court-container loading">사용자 정보를 불러오는 중...</div>;
+    return (
+      <div className="court-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          사용자 정보를 불러오는 중...
+        </div>
+      </div>
+    );
   }
   if (!currentUserDoc) {
-    return <div className="court-container loading">로그인 정보가 없습니다. 다시 로그인해주세요.</div>;
+    return (
+      <div className="court-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          로그인 정보가 없습니다. 다시 로그인해주세요.
+        </div>
+      </div>
+    );
   }
   if (!classCode) {
-    return <div className="court-container loading">법원 시스템을 이용하려면 학급 코드가 설정되어야 합니다.</div>;
+    return (
+      <div className="court-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          법원 시스템을 이용하려면 학급 코드가 설정되어야 합니다.
+        </div>
+      </div>
+    );
   }
   if (complaintsLoading) {
-    return <div className="court-container loading">사건 목록을 불러오는 중... (학급: {classCode})</div>;
+    return (
+      <div className="court-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          데이터를 불러오는 중...
+        </div>
+      </div>
+    );
   }
 
   return (

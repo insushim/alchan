@@ -60,7 +60,14 @@
       "Bash(cat:*)",
       "Bash(TZ=Asia/Seoul date:*)",
       "Bash(TZ=America/New_York date:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(del:*)",
+      "Bash(del tailwind.config.js)",
+      "Bash(del postcss.config.js)",
+      "Bash(del ALCHAN_HEADER_IMPLEMENTATION.md)",
+      "Bash(head:*)",
+      "Bash(copy Login.js Login_backup.js)"
     ],
     "deny": [],
     "ask": []

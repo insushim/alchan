@@ -1,9 +1,9 @@
-// src/Dashboard.js - Firestore 최적화 버전 + 일일 할일 리셋 기능
+// src/Dashboard.js - Firestore 최적화 버전 + 일일 할일 리셋 기능 + Tailwind UI
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import "./Dashboard.css";
 import { useAuth } from "./AuthContext";
-import { db, functions } from "./firebase"; // functions import 추가
+import { db, functions } from "./firebase";
 import {
   doc,
   getDoc,
@@ -22,7 +22,7 @@ import {
   limit,
   orderBy,
 } from "firebase/firestore";
-import { httpsCallable } from "firebase/functions"; // httpsCallable import 추가
+import { httpsCallable } from "firebase/functions";
 import { formatKoreanCurrency, formatCouponCount } from './numberFormatter';
 import JobList from "./JobList";
 import CommonTaskList from "./CommonTaskList";
@@ -32,6 +32,17 @@ import DonationHistoryModal from "./DonationHistoryModal";
 import SellCouponModal from "./SellCouponModal";
 import AdminSettingsModal from "./AdminSettingsModal";
 import GiftCouponModal from "./GiftCouponModal";
+import {
+  PageContainer,
+  PageHeader,
+  SectionTitle,
+  LoadingState,
+  EmptyState,
+  ActionButton,
+  CardGrid,
+} from "./components/PageWrapper";
+import { globalCache } from "./hooks/useFirestoreData";
+import { Briefcase, ListTodo, Settings, RefreshCw, RotateCcw, Plus, ChevronLeft } from "lucide-react";
 
 // Cloud Functions 호출 함수 설정
 const manualResetClassTasks = httpsCallable(functions, 'manualResetClassTasks');
@@ -231,47 +242,6 @@ function SelectMultipleJobsView({
       : [];
   }, [availableJobs]);
 
-  const formStyles = {
-    container: {
-      padding: "20px",
-      backgroundColor: "#ffffff",
-      borderRadius: "8px",
-      boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-      maxWidth: "600px",
-      margin: "30px auto",
-    },
-    title: {
-      fontSize: "22px",
-      fontWeight: "600",
-      color: "#1f2937",
-      marginBottom: "8px",
-      textAlign: "center",
-    },
-    buttonGroup: {
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: "10px",
-      marginTop: "25px",
-    },
-    button: {
-      padding: "10px 20px",
-      fontSize: "16px",
-      fontWeight: "500",
-      borderRadius: "6px",
-      border: "none",
-      cursor: "pointer",
-      transition: "background-color 0.2s ease, box-shadow 0.2s ease",
-    },
-    saveButton: {
-      backgroundColor: "#4f46e5",
-      color: "white",
-    },
-    cancelButton: {
-      backgroundColor: "#e5e7eb",
-      color: "#374151",
-    },
-  };
-
   const handleCheckboxChange = useCallback((jobId) => {
     setTempSelection((prev) =>
       prev.includes(jobId)
@@ -281,66 +251,53 @@ function SelectMultipleJobsView({
   }, []);
 
   return (
-    <div style={formStyles.container}>
-      <h4 style={formStyles.title}>직업 선택 (다중 선택 가능)</h4>
-      <p style={{ fontSize: "14px", color: "#6b7280", marginBottom: "15px" }}>
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 max-w-xl mx-auto my-8">
+      <h4 className="text-xl font-semibold text-gray-900 dark:text-white text-center mb-2">
+        직업 선택 (다중 선택 가능)
+      </h4>
+      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
         '나의 할일'에 표시할 직업을 선택하세요.
       </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div className="flex flex-col gap-3">
         {activeJobs.map((job) => (
           <label
             key={job.id}
-            style={{
-              padding: "12px 15px",
-              border: `2px solid ${
-                tempSelection.includes(job.id) ? "#4f46e5" : "#d1d5db"
-              }`,
-              borderRadius: "8px",
-              cursor: "pointer",
-              backgroundColor: tempSelection.includes(job.id)
-                ? "#eef2ff"
-                : "#ffffff",
-              transition: "all 0.2s ease",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
+            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${
+              tempSelection.includes(job.id)
+                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
+                : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-gray-300'
+            }`}
           >
             <input
               type="checkbox"
               checked={tempSelection.includes(job.id)}
               onChange={() => handleCheckboxChange(job.id)}
-              style={{ width: "16px", height: "16px", cursor: "pointer" }}
+              className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
             />
-            <span
-              style={{
-                fontWeight: "500",
-                color: tempSelection.includes(job.id) ? "#4338ca" : "#374151",
-              }}
-            >
+            <span className={`font-medium ${
+              tempSelection.includes(job.id)
+                ? 'text-indigo-700 dark:text-indigo-300'
+                : 'text-gray-700 dark:text-gray-200'
+            }`}>
               {job.title}
             </span>
           </label>
         ))}
         {activeJobs.length === 0 && (
-          <p style={{ fontSize: "14px", color: "#6b7280" }}>
-            선택 가능한 직업이 없습니다.
-          </p>
+          <EmptyState
+            icon={Briefcase}
+            title="선택 가능한 직업이 없습니다"
+            description="관리자가 직업을 등록하면 여기에 표시됩니다."
+          />
         )}
       </div>
-      <div style={formStyles.buttonGroup}>
-        <button
-          onClick={onCancel}
-          style={{ ...formStyles.button, ...formStyles.cancelButton }}
-        >
+      <div className="flex justify-end gap-3 mt-6">
+        <ActionButton variant="secondary" onClick={onCancel}>
           취소
-        </button>
-        <button
-          onClick={() => onConfirmSelection(tempSelection)}
-          style={{ ...formStyles.button, ...formStyles.saveButton }}
-        >
+        </ActionButton>
+        <ActionButton variant="primary" onClick={() => onConfirmSelection(tempSelection)}>
           선택 완료
-        </button>
+        </ActionButton>
       </div>
     </div>
   );
@@ -1574,27 +1531,46 @@ function Dashboard({ adminTabMode }) {
 
   // Loading and error states
   if (authLoading || appLoading) {
-    return <div className="dashboard-loading">정보를 불러오는 중...</div>;
+    return (
+      <PageContainer className="flex items-center justify-center">
+        <LoadingState message="정보를 불러오는 중..." />
+      </PageContainer>
+    );
   }
 
   if (!user) {
-    return <div className="dashboard-loading">로그인이 필요합니다...</div>;
+    return (
+      <PageContainer className="flex items-center justify-center">
+        <EmptyState
+          icon={ListTodo}
+          title="로그인이 필요합니다"
+          description="할일을 확인하려면 먼저 로그인해주세요."
+        />
+      </PageContainer>
+    );
   }
 
   if (!userDoc?.id) {
     return (
-      <div className="dashboard-loading">
-        사용자 정보를 완전히 불러오지 못했습니다. 새로고침하거나 다시
-        로그인해주세요.
-      </div>
+      <PageContainer className="flex items-center justify-center">
+        <EmptyState
+          icon={ListTodo}
+          title="사용자 정보 로드 실패"
+          description="사용자 정보를 완전히 불러오지 못했습니다. 새로고침하거나 다시 로그인해주세요."
+        />
+      </PageContainer>
     );
   }
 
   if (!userDoc.classCode) {
     return (
-      <div className="dashboard-loading">
-        학급 코드 정보가 없습니다. 관리자에게 문의하여 학급 코드를 할당받으세요.
-      </div>
+      <PageContainer className="flex items-center justify-center">
+        <EmptyState
+          icon={ListTodo}
+          title="학급 코드 없음"
+          description="학급 코드 정보가 없습니다. 관리자에게 문의하여 학급 코드를 할당받으세요."
+        />
+      </PageContainer>
     );
   }
 
@@ -1603,60 +1579,75 @@ function Dashboard({ adminTabMode }) {
     userDoc?.nickname || userDoc?.name || user?.displayName || "사용자";
 
   return (
-    <div className="dashboard-container">
-      <div className="dashboard-content-area">
-        <div style={{ marginBottom: "15px" }}>
-          <h2 className="dashboard-page-title">
-            <span className="welcome-message">
-              오늘의 할일 ✨ ({userNickname}님)
-            </span>
-            {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
-              <div className="admin-buttons-group">
-                <button
+    <PageContainer>
+      <div className="px-4 py-6 sm:px-6">
+        {/* 페이지 헤더 */}
+        <PageHeader
+          title={`오늘의 할일`}
+          subtitle={`${userNickname}님, 오늘도 화이팅!`}
+          icon={ListTodo}
+          action={
+            isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode ? (
+              <div className="flex flex-wrap gap-2">
+                <ActionButton
+                  variant="primary"
+                  icon={Settings}
                   onClick={() => handleOpenAdminSettings("generalSettings")}
-                  className="admin-settings-button"
                 >
                   관리자 기능
-                </button>
-                <button
+                </ActionButton>
+                <ActionButton
+                  variant="success"
+                  icon={RefreshCw}
                   onClick={handleForceRefresh}
-                  className="admin-settings-button"
-                  style={{ backgroundColor: "#28a745" }}
                 >
                   새로고침
-                </button>
-                {/* 🔄 할일 리셋 버튼 (관리자 전용) */}
-                <button
+                </ActionButton>
+                <ActionButton
+                  variant="danger"
+                  icon={RotateCcw}
                   onClick={handleManualTaskReset}
-                  className="admin-settings-button"
-                  style={{ backgroundColor: "#dc3545", color: "white" }}
                   title="이 클래스의 모든 사용자 할일을 리셋합니다"
                 >
                   할일 리셋
-                </button>
+                </ActionButton>
               </div>
-            )}
-            {viewMode === "selectJob" && (
-              <button onClick={handleCancelForm} className="go-back-button">
-                ← 뒤로가기
-              </button>
-            )}
-          </h2>
-        </div>
+            ) : null
+          }
+          backButton={
+            viewMode === "selectJob" ? (
+              <ActionButton
+                variant="ghost"
+                icon={ChevronLeft}
+                onClick={handleCancelForm}
+              >
+                뒤로가기
+              </ActionButton>
+            ) : null
+          }
+        />
 
         {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
           <>
-            <div className="section-container">
-              <div className="section-header">
-                <h3 className="section-header-title">나의 직업 할일</h3>
-                <button
-                  onClick={handleSelectJobClick}
-                  className="header-button"
-                >
-                  직업 추가/선택
-                </button>
-              </div>
-              <div className="job-tasks-grid">
+            {/* 나의 직업 할일 섹션 */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
+              <SectionTitle
+                icon={Briefcase}
+                action={
+                  <ActionButton
+                    variant="outline"
+                    icon={Plus}
+                    onClick={handleSelectJobClick}
+                    size="sm"
+                  >
+                    직업 추가/선택
+                  </ActionButton>
+                }
+              >
+                나의 직업 할일
+              </SectionTitle>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {jobsToShow.length > 0 ? (
                   jobsToShow.map((job) => (
                     <JobList
@@ -1677,42 +1668,57 @@ function Dashboard({ adminTabMode }) {
                     />
                   ))
                 ) : (
-                  <p
-                    style={{
-                      color: "#6b7280",
-                      gridColumn: "1 / -1",
-                      textAlign: "center",
-                      padding: "20px 0",
-                    }}
-                  >
-                    표시할 직업이 없습니다. '직업 추가/선택' 버튼을 눌러 직업을
-                    선택해주세요.
-                  </p>
+                  <div className="col-span-full">
+                    <EmptyState
+                      icon={Briefcase}
+                      title="표시할 직업이 없습니다"
+                      description="'직업 추가/선택' 버튼을 눌러 직업을 선택해주세요."
+                      action={
+                        <ActionButton
+                          variant="primary"
+                          icon={Plus}
+                          onClick={handleSelectJobClick}
+                        >
+                          직업 선택하기
+                        </ActionButton>
+                      }
+                    />
+                  </div>
                 )}
               </div>
 
-              <div className="subsection-header">
-                <h4 className="subsection-header-title">공통 할일</h4>
-                {isAdmin?.() && (
-                  <button
-                    onClick={() => handleAddTaskClick(null, false)}
-                    className="green-button"
-                  >
-                    + 공통 할일 추가
-                  </button>
-                )}
-              </div>
-              <div style={{ marginTop: "15px" }}>
-                <CommonTaskList
-                  tasks={commonTasksWithUserProgress} // 사용자 진행 상황이 포함된 데이터 전달
-                  isAdmin={isAdmin?.()}
-                  onEarnCoupon={(taskId, jobId, isJobTask, cardType, rewardAmount) =>
-                    handleTaskEarnCoupon(taskId, jobId, isJobTask, cardType, rewardAmount)
+              {/* 공통 할일 섹션 */}
+              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
+                <SectionTitle
+                  icon={ListTodo}
+                  action={
+                    isAdmin?.() && (
+                      <ActionButton
+                        variant="success"
+                        icon={Plus}
+                        onClick={() => handleAddTaskClick(null, false)}
+                        size="sm"
+                      >
+                        공통 할일 추가
+                      </ActionButton>
+                    )
                   }
-                  onEditTask={(taskId) => handleEditTask(commonTasks.find(t => t.id === taskId), null)}
-                  onDeleteTask={(taskId) => handleDeleteTask(taskId, null)}
-                  isHandlingTask={isHandlingTask}
-                />
+                >
+                  공통 할일
+                </SectionTitle>
+
+                <div className="mt-4">
+                  <CommonTaskList
+                    tasks={commonTasksWithUserProgress}
+                    isAdmin={isAdmin?.()}
+                    onEarnCoupon={(taskId, jobId, isJobTask, cardType, rewardAmount) =>
+                      handleTaskEarnCoupon(taskId, jobId, isJobTask, cardType, rewardAmount)
+                    }
+                    onEditTask={(taskId) => handleEditTask(commonTasks.find(t => t.id === taskId), null)}
+                    onDeleteTask={(taskId) => handleDeleteTask(taskId, null)}
+                    isHandlingTask={isHandlingTask}
+                  />
+                </div>
               </div>
             </div>
           </>
@@ -1772,7 +1778,7 @@ function Dashboard({ adminTabMode }) {
           />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

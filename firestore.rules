@@ -128,6 +128,15 @@ service cloud.firestore {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isOwner(userId) || isAdmin();
       }
+
+      // ========================================================
+      // ⚙️ 사용자 설정 서브컬렉션 (users/{userId}/settings/{settingId})
+      // 튜토리얼 상태, 테마 등 사용자 개인 설정
+      // ========================================================
+      match /settings/{settingId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isOwner(userId) || isAdmin();
+      }
     }
 
     // ========================================================
@@ -370,6 +379,21 @@ service cloud.firestore {
     }
 
     // ========================================================
+    // 🎮 고누 게임 (gonuGames)
+    // ========================================================
+    match /gonuGames/{gameId} {
+      allow read, create: if isSignedIn();
+      allow update: if isSignedIn() &&
+                       (resource.data.players.B == request.auth.uid ||
+                        resource.data.players.W == request.auth.uid ||
+                        isAdmin());
+      allow delete: if isSignedIn() &&
+                       (resource.data.players.B == request.auth.uid ||
+                        resource.data.players.W == request.auth.uid ||
+                        isAdmin());
+    }
+
+    // ========================================================
     // 📊 통계 (system_stats)
     // ========================================================
     match /system_stats/{statId} {
@@ -454,6 +478,12 @@ service cloud.firestore {
     // ⚙️ 전역 설정 (settings)
     // ========================================================
     match /Settings/{documentId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // settings (소문자) - classCodes 등
+    match /settings/{documentId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }

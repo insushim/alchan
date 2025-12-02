@@ -1,4 +1,13 @@
 /* src/index.css */
+
+/* Tailwind CSS v3 */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Google Fonts for Alchan UI */
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Gamja+Flower&display=swap');
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",

@@ -1,4 +1,4 @@
-// src/Banking.js
+// src/Banking.js - Tailwind UI 리팩토링
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -6,6 +6,14 @@ import ParkingAccount from "./ParkingAccount";
 import { getBankingProducts, updateBankingProducts, db } from "./firebase";
 import { collection, query, where, getDocs, collectionGroup, doc, deleteDoc } from "firebase/firestore";
 import { formatKoreanCurrency } from './numberFormatter';
+import {
+  PageContainer,
+  PageHeader,
+  SectionTitle,
+  LoadingState,
+  ActionButton,
+} from "./components/PageWrapper";
+import { Landmark, ChevronLeft, Save, Plus, Trash2 } from "lucide-react";
 
 const convertAdminProductsToAccountFormat = (adminProducts) => {
   if (!Array.isArray(adminProducts)) {
@@ -30,14 +38,6 @@ const convertAdminProductsToAccountFormat = (adminProducts) => {
 };
 
 import "./Banking.css";
-
-const styles = {
-  adminSection: {
-    marginBottom: "30px",
-    paddingBottom: "20px",
-    borderBottom: "1px solid #eee",
-  },
-};
 
 const Banking = () => {
   const auth = useAuth();
@@ -438,65 +438,55 @@ const Banking = () => {
 
   if (auth.loading) {
     return (
-      <div className="banking-container">
-        <div style={{ padding: "20px", textAlign: "center" }}>
-          금융 정보 로딩 중...
-        </div>
-      </div>
+      <PageContainer className="flex items-center justify-center">
+        <LoadingState message="금융 정보 로딩 중..." />
+      </PageContainer>
     );
   }
 
   return (
-    <div className="banking-container">
+    <PageContainer>
+      {/* 로딩 오버레이 */}
       {isLoading && (
-        <div className="loading-overlay">
-          <div className="loading-spinner">처리 중...</div>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-xl">
+            <div className="flex items-center gap-3">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-gray-700 dark:text-gray-200 font-medium">처리 중...</span>
+            </div>
+          </div>
         </div>
       )}
 
-      <div className="header">
-        <div className="header-content">
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              position: "absolute",
-              left: "20px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              backgroundColor: "#0369a1",
-              color: "white",
-              border: "none",
-              borderRadius: "8px",
-              padding: "10px 20px",
-              fontSize: "16px",
-              fontWeight: "600",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
-              transition: "all 0.2s ease",
-              zIndex: 10
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = "#075985";
-              e.currentTarget.style.transform = "translateY(-50%) translateX(-2px)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "#0369a1";
-              e.currentTarget.style.transform = "translateY(-50%)";
-            }}
-          >
-            <span style={{ fontSize: "18px" }}>←</span>
-            <span>뒤로가기</span>
-          </button>
-          <div className="logo-circle">B</div>
-          <h1 className="bank-title">통합 금융 관리</h1>
-        </div>
-      </div>
+      <div className="px-4 py-6 sm:px-6">
+        {/* 페이지 헤더 */}
+        <PageHeader
+          title="통합 금융 관리"
+          subtitle="예금, 적금, 대출 상품을 관리하세요"
+          icon={Landmark}
+          backButton={
+            <ActionButton
+              variant="ghost"
+              icon={ChevronLeft}
+              onClick={() => navigate(-1)}
+            >
+              뒤로가기
+            </ActionButton>
+          }
+        />
 
-      <div className="content-container">
-        {message && <div className={`message ${messageType}-message`}>{message}</div>}
+        {/* 메시지 표시 */}
+        {message && (
+          <div className={`mb-4 p-4 rounded-xl ${
+            messageType === 'error'
+              ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
+              : messageType === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+              : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
+          }`}>
+            {message}
+          </div>
+        )}
 
         <div className={activeView === "admin" ? "content-box" : ""}>
           {(activeView === "parking" || activeView === "userProducts") && (
@@ -912,10 +902,14 @@ const Banking = () => {
             !(
               auth.user &&
               (auth.userDoc?.isAdmin || auth.userDoc?.role === "admin")
-            ) && <div>관리자 권한이 필요합니다.</div>}
+            ) && (
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 p-4 rounded-xl border border-yellow-200 dark:border-yellow-800">
+                관리자 권한이 필요합니다.
+              </div>
+            )}
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

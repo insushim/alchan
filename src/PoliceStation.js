@@ -1,15 +1,24 @@
-// src/PoliceStation.js
+// src/PoliceStation.js - Tailwind UI 리팩토링
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
 import {
   db,
-  processSettlement, // Use the new cloud function wrapper
+  processSettlement,
   addActivityLog,
   addTransaction,
   processFineTransaction,
   addSettlementRecord,
 } from "./firebase";
+import {
+  PageContainer,
+  PageHeader,
+  LoadingState,
+  EmptyState,
+  ActionButton,
+  TabGroup,
+} from "./components/PageWrapper";
+import { Shield, Settings, FileText, Clock, CheckCircle } from "lucide-react";
 
 import "./Police.css";
 import SubmitReport from "./SubmitReport";
@@ -1252,25 +1261,31 @@ const PoliceStation = () => {
     
   if (auth.loading) {
     return (
-      <div className="police-container loading">
-        사용자 인증 정보를 확인 중입니다...
+      <div className="police-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          사용자 인증 정보를 확인 중입니다...
+        </div>
       </div>
     );
   }
 
   if (!currentUser) {
     return (
-      <div className="police-container loading">
-        로그인이 필요합니다. 경찰서 기능을 사용하려면 다시 로그인해주세요.
+      <div className="police-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          로그인이 필요합니다. 경찰서 기능을 사용하려면 다시 로그인해주세요.
+        </div>
       </div>
     );
   }
 
   if (!classCode && !hasPoliceAdminRights) {
     return (
-      <div className="police-container loading">
-        경찰서 기능을 사용하려면 학급 코드가 사용자 정보에 설정되어 있어야
-        합니다. 프로필에서 학급 코드를 설정해주세요.
+      <div className="police-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          경찰서 기능을 사용하려면 학급 코드가 사용자 정보에 설정되어 있어야 합니다.
+          프로필에서 학급 코드를 설정해주세요.
+        </div>
       </div>
     );
   }
@@ -1284,19 +1299,11 @@ const PoliceStation = () => {
       reasonsLoading ||
       reportsLoading)
   ) {
-    let loadingMessages = [];
-    if (usersLoading) loadingMessages.push("학급 사용자");
-    if (treasuryLoading) loadingMessages.push("국고");
-    if (lawsLoading) loadingMessages.push("법안");
-    if (jobsLoading) loadingMessages.push("직업");
-    if (reasonsLoading) loadingMessages.push("신고 사유");
-    if (reportsLoading) loadingMessages.push("신고 내역");
     return (
-      <div className="police-container loading">
-        {loadingMessages.length > 0
-          ? loadingMessages.join(", ")
-          : "경찰서 정보"}{" "}
-        로딩 중... (학급: {classCode})
+      <div className="police-container">
+        <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+          데이터를 불러오는 중...
+        </div>
       </div>
     );
   }
