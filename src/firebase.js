@@ -89,6 +89,165 @@ if (process.env.NODE_ENV === 'development') {
   }
 }
 
+// =================================================================
+// 📊 [DB 로깅] DB 읽기/쓰기 추적 시스템
+// =================================================================
+const dbStats = {
+  reads: 0,
+  writes: 0,
+  deletes: 0,
+  subscriptions: 0,
+  cacheHits: 0,
+  cacheMisses: 0,
+  startTime: Date.now(),
+  operations: [] // 최근 100개 작업 기록
+};
+
+const DB_LOG_ENABLED = true; // 로깅 on/off
+const MAX_OPERATIONS_LOG = 100;
+
+const logDbOperation = (type, collection, docId = null, details = {}) => {
+  if (!DB_LOG_ENABLED) return;
+
+  const operation = {
+    type,
+    collection,
+    docId,
+    timestamp: new Date().toISOString(),
+    tab: details.tab || 'unknown',
+    ...details
+  };
+
+  // 통계 업데이트
+  if (type === 'READ' || type === 'SUBSCRIBE') {
+    dbStats.reads++;
+    if (type === 'SUBSCRIBE') dbStats.subscriptions++;
+  } else if (type === 'WRITE' || type === 'UPDATE') {
+    dbStats.writes++;
+  } else if (type === 'DELETE') {
+    dbStats.deletes++;
+  } else if (type === 'CACHE_HIT') {
+    dbStats.cacheHits++;
+  } else if (type === 'CACHE_MISS') {
+    dbStats.cacheMisses++;
+  }
+
+  // 작업 기록 저장 (최대 100개)
+  dbStats.operations.push(operation);
+  if (dbStats.operations.length > MAX_OPERATIONS_LOG) {
+    dbStats.operations.shift();
+  }
+
+  // 콘솔 로그 출력 (색상 구분)
+  const colors = {
+    READ: 'color: #4CAF50; font-weight: bold',
+    WRITE: 'color: #FF9800; font-weight: bold',
+    UPDATE: 'color: #2196F3; font-weight: bold',
+    DELETE: 'color: #F44336; font-weight: bold',
+    SUBSCRIBE: 'color: #9C27B0; font-weight: bold',
+    CACHE_HIT: 'color: #00BCD4',
+    CACHE_MISS: 'color: #795548'
+  };
+
+  const emoji = {
+    READ: '📖',
+    WRITE: '✏️',
+    UPDATE: '🔄',
+    DELETE: '🗑️',
+    SUBSCRIBE: '👂',
+    CACHE_HIT: '💾',
+    CACHE_MISS: '❌'
+  };
+
+  console.log(
+    `%c[DB ${type}] ${emoji[type]} ${collection}${docId ? '/' + docId : ''} | Tab: ${details.tab || 'unknown'}`,
+    colors[type] || '',
+    details.extra || ''
+  );
+};
+
+// 현재 DB 통계 출력 함수
+export const getDbStats = () => {
+  const elapsed = (Date.now() - dbStats.startTime) / 1000;
+  const stats = {
+    ...dbStats,
+    elapsedSeconds: elapsed,
+    readsPerMinute: (dbStats.reads / elapsed * 60).toFixed(2),
+    writesPerMinute: (dbStats.writes / elapsed * 60).toFixed(2),
+    cacheHitRate: dbStats.cacheHits + dbStats.cacheMisses > 0
+      ? ((dbStats.cacheHits / (dbStats.cacheHits + dbStats.cacheMisses)) * 100).toFixed(1) + '%'
+      : 'N/A'
+  };
+  console.table({
+    '총 읽기': dbStats.reads,
+    '총 쓰기': dbStats.writes,
+    '총 삭제': dbStats.deletes,
+    '구독 수': dbStats.subscriptions,
+    '캐시 히트': dbStats.cacheHits,
+    '캐시 미스': dbStats.cacheMisses,
+    '캐시 적중률': stats.cacheHitRate,
+    '분당 읽기': stats.readsPerMinute,
+    '분당 쓰기': stats.writesPerMinute,
+    '경과 시간(초)': elapsed.toFixed(0)
+  });
+  return stats;
+};
+
+// 최근 작업 로그 출력
+export const printRecentOperations = (count = 20) => {
+  const recent = dbStats.operations.slice(-count);
+  console.log(`\n📊 최근 ${count}개 DB 작업:`);
+  console.table(recent.map(op => ({
+    시간: op.timestamp.split('T')[1].split('.')[0],
+    타입: op.type,
+    컬렉션: op.collection,
+    문서ID: op.docId || '-',
+    탭: op.tab
+  })));
+};
+
+// 탭별 통계
+export const getTabStats = () => {
+  const tabStats = {};
+  dbStats.operations.forEach(op => {
+    const tab = op.tab || 'unknown';
+    if (!tabStats[tab]) {
+      tabStats[tab] = { reads: 0, writes: 0, deletes: 0, subscribes: 0 };
+    }
+    if (op.type === 'READ') tabStats[tab].reads++;
+    else if (op.type === 'WRITE' || op.type === 'UPDATE') tabStats[tab].writes++;
+    else if (op.type === 'DELETE') tabStats[tab].deletes++;
+    else if (op.type === 'SUBSCRIBE') tabStats[tab].subscribes++;
+  });
+  console.log('\n📊 탭별 DB 사용 통계:');
+  console.table(tabStats);
+  return tabStats;
+};
+
+// 통계 리셋
+export const resetDbStats = () => {
+  dbStats.reads = 0;
+  dbStats.writes = 0;
+  dbStats.deletes = 0;
+  dbStats.subscriptions = 0;
+  dbStats.cacheHits = 0;
+  dbStats.cacheMisses = 0;
+  dbStats.startTime = Date.now();
+  dbStats.operations = [];
+  console.log('📊 DB 통계가 리셋되었습니다.');
+};
+
+// 전역에서 접근 가능하도록 window에 등록
+if (typeof window !== 'undefined') {
+  window.dbStats = {
+    get: getDbStats,
+    recent: printRecentOperations,
+    byTab: getTabStats,
+    reset: resetDbStats
+  };
+  console.log('📊 DB 통계 사용법: window.dbStats.get(), window.dbStats.recent(), window.dbStats.byTab(), window.dbStats.reset()');
+}
+
 // 🔥 [최적화] 강화된 인메모리 캐시 - TTL 연장 및 용량 관리
 const cache = new Map();
 const CACHE_TTL = 30 * 60 * 1000; // 🔥 [최적화] 30분으로 연장 (20분 → 30분)
@@ -107,22 +266,23 @@ const setCache = (key, data) => {
   console.log(`[Cache] SET: ${key} (TTL: ${CACHE_TTL/1000/60}분)`);
 };
 
-const getCache = (key) => {
+const getCache = (key, tab = 'unknown') => {
   const cachedItem = cache.get(key);
   if (!cachedItem) {
-    console.log(`[Cache] MISS: ${key}`);
+    logDbOperation('CACHE_MISS', key, null, { tab });
     return null;
   }
 
   if (Date.now() > cachedItem.expiry) {
     console.log(`[Cache] EXPIRED: ${key}`);
     cache.delete(key);
+    logDbOperation('CACHE_MISS', key, null, { tab, extra: '(expired)' });
     return null;
   }
 
   // 액세스 시간 업데이트 (LRU)
   cachedItem.lastAccessed = Date.now();
-  console.log(`[Cache] HIT: ${key}`);
+  logDbOperation('CACHE_HIT', key, null, { tab });
   return cachedItem.data;
 };
 
@@ -173,12 +333,14 @@ const isInitialized = () => {
 // 🔥 [최적화] 캐시 우선 CRUD 함수들
 // =================================================================
 
-export const addData = (collectionName, data) => {
+export const addData = (collectionName, data, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
-  
+
   // 캐시 무효화
   invalidateCachePattern(collectionName);
-  
+
+  logDbOperation('WRITE', collectionName, null, { tab, extra: 'addData' });
+
   const dataWithTimestamp = {
     ...data,
     createdAt: serverTimestamp(),
@@ -187,9 +349,9 @@ export const addData = (collectionName, data) => {
   return originalFirebaseAddDoc(collection(db, collectionName), dataWithTimestamp);
 };
 
-export const updateData = (collectionName, docId, updates) => {
+export const updateData = (collectionName, docId, updates, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
-  
+
   // 관련 캐시 무효화
   if (collectionName === 'users') {
       invalidateCache(`user_${docId}`);
@@ -201,6 +363,8 @@ export const updateData = (collectionName, docId, updates) => {
   }
   invalidateCachePattern(collectionName);
 
+  logDbOperation('UPDATE', collectionName, docId, { tab });
+
   const docRef = doc(db, collectionName, docId);
   const dataWithTimestamp = {
     ...updates,
@@ -209,9 +373,9 @@ export const updateData = (collectionName, docId, updates) => {
   return updateDoc(docRef, dataWithTimestamp);
 };
 
-export const deleteData = (collectionName, docId) => {
+export const deleteData = (collectionName, docId, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
-  
+
   // 관련 캐시 무효화
   if (collectionName === 'users') {
       invalidateCache(`user_${docId}`);
@@ -219,32 +383,35 @@ export const deleteData = (collectionName, docId) => {
       invalidateCachePattern(`classmates_`); // 학급 구성원 캐시도 무효화
   }
   invalidateCachePattern(collectionName);
-  
+
+  logDbOperation('DELETE', collectionName, docId, { tab });
+
   const docRef = doc(db, collectionName, docId);
   return deleteDoc(docRef);
 };
 
 // 🔥 [최적화] 캐시 우선 컬렉션 조회
-export const fetchCollectionOnce = async (collectionName, useCache = true) => {
+export const fetchCollectionOnce = async (collectionName, useCache = true, tab = 'unknown') => {
     if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
-    
+
     const cacheKey = `collection_${collectionName}`;
-    
+
     if (useCache) {
-      const cached = getCache(cacheKey);
+      const cached = getCache(cacheKey, tab);
       if (cached) return cached;
     }
-    
+
     try {
       // 🔥 [최적화] 캐시에서 먼저 시도
       const querySnapshot = await getDocs(collection(db, collectionName));
       const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
+
+      logDbOperation('READ', collectionName, null, { tab, extra: `${data.length}개 문서` });
+
       if (useCache) {
         setCache(cacheKey, data);
       }
-      
-      console.log(`[firebase.js] ${collectionName} 컬렉션 조회: ${data.length}개 (DB)`);
+
       return data;
     } catch (error) {
       console.error(`[firebase.js] ${collectionName} 컬렉션 조회 오류:`, error);
@@ -253,22 +420,22 @@ export const fetchCollectionOnce = async (collectionName, useCache = true) => {
 };
 
 // 🔥 [최적화] 조건부 실시간 구독 - 중요한 데이터만
-export const subscribeToCollection = (collectionName, callback, conditions = []) => {
+export const subscribeToCollection = (collectionName, callback, conditions = [], tab = 'unknown') => {
   if (!db) {
     console.error("Firestore가 초기화되지 않아 구독할 수 없습니다.");
     return () => {};
   }
-  
-  console.warn(`[비용 경고] ${collectionName} 컬렉션에 대한 실시간 구독을 시작합니다. 이 작업은 많은 읽기 비용을 발생시킬 수 있습니다.`);
-  
+
+  logDbOperation('SUBSCRIBE', collectionName, null, { tab, extra: '실시간 구독 시작' });
+
   let q = originalFirebaseQuery(collection(db, collectionName));
-  
+
   // 조건 추가
   conditions.forEach(condition => {
     q = originalFirebaseQuery(q, condition);
   });
-  
-  const unsubscribe = onSnapshot(q, 
+
+  const unsubscribe = onSnapshot(q,
     {
       // 🔥 [최적화] 캐시 우선 정책
       source: 'default'
@@ -278,11 +445,11 @@ export const subscribeToCollection = (collectionName, callback, conditions = [])
         id: doc.id,
         ...doc.data(),
       }));
-      
+
       // 캐시 업데이트
       setCache(`collection_${collectionName}`, data);
-      
-      console.log(`[firebase.js] ${collectionName} 실시간 업데이트: ${data.length}개`);
+
+      logDbOperation('READ', collectionName, null, { tab, extra: `onSnapshot: ${data.length}개` });
       callback(data);
     },
     (error) => {
@@ -290,13 +457,13 @@ export const subscribeToCollection = (collectionName, callback, conditions = [])
       callback([]);
     }
   );
-  
+
   return unsubscribe;
 };
 
 // ⭐️ [신규 추가] 학급 구성원 조회 함수 - 핵심 누락 함수 구현
 // 🔥 [최적화] getAllUsersDocuments를 활용하여 중복 읽기 방지 (33개 문서 중복 제거)
-export const getClassmates = async (classCode, forceRefresh = false) => {
+export const getClassmates = async (classCode, forceRefresh = false, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode || classCode === '미지정') {
     console.warn("[firebase.js] getClassmates: 유효하지 않은 학급 코드");
@@ -306,16 +473,13 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
   const cacheKey = `classmates_${classCode}`;
 
   if (!forceRefresh) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 학급 구성원 캐시 조회 (${classCode}): ${cached.length}명`);
       return cached;
     }
   }
 
   try {
-    console.log(`[firebase.js] 학급 구성원 DB 조회 시작 (${classCode}), forceRefresh: ${forceRefresh}`);
-    
     // [수정] 직접 쿼리를 사용하여 해당 학급의 사용자만 조회합니다.
     const usersRef = collection(db, "users");
     const q = originalFirebaseQuery(usersRef, originalFirebaseWhere("classCode", "==", classCode));
@@ -327,9 +491,9 @@ export const getClassmates = async (classCode, forceRefresh = false) => {
       ...doc.data()
     }));
 
-    setCache(cacheKey, classMembers);
+    logDbOperation('READ', 'users', null, { tab, extra: `getClassmates(${classCode}): ${classMembers.length}명` });
 
-    console.log(`[firebase.js] 학급 구성원 조회 완료 (${classCode}): ${classMembers.length}명 (DB 직접 쿼리)`);
+    setCache(cacheKey, classMembers);
     return classMembers;
 
   } catch (error) {
@@ -444,14 +608,14 @@ const updateUserProfile = async (user, displayName) => {
 };
 
 // 🔥 [최적화] 캐시 우선 사용자 문서 조회
-const getUserDocument = async (userId, forceRefresh = false) => {
+const getUserDocument = async (userId, forceRefresh = false, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!userId) return null;
 
   const cacheKey = `user_${userId}`;
-  
+
   if (!forceRefresh) {
-    const cachedUser = getCache(cacheKey);
+    const cachedUser = getCache(cacheKey, tab);
     if (cachedUser) {
       return cachedUser;
     }
@@ -459,21 +623,24 @@ const getUserDocument = async (userId, forceRefresh = false) => {
 
   try {
     const userRef = doc(db, "users", userId);
-    
+
     let userSnap;
+    let source = 'server';
     if (forceRefresh) {
-      console.log(`[firebase.js] getUserDocument(${userId}) - 강제 새로고침 (서버 조회)`);
       userSnap = await getDoc(userRef);
+      source = 'server(force)';
     } else {
       try {
         userSnap = await getDocFromCache(userRef);
-        console.log(`[firebase.js] getUserDocument(${userId}) - 캐시에서 조회`);
+        source = 'firestore-cache';
       } catch (cacheError) {
         userSnap = await getDoc(userRef);
-        console.log(`[firebase.js] getUserDocument(${userId}) - 서버에서 조회`);
+        source = 'server';
       }
     }
-    
+
+    logDbOperation('READ', 'users', userId, { tab, extra: `getUserDocument(${source})` });
+
     const result = userSnap.exists()
       ? { id: userSnap.id, ...userSnap.data() }
       : null;
@@ -524,26 +691,22 @@ const addUserDocument = async (userId, userData) => {
   }
 };
 
-const updateUserDocument = async (userId, updates, maxRetries = 3) => {
+const updateUserDocument = async (userId, updates, maxRetries = 3, tab = 'unknown') => {
   if (!db) {
-    console.error(
-      "[firebase.js] updateUserDocument: Firestore가 초기화되지 않았습니다."
-    );
     throw new Error("Firestore가 초기화되지 않았습니다.");
   }
 
   if (!userId || !updates || Object.keys(updates).length === 0) {
-    console.warn(
-      `[firebase.js] updateUserDocument: 사용자 ID가 없거나 업데이트할 내용이 없습니다. userId: ${userId}, updates:`,
-      updates
-    );
     return false;
   }
 
-  // 🔥 [최적화] 사용자 문서 업데이트 시 캐시를 무효화 (lastLoginAt 제외)
-  const isOnlyLastLogin = Object.keys(updates).length === 1 && 'lastLoginAt' in updates;
+  // 🔥 [최적화] 사용자 문서 업데이트 시 캐시를 무효화 (lastLoginAt, lastActiveAt 제외)
+  const updateKeys = Object.keys(updates);
+  const isOnlyTimestamp = updateKeys.every(key =>
+    key === 'lastLoginAt' || key === 'lastActiveAt'
+  );
 
-  if (!isOnlyLastLogin) {
+  if (!isOnlyTimestamp) {
     invalidateCache(`user_${userId}`);
     invalidateCache('users_all');
 
@@ -553,19 +716,11 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
     }
   }
 
-  console.log(
-    `[firebase.js] updateUserDocument 시작: userId=${userId}`,
-    updates
-  );
-
   let attempt = 0;
   let lastError = null;
 
   while (attempt < maxRetries) {
     attempt++;
-    console.log(
-      `[firebase.js] updateUserDocument 시도 ${attempt}/${maxRetries}`
-    );
 
     try {
       const cleanedUpdates = { ...updates };
@@ -574,19 +729,13 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
       );
 
       if (Object.keys(cleanedUpdates).length === 0) {
-        console.warn(
-          `[firebase.js] updateUserDocument: 모든 업데이트 필드가 undefined여서 실제 업데이트는 수행되지 않았습니다. (userId: ${userId})`
-        );
         return false;
       }
 
       const userRef = doc(db, "users", userId);
       const finalUpdates = { ...cleanedUpdates, updatedAt: serverTimestamp() };
 
-      console.log(
-        `[firebase.js] Firestore updateDoc 호출 중... (시도 ${attempt})`,
-        finalUpdates
-      );
+      logDbOperation('UPDATE', 'users', userId, { tab, extra: Object.keys(cleanedUpdates).join(',') });
 
       const updatePromise = updateDoc(userRef, finalUpdates);
       const timeoutPromise = new Promise((_, reject) =>
@@ -612,11 +761,7 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
         throw error;
       }
 
-      console.log(
-        `[firebase.js] 사용자 문서 업데이트 성공: ${userId} (시도 ${attempt})`
-      );
-      
-      // Log specific updates
+      // Log specific updates (프로필 변경만)
       if (updates.name || updates.nickname) {
           await addActivityLog(userId, '프로필 변경', `프로필 정보가 업데이트되었습니다.`);
       }
@@ -624,10 +769,6 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
       return true;
     } catch (error) {
       lastError = error;
-      console.error(
-        `[firebase.js] updateUserDocument 실패 (시도 ${attempt}/${maxRetries}): ${userId}`,
-        error
-      );
 
       const retryableErrors = [
         "unavailable",
@@ -645,23 +786,17 @@ const updateUserDocument = async (userId, updates, maxRetries = 3) => {
       );
 
       if (!isRetryableError) {
-        console.error(
-          `[firebase.js] 재시도 불가능한 오류: ${error.code || error.message}`
-        );
         break;
       }
 
       if (attempt < maxRetries) {
         const delay = Math.min(1000 * attempt, 5000);
-        console.log(`[firebase.js] ${delay}ms 후 재시도...`);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
   }
 
-  console.error(
-    `[firebase.js] updateUserDocument 최종 실패 (${maxRetries}번 시도 후): ${userId}`
-  );
+  console.error(`[firebase.js] updateUserDocument 최종 실패: ${userId}`);
   throw lastError || new Error("알 수 없는 오류로 업데이트 실패");
 };
 
@@ -2004,16 +2139,15 @@ export const verifyClassCode = async (classCodeToVerify, maxRetries = 2) => {
 };
 
 // 🔥 [최적화] 사용자 인벤토리 조회 - 캐시 활용
-export const getUserInventory = async (userId, useCache = true) => {
+export const getUserInventory = async (userId, useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!userId) throw new Error("사용자 ID가 필요합니다.");
 
   const cacheKey = `inventory_${userId}`;
-  
+
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 사용자 ${userId} 인벤토리 캐시 조회: ${cached.length}개 아이템`);
       return cached;
     }
   }
@@ -2025,12 +2159,13 @@ export const getUserInventory = async (userId, useCache = true) => {
       id: doc.id,
       ...doc.data(),
     }));
-    
+
+    logDbOperation('READ', `users/${userId}/inventory`, null, { tab, extra: `${inventory.length}개 아이템` });
+
     if (useCache) {
       setCache(cacheKey, inventory);
     }
-    
-    console.log(`[firebase.js] 사용자 ${userId} 인벤토리 조회: ${inventory.length}개 아이템`);
+
     return inventory;
   } catch (error) {
     console.error(`[firebase.js] 인벤토리 조회 오류 (사용자: ${userId}):`, error);
@@ -2039,16 +2174,15 @@ export const getUserInventory = async (userId, useCache = true) => {
 };
 
 // 🔥 [최적화] 마켓 아이템 조회 - 캐시 활용
-export const getMarketItems = async (classCode, status = "active", useCache = true) => {
+export const getMarketItems = async (classCode, status = "active", useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
 
   const cacheKey = `market_${classCode}_${status}`;
-  
+
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 마켓 아이템 캐시 조회 (${classCode}): ${cached.length}개`);
       return cached;
     }
   }
@@ -2073,12 +2207,13 @@ export const getMarketItems = async (classCode, status = "active", useCache = tr
       id: doc.id,
       ...doc.data(),
     }));
-    
+
+    logDbOperation('READ', 'marketItems', null, { tab, extra: `${classCode}: ${marketItems.length}개` });
+
     if (useCache) {
       setCache(cacheKey, marketItems);
     }
-    
-    console.log(`[firebase.js] 마켓 아이템 조회 (${classCode}): ${marketItems.length}개`);
+
     return marketItems;
   } catch (error) {
     console.error(`[firebase.js] 마켓 아이템 조회 오류 (학급: ${classCode}):`, error);
@@ -2086,12 +2221,14 @@ export const getMarketItems = async (classCode, status = "active", useCache = tr
   }
 };
 
-export const updateMarketListing = async (listingId, updates) => {
+export const updateMarketListing = async (listingId, updates, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!listingId || !updates) throw new Error("리스팅 ID와 업데이트 데이터가 필요합니다.");
 
   // 🔥 [최적화] 마켓 리스팅 업데이트 시 관련 캐시 무효화
   invalidateCachePattern('market_');
+
+  logDbOperation('UPDATE', 'marketItems', listingId, { tab });
 
   try {
     const listingRef = doc(db, "marketItems", listingId);
@@ -2099,7 +2236,6 @@ export const updateMarketListing = async (listingId, updates) => {
       ...updates,
       updatedAt: serverTimestamp(),
     });
-    console.log(`[firebase.js] 마켓 리스팅 업데이트 성공: ${listingId}`);
     return true;
   } catch (error) {
     console.error(`[firebase.js] 마켓 리스팅 업데이트 오류 (ID: ${listingId}):`, error);
@@ -2108,14 +2244,14 @@ export const updateMarketListing = async (listingId, updates) => {
 };
 
 // 🔥 [최적화] 정부 설정 조회 - 캐시 TTL 1시간으로 연장
-export const getGovernmentSettings = async (classCode, useCache = true) => {
+export const getGovernmentSettings = async (classCode, useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
 
   const cacheKey = `gov_settings_${classCode}`;
-  
+
   if (useCache) {
-    const cachedSettings = getCache(cacheKey);
+    const cachedSettings = getCache(cacheKey, tab);
     if (cachedSettings) {
       return cachedSettings;
     }
@@ -2123,16 +2259,19 @@ export const getGovernmentSettings = async (classCode, useCache = true) => {
 
   try {
     const settingsRef = doc(db, "governmentSettings", classCode);
-    
+
     let settingsSnap;
+    let source = 'server';
     try {
       settingsSnap = await getDocFromCache(settingsRef);
-      console.log(`[firebase.js] 정부 설정 캐시 조회 (${classCode})`);
+      source = 'firestore-cache';
     } catch (cacheError) {
       settingsSnap = await getDoc(settingsRef);
-      console.log(`[firebase.js] 정부 설정 서버 조회 (${classCode})`);
+      source = 'server';
     }
-    
+
+    logDbOperation('READ', 'governmentSettings', classCode, { tab, extra: `(${source})` });
+
     const result = settingsSnap.exists() ? settingsSnap.data() : null;
 
     if (result && useCache) {
@@ -2141,7 +2280,6 @@ export const getGovernmentSettings = async (classCode, useCache = true) => {
       cache.set(cacheKey, { data: result, expiry, lastAccessed: Date.now() });
     }
 
-    console.log(`[firebase.js] 정부 설정 조회 (${classCode}):`, result ? "존재" : "없음");
     return result;
   } catch (error) {
     console.error(`[firebase.js] 정부 설정 조회 오류 (학급: ${classCode}):`, error);
@@ -2149,20 +2287,21 @@ export const getGovernmentSettings = async (classCode, useCache = true) => {
   }
 };
 
-export const updateGovernmentSettings = async (classCode, settings) => {
+export const updateGovernmentSettings = async (classCode, settings, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode || !settings) throw new Error("학급 코드와 설정 데이터가 필요합니다.");
 
   try {
     // 🔥 [최적화] 정부 설정 업데이트 시 캐시를 무효화
     invalidateCache(`gov_settings_${classCode}`);
-    
+
+    logDbOperation('WRITE', 'governmentSettings', classCode, { tab });
+
     const settingsRef = doc(db, "governmentSettings", classCode);
     await setDoc(settingsRef, {
       ...settings,
       updatedAt: serverTimestamp(),
     }, { merge: true });
-    console.log(`[firebase.js] 정부 설정 업데이트 성공 (${classCode})`);
     return true;
   } catch (error) {
     console.error(`[firebase.js] 정부 설정 업데이트 오류 (학급: ${classCode}):`, error);
@@ -2171,16 +2310,15 @@ export const updateGovernmentSettings = async (classCode, settings) => {
 };
 
 // 🔥 [최적화] 국고 정보 조회 - 캐시 활용
-export const getNationalTreasury = async (classCode, useCache = true) => {
+export const getNationalTreasury = async (classCode, useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
 
   const cacheKey = `treasury_${classCode}`;
-  
+
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 국고 캐시 조회 (${classCode}): 존재`);
       return cached;
     }
   }
@@ -2189,12 +2327,13 @@ export const getNationalTreasury = async (classCode, useCache = true) => {
     const treasuryRef = doc(db, "nationalTreasuries", classCode);
     const treasurySnap = await getDoc(treasuryRef);
     const result = treasurySnap.exists() ? treasurySnap.data() : null;
-    
+
+    logDbOperation('READ', 'nationalTreasuries', classCode, { tab });
+
     if (result && useCache) {
       setCache(cacheKey, result);
     }
-    
-    console.log(`[firebase.js] 국고 조회 (${classCode}):`, result ? "존재" : "없음");
+
     return result;
   } catch (error) {
     console.error(`[firebase.js] 국고 조회 오류 (학급: ${classCode}):`, error);
@@ -2203,33 +2342,28 @@ export const getNationalTreasury = async (classCode, useCache = true) => {
 };
 
 // 🔥 [최적화] 활동 로그 조회 - 제한적 캐시 사용
-export const getActivityLogs = async (classCode, limit = 50, useCache = false) => {
+export const getActivityLogs = async (classCode, limit = 50, useCache = false, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
 
   const cacheKey = `activity_logs_${classCode}_${limit}`;
-  
+
   // 🔥 [최적화] 활동 로그는 자주 변경되므로 기본적으로 캐시 비활성화
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 활동 로그 캐시 조회 (${classCode}): ${cached.length}개`);
       return cached;
     }
   }
 
   try {
-    console.log(`[firebase.js] 활동 로그 조회 시작 (${classCode})`);
-
     const logsRef = collection(db, "activity_logs");
     const q = originalFirebaseQuery(
       logsRef,
       originalFirebaseWhere("classCode", "==", classCode)
     );
 
-    console.log('쿼리 실행 중...');
     const logsSnapshot = await getDocs(q);
-    console.log(`쿼리 결과: ${logsSnapshot.docs.length}개 문서`);
 
     let logs = logsSnapshot.docs.map((doc) => {
       const data = doc.data();
@@ -2239,6 +2373,8 @@ export const getActivityLogs = async (classCode, limit = 50, useCache = false) =
         timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : data.timestamp
       };
     });
+
+    logDbOperation('READ', 'activity_logs', null, { tab, extra: `${classCode}: ${logsSnapshot.docs.length}개` });
 
     // 클라이언트 사이드에서 정렬 (인덱스 필요 없음)
     logs.sort((a, b) => {
@@ -2263,7 +2399,6 @@ export const getActivityLogs = async (classCode, limit = 50, useCache = false) =
       cache.set(cacheKey, { data: logs, expiry: shortExpiry, lastAccessed: Date.now() });
     }
 
-    console.log(`[firebase.js] 활동 로그 조회 완료 (${classCode}): ${logs.length}개`);
     return logs;
   } catch (error) {
     console.error(`[firebase.js] 활동 로그 조회 오류 (학급: ${classCode}):`, error);
@@ -2276,22 +2411,23 @@ export const getActivityLogs = async (classCode, limit = 50, useCache = false) =
 // =================================================================
 
 // 🔥 [최적화] 뱅킹 상품 조회 - 캐시 활용
-export const getBankingProducts = async (classCode, useCache = true) => {
+export const getBankingProducts = async (classCode, useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
 
   const cacheKey = `banking_${classCode}`;
-  
+
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 뱅킹 상품 캐시 조회 (${classCode})`);
       return cached;
     }
   }
 
   const docRef = doc(db, "bankingSettings", classCode);
   const docSnap = await getDoc(docRef);
+
+  logDbOperation('READ', 'bankingSettings', classCode, { tab });
 
   if (docSnap.exists()) {
     const data = docSnap.data();
@@ -2300,7 +2436,6 @@ export const getBankingProducts = async (classCode, useCache = true) => {
     }
     return data;
   } else {
-    console.log(`[firebase.js] bankingSettings 문서(${classCode})가 없어 기본값으로 생성합니다.`);
     const defaultProducts = {
       deposits: [
         { id: 1, name: "일복리예금 90일", annualRate: 0.01, termInDays: 90, minAmount: 500000 },
@@ -2318,17 +2453,19 @@ export const getBankingProducts = async (classCode, useCache = true) => {
         { id: 3, name: "일복리대출 730일", annualRate: 0.1, termInDays: 730, maxAmount: 50000000 },
       ]
     };
+
+    logDbOperation('WRITE', 'bankingSettings', classCode, { tab, extra: '기본값 생성' });
     await setDoc(docRef, { ...defaultProducts, updatedAt: serverTimestamp() });
-    
+
     if (useCache) {
       setCache(cacheKey, defaultProducts);
     }
-    
+
     return defaultProducts;
   }
 };
 
-export const updateBankingProducts = async (classCode, productType, products) => {
+export const updateBankingProducts = async (classCode, productType, products, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!classCode) throw new Error("학급 코드가 필요합니다.");
   if (!['deposits', 'savings', 'loans'].includes(productType)) {
@@ -2337,6 +2474,8 @@ export const updateBankingProducts = async (classCode, productType, products) =>
 
   // 🔥 [최적화] 뱅킹 상품 업데이트 시 캐시 무효화
   invalidateCache(`banking_${classCode}`);
+
+  logDbOperation('WRITE', 'bankingSettings', classCode, { tab, extra: productType });
 
   const docRef = doc(db, "bankingSettings", classCode);
   await setDoc(docRef, {
@@ -2354,7 +2493,7 @@ export const updateBankingProducts = async (classCode, productType, products) =>
  * @param {function} callback 요약 데이터가 업데이트될 때 호출될 콜백 함수
  * @returns {function} 구독을 해제하는 함수
  */
-export const subscribeToMarketSummary = (classCode, callback) => {
+export const subscribeToMarketSummary = (classCode, callback, tab = 'unknown') => {
   if (!db) {
     console.error("Firestore가 초기화되지 않아 구독할 수 없습니다.");
     return () => {};
@@ -2365,21 +2504,18 @@ export const subscribeToMarketSummary = (classCode, callback) => {
   }
 
   // 경로: /ClassStock/{classCode}/marketSummary/summary
-  // Firestore 데이터베이스 구조에 맞게 경로를 수정해야 합니다. 
-  // 예를 들어, classes 컬렉션 아래에 있다면 `classes/${classCode}/marketSummary/summary`
   const summaryRef = doc(db, "classes", classCode, "marketSummary", "summary");
 
-  console.log(`[Market] ${classCode} 학급의 마켓 요약 데이터 구독 시작`);
+  logDbOperation('SUBSCRIBE', `classes/${classCode}/marketSummary`, 'summary', { tab });
 
   const unsubscribe = onSnapshot(
     summaryRef,
     (docSnap) => {
       if (docSnap.exists()) {
         const summaryData = docSnap.data();
-        console.log("[Market] 마켓 요약 데이터 업데이트:", summaryData);
+        logDbOperation('READ', `classes/${classCode}/marketSummary`, 'summary', { tab, extra: 'onSnapshot' });
         callback(summaryData);
       } else {
-        console.log("[Market] 마켓 요약 데이터가 아직 없습니다.");
         callback(null);
       }
     },
@@ -2399,7 +2535,7 @@ const addDoc = originalFirebaseAddDoc;
 // ⭐️ [수정] 오류 해결을 위해 별칭(alias) 추가
 
 // 🔥 [최적화] 배치 읽기 함수 - 여러 문서를 한 번에 조회
-export const batchGetDocs = async (documentRefs) => {
+export const batchGetDocs = async (documentRefs, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!documentRefs || documentRefs.length === 0) return [];
 
@@ -2421,7 +2557,7 @@ export const batchGetDocs = async (documentRefs) => {
       allDocs.push(...docs);
     }
 
-    console.log(`[firebase.js] 배치 읽기 완료: ${allDocs.length}개 문서`);
+    logDbOperation('READ', 'batch', null, { tab, extra: `${allDocs.length}개 문서` });
     return allDocs;
   } catch (error) {
     console.error('[firebase.js] 배치 읽기 오류:', error);
@@ -2430,23 +2566,22 @@ export const batchGetDocs = async (documentRefs) => {
 };
 
 // 🔥 [최적화] 여러 사용자의 정보를 배치로 조회
-export const batchGetUsers = async (userIds, useCache = true) => {
+export const batchGetUsers = async (userIds, useCache = true, tab = 'unknown') => {
   if (!db) throw new Error("Firestore가 초기화되지 않았습니다.");
   if (!userIds || userIds.length === 0) return [];
 
   const cacheKey = `batch_users_${userIds.sort().join('_')}`;
 
   if (useCache) {
-    const cached = getCache(cacheKey);
+    const cached = getCache(cacheKey, tab);
     if (cached) {
-      console.log(`[firebase.js] 배치 사용자 캐시 조회: ${cached.length}명`);
       return cached;
     }
   }
 
   try {
     const userRefs = userIds.map(uid => doc(db, 'users', uid));
-    const userDocs = await batchGetDocs(userRefs);
+    const userDocs = await batchGetDocs(userRefs, tab);
 
     const users = userDocs
       .filter(doc => doc.exists())
@@ -2456,7 +2591,6 @@ export const batchGetUsers = async (userIds, useCache = true) => {
       setCache(cacheKey, users);
     }
 
-    console.log(`[firebase.js] 배치 사용자 조회 완료: ${users.length}명`);
     return users;
   } catch (error) {
     console.error('[firebase.js] 배치 사용자 조회 오류:', error);
@@ -2503,13 +2637,15 @@ export const getCachedDocument = async (collectionName, docId, ttl = CACHE_TTL) 
   return data;
 };
 
-export { 
+export {
   app,
   db,
   auth,
   storage,
   functions,
   httpsCallable, // 👈 [수정] export 목록에 httpsCallable 추가
+  // 📊 [DB 로깅] DB 통계 함수들
+  logDbOperation,
   isInitialized,
   isFirestoreInitialized,
   authStateListener,

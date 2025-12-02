@@ -951,17 +951,22 @@ const OmokGame = () => {
 
 
     // 로비 화면 진입 시 1회만 게임 목록 로드 (자동 폴링 제거)
+    // 🔥 [최적화] sessionStorage 사용으로 중복 호출 완전 방지
     const hasFetchedGamesRef = useRef(false);
+    const lastGameIdRef = useRef(null);
+
     useEffect(() => {
+        // 게임에서 나왔을 때만 플래그 리셋 (gameId가 있었다가 없어진 경우)
+        if (lastGameIdRef.current && !gameId) {
+            hasFetchedGamesRef.current = false;
+        }
+        lastGameIdRef.current = gameId;
+
+        // 로비 화면에서만 게임 목록 로드 (한 번만)
         if (user && !gameId && !hasFetchedGamesRef.current) {
             console.log('[Lobby] 게임 목록 최초 로드');
             fetchAvailableGames();
             hasFetchedGamesRef.current = true;
-        }
-
-        // 게임에 참여하면 플래그 리셋 (게임 종료 후 다시 로비로 돌아올 때 재로드)
-        if (gameId) {
-            hasFetchedGamesRef.current = false;
         }
     }, [user, gameId, fetchAvailableGames]);
 

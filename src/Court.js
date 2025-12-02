@@ -2,10 +2,7 @@
 import React, { useState, useEffect, useContext, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { useAuth } from "./AuthContext";
-import {
-  db,
-  getAllUsersDocuments,
-} from "./firebase";
+import { db } from "./firebase";
 import "./Court.css";
 import SubmitComplaint from "./SubmitComplaint";
 import ComplaintStatus from "./ComplaintStatus";
@@ -471,23 +468,13 @@ const Court = () => {
     }
   }, []);
 
+  // 🔥 [최적화] AuthContext에서 이미 로드한 학급 구성원 사용 (DB 호출 제거)
   useEffect(() => {
-    const fetchUsers = async () => {
-      if (!auth.loading) {
-        setUsersLoading(true);
-        try {
-          const fetchedUsers = await getAllUsersDocuments();
-          setUsers(fetchedUsers || []);
-        } catch (error) {
-          console.error("Firebase 사용자 목록 로드 실패:", error);
-          setUsers([]);
-        } finally {
-          setUsersLoading(false);
-        }
-      }
-    };
-    fetchUsers();
-  }, [auth.loading, classCode]);
+    if (!auth.loading && auth.allClassMembers) {
+      setUsers(auth.allClassMembers || []);
+      setUsersLoading(false);
+    }
+  }, [auth.loading, auth.allClassMembers]);
 
   // usePolling for complaints
   const { data: complaints = [], loading: complaintsLoading, refetch: refetchComplaints } = usePolling(

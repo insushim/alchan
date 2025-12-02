@@ -212,13 +212,13 @@ export const AuthProvider = ({ children }) => {
     [firebaseReady, calculateClassMembers]
   );
 
-  // 🔥 [최적화] 활성 사용자 추적 - stockPriceScheduler 비용 절감용
+  // 🔥 [최적화] 활성 사용자 추적 - 최소화된 버전
   const updateLastActiveAt = useCallback(
     async (firebaseUid) => {
       if (!firebaseUid || !firebaseReady) return;
 
       const now = Date.now();
-      // 5분 이내에 이미 업데이트했으면 건너뛰기
+      // 10분 이내에 이미 업데이트했으면 건너뛰기
       if (now - lastActiveUpdateRef.current < LAST_ACTIVE_UPDATE_INTERVAL) {
         return;
       }
@@ -227,12 +227,6 @@ export const AuthProvider = ({ children }) => {
         await updateUserDocument(firebaseUid, {
           lastActiveAt: serverTimestamp(),
         });
-        // 🔥 [최적화] 전역 활성 상태 문서도 업데이트 (스케줄러 읽기 최소화)
-        const { doc, setDoc, serverTimestamp: fsServerTimestamp } = await import("firebase/firestore");
-        const { db } = await import("./firebase");
-        await setDoc(doc(db, "Settings", "activeStatus"), {
-          lastActiveAt: fsServerTimestamp(),
-        }, { merge: true });
         lastActiveUpdateRef.current = now;
       } catch (error) {
         // 네트워크 오류 등은 무시 (중요하지 않음)
@@ -405,16 +399,15 @@ export const AuthProvider = ({ children }) => {
               setClassmates([]);
             }
 
-            // lastLogin 업데이트는 더 긴 간격으로
+            // 🔥 [최적화] lastLogin과 lastActiveAt 업데이트를 30초 후에 한 번에 처리
+            // 로그인 직후에는 DB 쓰기를 최소화
             setTimeout(() => {
               updateLastLoginAtSeparately(
                 firebaseAuthUser.uid,
                 docData.lastLoginAt
               );
-            }, 10000); // 10초 후에 실행
-
-            // 🔥 [최적화] 활성 상태 즉시 업데이트 (로그인 시)
-            updateLastActiveAt(firebaseAuthUser.uid);
+              // lastActiveAt은 lastLogin 업데이트와 함께 처리됨
+            }, 30000); // 30초 후에 실행
 
             // 🔥 [최적화] Visibility API를 사용하여 활성 상태 추적
             if (visibilityChangeHandlerRef.current) {

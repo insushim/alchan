@@ -119,8 +119,54 @@ export default function CouponGoalPage() {
     }
   }, [userId]);
 
+  // 🔥 [최적화] 데이터 처리 헬퍼 함수 (캐시/Firestore 공용)
+  const processGoalData = useCallback((goalData) => {
+    setClassCouponGoal(Number(goalData.targetAmount) || 1000);
+    setGoalProgress(Number(goalData.progress) || 0);
+
+    // 기부 내역 처리 - timestamp 일관성 유지
+    const donations = Array.isArray(goalData.donations)
+      ? goalData.donations.map((donation) => {
+          let processedTimestamp;
+          if (donation.timestamp && donation.timestamp.toDate) {
+            processedTimestamp = donation.timestamp.toDate().toISOString();
+          } else if (donation.timestamp && donation.timestamp.seconds) {
+            processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+          } else if (donation.timestampISO) {
+            processedTimestamp = donation.timestampISO;
+          } else if (typeof donation.timestamp === 'string') {
+            processedTimestamp = donation.timestamp;
+          } else {
+            processedTimestamp = new Date().toISOString();
+          }
+
+          return {
+            ...donation,
+            amount: Number(donation.amount) || 0,
+            timestamp: processedTimestamp,
+            userId: donation.userId || '',
+            userName: donation.userName || '알 수 없는 사용자',
+            message: donation.message || '',
+            classCode: donation.classCode || currentUserClassCode,
+          };
+        })
+      : [];
+
+    setGoalDonations(donations);
+
+    // 내 기여도 계산
+    const myDonations = donations.filter(d => d.userId === userId);
+    const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
+    setMyContribution(myTotal);
+
+    console.log('[CouponGoalPage] 데이터 처리 완료:', {
+      donationsCount: donations.length,
+      myContribution: myTotal
+    });
+  }, [currentUserClassCode, userId]);
+
   // 🔥 loadGoalData 함수 - useCallback 제거하고 일반 함수로 변경
-  const loadGoalData = async () => {
+  const loadGoalData = async (forceRefresh = false) => {
     if (!userId || !currentUserClassCode || !currentGoalId) {
       setAssetsLoading(false);
       return;
@@ -137,63 +183,35 @@ export default function CouponGoalPage() {
     try {
       console.log('[CouponGoalPage] 목표 데이터 로드 시작');
 
+      // 🔥 [최적화] 캐시 우선 로드 - Firestore 읽기 절감
+      const cacheKey = `goal_${currentGoalId}`;
+      if (!forceRefresh) {
+        const cachedData = getCachedFirestoreData(cacheKey);
+        if (cachedData) {
+          console.log('[CouponGoalPage] 캐시에서 로드 (CACHE_HIT)');
+          processGoalData(cachedData);
+          setAssetsLoading(false);
+          loadingRef.current = false;
+          return;
+        }
+      }
+
       // 🔥 Firestore에서 최신 데이터 가져오기
+      console.log('[CouponGoalPage] Firestore에서 로드 (CACHE_MISS)');
       const goalDocRef = doc(db, "goals", currentGoalId);
       const goalDocSnap = await getDoc(goalDocRef);
 
       if (goalDocSnap.exists()) {
         const goalData = goalDocSnap.data();
 
-        console.log('[CouponGoalPage] Firestore에서 로드한 데이터 (전체):', goalData);
-        console.log('[CouponGoalPage] donations 배열:', goalData.donations);
         console.log('[CouponGoalPage] Firestore에서 로드한 데이터 (요약):', {
           targetAmount: goalData.targetAmount,
           progress: goalData.progress,
           donationsCount: goalData.donations?.length || 0
         });
 
-        setClassCouponGoal(Number(goalData.targetAmount) || 1000);
-        setGoalProgress(Number(goalData.progress) || 0);
-
-        // 🔥 기부 내역 처리 - timestamp 일관성 유지
-        const donations = Array.isArray(goalData.donations)
-          ? goalData.donations.map((donation) => {
-              let processedTimestamp;
-              if (donation.timestamp && donation.timestamp.toDate) {
-                processedTimestamp = donation.timestamp.toDate().toISOString();
-              } else if (donation.timestamp && donation.timestamp.seconds) {
-                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
-              } else if (donation.timestampISO) {
-                processedTimestamp = donation.timestampISO;
-              } else if (typeof donation.timestamp === 'string') {
-                processedTimestamp = donation.timestamp;
-              } else {
-                processedTimestamp = new Date().toISOString();
-              }
-
-              return {
-                ...donation,
-                amount: Number(donation.amount) || 0,
-                timestamp: processedTimestamp,
-                userId: donation.userId || '',
-                userName: donation.userName || '알 수 없는 사용자',
-                message: donation.message || '',
-                classCode: donation.classCode || currentUserClassCode,
-              };
-            })
-          : [];
-
-        setGoalDonations(donations);
-
-        // 🔥 내 기여도 계산
-        const myDonations = donations.filter(d => d.userId === userId);
-        const myTotal = myDonations.reduce((sum, d) => sum + d.amount, 0);
-        setMyContribution(myTotal);
-
-        console.log('[CouponGoalPage] 데이터 처리 완료:', {
-          donationsCount: donations.length,
-          myContribution: myTotal
-        });
+        // 🔥 [최적화] 공용 헬퍼 함수로 처리
+        processGoalData(goalData);
 
         // 🔥 캐시에 저장
         const cacheKey = `goal_${currentGoalId}`;
