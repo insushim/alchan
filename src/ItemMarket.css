@@ -1,11 +1,14 @@
 /* ItemMarket.css - Modern & Elegant Design */
 
-.item-market-container {
+.item-market-container,
+.market-container {
   max-width: 1400px;
   margin: 0 auto;
   padding: 24px;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  min-height: 100vh;
+  /* 🔥 스크롤 문제 수정 - AlchanLayout 내부 스크롤과 충돌 방지 */
+  min-height: auto;
+  overflow: visible;
 }
 
 /* ========== Header Section ========== */

@@ -243,15 +243,29 @@ if (typeof window !== 'undefined') {
     get: getDbStats,
     recent: printRecentOperations,
     byTab: getTabStats,
-    reset: resetDbStats
+    reset: resetDbStats,
+    // 간단히 읽기 횟수만 보기
+    reads: () => {
+      console.log(`\n📊 ===== DB 읽기 통계 =====`);
+      console.log(`📖 총 읽기: ${dbStats.reads}회`);
+      console.log(`💾 캐시 히트: ${dbStats.cacheHits}회`);
+      console.log(`❌ 캐시 미스: ${dbStats.cacheMisses}회`);
+      const hitRate = dbStats.cacheHits + dbStats.cacheMisses > 0
+        ? ((dbStats.cacheHits / (dbStats.cacheHits + dbStats.cacheMisses)) * 100).toFixed(1)
+        : 0;
+      console.log(`📈 캐시 적중률: ${hitRate}%`);
+      console.log(`⏱️ 경과 시간: ${((Date.now() - dbStats.startTime) / 1000).toFixed(0)}초`);
+      console.log(`===========================\n`);
+      return { reads: dbStats.reads, cacheHits: dbStats.cacheHits, cacheMisses: dbStats.cacheMisses, hitRate: hitRate + '%' };
+    }
   };
-  console.log('📊 DB 통계 사용법: window.dbStats.get(), window.dbStats.recent(), window.dbStats.byTab(), window.dbStats.reset()');
+  console.log('📊 DB 통계: window.dbStats.reads() - 읽기 횟수 확인');
 }
 
 // 🔥 [최적화] 강화된 인메모리 캐시 - TTL 연장 및 용량 관리
 const cache = new Map();
-const CACHE_TTL = 30 * 60 * 1000; // 🔥 [최적화] 30분으로 연장 (20분 → 30분)
-const MAX_CACHE_SIZE = 300; // 최대 캐시 항목 수 (200 → 300)
+const CACHE_TTL = 60 * 60 * 1000; // 🔥 [최적화] 1시간으로 연장 (30분 → 1시간)
+const MAX_CACHE_SIZE = 500; // 최대 캐시 항목 수 (300 → 500)
 
 const setCache = (key, data) => {
   // 캐시 용량 관리

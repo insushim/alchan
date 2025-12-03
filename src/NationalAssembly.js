@@ -4,6 +4,7 @@ import "./NationalAssembly.css";
 import { useAuth } from "./AuthContext";
 import { db } from "./firebase";
 import { usePolling } from "./hooks/usePolling";
+import { AlchanLoading } from "./components/AlchanLayout";
 
 // Firestore v9 모듈식 API에서 필요한 함수들을 직접 한 번에 가져옵니다.
 import {
@@ -817,9 +818,7 @@ const NationalAssembly = () => {
   };
 
   if (authLoading) {
-    return (
-      <div className="loading-container">사용자 정보를 불러오는 중...</div>
-    );
+    return <AlchanLoading />;
   }
   if (!currentUser) {
     return (
@@ -842,22 +841,11 @@ const NationalAssembly = () => {
     govSettingsLoading ||
     userVotesLoading
   ) {
-    const loadingParts = [];
-    if (lawsLoading) loadingParts.push("법안 목록");
-    if (adminSettingsLoading) loadingParts.push("관리자 설정");
-    if (govSettingsLoading) loadingParts.push("정부 설정");
-    if (userVotesLoading) loadingParts.push("투표 정보");
-    return (
-      <div className="loading-container">
-        {loadingParts.join(", ")} 정보를 불러오는 중...
-      </div>
-    );
+    return <AlchanLoading />;
   }
 
   if (!adminSettings) {
-    return (
-      <div className="loading-container">관리자 설정을 불러오는 중...</div>
-    );
+    return <AlchanLoading />;
   }
 
   return (

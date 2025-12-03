@@ -79,6 +79,9 @@ body {
   .sidebar {
     /* 모바일에서는 z-index가 더 중요할 수 있으므로 유지 또는 상향 조정 */
     z-index: 1100; /* 모바일 메뉴가 다른 모달 등보다 위에 오게 하려면 더 높게 */
+    width: 280px;
+    top: 0;
+    height: 100vh;
   }
   .sidebar.fullscreen {
     width: 100%;
@@ -90,6 +93,45 @@ body {
   }
   .sidebar.closed.fullscreen {
     left: -100%;
+  }
+  .sidebar.closed {
+    left: -280px;
+  }
+
+  /* 메뉴 항목 터치 친화적 크기 */
+  .sidebar-menu-item,
+  .sidebar-category-header {
+    padding: 1rem 1.2rem;
+    font-size: 1.1rem;
+    min-height: 48px;
+  }
+
+  .sidebar-category-items .sidebar-menu-item {
+    padding: 0.9rem 1.2rem;
+    padding-left: 2rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
+
+  /* 아이콘 크기 */
+  .sidebar-menu-item-icon,
+  .sidebar-category-icon {
+    font-size: 1.4rem;
+    min-width: 24px;
+  }
+
+  /* 푸터 스타일 */
+  .sidebar-footer {
+    padding: 1.2rem;
+  }
+
+  .sidebar-avatar {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sidebar-user-name {
+    font-size: 1rem;
   }
 }
 

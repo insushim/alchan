@@ -198,3 +198,140 @@
 .info-text p {
   margin: 5px 0;
 }
+
+/* ============================================
+   PC 화면 폰트 크기 증가
+   ============================================ */
+@media (min-width: 1024px) {
+  .send-receive-panel {
+    max-width: 700px;
+    padding: 28px;
+  }
+
+  .send-receive-panel h3 {
+    font-size: 1.5rem;
+    margin-bottom: 24px;
+  }
+
+  .balance-display {
+    padding: 20px;
+  }
+
+  .asset-row {
+    font-size: 1.15em;
+    padding: 8px 0;
+  }
+
+  .action-selector button {
+    font-size: 1.1em;
+    padding: 14px 18px;
+  }
+
+  .amount-input {
+    font-size: 1.1em;
+    padding: 14px;
+  }
+
+  .submit-button {
+    font-size: 1.1em;
+    padding: 14px 24px;
+  }
+
+  .source-selector strong,
+  .destination-selector strong {
+    font-size: 1.05em;
+  }
+
+  .source-selector label,
+  .destination-selector label {
+    font-size: 1.05em;
+    padding: 4px 0;
+  }
+}
+
+/* ============================================
+   모바일 반응성 개선
+   ============================================ */
+@media (max-width: 768px) {
+  .send-receive-panel {
+    padding: 16px;
+    margin: 12px auto;
+    border-radius: 12px;
+  }
+
+  .send-receive-panel h3 {
+    font-size: 1.2rem;
+    margin-bottom: 16px;
+  }
+
+  .balance-display {
+    padding: 12px;
+  }
+
+  .asset-row {
+    font-size: 1em;
+  }
+
+  .action-selector {
+    flex-direction: column;
+    border-radius: 8px;
+  }
+
+  .action-selector button {
+    border-radius: 0;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .action-selector button:last-child {
+    border-bottom: none;
+  }
+
+  .transaction-form {
+    flex-direction: column;
+  }
+
+  .amount-input {
+    width: 100%;
+  }
+
+  .submit-button {
+    width: 100%;
+  }
+
+  .source-selector,
+  .destination-selector {
+    padding: 12px;
+  }
+}
+
+/* 더 작은 모바일 화면 */
+@media (max-width: 480px) {
+  .send-receive-panel {
+    padding: 12px;
+    margin: 8px;
+  }
+
+  .send-receive-panel h3 {
+    font-size: 1.1rem;
+  }
+
+  .asset-label,
+  .asset-value {
+    font-size: 0.95em;
+  }
+
+  .action-selector button {
+    font-size: 0.95em;
+    padding: 12px;
+  }
+
+  .amount-input {
+    font-size: 1em;
+    padding: 12px;
+  }
+
+  .submit-button {
+    font-size: 1em;
+    padding: 12px;
+  }
+}

@@ -1575,16 +1575,15 @@ function Dashboard({ adminTabMode }) {
   }
 
   const userId = user?.uid;
-  const userNickname =
-    userDoc?.nickname || userDoc?.name || user?.displayName || "사용자";
+  // 닉네임 우선 표시 (닉네임 -> 이름 -> displayName -> "사용자")
+  const userNickname = userDoc?.name || userDoc?.nickname || user?.displayName || "사용자";
 
   return (
     <PageContainer>
-      <div className="px-4 py-6 sm:px-6">
-        {/* 페이지 헤더 */}
-        <PageHeader
-          title={`오늘의 할일`}
-          subtitle={`${userNickname}님, 오늘도 화이팅!`}
+      {/* 페이지 헤더 */}
+      <PageHeader
+        title="오늘의 할일"
+        subtitle={`${userNickname}님, 오늘도 화이팅!`}
           icon={ListTodo}
           action={
             isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode ? (
@@ -1777,7 +1776,6 @@ function Dashboard({ adminTabMode }) {
             handleAddTaskClick={handleAddTaskClick}
           />
         )}
-      </div>
     </PageContainer>
   );
 }

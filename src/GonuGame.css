@@ -14,7 +14,7 @@
 }
 
 .gonu-container {
-    min-height: 100vh;
+    /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
     background: linear-gradient(135deg, #536976, #292E49, #BBD2C5);
     background-size: 400% 400%;
     animation: background-pan 15s ease-in-out infinite;

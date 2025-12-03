@@ -19,6 +19,7 @@ import {
 } from './firebase';
 import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import './ChessGame.css';
+import { AlchanLoading } from './components/AlchanLayout';
 
 const PIECES = {
     'wK': '♔', 'wQ': '♕', 'wR': '♖', 'wB': '♗', 'wN': '♘', 'wP': '♙',
@@ -1313,7 +1314,7 @@ const ChessGame = () => {
     }
     
     if (!gameData) {
-        return <div className="chess-container"><h2>로딩중...</h2></div>;
+        return <AlchanLoading />;
     }
 
     const whitePlayerId = gameData.players.white;

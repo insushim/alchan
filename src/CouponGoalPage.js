@@ -21,6 +21,7 @@ import DonateCouponModal from "./DonateCouponModal";
 import SellCouponModal from "./SellCouponModal";
 import GiftCouponModal from "./GiftCouponModal";
 import DonationHistoryModal from "./DonationHistoryModal";
+import { AlchanLoading } from "./components/AlchanLayout";
 
 export default function CouponGoalPage() {
   const {
@@ -543,20 +544,7 @@ export default function CouponGoalPage() {
   };
 
   if (authLoading || assetsLoading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-          fontSize: "1.2em",
-          color: "#4f46e5",
-        }}
-      >
-        쿠폰 목표 정보를 불러오는 중... ⏳
-      </div>
-    );
+    return <AlchanLoading />;
   }
 
   if (!user) {
@@ -581,27 +569,11 @@ export default function CouponGoalPage() {
   }
 
   return (
-    <div
-      className="coupon-goal-page-container"
-      style={{
-        padding: "20px",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        fontFamily: "'Noto Sans KR', sans-serif",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "24px",
-          fontWeight: "bold",
-          color: "#10b981",
-          borderBottom: "2px solid #a7f3d0",
-          paddingBottom: "10px",
-          marginBottom: "20px",
-        }}
-      >
-        🎯 쿠폰 목표 (학급: {currentUserClassCode})
-      </h2>
+    <div className="w-full min-h-full bg-slate-50">
+      <div className="w-full px-4 md:px-6 lg:px-8 py-6">
+        <h2 className="text-2xl font-bold text-emerald-600 border-b-2 border-emerald-200 pb-3 mb-6">
+          🎯 쿠폰 목표 (학급: {currentUserClassCode})
+        </h2>
 
       {currentUserClassCode && currentGoalId && (
         <>
@@ -755,6 +727,7 @@ export default function CouponGoalPage() {
           donations={goalDonations}
         />
       )}
+      </div>
     </div>
   );
 }

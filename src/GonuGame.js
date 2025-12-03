@@ -18,6 +18,7 @@ import {
 import { usePolling } from './hooks/usePolling';
 import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import './GonuGame.css';
+import { AlchanLoading } from './components/AlchanLayout';
 
 const BOARD_SIZE = 5;
 
@@ -492,7 +493,7 @@ const GonuGame = () => {
     }
     
     if (!gameData) {
-        return <div className="gonu-container"><div className="loading"></div><h2>로딩중...</h2></div>;
+        return <AlchanLoading />;
     }
 
     return (

@@ -3,7 +3,7 @@
 .admin-user-management {
   padding: 30px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 

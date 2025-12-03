@@ -9,7 +9,7 @@
   background-color: #f8f9fa;
   border-radius: 0;
   box-shadow: none;
-  min-height: 100vh;
+  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
 }
 
 .header {

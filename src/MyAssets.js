@@ -22,6 +22,7 @@ import { formatKoreanCurrency } from './numberFormatter';
 import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import LoginWarning from "./LoginWarning";
 import TransferModal from "./TransferModal";
+import { AlchanLoading } from "./components/AlchanLayout";
 
 export default function MyAssets() {
   const {
@@ -1486,20 +1487,7 @@ export default function MyAssets() {
   };
 
   if (authLoading || assetsLoading) {
-    return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "80vh",
-          fontSize: "1.2em",
-          color: "#4f46e5",
-        }}
-      >
-        자산 정보를 불러오는 중... ⏳
-      </div>
-    );
+    return <AlchanLoading />;
   }
   if (!user) {
     return <LoginWarning />;
@@ -1538,31 +1526,25 @@ export default function MyAssets() {
   }
 
   return (
-    <div
-      className="my-assets-container"
-      style={{
-        padding: "20px",
-        maxWidth: "1200px",
-        margin: "0 auto",
-        fontFamily: "'Noto Sans KR', sans-serif",
-      }}
-    >
-      {renderTitle()}
-      {renderAssetSummary()}
-      {showTransferModal && (
-        <TransferModal
-          showTransferModal={showTransferModal}
-          setShowTransferModal={setShowTransferModal}
-          recipients={classmates}
-          transferRecipient={transferRecipient}
-          setTransferRecipient={setTransferRecipient}
-          transferAmount={transferAmount}
-          setTransferAmount={setTransferAmount}
-          handleTransfer={handleTransferMoney}
-          userId={userId}
-          userCash={Number(userDoc?.cash) || 0}
-        />
-      )}
+    <div className="w-full min-h-full bg-slate-50">
+      <div className="w-full px-4 md:px-6 lg:px-8 py-6">
+        {renderTitle()}
+        {renderAssetSummary()}
+        {showTransferModal && (
+          <TransferModal
+            showTransferModal={showTransferModal}
+            setShowTransferModal={setShowTransferModal}
+            recipients={classmates}
+            transferRecipient={transferRecipient}
+            setTransferRecipient={setTransferRecipient}
+            transferAmount={transferAmount}
+            setTransferAmount={setTransferAmount}
+            handleTransfer={handleTransferMoney}
+            userId={userId}
+            userCash={Number(userDoc?.cash) || 0}
+          />
+        )}
+      </div>
     </div>
   );
 }

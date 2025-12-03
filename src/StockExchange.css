@@ -57,7 +57,7 @@
 
 /* Base Styles */
 .stock-exchange-container {
-  min-height: 100vh;
+  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
   background: var(--neutral-gray-light);
   font-family: "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI",
     Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",

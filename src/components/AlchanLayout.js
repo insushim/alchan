@@ -4,13 +4,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import AlchanSidebar from './AlchanSidebar';
+import AlchanSidebar, { AppIcon } from './AlchanSidebar';
 import AlchanHeader from './AlchanHeader';
 import MobileNav from './MobileNav';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import UpdateNotification from './UpdateNotification';
 import { useServiceWorker } from '../hooks/useServiceWorker';
-import { Sparkles, WifiOff } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 
 // 페이지 컴포넌트 imports
 import Dashboard from '../Dashboard';
@@ -47,17 +47,43 @@ import TypingPracticeGame from '../TypingPracticeGame';
 import StudentManager from './StudentManager';
 
 // 전체 화면이 필요한 페이지 경로 (자동으로 사이드바 접기)
+// 타자연습과 주식거래소는 제외 - 사이드바로 뒤로가기 필요
 const FULLSCREEN_PAGES = [
-  '/learning-games/typing',
   '/learning-games/omok',
   '/learning-games/science',
   '/gonu-game',
-  '/stock-trading',
   '/auction',
   '/court',
   '/national-assembly',
   '/music-room',
 ];
+
+// 공통 로딩 컴포넌트
+const AlchanLoading = ({ fullScreen = false }) => {
+  const content = (
+    <div className="text-center">
+      <div className="w-16 h-16 mx-auto mb-2 animate-pulse">
+        <AppIcon style={{ width: '64px', height: '64px' }} />
+      </div>
+      <h1 className="text-lg font-bold text-gray-800">알찬</h1>
+      <p className="text-gray-500 text-xs">학급 경제 교육</p>
+    </div>
+  );
+
+  if (fullScreen) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center justify-center h-48">
+      {content}
+    </div>
+  );
+};
 
 // Protected Route 컴포넌트
 const ProtectedRoute = ({ children }) => {
@@ -65,11 +91,7 @@ const ProtectedRoute = ({ children }) => {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <span className="text-gray-500">로딩 중...</span>
-      </div>
-    );
+    return <AlchanLoading />;
   }
 
   if (!user) {
@@ -85,11 +107,7 @@ const AdminRoute = ({ children }) => {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <span className="text-gray-500">관리자 권한 확인 중...</span>
-      </div>
-    );
+    return <AlchanLoading />;
   }
 
   if (!user) {
@@ -110,11 +128,7 @@ const TeacherRoute = ({ children }) => {
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-48">
-        <span className="text-gray-500">권한 확인 중...</span>
-      </div>
-    );
+    return <AlchanLoading />;
   }
 
   if (!user) {
@@ -192,18 +206,9 @@ export default function AlchanLayout() {
     setIsSidebarCollapsed(prev => !prev);
   }, []);
 
-  // 로딩 상태
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg shadow-indigo-200/50">
-            <Sparkles size={32} className="text-yellow-300" fill="currentColor" />
-          </div>
-          <p className="text-gray-500 font-medium">알찬 로딩 중...</p>
-        </div>
-      </div>
-    );
+  // 로딩 상태 (loading 또는 userDoc 없음)
+  if (loading || (!user && location.pathname !== '/login') || (user && !userDoc)) {
+    return <AlchanLoading fullScreen />;
   }
 
   // 로그인 페이지
@@ -214,20 +219,6 @@ export default function AlchanLayout() {
   // 비로그인
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-
-  // 사용자 문서 로딩 대기
-  if (!userDoc) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-2xl flex items-center justify-center mx-auto mb-4 animate-pulse shadow-lg shadow-indigo-200/50">
-            <Sparkles size={32} className="text-yellow-300" fill="currentColor" />
-          </div>
-          <p className="text-gray-500 font-medium">사용자 정보를 불러오는 중...</p>
-        </div>
-      </div>
-    );
   }
 
   // 학급 코드 없음
@@ -275,7 +266,7 @@ export default function AlchanLayout() {
         />
 
         {/* 콘텐츠 영역 */}
-        <div className="md:p-8 md:max-w-7xl md:mx-auto pb-24 md:pb-8">
+        <div className="w-full pb-24 md:pb-8">
           <Routes>
             {/* 메인 페이지 */}
             <Route path="/dashboard/tasks" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -379,3 +370,6 @@ export default function AlchanLayout() {
     </div>
   );
 }
+
+// AlchanLoading 컴포넌트 export
+export { AlchanLoading };

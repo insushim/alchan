@@ -5,6 +5,7 @@ import { doc, getDoc, collection, query, orderBy, deleteDoc, getDocs } from 'fir
 import YouTube from 'react-youtube';
 import { usePolling } from './hooks/usePolling';
 import './MusicRoom.css';
+import { AlchanLoading } from './components/AlchanLayout';
 
 const MusicRoom = ({ user }) => {
     const { roomId } = useParams();
@@ -119,7 +120,7 @@ const MusicRoom = ({ user }) => {
         },
     };
 
-    if (!room) return <div>로딩 중...</div>;
+    if (!room) return <AlchanLoading />;
 
     return (
         <div className="music-room-container-grid">

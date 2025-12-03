@@ -55,7 +55,7 @@
   flex-direction: column;
   align-items: center;
   padding: 2rem;
-  min-height: 100vh;
+  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
   background: linear-gradient(135deg, #232526 0%, #414345 100%);
   color: #f0f0f0;
   font-family: 'Segoe UI', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
@@ -312,7 +312,7 @@
 
 /* 로비 스타일 */
 .game-page-container {
-  min-height: 100vh;
+  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
   background: linear-gradient(135deg, #232526 0%, #414345 100%);
   display: flex;
   justify-content: center;

@@ -5,18 +5,45 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Google Fonts for Alchan UI */
-@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Gamja+Flower&display=swap');
+/* Google Fonts for Alchan UI - 고품질 한글 폰트 */
+@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* ============================================
+   전역 폰트 크기 설정 - 가독성 최적화 (+2 증가)
+   ============================================ */
+html {
+  font-size: 18px;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 태블릿 (768px 이하) */
+@media (max-width: 768px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+/* 모바일 (480px 이하) */
+@media (max-width: 480px) {
+  html {
+    font-size: 16px;
+  }
+}
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+  font-family: "Noto Sans KR", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f7fa;
-  color: #333;
+  font-feature-settings: "kern" 1, "liga" 1;
+  background-color: #f8fafc;
+  color: #1e293b;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
 }
 
 * {
@@ -26,4 +53,247 @@ body {
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
+}
+
+/* ============================================
+   전역 반응성 개선 유틸리티
+   ============================================ */
+
+/* 모바일 터치 영역 최소 크기 보장 */
+button,
+a,
+input[type="button"],
+input[type="submit"],
+.clickable {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* 모바일에서 작은 버튼 허용 */
+@media (max-width: 768px) {
+  .btn-sm,
+  button.small,
+  .small-button {
+    min-height: 36px;
+    min-width: 36px;
+  }
+}
+
+/* 텍스트 가독성 개선 */
+p, li, td, th {
+  line-height: 1.7;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.4;
+}
+
+/* 제목 폰트 스타일 */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* PC에서 가독성 좋은 폰트 크기 */
+@media (min-width: 1024px) {
+  h1 { font-size: 2rem; }
+  h2 { font-size: 1.5rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1.125rem; }
+  p, li, td, th { font-size: 0.9375rem; }
+}
+
+/* 입력 필드 크기 개선 */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="tel"],
+textarea,
+select {
+  font-size: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+}
+
+@media (min-width: 1024px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  textarea,
+  select {
+    font-size: 1.05rem;
+    padding: 0.85rem 1.1rem;
+  }
+}
+
+/* 카드 및 컨테이너 반응성 */
+.page-container,
+.card,
+.panel,
+.section-container {
+  padding: 1rem;
+}
+
+@media (min-width: 768px) {
+  .page-container,
+  .card,
+  .panel,
+  .section-container {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-container,
+  .card,
+  .panel,
+  .section-container {
+    padding: 2rem;
+  }
+}
+
+/* 그리드 반응성 개선 */
+.responsive-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* 모바일 스크롤 성능 개선 */
+@media (max-width: 768px) {
+  * {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scroll-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scroll-container::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ============================================
+   고품질 UI 스타일
+   ============================================ */
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 선택 스타일 */
+::selection {
+  background-color: rgba(99, 102, 241, 0.2);
+  color: #1e293b;
+}
+
+/* 부드러운 전환 효과 */
+button, a, input, select, textarea {
+  transition: all 0.2s ease;
+}
+
+/* 포커스 스타일 */
+*:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* 카드 호버 효과 */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* 슬레이트 기반 그라데이션 배경 */
+.gradient-bg {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+}
+
+/* 앱 전용 폰트 클래스 */
+.font-jua {
+  font-family: 'Jua', sans-serif;
+}
+
+.font-display {
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* 숫자 전용 폰트 (가독성) */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 애니메이션 키프레임 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
 }

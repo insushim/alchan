@@ -81,10 +81,10 @@ export const AuthProvider = ({ children }) => {
     return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
   }, []);
 
-  const CLASSMATES_CACHE_TTL = 2 * 60 * 60 * 1000; // 🔥 [최적화] 학급 구성원 캐시 2시간 (읽기 최소화)
-  const USER_DOC_CACHE_TTL = 6 * 60 * 60 * 1000; // 🔥 [최적화] 6시간 (거래 시 강제 무효화됨)
-  const LASTLOGIN_UPDATE_COOLDOWN = 24 * 60 * 60 * 1000; // 24시간
-  const LAST_ACTIVE_UPDATE_INTERVAL = 10 * 60 * 1000; // 🔥 [최적화] 활성 상태 업데이트 10분 간격 (5분→10분)
+  const CLASSMATES_CACHE_TTL = 4 * 60 * 60 * 1000; // 🔥 [최적화] 학급 구성원 캐시 4시간 (2시간→4시간)
+  const USER_DOC_CACHE_TTL = 12 * 60 * 60 * 1000; // 🔥 [최적화] 12시간 (6시간→12시간, 거래 시 강제 무효화됨)
+  const LASTLOGIN_UPDATE_COOLDOWN = 48 * 60 * 60 * 1000; // 🔥 [최적화] 48시간 (24시간→48시간)
+  const LAST_ACTIVE_UPDATE_INTERVAL = 30 * 60 * 1000; // 🔥 [최적화] 활성 상태 업데이트 30분 간격 (10분→30분)
   const lastActiveUpdateRef = useRef(0); // 마지막 활성 상태 업데이트 시간
 
   // Firebase 초기화 확인 (한 번만 실행)

@@ -7,6 +7,9 @@
   border-radius: 12px; /* 대시보드 섹션과 유사한 둥근 모서리 */
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05); /* 대시보드 섹션과 유사한 그림자 */
   margin-bottom: 20px; /* 다른 요소와의 간격 */
+  /* 🔥 스크롤 문제 수정 - AlchanLayout 내부 스크롤과 충돌 방지 */
+  min-height: auto;
+  overflow: visible;
 }
 
 .government-header {

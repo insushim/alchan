@@ -1,4 +1,4 @@
-﻿// src/NationalTaxService.js
+// src/NationalTaxService.js
 import React, { useState, useEffect, useCallback } from "react";
 import { db, getCachedDocument, invalidateCache } from "./firebase";
 import {
@@ -7,24 +7,22 @@ import {
   updateDoc,
   setDoc,
   serverTimestamp,
-  increment, // 援?퀬 ?낅뜲?댄듃 ???ъ슜
+  increment,
 } from "firebase/firestore";
 import { usePolling } from "./hooks/usePolling";
-
 import { formatKoreanCurrency } from "./numberFormatter";
 
 const formatDate = (timestamp) => {
   if (!timestamp) return "-";
   const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-  if (isNaN(date.getTime())) return "?좏슚?섏? ?딆? ?좎쭨";
+  if (isNaN(date.getTime())) return "유효하지 않은 날짜";
   return date.toLocaleString("ko-KR");
 };
 
-// [?섏젙] 湲곕낯 援?퀬 ?곗씠?곗뿉 stockCommissionRevenue 異붽?
 const DEFAULT_TREASURY_DATA = {
   totalAmount: 0,
   stockTaxRevenue: 0,
-  stockCommissionRevenue: 0, // 二쇱떇 嫄곕옒 ?섏닔猷??섏엯
+  stockCommissionRevenue: 0,
   realEstateTransactionTaxRevenue: 0,
   vatRevenue: 0,
   auctionTaxRevenue: 0,
@@ -36,15 +34,14 @@ const DEFAULT_TREASURY_DATA = {
   lastUpdated: null,
 };
 
-// 湲곕낯 ?멸툑 ?뺤콉 ?ㅼ젙 (Firestore???놁쓣 寃쎌슦 ?ъ슜??珥덇린媛?
 const DEFAULT_TAX_SETTINGS = {
-  stockTransactionTaxRate: 0.01, // 二쇱떇 嫄곕옒?몄쑉 (1%)
-  realEstateTransactionTaxRate: 0.03, // 遺?숈궛 嫄곕옒?몄쑉 (3%)
-  itemStoreVATRate: 0.1, // ?꾩씠???곸젏 遺媛媛移섏꽭??(10%)
-  auctionTransactionTaxRate: 0.03, // 寃쎈ℓ??嫄곕옒?몄쑉 (3%)
-  propertyHoldingTaxRate: 0.002, // 遺?숈궛 蹂댁쑀?몄쑉 (0.2%)
-  propertyHoldingTaxInterval: "weekly", // 遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린 (?? weekly, monthly)
-  itemMarketTransactionTaxRate: 0.03, // ?꾩씠???쒖옣 嫄곕옒?몄쑉 (3%)
+  stockTransactionTaxRate: 0.01,
+  realEstateTransactionTaxRate: 0.03,
+  itemStoreVATRate: 0.1,
+  auctionTransactionTaxRate: 0.03,
+  propertyHoldingTaxRate: 0.002,
+  propertyHoldingTaxInterval: "weekly",
+  itemMarketTransactionTaxRate: 0.03,
   lastUpdated: null,
 };
 
@@ -54,10 +51,8 @@ const NationalTaxService = ({ classCode }) => {
   const [loadingTreasury, setLoadingTreasury] = useState(true);
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
-  const [editableSettings, setEditableSettings] =
-    useState(DEFAULT_TAX_SETTINGS);
+  const [editableSettings, setEditableSettings] = useState(DEFAULT_TAX_SETTINGS);
 
-  // 援?퀬 ?곗씠???대쭅 (classCode 湲곕컲)
   const fetchTreasuryData = useCallback(async () => {
     if (!classCode) {
       setLoadingTreasury(false);
@@ -99,7 +94,6 @@ const NationalTaxService = ({ classCode }) => {
 
   const { refetch: refetchTreasury } = usePolling(fetchTreasuryData, { interval: 300000, enabled: !!classCode });
 
-  // ?멸툑 ?뺤콉 ?ㅼ젙 ?대쭅 (classCode 湲곕컲)
   const fetchTaxSettings = useCallback(async () => {
     if (!classCode) {
       setLoadingSettings(false);
@@ -147,7 +141,6 @@ const NationalTaxService = ({ classCode }) => {
 
   const handleSettingChange = (e) => {
     const { name, value } = e.target;
-    // ?낅젰媛믪쓣 ?レ옄濡?蹂??(鍮꾩쑉?대?濡??뚯닔???덉슜)
     const numericValue = value === "" ? "" : parseFloat(value);
     setEditableSettings((prev) => ({
       ...prev,
@@ -165,7 +158,6 @@ const NationalTaxService = ({ classCode }) => {
 
   const saveTaxSettings = async () => {
     if (!classCode) return;
-    // ?좏슚??寃??(0 ~ 1 ?ъ씠??媛???
     for (const key in editableSettings) {
       if (
         key.endsWith("Rate") &&
@@ -175,9 +167,8 @@ const NationalTaxService = ({ classCode }) => {
           editableSettings[key] !== "" &&
           !(key === "itemStoreVATRate" && editableSettings[key] > 1)
         ) {
-          //遺媛?몃뒗 100% ?섏쓣?섎룄? ?쇰떒 蹂대쪟
           alert(
-            `${key} ?몄쑉? 0怨?1 ?ъ씠??媛믪씠?댁빞 ?⑸땲??(?? 3%??0.03). ?꾩옱媛? ${editableSettings[key]}`
+            `${key} 세율은 0과 1 사이의 값이어야 합니다 (예: 3%는 0.03). 현재값: ${editableSettings[key]}`
           );
           return;
         }
@@ -188,31 +179,24 @@ const NationalTaxService = ({ classCode }) => {
     try {
       await updateDoc(settingsRef, {
         taxSettings: {
-          // taxSettings ?섏쐞 媛앹껜濡??낅뜲?댄듃
           ...editableSettings,
           lastUpdated: serverTimestamp(),
         },
       });
       refetchSettings();
-      alert("?멸툑 ?뺤콉???깃났?곸쑝濡??낅뜲?댄듃?섏뿀?듬땲??");
+      alert("세금 정책이 성공적으로 업데이트되었습니다.");
     } catch (error) {
-      console.error("?멸툑 ?뺤콉 ?낅뜲?댄듃 ?ㅽ뙣:", error);
-      alert("?멸툑 ?뺤콉 ?낅뜲?댄듃 以??ㅻ쪟媛 諛쒖깮?덉뒿?덈떎.");
+      console.error("세금 정책 업데이트 실패:", error);
+      alert("세금 정책 업데이트 중 오류가 발생했습니다.");
     }
   };
 
   if (!classCode) {
     return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <h2>?숆툒 肄붾뱶媛 ?쒓났?섏? ?딆븯?듬땲??</h2>
-        <p>
-          ?뺣? 硫붾돱?먯꽌 援?꽭泥?湲곕뒫???ъ슜?섎젮硫??숆툒??癒쇱? 李몄뿬?댁빞 ?⑸땲??
+      <div className="p-8 text-center">
+        <h2 className="text-xl font-bold text-slate-800 mb-2">학급 코드가 필요합니다</h2>
+        <p className="text-slate-500">
+          정부 메뉴에서 국세청 기능을 사용하려면 학급에 먼저 참여해야 합니다.
         </p>
       </div>
     );
@@ -220,610 +204,242 @@ const NationalTaxService = ({ classCode }) => {
 
   if (loadingTreasury || loadingSettings) {
     return (
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          height: "400px",
-          fontSize: "18px",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        援?꽭泥??곗씠?곕? 遺덈윭?ㅻ뒗 以?(?숆툒: {classCode})...
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-500 font-medium">국세청 데이터를 불러오는 중 (학급: {classCode})...</p>
+        </div>
       </div>
     );
   }
 
-  // ??--- ?듭떖 ?섏젙 ?ы빆 --- ??
-  // 紐⑤뱺 ?멸툑 ?섏엯 ??ぉ???뷀븯??'?쒖닔 ?몄닔 珥앺빀'??怨꾩궛?⑸땲??
   const totalTaxRevenue = Object.keys(treasuryData)
     .filter((key) => key.endsWith("Revenue") && key !== "totalAmount")
     .reduce((sum, key) => sum + (treasuryData[key] || 0), 0);
 
   const taxPolicyFields = [
-    {
-      name: "stockTransactionTaxRate",
-      label: "二쇱떇 嫄곕옒?몄쑉",
-      type: "number",
-      step: "0.001",
-      min: "0",
-      max: "1",
-    },
-    {
-      name: "realEstateTransactionTaxRate",
-      label: "遺?숈궛 嫄곕옒?몄쑉",
-      type: "number",
-      step: "0.001",
-      min: "0",
-      max: "1",
-    },
-    {
-      name: "itemStoreVATRate",
-      label: "?꾩씠???곸젏 遺媛?몄쑉",
-      type: "number",
-      step: "0.01",
-      min: "0",
-      max: "1",
-    }, // ?? 10%??0.1
-    {
-      name: "auctionTransactionTaxRate",
-      label: "寃쎈ℓ??嫄곕옒?몄쑉",
-      type: "number",
-      step: "0.001",
-      min: "0",
-      max: "1",
-    },
-    {
-      name: "propertyHoldingTaxRate",
-      label: "遺?숈궛 蹂댁쑀?몄쑉",
-      type: "number",
-      step: "0.0001",
-      min: "0",
-      max: "1",
-    },
-    {
-      name: "propertyHoldingTaxInterval",
-      label: "遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린",
-      type: "select",
-      options: ["daily", "weekly", "monthly"],
-      current_value: editableSettings.propertyHoldingTaxInterval,
-    },
-    {
-      name: "itemMarketTransactionTaxRate",
-      label: "?꾩씠???쒖옣 嫄곕옒?몄쑉",
-      type: "number",
-      step: "0.001",
-      min: "0",
-      max: "1",
-    },
+    { name: "stockTransactionTaxRate", label: "주식 거래세율", type: "number", step: "0.001", min: "0", max: "1" },
+    { name: "realEstateTransactionTaxRate", label: "부동산 거래세율", type: "number", step: "0.001", min: "0", max: "1" },
+    { name: "itemStoreVATRate", label: "아이템 상점 부가세율", type: "number", step: "0.01", min: "0", max: "1" },
+    { name: "auctionTransactionTaxRate", label: "경매장 거래세율", type: "number", step: "0.001", min: "0", max: "1" },
+    { name: "propertyHoldingTaxRate", label: "부동산 보유세율", type: "number", step: "0.0001", min: "0", max: "1" },
+    { name: "propertyHoldingTaxInterval", label: "부동산 보유세 징수 주기", type: "select", options: ["daily", "weekly", "monthly"] },
+    { name: "itemMarketTransactionTaxRate", label: "아이템 시장 거래세율", type: "number", step: "0.001", min: "0", max: "1" },
+  ];
+
+  const tabs = [
+    { id: "overview", label: "개요", icon: "📊" },
+    { id: "revenue", label: "세수 현황", icon: "💰" },
+    { id: "policy", label: "세금 정책", icon: "📋" },
+    { id: "analytics", label: "분석", icon: "📈" },
   ];
 
   return (
-    <div
-      style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "20px",
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          borderRadius: "16px",
-          padding: "30px",
-          color: "white",
-          marginBottom: "30px",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.1)",
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: "2.5em", fontWeight: "bold" }}>
-          ?룢截?{classCode} ?숆툒 援?꽭泥?
-        </h1>
-        <p style={{ margin: "10px 0 0 0", fontSize: "1.2em", opacity: 0.9 }}>
-          ?멸툑 ?뺤콉 愿由?諛?援?퀬 ?댁쁺
-        </p>
+    <div className="space-y-6">
+      {/* 헤더 */}
+      <div className="bg-gradient-to-r from-indigo-600 via-violet-600 to-purple-600 rounded-2xl p-8 text-white shadow-xl">
+        <h1 className="text-3xl font-bold mb-2">🏛️ {classCode} 학급 국세청</h1>
+        <p className="text-white/80 text-lg">세금 정책 관리 및 국고 운영</p>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "30px",
-          borderBottom: "2px solid #f0f0f0",
-          paddingBottom: "0",
-        }}
-      >
-        {["overview", "revenue", "policy", "analytics"].map((tabId) => (
+      {/* 탭 네비게이션 */}
+      <div className="flex gap-2 border-b border-slate-200 pb-0">
+        {tabs.map((tab) => (
           <button
-            key={tabId}
-            onClick={() => setActiveTab(tabId)}
-            style={{
-              padding: "15px 25px",
-              border: "none",
-              background: activeTab === tabId ? "#667eea" : "transparent",
-              color: activeTab === tabId ? "white" : "#666",
-              borderRadius: "12px 12px 0 0",
-              cursor: "pointer",
-              fontSize: "16px",
-              fontWeight: activeTab === tabId ? "bold" : "normal",
-              transition: "all 0.3s ease",
-            }}
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-6 py-3 rounded-t-xl font-bold text-sm transition-all ${
+              activeTab === tab.id
+                ? "bg-indigo-600 text-white shadow-lg"
+                : "bg-white text-slate-600 hover:bg-slate-50"
+            }`}
           >
-            {tabId === "overview" && "?뱤 媛쒖슂"}
-            {tabId === "revenue" && "?뮥 ?몄닔 ?꾪솴"}
-            {tabId === "policy" && "?뱥 ?멸툑 ?뺤콉"}
-            {tabId === "analytics" && "?뱢 遺꾩꽍"}
+            {tab.icon} {tab.label}
           </button>
         ))}
       </div>
 
+      {/* 개요 탭 */}
       {activeTab === "overview" && (
-        <div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-              gap: "20px",
-              marginBottom: "30px",
-            }}
-          >
-            <div
-              style={{
-                background: "linear-gradient(135deg, #4CAF50, #45a049)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(76, 175, 80, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?뮥 珥?援?퀬
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.totalAmount)}
-              </p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            {/* 총 국고 */}
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-emerald-100 text-sm font-medium mb-1">💰 총 국고</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.totalAmount)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #2196F3, #1976D2)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(33, 150, 243, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?뱢 二쇱떇 嫄곕옒???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.stockTaxRevenue)}
-              </p>
+
+            {/* 주식 거래세 수입 */}
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-blue-100 text-sm font-medium mb-1">📈 주식 거래세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.stockTaxRevenue)}</p>
             </div>
-            {/* [?좉퇋] 二쇱떇 嫄곕옒 ?섏닔猷?移대뱶 */}
-            <div
-              style={{
-                background: "linear-gradient(135deg, #3F51B5, #303F9F)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(63, 81, 181, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?뱥 二쇱떇 嫄곕옒 ?섏닔猷??섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.stockCommissionRevenue)}
-              </p>
+
+            {/* 주식 거래 수수료 수입 */}
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-indigo-100 text-sm font-medium mb-1">📊 주식 거래 수수료 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.stockCommissionRevenue)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #FFC107, #FF8F00)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(255, 193, 7, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?룪 遺?숈궛 嫄곕옒???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}
-              </p>
+
+            {/* 부동산 거래세 수입 */}
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-amber-100 text-sm font-medium mb-1">🏠 부동산 거래세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #E91E63, #C2185B)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(233, 30, 99, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?썟 ?꾩씠??遺媛???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.vatRevenue)}
-              </p>
+
+            {/* 아이템 부가세 수입 */}
+            <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-pink-100 text-sm font-medium mb-1">🛒 아이템 부가세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.vatRevenue)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #00BCD4, #0097A7)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(0, 188, 212, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?뽳툘 寃쎈ℓ??嫄곕옒???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.auctionTaxRevenue)}
-              </p>
+
+            {/* 경매장 거래세 수입 */}
+            <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-cyan-100 text-sm font-medium mb-1">🔨 경매장 거래세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.auctionTaxRevenue)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #8BC34A, #689F38)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(139, 195, 74, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?룜截?遺?숈궛 蹂댁쑀???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}
-              </p>
+
+            {/* 부동산 보유세 수입 */}
+            <div className="bg-gradient-to-br from-lime-500 to-lime-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-lime-100 text-sm font-medium mb-1">🏘️ 부동산 보유세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}</p>
             </div>
-            <div
-              style={{
-                background: "linear-gradient(135deg, #FF9800, #F57C00)",
-                borderRadius: "16px",
-                padding: "25px",
-                color: "white",
-                boxShadow: "0 8px 32px rgba(255, 152, 0, 0.3)",
-              }}
-            >
-              <h3
-                style={{
-                  margin: "0 0 10px 0",
-                  fontSize: "1.1em",
-                  opacity: 0.9,
-                }}
-              >
-                ?삼툘 ?꾩씠???쒖옣 嫄곕옒???섏엯
-              </h3>
-              <p style={{ margin: 0, fontSize: "2.2em", fontWeight: "bold" }}>
-                {formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}
-              </p>
+
+            {/* 아이템 시장 거래세 수입 */}
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
+              <p className="text-orange-100 text-sm font-medium mb-1">🏪 아이템 시장 거래세 수입</p>
+              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}</p>
             </div>
           </div>
-          <div
-            style={{
-              background: "#f8f9fa",
-              borderRadius: "12px",
-              padding: "20px",
-              border: "1px solid #e9ecef",
-            }}
-          >
-            <h3 style={{ margin: "0 0 15px 0", color: "#495057" }}>
-              ?뱟 理쒓렐 ?낅뜲?댄듃
-            </h3>
-            <p style={{ margin: 0, color: "#6c757d", fontSize: "16px" }}>
-              援?퀬 留덉?留??낅뜲?댄듃: {formatDate(treasuryData.lastUpdated)}
-            </p>
-            <p
-              style={{
-                margin: "5px 0 0 0",
-                color: "#6c757d",
-                fontSize: "16px",
-              }}
-            >
-              ?멸툑 ?뺤콉 留덉?留??낅뜲?댄듃: {formatDate(taxSettings.lastUpdated)}
-            </p>
+
+          {/* 최근 업데이트 */}
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <h3 className="text-lg font-bold text-slate-800 mb-4">📅 최근 업데이트</h3>
+            <div className="space-y-2 text-slate-600">
+              <p>국고 마지막 업데이트: <span className="font-medium text-slate-800">{formatDate(treasuryData.lastUpdated)}</span></p>
+              <p>세금 정책 마지막 업데이트: <span className="font-medium text-slate-800">{formatDate(taxSettings.lastUpdated)}</span></p>
+            </div>
           </div>
         </div>
       )}
 
+      {/* 세수 현황 탭 */}
       {activeTab === "revenue" && (
-        <div>
-          <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            ?뮥 ?몄닔 ?꾪솴 遺꾩꽍
-          </h2>
-          <div
-            style={{
-              background: "white",
-              borderRadius: "12px",
-              padding: "25px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-              marginBottom: "20px",
-            }}
-          >
-            {/* ??--- ?섏젙??遺遺?--- ??*/}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "25px",
-              }}
-            >
-              <h3 style={{ margin: 0, color: "#333" }}>?몄닔 援ъ꽦</h3>
-              <div style={{ textAlign: "right" }}>
-                <span style={{ color: "#666", fontSize: "1em" }}>
-                  ?몄닔 珥앺빀
-                </span>
-                <p
-                  style={{
-                    margin: "5px 0 0 0",
-                    fontSize: "1.5em",
-                    fontWeight: "bold",
-                    color: "#333",
-                  }}
-                >
-                  {formatKoreanCurrency(totalTaxRevenue)}
-                </p>
-              </div>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-xl font-bold text-slate-800">💰 세수 현황 분석</h3>
+            <div className="text-right">
+              <p className="text-sm text-slate-500">세수 총합</p>
+              <p className="text-2xl font-bold text-slate-800">{formatKoreanCurrency(totalTaxRevenue)}</p>
             </div>
-            <div
-              style={{ display: "flex", flexDirection: "column", gap: "15px" }}
-            >
-              {[
-                { label: "Stock Tax", amount: treasuryData.stockTaxRevenue, color: "#2196F3" },
-                { label: "Stock Fee", amount: treasuryData.stockCommissionRevenue, color: "#3F51B5" },
-                { label: "Real Estate Tax", amount: treasuryData.realEstateTransactionTaxRevenue, color: "#FFC107" },
-                { label: "VAT", amount: treasuryData.vatRevenue, color: "#E91E63" },
-                { label: "Auction Tax", amount: treasuryData.auctionTaxRevenue, color: "#00BCD4" },
-                { label: "Holding Tax", amount: treasuryData.propertyHoldingTaxRevenue, color: "#8BC34A" },
-                { label: "Item Market Tax", amount: treasuryData.itemMarketTaxRevenue, color: "#FF9800" },
-                { label: "Income Tax", amount: treasuryData.incomeTaxRevenue, color: "#9C27B0" },
-                { label: "Corporate Tax", amount: treasuryData.corporateTaxRevenue, color: "#795548" },
-                { label: "Other Tax", amount: treasuryData.otherTaxRevenue, color: "#607D8B" },
-              ].map((item) => {
-                // ??--- ?듭떖 ?섏젙 ?ы빆 --- ??
-                // 鍮꾩쑉 怨꾩궛??湲곗???'totalTaxRevenue' (?쒖닔 ?몄닔 珥앺빀)?쇰줈 蹂寃쏀빀?덈떎.
-                const totalTaxForPercentage = totalTaxRevenue || 1; // 0?쇰줈 ?섎늻??寃?諛⑹?
-                const itemAmount = item.amount || 0;
-                const percentage =
-                  totalTaxForPercentage > 0
-                    ? ((itemAmount / totalTaxForPercentage) * 100).toFixed(1)
-                    : "0.0";
-                return (
-                  <div
-                    key={item.label}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "15px",
-                    }}
-                  >
-                    <div style={{ minWidth: "120px", fontWeight: "bold" }}>
-                      {item.label}
-                    </div>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              { label: "주식 거래세", amount: treasuryData.stockTaxRevenue, color: "bg-blue-500" },
+              { label: "주식 수수료", amount: treasuryData.stockCommissionRevenue, color: "bg-indigo-500" },
+              { label: "부동산 거래세", amount: treasuryData.realEstateTransactionTaxRevenue, color: "bg-amber-500" },
+              { label: "부가세", amount: treasuryData.vatRevenue, color: "bg-pink-500" },
+              { label: "경매장 거래세", amount: treasuryData.auctionTaxRevenue, color: "bg-cyan-500" },
+              { label: "부동산 보유세", amount: treasuryData.propertyHoldingTaxRevenue, color: "bg-lime-500" },
+              { label: "아이템 시장세", amount: treasuryData.itemMarketTaxRevenue, color: "bg-orange-500" },
+            ].map((item) => {
+              const percentage = totalTaxRevenue > 0 ? ((item.amount / totalTaxRevenue) * 100).toFixed(1) : "0.0";
+              return (
+                <div key={item.label} className="flex items-center gap-4">
+                  <div className="w-32 font-medium text-slate-700">{item.label}</div>
+                  <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      style={{
-                        flex: 1,
-                        height: "25px",
-                        background: "#f0f0f0",
-                        borderRadius: "12px",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${percentage}%`,
-                          height: "100%",
-                          background: item.color,
-                          transition: "width 0.5s ease",
-                        }}
-                      ></div>
-                    </div>
-                    <div style={{ minWidth: "150px", textAlign: "right" }}>
-                      {formatKoreanCurrency(itemAmount)} ({percentage}%)
-                    </div>
+                      className={`h-full ${item.color} transition-all duration-500`}
+                      style={{ width: `${percentage}%` }}
+                    />
                   </div>
-                );
-              })}
-            </div>
+                  <div className="w-40 text-right text-sm">
+                    <span className="font-bold text-slate-800">{formatKoreanCurrency(item.amount)}</span>
+                    <span className="text-slate-500 ml-2">({percentage}%)</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
 
+      {/* 세금 정책 탭 */}
       {activeTab === "policy" && (
-        <div>
-          <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            ?뱥 ?꾪뻾 ?멸툑 ?뺤콉 (?숆툒: {classCode})
-          </h2>
-          <div
-            style={{
-              background: "white",
-              borderRadius: "12px",
-              padding: "25px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-              marginBottom: "20px",
-            }}
-          >
-            <h3 style={{ color: "#333", marginBottom: "15px" }}>
-              ?몄쑉 ?ㅼ젙 (愿由ъ옄)
-            </h3>
-            {taxPolicyFields.map((field) => (
-              <div key={field.name} style={{ marginBottom: "15px" }}>
-                <label
-                  htmlFor={field.name}
-                  style={{
-                    display: "block",
-                    marginBottom: "5px",
-                    fontWeight: "bold",
-                  }}
-                >
-                  {field.label} (?꾩옱:{" "}
-                  {field.type === "select"
-                    ? taxSettings[field.name]
-                    : `${((taxSettings[field.name] || 0) * 100).toFixed(
-                        field.name.includes("propertyHoldingTaxRate") ? 2 : 1
-                      )}%`}
-                  )
-                </label>
-                {field.type === "select" ? (
-                  <select
-                    id={field.name}
-                    name={field.name}
-                    value={
-                      editableSettings[field.name] ||
-                      DEFAULT_TAX_SETTINGS[field.name]
-                    }
-                    onChange={handleIntervalChange}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: "4px",
-                      border: "1px solid #ddd",
-                    }}
-                  >
-                    {field.options.map((opt) => (
-                      <option key={opt} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={field.type}
-                    id={field.name}
-                    name={field.name}
-                    value={
-                      editableSettings[field.name] === ""
-                        ? ""
-                        : editableSettings[field.name]
-                    }
-                    onChange={handleSettingChange}
-                    step={field.step || "0.01"}
-                    min={field.min || "0"}
-                    max={field.max || "1"}
-                    placeholder={`예: ${
-                      field.label.includes("부가") ? "0.1 (10%)" : "0.03 (3%)"
-                    }`}
-                    style={{
-                      width: "100%",
-                      padding: "10px",
-                      borderRadius: "4px",
-                      border: "1px solid #ddd",
-                    }}
-                  />
-                )}
-                <small
-                  style={{ display: "block", marginTop: "3px", color: "#666" }}
-                >
-                  {field.name === "stockTransactionTaxRate" &&
-                    "二쇱떇 留ㅻ룄 ???섏씡?????遺怨?(0.01 = 1%)"}
-                  {field.name === "realEstateTransactionTaxRate" &&
-                    "遺?숈궛 嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
-                  {field.name === "itemStoreVATRate" &&
-                    "?꾩씠???곸젏 援щℓ ???꾩씠??媛寃⑹뿉 遺怨?(0.1 = 10%)"}
-                  {field.name === "auctionTransactionTaxRate" &&
-                    "寃쎈ℓ??嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
-                  {field.name === "propertyHoldingTaxRate" &&
-                    "遺?숈궛 媛移섏뿉 ???二쇨린?곸쑝濡?遺怨?(0.002 = 0.2%)"}
-                  {field.name === "propertyHoldingTaxInterval" &&
-                    "遺?숈궛 蹂댁쑀??吏뺤닔 二쇨린 (?? weekly)"}
-                  {field.name === "itemMarketTransactionTaxRate" &&
-                    "?꾩씠???쒖옣 嫄곕옒 ??嫄곕옒 湲덉븸?????遺怨?(0.03 = 3%)"}
-                </small>
-              </div>
-            ))}
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+            <h3 className="text-xl font-bold text-slate-800 mb-6">📋 현행 세금 정책 (학급: {classCode})</h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {taxPolicyFields.map((field) => (
+                <div key={field.name}>
+                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                    {field.label}
+                    <span className="text-slate-400 font-normal ml-2">
+                      (현재: {field.type === "select"
+                        ? taxSettings[field.name]
+                        : `${((taxSettings[field.name] || 0) * 100).toFixed(field.name.includes("propertyHoldingTaxRate") ? 2 : 1)}%`})
+                    </span>
+                  </label>
+                  {field.type === "select" ? (
+                    <select
+                      name={field.name}
+                      value={editableSettings[field.name] || DEFAULT_TAX_SETTINGS[field.name]}
+                      onChange={handleIntervalChange}
+                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                    >
+                      {field.options.map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt === "daily" ? "매일" : opt === "weekly" ? "매주" : "매월"}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type={field.type}
+                      name={field.name}
+                      value={editableSettings[field.name] === "" ? "" : editableSettings[field.name]}
+                      onChange={handleSettingChange}
+                      step={field.step}
+                      min={field.min}
+                      max={field.max}
+                      placeholder={`예: ${field.label.includes("부가") ? "0.1 (10%)" : "0.03 (3%)"}`}
+                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+
             <button
               onClick={saveTaxSettings}
-              style={{
-                padding: "12px 25px",
-                background: "#4CAF50",
-                color: "white",
-                border: "none",
-                borderRadius: "8px",
-                cursor: "pointer",
-                fontSize: "16px",
-                fontWeight: "bold",
-              }}
+              className="mt-6 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-lg"
             >
-              ?멸툑 ?뺤콉 ???
+              세금 정책 저장
             </button>
           </div>
-          <div
-            style={{
-              background: "white",
-              borderRadius: "12px",
-              padding: "25px",
-              boxShadow: "0 4px 16px rgba(0,0,0,0.1)",
-            }}
-          >
-            <h3 style={{ color: "#2196F3", marginBottom: "15px" }}>
-              ?렞 ?멸툑 ?뺤콉 紐⑺몴
-            </h3>
-            <ul style={{ color: "#6c757d", lineHeight: "1.8" }}>
-              <li>怨듭젙???쒖옣 寃쎌젣 吏덉꽌 ?뺣┰</li>
-              <li>?덉젙?곸씤 ?숆툒 ?ъ젙 ?뺣낫 諛?怨듦났 ?쒕퉬???ъ옄</li>
-              <li>寃쎌젣 ?쒕룞 李몄뿬??媛꾩쓽 ?뺥룊???쒓퀬</li>
+
+          <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
+            <h3 className="text-lg font-bold text-blue-800 mb-3">💡 세금 정책 목표</h3>
+            <ul className="text-blue-700 space-y-2">
+              <li>• 공정한 시장 경제 질서 확립</li>
+              <li>• 안정적인 학급 재정 정보 및 공공 서비스 투자</li>
+              <li>• 경제 활동 참여와 감의 형평성 제고</li>
             </ul>
           </div>
         </div>
       )}
 
+      {/* 분석 탭 */}
       {activeTab === "analytics" && (
-        <div>
-          <h2 style={{ marginBottom: "20px", color: "#333" }}>
-            ?뱢 ?몄닔 遺꾩꽍 (?숆툒: {classCode})
-          </h2>
-          {/* 遺꾩꽍 ?댁슜? 湲곗〈怨??좎궗?섍쾶 ?좎??섎릺, ?덈줈???몄닔 ??ぉ?ㅼ쓣 ?ы븿?섏뿬 援ъ꽦?????덉뒿?덈떎. */}
-          <p>?닿납???ㅼ뼇???몄닔 遺꾩꽍 李⑦듃???듦퀎 ?뺣낫媛 ?쒖떆?????덉뒿?덈떎.</p>
-          <p>?? ?쒓컙???곕Ⅸ ?몄닔 蹂?? 媛??몃ぉ蹂?湲곗뿬??蹂????</p>
+        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+          <h3 className="text-xl font-bold text-slate-800 mb-4">📈 세수 분석 (학급: {classCode})</h3>
+          <div className="bg-slate-50 rounded-xl p-8 text-center">
+            <div className="text-6xl mb-4">📊</div>
+            <p className="text-slate-600">추후 다양한 세수 분석 차트와 상세 정보가 표시될 예정입니다.</p>
+            <p className="text-slate-500 text-sm mt-2">예: 시간에 따른 세수 변화, 카테고리별 기여도 등</p>
+          </div>
         </div>
       )}
     </div>
@@ -831,6 +447,3 @@ const NationalTaxService = ({ classCode }) => {
 };
 
 export default NationalTaxService;
-
-
-

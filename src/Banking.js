@@ -14,6 +14,7 @@ import {
   ActionButton,
 } from "./components/PageWrapper";
 import { Landmark, ChevronLeft, Save, Plus, Trash2 } from "lucide-react";
+import { AlchanLoading } from "./components/AlchanLayout";
 
 const convertAdminProductsToAccountFormat = (adminProducts) => {
   if (!Array.isArray(adminProducts)) {
@@ -175,14 +176,15 @@ const Banking = () => {
 
   // Firestore에서 데이터 로드
   const loadAllData = async () => {
-    if (!auth?.userDoc?.classCode) {
-      console.warn("학급 코드가 없어 뱅킹 상품을 로드할 수 없습니다.");
+    const classCode = auth?.userDoc?.classCode;
+    if (!classCode || classCode === '미지정') {
+      console.warn("[Banking] 유효한 학급 코드가 없어 뱅킹 상품을 로드하지 않습니다.");
       return;
     }
 
     setIsLoading(true);
     try {
-      const bankingData = await getBankingProducts(auth.userDoc.classCode);
+      const bankingData = await getBankingProducts(classCode, true, 'Banking');
 
       // deposits를 savings로 매핑 (예금 상품)
       if (bankingData.deposits) {
@@ -437,11 +439,7 @@ const Banking = () => {
   };
 
   if (auth.loading) {
-    return (
-      <PageContainer className="flex items-center justify-center">
-        <LoadingState message="금융 정보 로딩 중..." />
-      </PageContainer>
-    );
+    return <AlchanLoading />;
   }
 
   return (
@@ -449,12 +447,7 @@ const Banking = () => {
       {/* 로딩 오버레이 */}
       {isLoading && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-xl">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <span className="text-gray-700 dark:text-gray-200 font-medium">처리 중...</span>
-            </div>
-          </div>
+          <AlchanLoading />
         </div>
       )}
 

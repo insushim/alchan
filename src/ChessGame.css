@@ -4,7 +4,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
+    /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
     background: linear-gradient(135deg, #6a82fb 0%, #fc5c7d 100%);
     padding: 10px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

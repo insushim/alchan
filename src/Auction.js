@@ -26,6 +26,7 @@ import {
   onSnapshot as firebaseOnSnapshot,
   orderBy as firebaseOrderBy,
 } from "firebase/firestore";
+import { AlchanLoading } from "./components/AlchanLayout";
 
 export default function Auction() {
   // --- Context Data ---
@@ -706,19 +707,19 @@ export default function Auction() {
 
   // --- 로딩 및 사용자/학급 코드 확인 ---
   if (authLoading || itemsLoading) {
-    return <div className="loading-container">경매장 정보를 불러오는 중...</div>;
+    return <AlchanLoading />;
   }
   if (!firebaseUser || !currentUserId) {
     return <div className="login-required-container">경매장을 이용하려면 로그인이 필요합니다.</div>;
   }
   if (!userDoc) {
-    return <div className="loading-container">사용자 정보를 확인 중입니다...</div>;
+    return <AlchanLoading />;
   }
   if (!classCode) {
     return <div className="login-required-container">경매장을 이용하려면 학급 코드가 사용자 정보에 설정되어 있어야 합니다. (학급 코드: 없음)</div>;
   }
   if (auctionsLoading) {
-    return <div className="loading-container">학급 경매 정보를 불러오는 중... (학급: {classCode})</div>;
+    return <AlchanLoading />;
   }
 
   const durationOptions = [];

@@ -8,6 +8,7 @@ import SendReceive from "./SendReceive";
 import { useAuth } from "./AuthContext";
 import { usePolling } from "./hooks/usePolling";
 import { db } from "./firebase";
+import { AlchanLoading } from "./components/AlchanLayout";
 import {
   collection,
   query,
@@ -156,7 +157,7 @@ const LawManagement = ({ classCode }) => {
   };
 
   if (loading) {
-    return <p>정부로 이송된 법안을 불러오는 중입니다...</p>;
+    return <AlchanLoading />;
   }
 
   return (
@@ -208,9 +209,7 @@ const Government = () => {
 
   const renderTabContent = () => {
     if (!classCode) {
-      return (
-        <p>학급 정보를 불러오는 중이거나, 학급 코드가 할당되지 않았습니다.</p>
-      );
+      return <AlchanLoading />;
     }
 
     switch (activeTab) {
