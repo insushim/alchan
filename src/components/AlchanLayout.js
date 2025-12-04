@@ -10,6 +10,7 @@ import MobileNav from './MobileNav';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import UpdateNotification from './UpdateNotification';
 import { useServiceWorker } from '../hooks/useServiceWorker';
+import { AlchanLoadingScreen } from './ui/Skeleton';
 import { WifiOff } from 'lucide-react';
 
 // 페이지 컴포넌트 imports
@@ -47,10 +48,10 @@ import TypingPracticeGame from '../TypingPracticeGame';
 import StudentManager from './StudentManager';
 
 // 전체 화면이 필요한 페이지 경로 (자동으로 사이드바 접기)
-// 타자연습과 주식거래소는 제외 - 사이드바로 뒤로가기 필요
 const FULLSCREEN_PAGES = [
   '/learning-games/omok',
   '/learning-games/science',
+  '/learning-games/typing',
   '/gonu-game',
   '/auction',
   '/court',
@@ -58,31 +59,9 @@ const FULLSCREEN_PAGES = [
   '/music-room',
 ];
 
-// 공통 로딩 컴포넌트
-const AlchanLoading = ({ fullScreen = false }) => {
-  const content = (
-    <div className="text-center">
-      <div className="w-16 h-16 mx-auto mb-2 animate-pulse">
-        <AppIcon style={{ width: '64px', height: '64px' }} />
-      </div>
-      <h1 className="text-lg font-bold text-gray-800">알찬</h1>
-      <p className="text-gray-500 text-xs">학급 경제 교육</p>
-    </div>
-  );
-
-  if (fullScreen) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        {content}
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex items-center justify-center h-48">
-      {content}
-    </div>
-  );
+// 공통 로딩 컴포넌트 - 항상 통일된 보라색 전체화면 로딩 사용
+const AlchanLoading = ({ message = '로딩 중...' }) => {
+  return <AlchanLoadingScreen message={message} />;
 };
 
 // Protected Route 컴포넌트
@@ -208,7 +187,7 @@ export default function AlchanLayout() {
 
   // 로딩 상태 (loading 또는 userDoc 없음)
   if (loading || (!user && location.pathname !== '/login') || (user && !userDoc)) {
-    return <AlchanLoading fullScreen />;
+    return <AlchanLoading />;
   }
 
   // 로그인 페이지
@@ -255,8 +234,8 @@ export default function AlchanLayout() {
         isCollapsed={isSidebarCollapsed}
       />
 
-      {/* 메인 콘텐츠 영역 */}
-      <main className="flex-1 min-w-0 md:h-screen md:overflow-y-auto relative bg-slate-50/50">
+      {/* 메인 콘텐츠 영역 - 스크롤 문제 수정 */}
+      <main className="flex-1 min-w-0 md:min-h-screen relative bg-slate-50/50 overflow-visible">
         {/* 헤더 */}
         <AlchanHeader
           toggleSidebar={toggleSidebar}

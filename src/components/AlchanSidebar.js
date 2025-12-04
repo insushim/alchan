@@ -392,27 +392,33 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
           lg:relative lg:translate-x-0 lg:w-72 flex flex-col shrink-0
         `}
       >
-        {/* 로고 영역 */}
+        {/* 로고 영역 - 세련된 디자인 */}
         <div
           style={{
-            height: '64px',
-            minHeight: '64px',
+            height: '72px',
+            minHeight: '72px',
+            margin: '12px',
             display: 'flex',
             alignItems: 'center',
-            background: 'linear-gradient(135deg, #4f46e5, #7c3aed, #4f46e5)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #7c3aed 100%)',
             position: 'relative',
             overflow: 'hidden',
-            boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
+            borderRadius: '16px',
+            boxShadow: '0 8px 24px -4px rgba(99, 102, 241, 0.4), 0 4px 8px -2px rgba(0,0,0,0.1)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', width: '100%', position: 'relative', zIndex: 10 }}>
+          {/* 배경 장식 */}
+          <div style={{ position: 'absolute', top: '-20px', right: '-20px', width: '80px', height: '80px', background: 'rgba(255,255,255,0.1)', borderRadius: '50%' }} />
+          <div style={{ position: 'absolute', bottom: '-30px', left: '-10px', width: '60px', height: '60px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%' }} />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '0 18px', width: '100%', position: 'relative', zIndex: 10 }}>
             {/* 아이콘 박스 */}
-            <div style={{ padding: '4px', background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
-              <AppIcon style={{ width: '32px', height: '32px' }} />
+            <div style={{ padding: '6px', background: 'rgba(255,255,255,0.95)', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+              <AppIcon style={{ width: '36px', height: '36px' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <span style={{ fontSize: '20px', fontWeight: '900', color: 'white', fontFamily: "'Jua', sans-serif", lineHeight: '1.1' }}>알찬</span>
-              <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#c7d2fe', letterSpacing: '0.15em', lineHeight: '1.1', marginTop: '2px' }}>ALCHAN</span>
+              <span style={{ fontSize: '22px', fontWeight: '900', color: 'white', fontFamily: "'Jua', sans-serif", lineHeight: '1.1', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>알찬</span>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.2em', lineHeight: '1.1', marginTop: '3px', textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>ALCHAN</span>
             </div>
           </div>
 

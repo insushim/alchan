@@ -1,14 +1,10 @@
 /* src/TypingPracticeGame.css */
-/* ?��? ?�?�연??미니게임 ?��???*/
+/* ?��? ?�?�연??미니게임 ?��???*/
 
 .typing-game-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: relative;
+  min-height: calc(100vh - 80px);
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  z-index: 1000;
   overflow-y: auto;
   padding: 20px;
   display: flex;
@@ -31,7 +27,7 @@
   }
 }
 
-/* 공통 ?�더 */
+/* 공통 ?�더 */
 .game-header {
   background: rgba(255, 255, 255, 0.95);
   border-radius: 15px;
@@ -77,14 +73,14 @@
   transform: translateY(-2px);
 }
 
-/* 메뉴 ?�면 */
+/* 메뉴 ?�면 */
 .typing-game-menu {
   width: 100%;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-/* ?�일 ?�보 */
+/* ?�일 ?�보 */
 .daily-info {
   background: rgba(255, 255, 255, 0.95);
   padding: 20px;
@@ -166,7 +162,7 @@
   font-size: 14px;
 }
 
-/* ?�이???�택 */
+/* ?�이???�택 */
 .difficulty-selection {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -273,7 +269,7 @@
   cursor: not-allowed;
 }
 
-/* 게임 ?�레???�면 */
+/* 게임 ?�레???�면 */
 .typing-game-play {
   width: 100%;
   max-width: 900px;
@@ -471,7 +467,7 @@
   color: #742a2a;
 }
 
-/* ?�료 ?�면 */
+/* ?�료 ?�면 */
 .typing-game-completed {
   width: 100%;
   max-width: 700px;
@@ -626,7 +622,7 @@
   font-weight: 500;
 }
 
-/* 카드 ?�택 ?�면 */
+/* 카드 ?�택 ?�면 */
 .card-selection-screen {
   width: 100%;
   max-width: 900px;
@@ -813,7 +809,7 @@
   font-weight: 600;
 }
 
-/* 보상 ?�득 ?�면 */
+/* 보상 ?�득 ?�면 */
 .typing-game-reward {
   width: 100%;
   max-width: 600px;
@@ -897,7 +893,7 @@
   justify-content: center;
 }
 
-/* 로딩 �??�러 ?�면 */
+/* 로딩 �??�러 ?�면 */
 .loading-screen, .error-screen {
   text-align: center;
   background: rgba(255, 255, 255, 0.95);
@@ -951,7 +947,7 @@
   transform: translateY(-2px);
 }
 
-/* 반응???�자??*/
+/* 반응???�자??*/
 @media (max-width: 768px) {
   .typing-game-container {
     padding: 10px;

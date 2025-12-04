@@ -290,41 +290,39 @@ body {
 
 .item-stock-count {
   font-weight: 600;
+  color: #374151;
 }
 
 .item-stock-low {
-  color: var(--color-danger-dark);
-  font-weight: 700;
+  color: #374151;
+  font-weight: 600;
 }
 
 .stock-badge {
   display: inline-flex;
   align-items: center;
-  padding: 2px 5px;
-  border-radius: 8px;
-  font-size: 0.65rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
   font-weight: 600;
   white-space: nowrap;
-  border: 1px solid transparent;
+  border: none;
   line-height: 1;
 }
 
 .stock-high {
-  background-color: #e6fffa;
-  color: #2c7a7b;
-  border-color: #9ae6b4;
+  background: #ecfdf5;
+  color: #047857 !important;
 }
 
 .stock-medium {
-  background-color: #fefcbf;
-  color: #b7791f;
-  border-color: #f6e05e;
+  background: #fef3c7;
+  color: #b45309 !important;
 }
 
 .stock-low {
-  background-color: #f8d7da;
-  color: #721c24;
-  border-color: #feb2b2;
+  background: #fee2e2;
+  color: #b91c1c !important;
 }
 
 /* 수정: 아이템 설명 - 헤더 바로 아래에 위치 */
@@ -874,6 +872,150 @@ body {
     font-size: 1.1rem;
   }
 }
+/* ========================================
+   컴팩트 아이템 카드 스타일 (미니멀 모던 디자인)
+   ======================================== */
+.compact-card {
+  padding: 0 !important;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.compact-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  border-color: #d1d5db;
+}
+
+.compact-card .item-content {
+  padding: 16px;
+}
+
+.item-header-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.item-name-compact {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+  padding: 6px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-stock-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.item-stock-compact .stock-normal,
+.item-stock-compact .stock-low {
+  font-weight: 600;
+  color: #374151;
+}
+
+.item-description-compact {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0 0 12px 0;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.compact-card .item-actions-primary {
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+  margin-top: 8px;
+}
+
+.compact-card .item-price {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.compact-card .quantity-input {
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  font-weight: 600;
+}
+
+.compact-card .buy-item-button {
+  background: #111827;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  transition: all 0.15s ease;
+}
+
+.compact-card .buy-item-button:hover:not(:disabled) {
+  background: #1f2937;
+}
+
+.compact-card .buy-item-button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+}
+
+.compact-card .item-actions-admin {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid #f3f4f6;
+  gap: 8px;
+}
+
+.compact-card .edit-item-button,
+.compact-card .delete-item-button {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.compact-card .edit-item-button {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.compact-card .edit-item-button:hover {
+  background: #e5e7eb;
+}
+
+.compact-card .delete-item-button {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.compact-card .delete-item-button:hover {
+  background: #fee2e2;
+}
+
 /* ItemStore.css에 추가할 스타일 */
 
 .quantity-and-buy-container {

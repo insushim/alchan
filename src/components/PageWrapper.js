@@ -3,6 +3,7 @@
 
 import React from 'react';
 import { Loader2, CheckSquare } from 'lucide-react';
+import { AlchanLoadingScreen } from './ui/Skeleton';
 
 // ============================================
 // 페이지 컨테이너
@@ -71,14 +72,9 @@ export const SectionTitle = ({ children, icon: Icon, action, className = '' }) =
 );
 
 // ============================================
-// 로딩 상태
+// 로딩 상태 - null (HTML 스플래시만 사용)
 // ============================================
-export const LoadingState = ({ message = '데이터를 불러오는 중...' }) => (
-  <div className="flex flex-col items-center justify-center py-16">
-    <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
-    <p className="text-slate-500 font-medium">{message}</p>
-  </div>
-);
+export const LoadingState = ({ message = '데이터를 불러오는 중...' }) => null;
 
 // ============================================
 // 에러 상태

@@ -3,6 +3,11 @@
 
 import React from 'react';
 
+// 알찬 통일 로딩 화면 컴포넌트 - null 반환 (HTML 스플래시만 사용)
+export function AlchanLoadingScreen({ message = '로딩 중...' }) {
+  return null;
+}
+
 // 기본 스켈레톤
 export function Skeleton({ className = '', width, height, rounded = 'md' }) {
   const roundedClass = {
@@ -132,11 +137,7 @@ export function SkeletonDashboard() {
 
 // 페이지 로딩 스켈레톤
 export function SkeletonPage() {
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
-      <SkeletonDashboard />
-    </div>
-  );
+  return <AlchanLoadingScreen message="페이지 로딩 중..." />;
 }
 
 export default Skeleton;

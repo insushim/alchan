@@ -195,6 +195,16 @@
   border: 1px solid #1e7e34;
 }
 
+.law-status.pending-gov {
+  background-color: #6366f1;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.law-card.pending-gov {
+  border-left-color: #6366f1;
+}
+
 .law-content {
   padding: 15px 20px;
   flex: 1;

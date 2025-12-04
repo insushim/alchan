@@ -1,5 +1,5 @@
-// src/LoginNew.js
-// 새로운 로그인 시스템 - 선생님 가입, 학생 로그인
+// src/Login.js
+// 상용화 수준의 세련된 로그인 시스템
 
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -26,6 +26,8 @@ import {
   CheckCircle2,
   Users,
   BookOpen,
+  Sparkles,
+  ArrowLeft,
 } from "lucide-react";
 
 // Firebase 오류 메시지 변환
@@ -55,7 +57,7 @@ const generateClassCode = () => {
   return code;
 };
 
-const LoginNew = () => {
+const Login = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const {
@@ -258,86 +260,143 @@ const LoginNew = () => {
     }
   };
 
-  // 로딩 화면
+  // 로딩 중일 때 통일된 로딩 화면 표시
   if (loading || !firebaseReady) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
-          <p className="text-gray-600 dark:text-gray-400">로딩 중...</p>
+      <div className="fixed inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex flex-col items-center justify-center z-[9998]">
+        <div className="relative mb-6">
+          <div className="absolute inset-0 bg-white/20 rounded-full blur-[40px] scale-150" />
+          <div className="relative w-24 h-24 bg-white/10 backdrop-blur-sm rounded-3xl p-4 shadow-2xl border border-white/20 flex items-center justify-center">
+            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-16 h-16">
+              <defs>
+                <linearGradient id="checkGradLogin" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#ffffff" />
+                  <stop offset="100%" stopColor="#e0e7ff" />
+                </linearGradient>
+              </defs>
+              <path d="M25 52 L42 69 L75 31" stroke="url(#checkGradLogin)" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M78 22 L80 27 L85 27 L81 31 L82 36 L78 33 L74 36 L75 31 L71 27 L76 27 Z" fill="#FCD34D" />
+            </svg>
+            <div className="absolute -inset-4 border-4 border-white/20 border-t-white/60 rounded-full animate-spin" style={{ animationDuration: '2s' }} />
+          </div>
         </div>
+        <h1 className="text-[42px] text-white font-normal tracking-tight" style={{ fontFamily: "'Jua', sans-serif", textShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>알찬</h1>
+        <p className="mt-2 text-xl text-white font-bold tracking-widest" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.3)' }}>경제 교육</p>
+        <div className="mt-8 flex items-center gap-2">
+          <div className="flex gap-1.5">
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+            <div className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          </div>
+          <span className="ml-3 text-[15px] text-white font-semibold" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.2)' }}>로딩 중...</span>
+        </div>
+        <p className="absolute bottom-8 text-[13px] text-white/70 font-medium">알찬 경제교육 v2.0</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* 배경 장식 요소 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* 큰 원형 장식 */}
+        <div className="absolute -top-20 -right-20 w-96 h-96 bg-white/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 left-1/4 w-64 h-64 bg-purple-400/10 rounded-full blur-2xl" />
+
+        {/* 떠다니는 작은 원들 */}
+        <div className="absolute top-20 left-10 w-3 h-3 bg-white/20 rounded-full animate-pulse" />
+        <div className="absolute top-40 right-20 w-2 h-2 bg-white/30 rounded-full animate-pulse" style={{ animationDelay: '0.5s' }} />
+        <div className="absolute bottom-40 left-1/4 w-4 h-4 bg-white/10 rounded-full animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/3 right-1/3 w-2 h-2 bg-yellow-300/40 rounded-full animate-pulse" style={{ animationDelay: '1.5s' }} />
+      </div>
+
+      <div className="w-full max-w-md relative z-10">
         {/* 로고/타이틀 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
-            <BookOpen className="w-8 h-8 text-white" />
+          {/* 로고 아이콘 */}
+          <div className="relative inline-block mb-4">
+            <div className="w-20 h-20 bg-white/10 backdrop-blur-md rounded-3xl p-3.5 shadow-2xl border border-white/20 mx-auto">
+              <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-lg">
+                <defs>
+                  <linearGradient id="iconGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="100%" stopColor="#c7d2fe" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M25 52 L42 69 L75 31"
+                  stroke="url(#iconGradient)"
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+                <path
+                  d="M78 22 L80 27 L85 27 L81 31 L82 36 L78 33 L74 36 L75 31 L71 27 L76 27 Z"
+                  fill="#FCD34D"
+                />
+              </svg>
+            </div>
+            {/* 반짝이는 효과 */}
+            <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-yellow-300 animate-pulse" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+
+          <h1 className="text-4xl font-bold text-white mb-1" style={{ fontFamily: "'Jua', sans-serif" }}>
             알찬
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            학급 경제 시뮬레이션
+          <p className="text-white/70 font-medium">
+            학급 경제 교육
           </p>
         </div>
 
         {/* 메인 카드 */}
-        <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-xl overflow-hidden">
-          {/* 탭 버튼 */}
-          <div className="flex border-b border-gray-100 dark:border-gray-700">
-            <button
-              onClick={() => handleTabChange("student")}
-              className={`flex-1 py-4 text-sm font-medium transition-colors relative ${
-                activeTab === "student"
-                  ? "text-indigo-600 dark:text-indigo-400"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <User size={18} />
-                학생 로그인
-              </div>
-              {activeTab === "student" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
-              )}
-            </button>
-            <button
-              onClick={() => handleTabChange("teacher")}
-              className={`flex-1 py-4 text-sm font-medium transition-colors relative ${
-                activeTab === "teacher"
-                  ? "text-indigo-600 dark:text-indigo-400"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400"
-              }`}
-            >
-              <div className="flex items-center justify-center gap-2">
-                <GraduationCap size={18} />
-                선생님 로그인
-              </div>
-              {activeTab === "teacher" && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-indigo-500" />
-              )}
-            </button>
-          </div>
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl overflow-hidden border border-white/50">
+          {/* 탭 버튼 - 등록 화면이 아닐 때만 표시 */}
+          {activeTab !== "register" && (
+            <div className="flex bg-gray-50/80">
+              <button
+                onClick={() => handleTabChange("student")}
+                className={`flex-1 py-4 text-sm font-semibold transition-all relative ${
+                  activeTab === "student"
+                    ? "text-violet-700 bg-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <User size={18} />
+                  학생
+                </div>
+              </button>
+              <button
+                onClick={() => handleTabChange("teacher")}
+                className={`flex-1 py-4 text-sm font-semibold transition-all relative ${
+                  activeTab === "teacher"
+                    ? "text-violet-700 bg-white shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <GraduationCap size={18} />
+                  선생님
+                </div>
+              </button>
+            </div>
+          )}
 
           {/* 에러/성공 메시지 */}
           {error && (
-            <div className="mx-6 mt-6 p-4 bg-red-50 dark:bg-red-900/20 rounded-xl flex items-start gap-3">
+            <div className="mx-5 mt-5 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-start gap-3 animate-shake">
               <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-600 font-medium">{error}</p>
             </div>
           )}
 
           {success && (
-            <div className="mx-6 mt-6 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl flex items-start gap-3">
+            <div className="mx-5 mt-5 p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3">
               <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-emerald-600 dark:text-emerald-400">
-                <p className="font-semibold">{success}</p>
-                <p className="mt-1">학생들에게 이 코드를 알려주세요!</p>
+              <div className="text-sm text-emerald-700">
+                <p className="font-bold">{success}</p>
+                <p className="mt-1 text-emerald-600">학생들에게 이 코드를 알려주세요!</p>
               </div>
             </div>
           )}
@@ -347,17 +406,19 @@ const LoginNew = () => {
             <form onSubmit={handleLogin} className="p-6 space-y-5">
               {/* 이메일 입력 */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-semibold text-gray-700">
                   이메일
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                    <Mail className="w-5 h-5 text-violet-500" />
+                  </div>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="이메일을 입력하세요"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full pl-16 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
                     disabled={isLoading}
                   />
                 </div>
@@ -365,23 +426,25 @@ const LoginNew = () => {
 
               {/* 비밀번호 입력 */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-semibold text-gray-700">
                   비밀번호
                 </label>
-                <div className="relative">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-violet-50 rounded-xl flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                    <Lock className="w-5 h-5 text-violet-500" />
+                  </div>
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="비밀번호를 입력하세요"
-                    className="w-full pl-12 pr-12 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                    className="w-full pl-16 pr-14 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
                     disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center text-gray-400 hover:text-violet-500 transition-colors rounded-xl hover:bg-violet-50"
                   >
                     {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                   </button>
@@ -389,15 +452,24 @@ const LoginNew = () => {
               </div>
 
               {/* 아이디 저장 */}
-              <div className="flex items-center justify-between">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={saveId}
-                    onChange={(e) => setSaveId(e.target.checked)}
-                    className="w-4 h-4 text-indigo-500 border-gray-300 rounded focus:ring-indigo-500"
-                  />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <div className="relative">
+                    <input
+                      type="checkbox"
+                      checked={saveId}
+                      onChange={(e) => setSaveId(e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 border-2 border-gray-300 rounded-md peer-checked:bg-violet-500 peer-checked:border-violet-500 transition-all flex items-center justify-center">
+                      {saveId && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-600 font-medium group-hover:text-gray-800 transition-colors">
                     아이디 저장
                   </span>
                 </label>
@@ -407,7 +479,7 @@ const LoginNew = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-violet-500/30 hover:shadow-xl hover:shadow-violet-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-lg"
               >
                 {isLoading ? (
                   <>
@@ -417,32 +489,33 @@ const LoginNew = () => {
                 ) : (
                   <>
                     로그인
-                    <ChevronRight size={20} />
+                    <ChevronRight size={22} className="mt-0.5" />
                   </>
                 )}
               </button>
 
               {/* 선생님 가입 링크 (선생님 탭에서만) */}
               {activeTab === "teacher" && (
-                <div className="text-center pt-4 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                <div className="text-center pt-4">
+                  <p className="text-sm text-gray-500 mb-2">
                     아직 계정이 없으신가요?
                   </p>
                   <button
                     type="button"
                     onClick={() => handleTabChange("register")}
-                    className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+                    className="text-violet-600 font-bold hover:text-violet-700 transition-colors inline-flex items-center gap-1"
                   >
                     선생님 계정 만들기
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               )}
 
               {/* 학생 안내 (학생 탭에서만) */}
               {activeTab === "student" && (
-                <div className="text-center pt-4 border-t border-gray-100 dark:border-gray-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    계정이 없나요? 선생님께 문의하세요.
+                <div className="text-center pt-4">
+                  <p className="text-sm text-gray-500">
+                    계정이 없나요? <span className="text-violet-600 font-medium">선생님께 문의하세요</span>
                   </p>
                 </div>
               )}
@@ -452,32 +525,38 @@ const LoginNew = () => {
           {/* 선생님 가입 폼 */}
           {activeTab === "register" && (
             <form onSubmit={handleTeacherRegister} className="p-6 space-y-4">
-              <div className="flex items-center gap-2 pb-4 border-b border-gray-100 dark:border-gray-700">
+              {/* 헤더 */}
+              <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
                 <button
                   type="button"
                   onClick={() => handleTabChange("teacher")}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  className="p-2.5 hover:bg-violet-50 rounded-xl transition-colors"
                 >
-                  <ChevronRight className="w-5 h-5 rotate-180 text-gray-500" />
+                  <ArrowLeft className="w-5 h-5 text-gray-600" />
                 </button>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-                  선생님 계정 만들기
-                </h2>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">
+                    선생님 계정 만들기
+                  </h2>
+                  <p className="text-xs text-gray-500">학급 코드가 자동 생성됩니다</p>
+                </div>
               </div>
 
               {/* 이름 */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-semibold text-gray-700">
                   이름 <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="relative group">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-violet-50 rounded-lg flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                    <User className="w-4 h-4 text-violet-500" />
+                  </div>
                   <input
                     type="text"
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
                     placeholder="선생님 성함"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full pl-14 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                     required
                     disabled={isLoading}
                   />
@@ -486,17 +565,19 @@ const LoginNew = () => {
 
               {/* 이메일 */}
               <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label className="block text-sm font-semibold text-gray-700">
                   이메일 <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <div className="relative group">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-violet-50 rounded-lg flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                    <Mail className="w-4 h-4 text-violet-500" />
+                  </div>
                   <input
                     type="email"
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
                     placeholder="이메일 주소"
-                    className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full pl-14 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                     required
                     disabled={isLoading}
                   />
@@ -506,7 +587,7 @@ const LoginNew = () => {
               {/* 비밀번호 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-semibold text-gray-700">
                     비밀번호 <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -514,21 +595,21 @@ const LoginNew = () => {
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
                     placeholder="6자 이상"
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                     required
                     disabled={isLoading}
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-semibold text-gray-700">
                     비밀번호 확인 <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="password"
                     value={registerConfirmPassword}
                     onChange={(e) => setRegisterConfirmPassword(e.target.value)}
-                    placeholder="비밀번호 재입력"
-                    className="w-full px-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    placeholder="재입력"
+                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                     required
                     disabled={isLoading}
                   />
@@ -538,33 +619,37 @@ const LoginNew = () => {
               {/* 학교/학급 정보 */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-semibold text-gray-700">
                     학교명
                   </label>
-                  <div className="relative">
-                    <School className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <div className="relative group">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                      <School className="w-4 h-4 text-gray-500 group-focus-within:text-violet-500" />
+                    </div>
                     <input
                       type="text"
                       value={schoolName}
                       onChange={(e) => setSchoolName(e.target.value)}
-                      placeholder="○○초등학교"
-                      className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      placeholder="초등학교"
+                      className="w-full pl-14 pr-3 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                       disabled={isLoading}
                     />
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label className="block text-sm font-semibold text-gray-700">
                     학급
                   </label>
-                  <div className="relative">
-                    <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <div className="relative group">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 bg-gray-100 rounded-lg flex items-center justify-center group-focus-within:bg-violet-100 transition-colors">
+                      <Users className="w-4 h-4 text-gray-500 group-focus-within:text-violet-500" />
+                    </div>
                     <input
                       type="text"
                       value={className}
                       onChange={(e) => setClassName(e.target.value)}
-                      placeholder="6학년 1반"
-                      className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                      placeholder="6-1반"
+                      className="w-full pl-14 pr-3 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
                       disabled={isLoading}
                     />
                   </div>
@@ -572,18 +657,23 @@ const LoginNew = () => {
               </div>
 
               {/* 안내 메시지 */}
-              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl">
-                <p className="text-sm text-indigo-700 dark:text-indigo-300">
-                  가입 시 <strong>학급 코드</strong>가 자동 생성됩니다.
-                  이 코드로 학생 계정을 일괄 생성할 수 있습니다.
-                </p>
+              <div className="p-4 bg-gradient-to-r from-violet-50 to-indigo-50 rounded-xl border border-violet-100">
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-violet-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Sparkles className="w-4 h-4 text-violet-600" />
+                  </div>
+                  <p className="text-sm text-violet-700 leading-relaxed">
+                    가입하면 <strong className="text-violet-800">학급 코드</strong>가 자동 생성됩니다.
+                    이 코드로 학생 계정을 손쉽게 만들 수 있어요!
+                  </p>
+                </div>
               </div>
 
               {/* 가입 버튼 */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold rounded-xl shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-bold rounded-2xl shadow-lg shadow-violet-500/30 hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isLoading ? (
                   <>
@@ -602,12 +692,24 @@ const LoginNew = () => {
         </div>
 
         {/* 하단 정보 */}
-        <p className="text-center text-xs text-gray-400 dark:text-gray-500 mt-6">
-          알찬 - 학급 경제 시뮬레이션 v2.0
+        <p className="text-center text-xs text-white/50 mt-6 font-medium">
+          © 2025 알찬 경제교육. All rights reserved.
         </p>
       </div>
+
+      {/* 애니메이션 스타일 */}
+      <style>{`
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+        .animate-shake {
+          animation: shake 0.3s ease-in-out;
+        }
+      `}</style>
     </div>
   );
 };
 
-export default LoginNew;
+export default Login;

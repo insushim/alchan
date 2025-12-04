@@ -297,3 +297,218 @@ button, a, input, select, textarea {
 .animate-pulse-soft {
   animation: pulse-soft 2s ease-in-out infinite;
 }
+
+/* ============================================
+   스크롤 문제 수정 - 전역
+   ============================================ */
+
+/* 메인 컨테이너 스크롤 수정 */
+html, body, #root {
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+/* 페이지별 컨테이너 overflow 수정 */
+.government-container,
+.national-assembly-container,
+.banking-container,
+.court-container,
+.police-container,
+.auction-container,
+.stock-exchange-container,
+.real-estate-container,
+.item-store-container,
+.my-items-container,
+.item-market-container,
+.dashboard-container,
+.my-assets-container,
+.coupon-goal-container,
+.learning-board-container {
+  overflow: visible !important;
+  min-height: auto !important;
+}
+
+/* ============================================
+   글씨 시인성 대폭 개선
+   ============================================ */
+
+/* 기본 텍스트 색상 강화 */
+body {
+  color: #1e293b !important;
+}
+
+/* 제목들 더 진하게 */
+h1, h2, h3, h4, h5, h6 {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* 본문 텍스트 시인성 */
+p, span, div, li, td, th, label {
+  color: #334155;
+}
+
+/* 회색 텍스트 더 진하게 */
+.text-gray-400,
+.text-gray-500,
+.text-slate-400,
+.text-slate-500 {
+  color: #64748b !important;
+}
+
+.text-gray-600,
+.text-slate-600 {
+  color: #475569 !important;
+}
+
+/* 탭 버튼 텍스트 */
+.gov-tab-button,
+.assembly-tab,
+button[class*="tab"] {
+  color: #475569 !important;
+  font-weight: 600 !important;
+}
+
+.gov-tab-button.active,
+.assembly-tab.active,
+button[class*="tab"].active {
+  color: #1e293b !important;
+  font-weight: 700 !important;
+}
+
+/* 카드 내 텍스트 */
+.law-content p,
+.law-content span,
+.card p,
+.card span {
+  color: #334155 !important;
+}
+
+.law-content strong,
+.card strong {
+  color: #0f172a !important;
+}
+
+/* 입력 필드 placeholder */
+input::placeholder,
+textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* 버튼 텍스트 */
+button {
+  font-weight: 600 !important;
+}
+
+/* 테이블 */
+table th {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+table td {
+  color: #334155 !important;
+}
+
+/* 빈 상태 메시지 */
+.empty-state,
+.empty-message {
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
+/* 라벨 */
+label, .form-label {
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+/* 설명 텍스트 */
+.description,
+.subtitle,
+.info-text,
+[class*="description"],
+[class*="subtitle"] {
+  color: #64748b !important;
+}
+
+/* 법안/게시물 내용 */
+.law-title,
+.post-title {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* 상태 배지 텍스트 */
+.law-status,
+.status-badge,
+[class*="status"] {
+  font-weight: 600 !important;
+}
+
+/* 금액 표시 */
+.price,
+.amount,
+.money,
+[class*="price"],
+[class*="amount"] {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* 네비게이션/메뉴 */
+.nav-item,
+.menu-item,
+[class*="nav-"],
+[class*="menu-"] {
+  color: #334155 !important;
+}
+
+.nav-item.active,
+.menu-item.active {
+  color: #0f172a !important;
+}
+
+/* 헤더 텍스트 */
+.government-header,
+.assembly-title,
+.page-title,
+[class*="header"] h1,
+[class*="header"] h2 {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* 섹션 제목 */
+.section-title {
+  color: #1e293b !important;
+  font-weight: 700 !important;
+}
+
+/* 투표 수/숫자 표시 */
+.vote-number,
+.count,
+[class*="count"] {
+  color: #0f172a !important;
+  font-weight: 700 !important;
+}
+
+/* 타임스탬프 */
+.timestamp,
+.date,
+.law-timestamp,
+[class*="timestamp"],
+[class*="date"] {
+  color: #64748b !important;
+}
+
+/* 설정/관리자 영역 */
+.setting-label,
+.admin-label {
+  color: #334155 !important;
+  font-weight: 600 !important;
+}
+
+.setting-description {
+  color: #64748b !important;
+}

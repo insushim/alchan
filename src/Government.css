@@ -123,3 +123,53 @@
 .investment-link-button:hover {
   background-color: #4f46e5; /* 호버 시 더 진한 색상 */
 }
+
+/* 법안 관리 컨테이너 */
+.law-management-container h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 20px;
+}
+
+/* 정부 액션 버튼 */
+.government-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.gov-action-button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.gov-action-button.approve {
+  background-color: #10b981;
+  color: white;
+}
+
+.gov-action-button.approve:hover {
+  background-color: #059669;
+}
+
+.gov-action-button.veto {
+  background-color: #ef4444;
+  color: white;
+}
+
+.gov-action-button.veto:hover {
+  background-color: #dc2626;
+}
+
+/* 법안 타임스탬프 */
+.law-timestamp {
+  font-size: 0.85rem;
+  color: #64748b !important;
+  margin-top: 10px;
+}

@@ -380,40 +380,21 @@ const ItemStore = () => {
                     {shopItems.map((item) => (
                       <div
                         key={item.id}
-                        className="store-item-card shop-item-card"
-                        data-icon={item.icon || "🆕"}
+                        className="store-item-card shop-item-card compact-card"
                       >
                         <div className="item-content">
-                          <div
-                            className={`item-header ${
-                              isMobile ? "flex-col items-start" : ""
-                            }`}
-                          >
-                            <div className="item-icon-container">
-                              <div className="item-icon">
-                                {item.icon || "🆕"}
-                              </div>
-                            </div>
-                            <div className={isMobile ? "w-full" : ""}>
-                              <h3 className="item-name">{item.name}</h3>
-                              <p className="item-stock">
-                                <span className="item-stock-label">재고:</span>
-                                <span
-                                  className={
-                                    item.stock <= 3
-                                      ? "item-stock-low"
-                                      : "item-stock-count"
-                                  }
-                                >
-                                  {item.stock ?? "?"}
-                                </span>
-                                <StockBadge stock={item.stock} />
-                              </p>
+                          <div className="item-header-compact">
+                            <h3 className="item-name-compact">{item.name}</h3>
+                            <div className="item-stock-compact">
+                              <span className={item.stock <= 3 ? "stock-low" : "stock-normal"}>
+                                {item.stock ?? "?"}개
+                              </span>
+                              <StockBadge stock={item.stock} />
                             </div>
                           </div>
-                          <p className="item-description">
-                            {item.description || "아이템 설명이 없습니다."}
-                          </p>
+                          {item.description && item.description.trim() && (
+                            <p className="item-description-compact">{item.description}</p>
+                          )}
                           <div
                             className={`item-actions-primary ${
                               isMobile ? "flex-col" : ""

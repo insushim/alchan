@@ -35,19 +35,24 @@ export default function JobList({
         height: "100%", // 부모 그리드 셀 높이 채우기 (선택 사항)
       }}
     >
-      {/* 직업 헤더 */}
+      {/* 직업 헤더 - 시인성 개선 */}
       <div
         style={{
-          backgroundColor: "#4f46e5",
+          background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
           color: "white",
-          padding: isMobile ? "8px 10px" : "10px 12px",
+          padding: isMobile ? "12px 14px" : "14px 16px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          borderBottom: "1px solid #e5e7eb",
+          borderBottom: "none",
         }}
       >
-        <div style={{ fontWeight: "600", fontSize: isMobile ? "14px" : "16px" }}>{job.title}</div>
+        <div style={{
+          fontWeight: "700",
+          fontSize: isMobile ? "16px" : "18px",
+          textShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          letterSpacing: "-0.01em"
+        }}>{job.title}</div>
         {/* 관리자 모드에서 직업 수정/삭제 버튼 */}
         {isAdmin && (
           <div>

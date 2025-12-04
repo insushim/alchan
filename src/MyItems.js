@@ -785,18 +785,15 @@ const MyItems = () => {
               {groupedUserItems.length > 0 ? (
                 <div className="items-grid">
                   {groupedUserItems.map((group) => (
-                    <div key={group.displayInfo.itemId} className="store-item-card">
+                    <div key={group.displayInfo.itemId} className="store-item-card compact-myitem-card">
                       <div className="item-content">
-                        <div className="my-item-header">
-                          <div className="item-icon-group">
-                            <div className="item-icon">{group.displayInfo.icon || "🆕"}</div>
-                            <QuantityBadge quantity={group.totalQuantity} />
-                          </div>
-                          <div className="item-info">
-                            <h3 className="item-name">{group.displayInfo.name}</h3>
-                            <p className="item-description">{group.displayInfo.description}</p>
-                          </div>
+                        <div className="my-item-header-compact">
+                          <h3 className="my-item-name-compact">{group.displayInfo.name}</h3>
+                          <QuantityBadge quantity={group.totalQuantity} />
                         </div>
+                        {group.displayInfo.description && group.displayInfo.description.trim() && (
+                          <p className="my-item-description-compact">{group.displayInfo.description}</p>
+                        )}
                         <div className="my-item-actions">
                           <button className="use-item-button" onClick={() => {
                             handleOpenUseItemModal(group);
