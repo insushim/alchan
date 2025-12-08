@@ -44,7 +44,7 @@ const MusicRoom = ({ user }) => {
                 return null;
             }
         },
-        { interval: 120000, enabled: !!user, deps: [user, roomId] } // 🔥 [최적화] 30초 → 2분
+        { interval: 300000, enabled: !!user, deps: [user, roomId] } // 🔥 [최적화] 2분 → 5분
     );
 
     // Use polling for playlist
@@ -58,7 +58,7 @@ const MusicRoom = ({ user }) => {
             setPlaylist(newPlaylist);
             return newPlaylist;
         },
-        { interval: 180000, enabled: !!room, deps: [room, roomId] } // 🔥 [최적화] 1분 → 3분
+        { interval: 300000, enabled: !!room, deps: [room, roomId] } // 🔥 [최적화] 3분 → 5분
     );
 
     useEffect(() => {

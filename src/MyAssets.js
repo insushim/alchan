@@ -61,7 +61,7 @@ export default function MyAssets() {
   const giftCouponFunction = httpsCallable(functions, 'giftCoupon');
 
   // 🔥 [최적화 4] 캐시 유효 시간 설정
-  const CACHE_DURATION = 30 * 60 * 1000; // 🔥 [최적화] 30분 (Firestore 읽기 최소화)
+  const CACHE_DURATION = 60 * 60 * 1000; // 🔥 [최적화] 1시간 (Firestore 읽기 최소화)
 
   const currentGoalId = currentUserClassCode
     ? `${currentUserClassCode}_goal` 

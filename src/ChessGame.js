@@ -445,8 +445,8 @@ const ChessGame = () => {
         }
     }, [gameId]);
 
-    // 🔥 [최적화] 30초 → 60초로 변경 (읽기 비용 절감)
-    const { refetch } = usePolling(fetchGameData, { interval: 60000, enabled: !!gameId });
+    // 🔥 [최적화] 60초 → 3분으로 변경 (읽기 비용 절감)
+    const { refetch } = usePolling(fetchGameData, { interval: 180000, enabled: !!gameId });
 
     useEffect(() => {
         refetchRef.current = refetch;

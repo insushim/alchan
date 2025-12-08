@@ -8,7 +8,7 @@
     background: linear-gradient(135deg, #6a82fb 0%, #fc5c7d 100%);
     padding: 10px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    color: #333;
+    color: #ffffff;
 }
 
 /* 방 생성 화면 */
@@ -20,6 +20,7 @@
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     text-align: center;
+    color: #333;
 }
 
 .room-creation h2 {
