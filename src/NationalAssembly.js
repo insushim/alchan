@@ -77,27 +77,6 @@ const NationalAssembly = () => {
   const [optimisticEditedLaws, setOptimisticEditedLaws] = useState({});
   const [optimisticNewLaws, setOptimisticNewLaws] = useState([]);
 
-  // 모달 상태 변경 감지를 위한 useEffect
-  useEffect(() => {
-    console.log("[NationalAssembly] showProposeLawModal 상태 변경:", showProposeLawModal);
-    if (showProposeLawModal) {
-      // DOM에서 모달이 실제로 존재하는지 확인
-      setTimeout(() => {
-        const modal = document.querySelector('.modal-overlay');
-        console.log("[NationalAssembly] DOM에서 모달 찾기:", modal);
-        if (modal) {
-          console.log("[NationalAssembly] 모달 스타일:", {
-            display: modal.style.display,
-            zIndex: window.getComputedStyle(modal).zIndex,
-            position: window.getComputedStyle(modal).position,
-            visibility: window.getComputedStyle(modal).visibility,
-            opacity: window.getComputedStyle(modal).opacity
-          });
-        }
-      }, 100);
-    }
-  }, [showProposeLawModal]);
-
   // 관리자 설정 로드 및 초기화
   const { data: adminSettings, loading: adminSettingsLoading } = usePolling(
     async () => {
@@ -894,12 +873,7 @@ const NationalAssembly = () => {
             {canProposeLaw() && (
               <div className="content-actions">
                 <button
-                  onClick={() => {
-                    console.log("[NationalAssembly] 새 법안 제안하기 버튼 클릭됨");
-                    console.log("[NationalAssembly] showProposeLawModal:", showProposeLawModal);
-                    setShowProposeLawModal(true);
-                    console.log("[NationalAssembly] setShowProposeLawModal(true) 호출 완료");
-                  }}
+                  onClick={() => setShowProposeLawModal(true)}
                   className="action-button propose-button"
                 >
                   새 법안 제안하기

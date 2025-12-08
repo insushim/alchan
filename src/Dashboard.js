@@ -711,15 +711,11 @@ function Dashboard({ adminTabMode }) {
       }
 
       lastCheckedDateRef.current = today;
-      console.log('[Dashboard] 날짜 체크:', { today, lastResetDate });
 
       if (lastResetDate !== today) {
-        console.log('[Dashboard] 날짜가 변경되었습니다. 서버에서 리셋했을 것으로 예상, UI 새로고침...');
         // 서버(GitHub Actions)가 자정에 자동으로 리셋했을 것으로 가정
         // 클라이언트는 UI만 새로고침
         refreshTasksAfterReset();
-      } else {
-        console.log('[Dashboard] 오늘 이미 체크되었습니다.');
       }
     };
 

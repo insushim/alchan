@@ -418,7 +418,8 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="이메일을 입력하세요"
-                    className="w-full pl-16 pr-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
+                    style={{ paddingLeft: '4rem', paddingRight: '1rem', paddingTop: '1rem', paddingBottom: '1rem' }}
                     disabled={isLoading}
                   />
                 </div>
@@ -438,7 +439,8 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="비밀번호를 입력하세요"
-                    className="w-full pl-16 pr-14 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium"
+                    style={{ paddingLeft: '4rem', paddingRight: '3.5rem', paddingTop: '1rem', paddingBottom: '1rem' }}
                     disabled={isLoading}
                   />
                   <button
@@ -556,7 +558,8 @@ const Login = () => {
                     value={registerName}
                     onChange={(e) => setRegisterName(e.target.value)}
                     placeholder="선생님 성함"
-                    className="w-full pl-14 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    style={{ paddingLeft: '3.5rem', paddingRight: '1rem', paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                     required
                     disabled={isLoading}
                   />
@@ -577,7 +580,8 @@ const Login = () => {
                     value={registerEmail}
                     onChange={(e) => setRegisterEmail(e.target.value)}
                     placeholder="이메일 주소"
-                    className="w-full pl-14 pr-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    style={{ paddingLeft: '3.5rem', paddingRight: '1rem', paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                     required
                     disabled={isLoading}
                   />
@@ -595,7 +599,8 @@ const Login = () => {
                     value={registerPassword}
                     onChange={(e) => setRegisterPassword(e.target.value)}
                     placeholder="6자 이상"
-                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    style={{ padding: '0.75rem 1rem' }}
                     required
                     disabled={isLoading}
                   />
@@ -609,7 +614,8 @@ const Login = () => {
                     value={registerConfirmPassword}
                     onChange={(e) => setRegisterConfirmPassword(e.target.value)}
                     placeholder="재입력"
-                    className="w-full px-4 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                    style={{ padding: '0.75rem 1rem' }}
                     required
                     disabled={isLoading}
                   />
@@ -631,7 +637,8 @@ const Login = () => {
                       value={schoolName}
                       onChange={(e) => setSchoolName(e.target.value)}
                       placeholder="초등학교"
-                      className="w-full pl-14 pr-3 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                      className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                      style={{ paddingLeft: '3.5rem', paddingRight: '0.75rem', paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                       disabled={isLoading}
                     />
                   </div>
@@ -649,7 +656,8 @@ const Login = () => {
                       value={className}
                       onChange={(e) => setClassName(e.target.value)}
                       placeholder="6-1반"
-                      className="w-full pl-14 pr-3 py-3 bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                      className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:border-violet-400 focus:bg-white transition-all font-medium text-sm"
+                      style={{ paddingLeft: '3.5rem', paddingRight: '0.75rem', paddingTop: '0.75rem', paddingBottom: '0.75rem' }}
                       disabled={isLoading}
                     />
                   </div>

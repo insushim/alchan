@@ -119,15 +119,8 @@ const LearningBoard = () => {
   
     const boardsQueryFn = useCallback(async () => {
       if (!classCode) {
-        console.log(
-          "[LearningBoard Debug] No classCode. Returning empty boards."
-        );
         return [];
       }
-      console.log(
-        "[LearningBoard Debug] Fetching boards for classCode:",
-        classCode
-      );
       const boardsPathRef = collection(
         db,
         "classes",
@@ -137,10 +130,6 @@ const LearningBoard = () => {
       // 🔥 [최적화] limit 추가 - 최대 100개 게시판만 조회
       const q = query(boardsPathRef, orderBy("name"), limit(100));
       const snapshot = await getDocs(q);
-      console.log(
-        "[LearningBoard Debug] Boards fetched. Docs count:",
-        snapshot.docs.length
-      );
       const loadedBoards = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
@@ -167,9 +156,6 @@ const LearningBoard = () => {
       if (!selectedBoard || !classCode) {
         return [];
       }
-      console.log(
-        `[LearningBoard Debug] Fetching posts for board: ${selectedBoard.name} (${selectedBoard.id})`
-      );
       const postsCollectionRef = collection(
         db,
         "classes",
@@ -181,10 +167,6 @@ const LearningBoard = () => {
       // 🔥 [최적화] limit 추가 - 최신 게시글 100개만 조회
       const q = query(postsCollectionRef, orderBy("timestamp", "desc"), limit(100));
       const snapshot = await getDocs(q);
-      console.log(
-        `[LearningBoard Debug] Posts fetched for board ${selectedBoard.id}. Docs count:`,
-        snapshot.docs.length
-      );
       const loadedPosts = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),

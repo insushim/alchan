@@ -20,19 +20,10 @@ const ReportStatus = ({
   const [processingAmount, setProcessingAmount] = useState("");
   const [processingReason, setProcessingReason] = useState("");
 
-  // 디버깅을 위한 useEffect 추가
-  useEffect(() => {
-    console.log("ReportStatus - showProcessModal:", showProcessModal);
-    console.log("ReportStatus - selectedReport:", selectedReport);
-  }, [showProcessModal, selectedReport]);
-
   // 처리 모달 열기
   const openProcessModal = (report) => {
-    console.log("openProcessModal 호출됨:", report);
-    
     // 먼저 report 객체가 유효한지 확인
     if (!report) {
-      console.error("openProcessModal: report가 없습니다");
       return;
     }
 
@@ -50,14 +41,10 @@ const ReportStatus = ({
     setProcessingAmount(defaultAmount);
     setProcessingReason("");
     setShowProcessModal(true);
-    
-    console.log("모달 상태 업데이트 완료");
   };
 
   // 합의 처리 버튼 핸들러
   const handleSettlementClick = (report) => {
-    console.log("handleSettlementClick 호출됨:", report);
-    console.log("onSettlement 함수 존재 여부:", typeof onSettlement);
     
     if (!onSettlement) {
       console.error("onSettlement 함수가 전달되지 않았습니다");
@@ -93,21 +80,17 @@ const ReportStatus = ({
 
   // 처리 제출 핸들러
   const handleProcessSubmit = () => {
-    console.log("handleProcessSubmit 호출됨");
-    
     if (!selectedReport) {
-      console.error("선택된 신고가 없습니다");
       return;
     }
-    
+
     if (!onProcessReport) {
-      console.error("onProcessReport 함수가 전달되지 않았습니다");
       alert("벌금 처리 기능을 사용할 수 없습니다.");
       return;
     }
-    
+
     const amount = processingAmount ? parseInt(processingAmount, 10) : 0;
-    
+
     try {
       onProcessReport(selectedReport.id, amount, processingReason);
       closeModals();
@@ -119,7 +102,6 @@ const ReportStatus = ({
 
   // 모달 닫기
   const closeModals = () => {
-    console.log("closeModals 호출됨");
     setShowProcessModal(false);
     setSelectedReport(null);
     setProcessingAmount("");
@@ -137,18 +119,6 @@ const ReportStatus = ({
     }
     return reason;
   };
-
-  // 컴포넌트 마운트 시 디버깅
-  useEffect(() => {
-    console.log("ReportStatus 컴포넌트 마운트됨");
-    console.log("전달받은 props:", {
-      reports: reports?.length || 0,
-      onProcessReport: typeof onProcessReport,
-      onSettlement: typeof onSettlement,
-      reportReasons: reportReasons?.length || 0,
-      isAdminView
-    });
-  }, []);
 
   // 벌금 처리 모달 컴포넌트 (Portal 대신 직접 렌더링)
   const ProcessReportModal = React.useMemo(() => {

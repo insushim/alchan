@@ -334,10 +334,7 @@ const AdminSettingsModal = ({
     try {
       let studentsList = [];
 
-      console.log(`[AdminSettingsModal] 학생 데이터 로드 시작 - isSuperAdmin: ${isSuperAdmin}, userClassCode: ${userClassCode}`);
-
       if (!isSuperAdmin && !userClassCode) {
-        console.warn("일반 관리자의 학급 코드가 설정되지 않았습니다.");
         setError("학급 코드가 설정되지 않아 학생 정보를 가져올 수 없습니다.");
         setStudents([]);
         setStudentsLoading(false);
@@ -347,7 +344,6 @@ const AdminSettingsModal = ({
       // 1. Class/{classCode}/students 구조에서 시도
       if (!isSuperAdmin && userClassCode) {
         try {
-          console.log(`[AdminSettingsModal] Class/${userClassCode}/students 에서 데이터 조회 시도`);
           const classStudentsRef = firebaseCollection(db, "Class", userClassCode, "students");
           const classStudentsSnapshot = await firebaseGetDocs(classStudentsRef);
 
@@ -370,16 +366,13 @@ const AdminSettingsModal = ({
               totalSalaryReceived: userData.totalSalaryReceived || 0,
             });
           });
-
-          console.log(`[AdminSettingsModal] Class 구조에서 ${studentsList.length}명 로드됨`);
         } catch (classError) {
-          console.log("[AdminSettingsModal] Class 구조에서 로드 실패, users 구조에서 재시도");
+          // Class 구조에서 로드 실패 시 users 구조에서 재시도
         }
       }
 
       // 2. users 컬렉션에서 시도 (Class 구조에서 못 찾았거나 최고 관리자인 경우)
       if (studentsList.length === 0) {
-        console.log(`[AdminSettingsModal] users 컬렉션에서 데이터 조회 시도`);
         const usersRef = firebaseCollection(db, "users");
         let queryRef;
 
@@ -415,14 +408,9 @@ const AdminSettingsModal = ({
             });
           }
         });
-
-        console.log(`[AdminSettingsModal] users 구조에서 ${studentsList.length}명 로드됨`);
       }
 
       setStudents(studentsList);
-      console.log(
-        `[AdminSettingsModal] 총 ${studentsList.length}명의 학생 로드 완료`
-      );
 
       try {
         const classSettingsRef = userClassCode

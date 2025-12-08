@@ -57,18 +57,15 @@ const batchDataLoader = {
 
     // 이미 같은 배치 요청이 진행 중이면 대기
     if (this.pendingRequests.has(batchKey)) {
-      console.log('[batchDataLoader] 대기 중인 요청 재사용');
       return await this.pendingRequests.get(batchKey);
     }
 
-    console.log('[batchDataLoader] 서버에서 새 데이터 로드 시작');
     const batchPromise = this._executeBatchLoad(classCode, userId);
     this.pendingRequests.set(batchKey, batchPromise);
 
     try {
       const result = await batchPromise;
       globalCache.set(batchKey, result, 30 * 60 * 1000); // 🔥 [최적화] 30분 캐시 - 거래 시 강제 무효화되므로 안전
-      console.log('[batchDataLoader] 서버에서 새 데이터 로드 완료 및 캐시 저장 (30분)');
       return result;
     } finally {
       this.pendingRequests.delete(batchKey);
@@ -95,7 +92,6 @@ const batchDataLoader = {
         const getSnapshotFn = httpsCallable(functions, 'getStocksSnapshot');
         const result = await getSnapshotFn({});
         if (result.data && Array.isArray(result.data.stocks) && result.data.stocks.length > 0) {
-          console.log(`[Firebase 읽기] Stock snapshot(함수): ${result.data.stocks.length}개 항목`);
           return result.data.stocks;
         }
       } catch (fnError) {
@@ -109,7 +105,6 @@ const batchDataLoader = {
         const cacheData = cacheDoc.exists() ? cacheDoc.data() : null;
 
         if (cacheData && Array.isArray(cacheData.stocks) && cacheData.stocks.length > 0) {
-          console.log(`[Firebase 읽기] Stock snapshot: ${cacheData.stocks.length}개 항목 (단일 문서)`);
           return cacheData.stocks;
         }
       } catch (snapshotError) {
@@ -120,8 +115,6 @@ const batchDataLoader = {
       const stocksRef = collection(db, "CentralStocks");
       const q = query(stocksRef, where("isListed", "==", true));
       const querySnapshot = await getDocs(q);
-
-      console.log(`[Firebase 읽기] Stocks: ${querySnapshot.docs.length}개 문서 읽음 (폴백)`); // fallback path
 
       return querySnapshot.docs.map(doc => ({
         id: doc.id,
@@ -138,8 +131,6 @@ const batchDataLoader = {
       const portfolioRef = collection(db, "users", userId, "portfolio");
       const q = query(portfolioRef, where("classCode", "==", classCode));
       const querySnapshot = await getDocs(q);
-
-      console.log(`[Firebase 읽기] Portfolio: ${querySnapshot.docs.length}개 문서 읽음`);
 
       return querySnapshot.docs.map(doc => {
         const data = doc.data();

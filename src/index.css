@@ -512,3 +512,14 @@ label, .form-label {
 .setting-description {
   color: #64748b !important;
 }
+
+/* 직업 헤더 시인성 개선 */
+.job-header-container,
+.job-header-container * {
+  color: #ffffff !important;
+}
+
+.job-title-text {
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}

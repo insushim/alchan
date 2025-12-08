@@ -37,9 +37,9 @@ export default function JobList({
     >
       {/* 직업 헤더 - 시인성 개선 */}
       <div
+        className="job-header-container"
         style={{
           background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
-          color: "white",
           padding: isMobile ? "12px 14px" : "14px 16px",
           display: "flex",
           justifyContent: "space-between",
@@ -47,12 +47,17 @@ export default function JobList({
           borderBottom: "none",
         }}
       >
-        <div style={{
-          fontWeight: "700",
-          fontSize: isMobile ? "16px" : "18px",
-          textShadow: "0 1px 3px rgba(0,0,0,0.2)",
-          letterSpacing: "-0.01em"
-        }}>{job.title}</div>
+        <div
+          className="job-title-text"
+          style={{
+            fontWeight: "700",
+            fontSize: isMobile ? "16px" : "18px",
+            textShadow: "0 1px 3px rgba(0,0,0,0.2)",
+            letterSpacing: "-0.01em"
+          }}
+        >
+          {job.title}
+        </div>
         {/* 관리자 모드에서 직업 수정/삭제 버튼 */}
         {isAdmin && (
           <div>

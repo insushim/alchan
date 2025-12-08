@@ -306,7 +306,6 @@ export default function MyAssets() {
     const cachedData = getCachedFirestoreData(cacheKey);
 
     if (cachedData) {
-      console.log('[MyAssets] 캐시된 목표 데이터 사용');
       setClassCouponGoal(Number(cachedData.targetAmount) || 1000);
       setGoalProgress(Number(cachedData.progress) || 0);
 
@@ -321,7 +320,6 @@ export default function MyAssets() {
     }
 
     try {
-      console.log('[MyAssets] Firestore에서 목표 데이터 로드 중...');
       const goalDocRef = doc(db, "goals", currentGoalId);
       const goalDocSnap = await getDoc(goalDocRef);
 
@@ -369,13 +367,6 @@ export default function MyAssets() {
 
         // 🔥 캐시에 저장
         setCachedFirestoreData(cacheKey, goalData);
-
-        console.log('[MyAssets] 목표 데이터 로드 완료:', {
-          progress: goalData.progress,
-          targetAmount: goalData.targetAmount,
-          donationsCount: donations.length,
-          myContribution: myTotal
-        });
       } else {
         // 목표 문서가 없으면 기본값 생성
         console.log('[MyAssets] 목표 문서가 없어 기본값 생성');
@@ -447,8 +438,8 @@ export default function MyAssets() {
 
       setRealEstateAssets(allRealEstateAssets);
 
-      // 🔥 [새로 추가] 목표 데이터도 함께 로드
-      await loadGoalData();
+      // 🔥 [최적화] 목표 데이터는 별도 useEffect에서 로드 (중복 호출 방지)
+      // loadGoalData()는 [user, currentGoalId] 의존성의 useEffect에서 호출됨
 
       // 🔥 거래 내역 로드 - activity_logs만 사용 (최적화됨)
       let activityData = [];
@@ -476,9 +467,8 @@ export default function MyAssets() {
           })
           // 현금 변동이 있는 항목만 필터링
           .filter(tx => tx.amount !== 0);
-        console.log('[MyAssets] 활동 로그 로드:', activityData.length, '개');
       } catch (activityError) {
-        console.log('[MyAssets] 활동 로그 로드 실패 (무시):', activityError.message);
+        // 활동 로그 로드 실패 시 무시
       }
 
       // 🔥 [최적화] 기존 transactions 컬렉션 조회 제거
@@ -497,7 +487,6 @@ export default function MyAssets() {
 
       // 최근 20개만 유지
       setTransactionHistory(allTransactions.slice(0, 20));
-      console.log('[MyAssets] 거래 내역 총:', allTransactions.length, '개');
 
     } catch (fallbackError) {
       console.error('[MyAssets] 🚨 클라이언트 측 직접 조회 실패:', fallbackError);

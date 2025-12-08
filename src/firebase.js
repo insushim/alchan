@@ -272,12 +272,10 @@ const setCache = (key, data) => {
   if (cache.size >= MAX_CACHE_SIZE) {
     const oldestKey = cache.keys().next().value;
     cache.delete(oldestKey);
-    console.log(`[Cache] SIZE_LIMIT: Removed oldest ${oldestKey}`);
   }
-  
+
   const expiry = Date.now() + CACHE_TTL;
   cache.set(key, { data, expiry, lastAccessed: Date.now() });
-  console.log(`[Cache] SET: ${key} (TTL: ${CACHE_TTL/1000/60}분)`);
 };
 
 const getCache = (key, tab = 'unknown') => {
@@ -288,7 +286,6 @@ const getCache = (key, tab = 'unknown') => {
   }
 
   if (Date.now() > cachedItem.expiry) {
-    console.log(`[Cache] EXPIRED: ${key}`);
     cache.delete(key);
     logDbOperation('CACHE_MISS', key, null, { tab, extra: '(expired)' });
     return null;
@@ -303,7 +300,6 @@ const getCache = (key, tab = 'unknown') => {
 const invalidateCache = (key) => {
     if (cache.has(key)) {
         cache.delete(key);
-        console.log(`[Cache] INVALIDATED: ${key}`);
     }
 };
 

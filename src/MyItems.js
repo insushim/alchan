@@ -72,16 +72,6 @@ const MyItems = () => {
   };
 
   const groupedUserItems = useMemo(() => {
-    console.log('[MyItems] 🔍 groupedUserItems 계산 시작, userItems:', {
-      개수: userItems?.length || 0,
-      처음5개: userItems?.slice(0, 5).map(item => ({
-        id: item.id,
-        itemId: item.itemId,
-        name: item.name,
-        quantity: item.quantity
-      }))
-    });
-
     if (!userItems || userItems.length === 0) {
       return [];
     }

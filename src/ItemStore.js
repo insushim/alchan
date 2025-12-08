@@ -68,7 +68,6 @@ const ItemStore = () => {
   const currentUserClassCode = userDoc?.classCode; // 현재 사용자의 classCode
 
   useEffect(() => {
-    console.log('[ItemStore] items 변경됨:', items?.length, '개', items);
     if (items && Array.isArray(items)) {
       const itemsWithDefaults = items.map((item) => ({
         ...item,
@@ -77,7 +76,6 @@ const ItemStore = () => {
       const availableItems = itemsWithDefaults.filter(
         (item) => item?.available !== false
       );
-      console.log('[ItemStore] shopItems 설정:', availableItems.length, '개');
       setShopItems(availableItems);
 
       const initialQuantities = {};
@@ -86,7 +84,6 @@ const ItemStore = () => {
       });
       setPurchaseQuantities(initialQuantities);
     } else {
-      console.log('[ItemStore] items가 비어있거나 배열이 아님');
       setShopItems([]);
     }
   }, [items]);

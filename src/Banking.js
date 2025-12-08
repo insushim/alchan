@@ -207,7 +207,6 @@ const Banking = () => {
         setParkingLoanProducts([]);
       }
 
-      console.log("뱅킹 상품 로드 성공:", bankingData);
     } catch (error) {
       console.error("뱅킹 상품 로드 중 오류:", error);
       setMessage("데이터 로딩 중 오류가 발생했습니다.");
@@ -762,7 +761,7 @@ const Banking = () => {
                 </div>
 
                 {/* Loan Products */}
-                <div style={{ ...styles.adminSection, borderBottom: "none" }}>
+                <div className="admin-section" style={{ borderBottom: "none" }}>
                   <h3>파킹 대출 상품</h3>
                   <p className="admin-info-text">
                     일 이율(%)과 기간(일)을 입력합니다. 변경 후 '저장' 버튼을
