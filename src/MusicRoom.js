@@ -77,6 +77,11 @@ const MusicRoom = ({ user }) => {
         }
     }, [playlist, currentVideoId]);
 
+    const onReady = (event) => {
+        // 플레이어가 준비되면 자동 재생 시작
+        event.target.playVideo();
+    };
+
     const onStateChange = (event) => {
         if (event.data === 0) {
             playNextSong();
@@ -127,7 +132,7 @@ const MusicRoom = ({ user }) => {
             <div className="main-content">
                 <div className="video-player-wrapper">
                     {currentVideoId ? (
-                        <YouTube videoId={currentVideoId} opts={opts} onStateChange={onStateChange} className="youtube-player" />
+                        <YouTube videoId={currentVideoId} opts={opts} onReady={onReady} onStateChange={onStateChange} className="youtube-player" />
                     ) : (
                         <div className="no-video-placeholder">
                             <p>재생목록이 비어있습니다. 학생들에게 음악을 신청하도록 해주세요.</p>
