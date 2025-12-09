@@ -459,10 +459,11 @@ export default function MyAssets() {
       // 🔥 [최적화] 목표 데이터는 별도 useEffect에서 로드 (중복 호출 방지)
       // loadGoalData()는 [user, currentGoalId] 의존성의 useEffect에서 호출됨
 
-      // 🔥 거래 내역 로드 - activity_logs만 사용 (최적화됨)
+      // 🔥 거래 내역 로드 - activity_logs + transactions 컬렉션 모두 조회
       let activityData = [];
+      let transactionsData = [];
 
-      // 1. 새로운 활동 로그에서 현금 관련 활동 가져오기 (실패해도 계속 진행)
+      // 1. activity_logs 컬렉션에서 활동 가져오기
       try {
         const activityLogsRef = query(
           collection(db, "activity_logs"),
@@ -481,20 +482,41 @@ export default function MyAssets() {
               timestamp: data.timestamp,
               type: data.type,
               couponAmount: data.couponAmount || 0,
+              source: 'activity_logs'
             };
           })
-          // 현금 변동이 있는 항목만 필터링
-          .filter(tx => tx.amount !== 0);
+          // 현금 또는 쿠폰 변동이 있는 항목만 필터링
+          .filter(tx => tx.amount !== 0 || tx.couponAmount !== 0);
       } catch (activityError) {
-        // 활동 로그 로드 실패 시 무시
+        console.log('[MyAssets] activity_logs 조회 실패:', activityError);
       }
 
-      // 🔥 [최적화] 기존 transactions 컬렉션 조회 제거
-      // activity_logs에 모든 거래가 기록되므로 중복 조회 불필요
-      // Firestore 읽기 ~50% 절감
+      // 2. 기존 transactions 서브컬렉션에서도 조회 (하위 호환성)
+      try {
+        const transactionsRef = query(
+          collection(db, "users", userId, "transactions"),
+          limit(30)
+        );
+        const transactionsSnap = await getDocs(transactionsRef);
+        transactionsData = transactionsSnap.docs
+          .map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              amount: data.amount || 0,
+              description: data.description || '거래 내역',
+              timestamp: data.timestamp || data.createdAt,
+              type: data.type || 'transaction',
+              source: 'transactions'
+            };
+          })
+          .filter(tx => tx.amount !== 0);
+      } catch (transactionsError) {
+        console.log('[MyAssets] transactions 조회 실패:', transactionsError);
+      }
 
-      // 활동 로그만 사용
-      const allTransactions = [...activityData];
+      // 두 소스 합치기 (중복 제거는 ID 기반)
+      const allTransactions = [...activityData, ...transactionsData];
 
       // timestamp 기준으로 정렬
       allTransactions.sort((a, b) => {
