@@ -48,6 +48,8 @@ export default function MyAssets() {
   const loadingRef = useRef(false); // 로딩 중복 방지용 플래그
   const dataFetchRef = useRef({}); // 데이터 페치 시간 추적용
   const [parkingBalance, setParkingBalance] = useState(0);
+  const [deposits, setDeposits] = useState([]); // 예금 상품 목록
+  const [savings, setSavings] = useState([]); // 적금 상품 목록
   const [loans, setLoans] = useState([]);
   const [realEstateAssets, setRealEstateAssets] = useState([]);
   const [totalNetAssets, setTotalNetAssets] = useState(0);
@@ -429,11 +431,27 @@ export default function MyAssets() {
 
       setParkingBalance(totalParkingBalance);
 
-      // 🔥 [최적화] 다른 자산들도 계속 조회합니다 (limit 추가)
-      const loansRef = query(collection(db, "users", userId, "loans"), limit(20));
-      const loansSnap = await getDocs(loansRef);
+      // 🔥 [최적화] 가입 상품 조회 (예금, 적금, 대출 모두 products 컬렉션에 저장됨)
+      const productsRef = query(collection(db, "users", userId, "products"), limit(50));
+      const productsSnap = await getDocs(productsRef);
 
-      const loansData = loansSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      const depositsData = [];
+      const savingsData = [];
+      const loansData = [];
+
+      productsSnap.forEach(docSnap => {
+        const product = {
+          id: docSnap.id,
+          ...docSnap.data(),
+          maturityDate: docSnap.data().maturityDate?.toDate ? docSnap.data().maturityDate.toDate() : docSnap.data().maturityDate
+        };
+        if (product.type === 'deposit') depositsData.push(product);
+        else if (product.type === 'savings') savingsData.push(product);
+        else if (product.type === 'loan') loansData.push(product);
+      });
+
+      setDeposits(depositsData);
+      setSavings(savingsData);
       setLoans(loansData);
 
       setRealEstateAssets(allRealEstateAssets);
@@ -524,14 +542,27 @@ export default function MyAssets() {
       (sum, asset) => sum + (Number(asset.price) || 0),
       0
     );
+    // 예금 총액 (balance 기준)
+    const depositsTotal = deposits.reduce(
+      (sum, deposit) => sum + (Number(deposit.balance) || 0),
+      0
+    );
+    // 적금 총액 (balance 기준)
+    const savingsTotal = savings.reduce(
+      (sum, saving) => sum + (Number(saving.balance) || 0),
+      0
+    );
+    // 대출 총액 (balance 기준 - remainingPrincipal이 없으면 balance 사용)
     const loanTotal = loans.reduce(
-      (sum, loan) => sum + (Number(loan.remainingPrincipal) || 0),
+      (sum, loan) => sum + (Number(loan.remainingPrincipal) || Number(loan.balance) || 0),
       0
     );
     const calculatedTotalAssets =
       cashValue +
       couponMonetaryValue +
       Number(parkingBalance) +
+      depositsTotal +
+      savingsTotal +
       realEstateValue -
       loanTotal;
 
@@ -541,6 +572,8 @@ export default function MyAssets() {
     userDoc?.coupons,
     couponValue,
     parkingBalance,
+    deposits,
+    savings,
     realEstateAssets,
     loans,
   ]);
@@ -1352,7 +1385,7 @@ export default function MyAssets() {
             color: "rgba(255,255,255,0.8)",
             margin: "8px 0 0 0"
           }}>
-            현금 + 쿠폰가치 + 파킹통장 + 부동산 - 대출
+            현금 + 쿠폰가치 + 파킹통장 + 예금 + 적금 + 부동산 - 대출
           </p>
         </div>
 
