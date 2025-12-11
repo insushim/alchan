@@ -51,9 +51,10 @@ export default function JobList({
           className="job-title-text"
           style={{
             fontWeight: "700",
-            fontSize: isMobile ? "16px" : "18px",
+            fontSize: isMobile ? "15px" : "18px",
             textShadow: "0 1px 3px rgba(0,0,0,0.2)",
-            letterSpacing: "-0.01em"
+            letterSpacing: "-0.01em",
+            color: "#ffffff", // 흰색 텍스트
           }}
         >
           {job.title}

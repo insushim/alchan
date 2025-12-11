@@ -96,48 +96,51 @@ export default function TaskItem({
     transition: "all 0.2s ease",
     border: `1px solid ${isCompleted ? "#c7d2fe" : "#e5e7eb"}`,
     display: "flex",
-    flexDirection: isMobile ? "column" : "row",
-    alignItems: isMobile ? "stretch" : "center",
+    flexDirection: "row", // 모바일에서도 가로 배치
+    alignItems: "center",
     justifyContent: "space-between",
     position: "relative",
     opacity: isCompleted ? 0.6 : 1,
-    padding: isMobile ? "10px" : "12px",
+    padding: isMobile ? "8px 10px" : "12px",
     marginBottom: "8px",
     boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-    gap: isMobile ? "8px" : "0",
+    gap: isMobile ? "6px" : "8px",
   };
 
   const taskInfoStyle = {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
+    gap: isMobile ? "6px" : "10px",
     flexGrow: 1,
     minWidth: 0,
+    overflow: "hidden",
   };
 
   const taskNameStyle = {
     color: "#374151",
     fontWeight: "600",
-    fontSize: isMobile ? "14px" : "16px",
-    wordBreak: "break-word",
+    fontSize: isMobile ? "12px" : "16px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
     lineHeight: "1.4",
+    flex: 1,
+    minWidth: 0,
   };
 
   const taskActionsStyle = {
     display: "flex",
     alignItems: "center",
-    gap: isMobile ? "6px" : "8px",
+    gap: isMobile ? "4px" : "8px",
     flexShrink: 0,
-    flexWrap: "wrap",
-    justifyContent: isMobile ? "flex-start" : "flex-end",
   };
 
   const couponStyle = {
     backgroundColor: isJobTask ? "#4f46e5" : "#10b981",
     color: "white",
-    padding: isMobile ? "4px 8px" : "4px 10px",
-    borderRadius: "12px",
-    fontSize: isMobile ? "12px" : "13px",
+    padding: isMobile ? "3px 6px" : "4px 10px",
+    borderRadius: "10px",
+    fontSize: isMobile ? "10px" : "13px",
     fontWeight: "500",
     whiteSpace: "nowrap",
   };

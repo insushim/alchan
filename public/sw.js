@@ -1,7 +1,8 @@
-// 알찬 PWA 서비스 워커
-const CACHE_NAME = 'alchan-v1.0.0';
-const STATIC_CACHE = 'alchan-static-v1';
-const DYNAMIC_CACHE = 'alchan-dynamic-v1';
+// 알찬 PWA 서비스 워커 - 네트워크 우선 (항상 최신 버전)
+const CACHE_VERSION = 'v1.1.0';
+const CACHE_NAME = `alchan-${CACHE_VERSION}`;
+const STATIC_CACHE = `alchan-static-${CACHE_VERSION}`;
+const DYNAMIC_CACHE = `alchan-dynamic-${CACHE_VERSION}`;
 
 // 정적 자원 (앱 셸)
 const STATIC_ASSETS = [
@@ -92,29 +93,21 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 정적 자원 (JS, CSS, 이미지)
+  // 정적 자원 (JS, CSS, 이미지) - 네트워크 우선! 새로고침 시 항상 최신 버전 적용
   if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/)) {
     event.respondWith(
-      caches.match(request)
-        .then((cachedResponse) => {
-          if (cachedResponse) {
-            // 캐시가 있으면 반환하고, 백그라운드에서 업데이트
-            fetch(request).then((response) => {
-              caches.open(STATIC_CACHE).then((cache) => {
-                cache.put(request, response);
-              });
-            }).catch(() => {});
-            return cachedResponse;
-          }
-
-          // 캐시가 없으면 네트워크에서 가져와서 캐시
-          return fetch(request).then((response) => {
-            const responseClone = response.clone();
-            caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-            return response;
+      fetch(request)
+        .then((response) => {
+          // 네트워크 성공 시 캐시에 저장하고 반환
+          const responseClone = response.clone();
+          caches.open(STATIC_CACHE).then((cache) => {
+            cache.put(request, responseClone);
           });
+          return response;
+        })
+        .catch(() => {
+          // 네트워크 실패 시 (오프라인) 캐시에서 반환
+          return caches.match(request);
         })
     );
     return;

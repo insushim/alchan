@@ -2371,3 +2371,67 @@ exports.saveFCMToken = onCall({region: "asia-northeast3"}, async (request) => {
     throw new HttpsError("internal", "FCM 토큰 처리 중 오류가 발생했습니다.");
   }
 });
+
+// ============================================
+// 사용자 아이템 수량 업데이트 (경매 등록/취소 시 사용)
+// ============================================
+exports.updateUserItemQuantity = onCall({region: "asia-northeast3"}, async (request) => {
+  const {uid} = await checkAuthAndGetUserData(request);
+  const {itemId, quantityChange, sourceCollection = 'inventory'} = request.data;
+
+  if (!itemId) {
+    throw new HttpsError("invalid-argument", "아이템 ID가 필요합니다.");
+  }
+
+  if (typeof quantityChange !== 'number' || quantityChange === 0) {
+    throw new HttpsError("invalid-argument", "유효한 수량 변경값이 필요합니다.");
+  }
+
+  try {
+    const inventoryRef = db.collection("users").doc(uid).collection(sourceCollection).doc(itemId);
+
+    const result = await db.runTransaction(async (transaction) => {
+      const inventoryDoc = await transaction.get(inventoryRef);
+
+      if (!inventoryDoc.exists) {
+        throw new Error("인벤토리에서 아이템을 찾을 수 없습니다.");
+      }
+
+      const currentData = inventoryDoc.data();
+      const currentQuantity = currentData.quantity || 0;
+      const newQuantity = currentQuantity + quantityChange;
+
+      if (newQuantity < 0) {
+        throw new Error(`아이템 수량이 부족합니다. (현재: ${currentQuantity}, 필요: ${Math.abs(quantityChange)})`);
+      }
+
+      if (newQuantity === 0) {
+        // 수량이 0이 되면 문서 삭제
+        transaction.delete(inventoryRef);
+      } else {
+        // 수량 업데이트
+        transaction.update(inventoryRef, {
+          quantity: newQuantity,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      return {
+        previousQuantity: currentQuantity,
+        newQuantity: newQuantity,
+        itemId: itemId,
+      };
+    });
+
+    logger.info(`[updateUserItemQuantity] 사용자 ${uid}의 아이템 ${itemId} 수량 변경: ${result.previousQuantity} -> ${result.newQuantity}`);
+
+    return {
+      success: true,
+      message: "아이템 수량이 업데이트되었습니다.",
+      data: result,
+    };
+  } catch (error) {
+    logger.error(`[updateUserItemQuantity] 사용자 ${uid} 오류:`, error);
+    throw new HttpsError("aborted", error.message || "아이템 수량 업데이트에 실패했습니다.");
+  }
+});

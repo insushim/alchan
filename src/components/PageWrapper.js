@@ -10,7 +10,7 @@ import { AlchanLoadingScreen } from './ui/Skeleton';
 // ============================================
 export const PageContainer = ({ children, className = '' }) => (
   <div className={`min-h-full w-full bg-slate-50 ${className}`}>
-    <div className="w-full max-w-none px-4 md:px-6 lg:px-8 py-4 md:py-6">
+    <div className="w-full max-w-none px-2 md:px-3 lg:px-4 py-1 md:py-2">
       {children}
     </div>
   </div>
@@ -28,30 +28,30 @@ export const PageHeader = ({
   backButton,
   className = '',
 }) => (
-  <section className={`bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 ${className}`}>
-    <div className="flex items-center gap-4">
+  <section className={`bg-white rounded-lg px-3 py-1.5 md:px-4 md:py-2 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-1.5 md:gap-2 mb-2 md:mb-3 ${className}`}>
+    <div className="flex items-center gap-3">
       {backButton}
       {Icon && (
-        <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0 shadow-sm border border-indigo-100">
-          <Icon className="w-6 h-6" />
+        <div className="w-9 h-9 md:w-10 md:h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 shrink-0 shadow-sm border border-indigo-100">
+          <Icon className="w-5 h-5" />
         </div>
       )}
       <div>
         <div className="flex items-center gap-2">
-          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
             {title}
           </h2>
           {badge}
         </div>
         {subtitle && (
-          <p className="text-sm text-slate-500 font-medium mt-0.5">
+          <p className="text-xs md:text-sm text-slate-500 font-medium">
             {subtitle}
           </p>
         )}
       </div>
     </div>
     {action && (
-      <div className="flex flex-wrap items-center gap-3 md:ml-auto">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3 md:ml-auto">
         {action}
       </div>
     )}
@@ -63,8 +63,8 @@ export const PageHeader = ({
 // ============================================
 export const SectionTitle = ({ children, icon: Icon, action, className = '' }) => (
   <div className={`flex items-center justify-between px-1 mb-4 ${className}`}>
-    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-      {Icon && <Icon className="w-5 h-5 text-slate-400" />}
+    <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
+      {Icon && <Icon className="w-5 h-5 text-indigo-500" />}
       {children}
     </h3>
     {action}

@@ -230,8 +230,9 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
               <LayoutDashboard size={24} className="text-slate-600" />
             </button>
-            <div className="hidden sm:block">
-              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+            {/* 모바일에서도 앱 이름 표시 */}
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-1 sm:gap-2">
                 오늘도 <span className="text-indigo-600">알찬</span> 하루!
               </h2>
             </div>

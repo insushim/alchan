@@ -245,7 +245,7 @@ export default function AlchanLayout() {
         />
 
         {/* 콘텐츠 영역 */}
-        <div className="w-full pb-24 md:pb-8">
+        <div className="w-full pb-20 md:pb-4">
           <Routes>
             {/* 메인 페이지 */}
             <Route path="/dashboard/tasks" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

@@ -1575,72 +1575,51 @@ function Dashboard({ adminTabMode }) {
   const userNickname = userDoc?.name || userDoc?.nickname || user?.displayName || "사용자";
 
   return (
-    <PageContainer>
-      {/* 페이지 헤더 */}
-      <PageHeader
-        title="오늘의 할일"
-        subtitle={`${userNickname}님, 오늘도 화이팅!`}
-          icon={ListTodo}
-          action={
-            isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode ? (
-              <div className="flex flex-wrap gap-2">
-                <ActionButton
-                  variant="primary"
-                  icon={Settings}
-                  onClick={() => handleOpenAdminSettings("generalSettings")}
-                >
-                  관리자 기능
-                </ActionButton>
-                <ActionButton
-                  variant="success"
-                  icon={RefreshCw}
-                  onClick={handleForceRefresh}
-                >
-                  새로고침
-                </ActionButton>
-                <ActionButton
-                  variant="danger"
-                  icon={RotateCcw}
-                  onClick={handleManualTaskReset}
-                  title="이 클래스의 모든 사용자 할일을 리셋합니다"
-                >
-                  할일 리셋
-                </ActionButton>
-              </div>
-            ) : null
-          }
-          backButton={
-            viewMode === "selectJob" ? (
-              <ActionButton
-                variant="ghost"
-                icon={ChevronLeft}
-                onClick={handleCancelForm}
-              >
-                뒤로가기
-              </ActionButton>
-            ) : null
-          }
-        />
+    <div className="min-h-full w-full bg-slate-50 px-2 pt-1 pb-0">
+      {/* 페이지 헤더 - 컴팩트 버전 */}
+      <section className="bg-white rounded-lg px-3 py-1.5 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-1.5 mb-2">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-indigo-50 rounded-md flex items-center justify-center text-indigo-600 shrink-0">
+            <ListTodo className="w-4 h-4" />
+          </div>
+          <div className="leading-tight">
+            <h2 className="text-sm md:text-base font-bold text-slate-900">오늘의 할일</h2>
+            <p className="text-[11px] text-slate-500">{userNickname}님, 오늘도 화이팅!</p>
+          </div>
+        </div>
+        {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
+          <div className="flex flex-wrap gap-1.5">
+            <ActionButton variant="primary" icon={Settings} onClick={() => handleOpenAdminSettings("generalSettings")} size="sm">관리자 기능</ActionButton>
+            <ActionButton variant="success" icon={RefreshCw} onClick={handleForceRefresh} size="sm">새로고침</ActionButton>
+            <ActionButton variant="danger" icon={RotateCcw} onClick={handleManualTaskReset} size="sm" title="이 클래스의 모든 사용자 할일을 리셋합니다">할일 리셋</ActionButton>
+          </div>
+        )}
+        {viewMode === "selectJob" && (
+          <ActionButton variant="ghost" icon={ChevronLeft} onClick={handleCancelForm}>뒤로가기</ActionButton>
+        )}
+      </section>
 
         {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
           <>
             {/* 나의 직업 할일 섹션 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 mb-6">
-              <SectionTitle
-                icon={Briefcase}
-                action={
-                  <ActionButton
-                    variant="outline"
-                    icon={Plus}
-                    onClick={handleSelectJobClick}
-                    size="sm"
-                  >
-                    직업 추가/선택
-                  </ActionButton>
-                }
-              >
-                나의 직업 할일
-              </SectionTitle>
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden mb-6">
+              {/* 나의 직업 할일 헤더 - 색상 배경 */}
+              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Briefcase className="w-5 h-5 text-white" />
+                  <h3 className="text-base md:text-lg font-bold text-white">나의 직업 할일</h3>
+                </div>
+                <ActionButton
+                  variant="outline"
+                  icon={Plus}
+                  onClick={handleSelectJobClick}
+                  size="sm"
+                  className="!bg-white/20 !text-white !border-white/30 hover:!bg-white/30"
+                >
+                  직업 추가/선택
+                </ActionButton>
+              </div>
+              <div className="p-4 md:p-6">
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {jobsToShow.length > 0 ? (
@@ -1683,26 +1662,27 @@ function Dashboard({ adminTabMode }) {
               </div>
 
               {/* 공통 할일 섹션 */}
-              <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
-                <SectionTitle
-                  icon={ListTodo}
-                  action={
-                    isAdmin?.() && (
-                      <ActionButton
-                        variant="success"
-                        icon={Plus}
-                        onClick={() => handleAddTaskClick(null, false)}
-                        size="sm"
-                      >
-                        공통 할일 추가
-                      </ActionButton>
-                    )
-                  }
-                >
-                  공통 할일
-                </SectionTitle>
+              <div className="mt-6 rounded-xl overflow-hidden border border-emerald-200">
+                {/* 공통 할일 헤더 - 색상 배경 */}
+                <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ListTodo className="w-5 h-5 text-white" />
+                    <h3 className="text-base md:text-lg font-bold text-white">공통 할일</h3>
+                  </div>
+                  {isAdmin?.() && (
+                    <ActionButton
+                      variant="outline"
+                      icon={Plus}
+                      onClick={() => handleAddTaskClick(null, false)}
+                      size="sm"
+                      className="!bg-white/20 !text-white !border-white/30 hover:!bg-white/30"
+                    >
+                      공통 할일 추가
+                    </ActionButton>
+                  )}
+                </div>
 
-                <div className="mt-4">
+                <div className="p-4 md:p-6 bg-white">
                   <CommonTaskList
                     tasks={commonTasksWithUserProgress}
                     isAdmin={isAdmin?.()}
@@ -1714,6 +1694,7 @@ function Dashboard({ adminTabMode }) {
                     isHandlingTask={isHandlingTask}
                   />
                 </div>
+              </div>
               </div>
             </div>
           </>
@@ -1772,7 +1753,7 @@ function Dashboard({ adminTabMode }) {
             handleAddTaskClick={handleAddTaskClick}
           />
         )}
-    </PageContainer>
+    </div>
   );
 }
 

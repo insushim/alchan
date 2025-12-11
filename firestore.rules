@@ -308,11 +308,11 @@ service cloud.firestore {
     // 🎯 경매 (auctions)
     // ========================================================
     match /auctions/{auctionId} {
-      allow read: if isSameClass(resource.data.classCode);
-      allow create: if isAdmin();
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
       allow update: if isSignedIn() &&
                        (isSameClass(resource.data.classCode) || isAdmin());
-      allow delete: if isAdmin();
+      allow delete: if isOwner(resource.data.sellerId) || isAdmin();
     }
 
     match /auctions/{auctionId}/bids/{bidId} {
