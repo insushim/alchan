@@ -61,10 +61,17 @@ export function useServiceWorker() {
 
   const updateServiceWorker = useCallback(() => {
     if (registration && registration.waiting) {
+      // 새 서비스 워커가 활성화되면 페이지 새로고침
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('[PWA] 새 서비스 워커 활성화됨 - 새로고침');
+        window.location.reload();
+      });
+
       // 새 서비스 워커에게 활성화 메시지 전송
       registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-
-      // 새로고침
+    } else {
+      // waiting 상태의 서비스 워커가 없으면 그냥 새로고침
+      console.log('[PWA] 대기 중인 서비스 워커 없음 - 강제 새로고침');
       window.location.reload();
     }
   }, [registration]);

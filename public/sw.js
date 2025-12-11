@@ -1,5 +1,5 @@
 // 알찬 PWA 서비스 워커 - 네트워크 우선 (항상 최신 버전)
-const CACHE_VERSION = 'v1.1.0';
+const CACHE_VERSION = 'v1.2.0';
 const CACHE_NAME = `alchan-${CACHE_VERSION}`;
 const STATIC_CACHE = `alchan-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `alchan-dynamic-${CACHE_VERSION}`;
@@ -211,5 +211,13 @@ self.addEventListener('periodicsync', (event) => {
 async function updateContent() {
   console.log('[SW] 콘텐츠 업데이트 확인');
 }
+
+// SKIP_WAITING 메시지 수신 시 즉시 활성화
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] SKIP_WAITING 메시지 수신 - 즉시 활성화');
+    self.skipWaiting();
+  }
+});
 
 console.log('[SW] 서비스 워커 로드됨');
