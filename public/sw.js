@@ -1,14 +1,12 @@
 // 알찬 PWA 서비스 워커 - 네트워크 우선 (항상 최신 버전)
-const CACHE_VERSION = 'v1.2.0';
+// 🔥 버전 업데이트: 흰화면 문제 해결
+const CACHE_VERSION = 'v1.3.0';
 const CACHE_NAME = `alchan-${CACHE_VERSION}`;
 const STATIC_CACHE = `alchan-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `alchan-dynamic-${CACHE_VERSION}`;
 
-// 정적 자원 (앱 셸)
+// 정적 자원 (앱 셸) - 최소화
 const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
   '/offline.html'
 ];
 
@@ -19,86 +17,103 @@ const EXCLUDE_FROM_CACHE = [
   /securetoken\.googleapis\.com/,
   /firebase/,
   /hot-update/,
-  /__/
+  /__/,
+  /\.js$/,  // JS 파일은 항상 네트워크에서
+  /\.css$/, // CSS 파일도 항상 네트워크에서
 ];
 
-// 설치 이벤트
+// 설치 이벤트 - 즉시 활성화
 self.addEventListener('install', (event) => {
-  console.log('[SW] 설치 중...');
+  console.log('[SW] 설치 중... 버전:', CACHE_VERSION);
   event.waitUntil(
     caches.open(STATIC_CACHE)
       .then((cache) => {
-        console.log('[SW] 정적 자원 캐싱');
-        return cache.addAll(STATIC_ASSETS);
+        console.log('[SW] offline.html만 캐싱');
+        return cache.addAll(STATIC_ASSETS).catch(err => {
+          console.warn('[SW] 캐시 실패 (무시):', err);
+          return Promise.resolve();
+        });
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('[SW] skipWaiting 호출');
+        return self.skipWaiting();
+      })
   );
 });
 
-// 활성화 이벤트
+// 활성화 이벤트 - 모든 이전 캐시 삭제
 self.addEventListener('activate', (event) => {
-  console.log('[SW] 활성화');
+  console.log('[SW] 활성화, 버전:', CACHE_VERSION);
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          .filter((name) => name !== STATIC_CACHE && name !== DYNAMIC_CACHE)
+          .filter((name) => {
+            // 현재 버전이 아닌 모든 캐시 삭제
+            return name.startsWith('alchan') &&
+                   name !== STATIC_CACHE &&
+                   name !== DYNAMIC_CACHE;
+          })
           .map((name) => {
             console.log('[SW] 오래된 캐시 삭제:', name);
             return caches.delete(name);
           })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => {
+      console.log('[SW] clients.claim() 호출');
+      return self.clients.claim();
+    })
   );
 });
 
-// Fetch 이벤트 - 네트워크 우선, 캐시 폴백 전략
+// Fetch 이벤트 - 네트워크 우선 (SPA 흰화면 방지)
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
+
+  // 다른 도메인 요청은 무시 (Firebase 등)
+  if (url.origin !== self.location.origin) {
+    return;
+  }
 
   // 캐시 제외 대상 확인
   if (EXCLUDE_FROM_CACHE.some(pattern => pattern.test(request.url))) {
     return;
   }
 
-  // GET 요청만 캐싱
+  // GET 요청만 처리
   if (request.method !== 'GET') {
     return;
   }
 
-  // 네비게이션 요청 (HTML)
+  // 네비게이션 요청 (HTML) - 항상 네트워크 우선
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
         .then((response) => {
-          // 성공하면 캐시에 저장
-          const responseClone = response.clone();
-          caches.open(DYNAMIC_CACHE).then((cache) => {
-            cache.put(request, responseClone);
-          });
+          // 유효한 응답인지 확인
+          if (!response || response.status !== 200 || response.type !== 'basic') {
+            return response;
+          }
           return response;
         })
         .catch(() => {
-          // 오프라인일 때 캐시된 페이지 또는 오프라인 페이지
-          return caches.match(request)
-            .then((cachedResponse) => {
-              if (cachedResponse) {
-                return cachedResponse;
-              }
-              return caches.match('/offline.html');
-            });
+          // 오프라인일 때만 캐시 사용
+          console.log('[SW] 네트워크 실패, 오프라인 페이지 표시');
+          return caches.match('/offline.html');
         })
     );
     return;
   }
 
-  // 정적 자원 (JS, CSS, 이미지) - 네트워크 우선! 새로고침 시 항상 최신 버전 적용
-  if (url.pathname.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2)$/)) {
+  // 이미지, 폰트만 캐시 (JS/CSS는 캐시 안 함)
+  if (url.pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|woff|woff2)$/)) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // 네트워크 성공 시 캐시에 저장하고 반환
+          if (!response || response.status !== 200) {
+            return response;
+          }
           const responseClone = response.clone();
           caches.open(STATIC_CACHE).then((cache) => {
             cache.put(request, responseClone);
@@ -106,23 +121,13 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // 네트워크 실패 시 (오프라인) 캐시에서 반환
           return caches.match(request);
         })
     );
     return;
   }
 
-  // 기타 요청 - 네트워크 우선
-  event.respondWith(
-    fetch(request)
-      .then((response) => {
-        return response;
-      })
-      .catch(() => {
-        return caches.match(request);
-      })
-  );
+  // 기타 요청 - 그냥 네트워크로 전달 (캐시 안 함)
 });
 
 // 푸시 알림 수신

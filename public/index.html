@@ -200,18 +200,24 @@
     <div id="modal-root"></div>
 
     <script>
-      // 스플래시 스크린 숨기기
+      // 스플래시 스크린 숨기기만 (자동 새로고침 제거)
       window.addEventListener('load', function() {
         setTimeout(function() {
           var splash = document.getElementById('splash-screen');
-          if (splash) {
+          if (splash && splash.classList) {
             splash.classList.add('hidden');
             setTimeout(function() {
-              splash.remove();
+              if (splash && splash.parentNode) splash.remove();
             }, 300);
           }
         }, 500);
       });
+
+      // 전역 오류 처리
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        console.error('[알찬] 전역 오류:', msg, url, lineNo);
+        return false;
+      };
     </script>
   </body>
 </html>

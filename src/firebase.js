@@ -61,11 +61,18 @@ const firebaseConfig = {
 console.log("[firebase.js] Firebase 앱 초기화 시작...");
 const app = initializeApp(firebaseConfig);
 
-// ⭐️ [수정] Firestore 초기화 방식 변경 (경고 해결)
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ synchronizeTabs: true }),
-  experimentalForceLongPolling: true, // QUIC 프로토콜 오류 및 Listen 스트림 오류 해결을 위한 설정
-});
+// ⭐️ [수정] Firestore 초기화 - IndexedDB 문제 해결 (PWA 흰화면 방지)
+// persistentLocalCache는 일부 브라우저/PWA에서 IndexedDB 접근 실패로 앱이 멈출 수 있음
+let db;
+try {
+  // 먼저 일반 Firestore로 시도 (캐시 없이)
+  db = getFirestore(app);
+  console.log("[firebase.js] Firestore 초기화 완료 (기본 모드)");
+} catch (error) {
+  console.error("[firebase.js] Firestore 초기화 실패:", error);
+  // 폴백: 기본 getFirestore 사용
+  db = getFirestore(app);
+}
 
 // Firestore 로그 레벨 설정 (WebChannel 오류 숨기기)
 // setLogLevel('error'); // 'debug', 'error', 'silent' 중 선택

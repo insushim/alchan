@@ -87,15 +87,27 @@ export const AuthProvider = ({ children }) => {
   const LAST_ACTIVE_UPDATE_INTERVAL = 30 * 60 * 1000; // 🔥 [최적화] 활성 상태 업데이트 30분 간격 (10분→30분)
   const lastActiveUpdateRef = useRef(0); // 마지막 활성 상태 업데이트 시간
 
-  // Firebase 초기화 확인 (한 번만 실행)
+  // Firebase 초기화 확인 (한 번만 실행) - 타임아웃 추가
   useEffect(() => {
     if (initializationCompleteRef.current) return;
 
+    let attempts = 0;
+    const maxAttempts = 30; // 최대 3초 대기 (100ms * 30)
+
     const checkFirebaseInit = () => {
+      attempts++;
       const initialized = isInitialized();
+
       if (initialized) {
+        console.log("[AuthContext] Firebase 초기화 완료");
         setFirebaseReady(true);
         initializationCompleteRef.current = true;
+      } else if (attempts >= maxAttempts) {
+        // 3초 후에도 초기화 안 되면 강제로 진행 (흰화면 방지)
+        console.warn("[AuthContext] Firebase 초기화 타임아웃 - 강제 진행");
+        setFirebaseReady(true);
+        initializationCompleteRef.current = true;
+        setLoading(false);
       } else {
         setTimeout(checkFirebaseInit, 100);
       }

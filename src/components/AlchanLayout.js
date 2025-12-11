@@ -185,19 +185,19 @@ export default function AlchanLayout() {
     setIsSidebarCollapsed(prev => !prev);
   }, []);
 
-  // 로딩 상태 (loading 또는 userDoc 없음)
-  if (loading || (!user && location.pathname !== '/login') || (user && !userDoc)) {
+  // 🔥 비로그인 상태면 즉시 로그인 페이지로 리다이렉트 (흰화면 방지)
+  if (!loading && !user) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // 로딩 상태 (loading 중이거나, 로그인했는데 userDoc 아직 없음)
+  if (loading || (user && !userDoc)) {
     return <AlchanLoading />;
   }
 
-  // 로그인 페이지
+  // 로그인 페이지 (이미 로그인했으면 대시보드로)
   if (location.pathname === '/login') {
     return user ? <Navigate to="/dashboard/tasks" replace /> : <Login />;
-  }
-
-  // 비로그인
-  if (!user) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // 학급 코드 없음
