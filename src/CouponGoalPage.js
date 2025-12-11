@@ -128,29 +128,29 @@ export default function CouponGoalPage() {
     // 기부 내역 처리 - timestamp 일관성 유지
     const donations = Array.isArray(goalData.donations)
       ? goalData.donations.map((donation) => {
-          let processedTimestamp;
-          if (donation.timestamp && donation.timestamp.toDate) {
-            processedTimestamp = donation.timestamp.toDate().toISOString();
-          } else if (donation.timestamp && donation.timestamp.seconds) {
-            processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
-          } else if (donation.timestampISO) {
-            processedTimestamp = donation.timestampISO;
-          } else if (typeof donation.timestamp === 'string') {
-            processedTimestamp = donation.timestamp;
-          } else {
-            processedTimestamp = new Date().toISOString();
-          }
+        let processedTimestamp;
+        if (donation.timestamp && donation.timestamp.toDate) {
+          processedTimestamp = donation.timestamp.toDate().toISOString();
+        } else if (donation.timestamp && donation.timestamp.seconds) {
+          processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+        } else if (donation.timestampISO) {
+          processedTimestamp = donation.timestampISO;
+        } else if (typeof donation.timestamp === 'string') {
+          processedTimestamp = donation.timestamp;
+        } else {
+          processedTimestamp = new Date().toISOString();
+        }
 
-          return {
-            ...donation,
-            amount: Number(donation.amount) || 0,
-            timestamp: processedTimestamp,
-            userId: donation.userId || '',
-            userName: donation.userName || '알 수 없는 사용자',
-            message: donation.message || '',
-            classCode: donation.classCode || currentUserClassCode,
-          };
-        })
+        return {
+          ...donation,
+          amount: Number(donation.amount) || 0,
+          timestamp: processedTimestamp,
+          userId: donation.userId || '',
+          userName: donation.userName || '알 수 없는 사용자',
+          message: donation.message || '',
+          classCode: donation.classCode || currentUserClassCode,
+        };
+      })
       : [];
 
     setGoalDonations(donations);
@@ -323,29 +323,29 @@ export default function CouponGoalPage() {
 
         const freshDonations = Array.isArray(latestGoalData.donations)
           ? latestGoalData.donations.map((donation) => {
-              let processedTimestamp;
-              if (donation.timestamp && donation.timestamp.toDate) {
-                processedTimestamp = donation.timestamp.toDate().toISOString();
-              } else if (donation.timestamp && donation.timestamp.seconds) {
-                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
-              } else if (donation.timestampISO) {
-                processedTimestamp = donation.timestampISO;
-              } else if (typeof donation.timestamp === 'string') {
-                processedTimestamp = donation.timestamp;
-              } else {
-                processedTimestamp = new Date().toISOString();
-              }
+            let processedTimestamp;
+            if (donation.timestamp && donation.timestamp.toDate) {
+              processedTimestamp = donation.timestamp.toDate().toISOString();
+            } else if (donation.timestamp && donation.timestamp.seconds) {
+              processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+            } else if (donation.timestampISO) {
+              processedTimestamp = donation.timestampISO;
+            } else if (typeof donation.timestamp === 'string') {
+              processedTimestamp = donation.timestamp;
+            } else {
+              processedTimestamp = new Date().toISOString();
+            }
 
-              return {
-                ...donation,
-                amount: Number(donation.amount) || 0,
-                timestamp: processedTimestamp,
-                userId: donation.userId || '',
-                userName: donation.userName || '알 수 없는 사용자',
-                message: donation.message || '',
-                classCode: donation.classCode || currentUserClassCode,
-              };
-            })
+            return {
+              ...donation,
+              amount: Number(donation.amount) || 0,
+              timestamp: processedTimestamp,
+              userId: donation.userId || '',
+              userName: donation.userName || '알 수 없는 사용자',
+              message: donation.message || '',
+              classCode: donation.classCode || currentUserClassCode,
+            };
+          })
           : [];
 
         setGoalDonations(freshDonations);
@@ -447,9 +447,9 @@ export default function CouponGoalPage() {
 
     // 🔥 낙관적 업데이트
     if (optimisticUpdate) {
-      optimisticUpdate({ 
+      optimisticUpdate({
         coupons: -amount,
-        cash: amount * couponValue 
+        cash: amount * couponValue
       });
     }
 
@@ -553,158 +553,158 @@ export default function CouponGoalPage() {
           🎯 쿠폰 목표 (학급: {currentUserClassCode})
         </h2>
 
-      {currentUserClassCode && currentGoalId && (
-        <>
-          <CouponGoal
-            classCouponGoal={classCouponGoal}
-            goalProgress={goalProgress}
-            myContribution={myContribution}
+        {currentUserClassCode && currentGoalId && (
+          <>
+            <CouponGoal
+              classCouponGoal={classCouponGoal}
+              goalProgress={goalProgress}
+              myContribution={myContribution}
+              currentCoupons={Number(userDoc?.coupons) || 0}
+              couponValue={couponValue}
+              setShowDonateModal={setShowDonateModal}
+              setShowSellCouponModal={setShowSellCouponModal}
+              setShowDonationHistoryModal={setShowDonationHistoryModal}
+              setShowGiftCouponModal={setShowGiftCouponModal}
+              goalAchieved={goalAchieved}
+              resetGoalButton={
+                userDoc?.isAdmin || userDoc?.isSuperAdmin ? resetCouponGoal : null
+              }
+              isResettingGoal={isResettingGoal}
+            />
+
+            <div
+              style={{
+                marginTop: "20px",
+                padding: "15px",
+                backgroundColor: "rgba(20, 20, 35, 0.85)",
+                borderRadius: "8px",
+                border: "1px solid rgba(0, 255, 242, 0.15)",
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: "14px",
+                  color: "#00fff2",
+                  marginBottom: "10px",
+                  fontWeight: "600",
+                }}
+              >
+                🔧 데이터 관리 도구
+              </h4>
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                <button
+                  onClick={forceRefreshGoalData}
+                  disabled={assetsLoading}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#17a2b8",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    fontWeight: "500",
+                  }}
+                >
+                  📊 목표 데이터 새로고침
+                </button>
+                <button
+                  onClick={showDebugInfo}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#6c757d",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    fontWeight: "500",
+                  }}
+                >
+                  🔍 디버그 정보 확인
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.clear();
+                    alert("로컬 캐시가 모두 삭제되었습니다. 페이지를 새로고침해주세요.");
+                    window.location.reload();
+                  }}
+                  style={{
+                    padding: "8px 12px",
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    fontWeight: "500",
+                  }}
+                >
+                  🗑️ 캐시 삭제 후 새로고침
+                </button>
+              </div>
+              <p
+                style={{
+                  fontSize: "11px",
+                  color: "#868e96",
+                  marginTop: "8px",
+                  marginBottom: "0",
+                  lineHeight: "1.4",
+                }}
+              >
+                • 기부 내역이 표시되지 않으면 "목표 데이터 새로고침" 버튼을 클릭하세요
+                <br />
+                • 문제가 지속되면 "캐시 삭제 후 새로고침"을 시도해보세요
+                <br />• 현재 상태: 기부 내역 {goalDonations.length}개, 목표 진행률{" "}
+                {goalProgress}/{classCouponGoal}
+              </p>
+            </div>
+          </>
+        )}
+
+        {showDonateModal && currentUserClassCode && currentGoalId && (
+          <DonateCouponModal
+            showDonateModal={showDonateModal}
+            setShowDonateModal={setShowDonateModal}
+            currentCoupons={Number(userDoc?.coupons) || 0}
+            onDonate={handleDonateCoupon}
+            classCode={currentUserClassCode}
+          />
+        )}
+        {showSellCouponModal && (
+          <SellCouponModal
+            showSellCouponModal={showSellCouponModal}
+            setShowSellCouponModal={setShowSellCouponModal}
             currentCoupons={Number(userDoc?.coupons) || 0}
             couponValue={couponValue}
-            setShowDonateModal={setShowDonateModal}
-            setShowSellCouponModal={setShowSellCouponModal}
-            setShowDonationHistoryModal={setShowDonationHistoryModal}
-            setShowGiftCouponModal={setShowGiftCouponModal}
-            goalAchieved={goalAchieved}
-            resetGoalButton={
-              userDoc?.isAdmin || userDoc?.isSuperAdmin ? resetCouponGoal : null
-            }
-            isResettingGoal={isResettingGoal}
+            sellAmount={sellAmount}
+            setSellAmount={setSellAmount}
+            SellCoupon={handleSellCoupon}
           />
-
-          <div
-            style={{
-              marginTop: "20px",
-              padding: "15px",
-              backgroundColor: "#f8f9fa",
-              borderRadius: "8px",
-              border: "1px solid #e9ecef",
-            }}
-          >
-            <h4
-              style={{
-                fontSize: "14px",
-                color: "#6c757d",
-                marginBottom: "10px",
-                fontWeight: "600",
-              }}
-            >
-              🔧 데이터 관리 도구
-            </h4>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-              <button
-                onClick={forceRefreshGoalData}
-                disabled={assetsLoading}
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#17a2b8",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                }}
-              >
-                📊 목표 데이터 새로고침
-              </button>
-              <button
-                onClick={showDebugInfo}
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#6c757d",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                }}
-              >
-                🔍 디버그 정보 확인
-              </button>
-              <button
-                onClick={() => {
-                  localStorage.clear();
-                  alert("로컬 캐시가 모두 삭제되었습니다. 페이지를 새로고침해주세요.");
-                  window.location.reload();
-                }}
-                style={{
-                  padding: "8px 12px",
-                  backgroundColor: "#dc3545",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                }}
-              >
-                🗑️ 캐시 삭제 후 새로고침
-              </button>
-            </div>
-            <p
-              style={{
-                fontSize: "11px",
-                color: "#868e96",
-                marginTop: "8px",
-                marginBottom: "0",
-                lineHeight: "1.4",
-              }}
-            >
-              • 기부 내역이 표시되지 않으면 "목표 데이터 새로고침" 버튼을 클릭하세요
-              <br />
-              • 문제가 지속되면 "캐시 삭제 후 새로고침"을 시도해보세요
-              <br />• 현재 상태: 기부 내역 {goalDonations.length}개, 목표 진행률{" "}
-              {goalProgress}/{classCouponGoal}
-            </p>
-          </div>
-        </>
-      )}
-
-      {showDonateModal && currentUserClassCode && currentGoalId && (
-        <DonateCouponModal
-          showDonateModal={showDonateModal}
-          setShowDonateModal={setShowDonateModal}
-          currentCoupons={Number(userDoc?.coupons) || 0}
-          onDonate={handleDonateCoupon}
-          classCode={currentUserClassCode}
-        />
-      )}
-      {showSellCouponModal && (
-        <SellCouponModal
-          showSellCouponModal={showSellCouponModal}
-          setShowSellCouponModal={setShowSellCouponModal}
-          currentCoupons={Number(userDoc?.coupons) || 0}
-          couponValue={couponValue}
-          sellAmount={sellAmount}
-          setSellAmount={setSellAmount}
-          SellCoupon={handleSellCoupon}
-        />
-      )}
-      {showGiftCouponModal && (
-        <GiftCouponModal
-          showGiftCouponModal={showGiftCouponModal}
-          setShowGiftCouponModal={setShowGiftCouponModal}
-          recipients={classmates}
-          giftRecipient={giftRecipient}
-          setGiftRecipient={setGiftRecipient}
-          giftAmount={giftAmount}
-          setGiftAmount={setGiftAmount}
-          handleGiftCoupon={handleGiftCoupon}
-          currentCoupons={Number(userDoc?.coupons) || 0}
-          userId={userId}
-        />
-      )}
-      {showDonationHistoryModal && currentUserClassCode && currentGoalId && (
-        <DonationHistoryModal
-          showDonationHistoryModal={showDonationHistoryModal}
-          setShowDonationHistoryModal={setShowDonationHistoryModal}
-          students={allClassMembers || []}
-          classCode={currentUserClassCode}
-          donations={goalDonations}
-        />
-      )}
+        )}
+        {showGiftCouponModal && (
+          <GiftCouponModal
+            showGiftCouponModal={showGiftCouponModal}
+            setShowGiftCouponModal={setShowGiftCouponModal}
+            recipients={classmates}
+            giftRecipient={giftRecipient}
+            setGiftRecipient={setGiftRecipient}
+            giftAmount={giftAmount}
+            setGiftAmount={setGiftAmount}
+            handleGiftCoupon={handleGiftCoupon}
+            currentCoupons={Number(userDoc?.coupons) || 0}
+            userId={userId}
+          />
+        )}
+        {showDonationHistoryModal && currentUserClassCode && currentGoalId && (
+          <DonationHistoryModal
+            showDonationHistoryModal={showDonationHistoryModal}
+            setShowDonationHistoryModal={setShowDonationHistoryModal}
+            students={allClassMembers || []}
+            classCode={currentUserClassCode}
+            donations={goalDonations}
+          />
+        )}
       </div>
     </div>
   );

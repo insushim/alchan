@@ -1,169 +1,182 @@
-/* src/styles.css */
+/* src/styles.css - Cyberpunk Theme */
 html {
   box-sizing: border-box;
 }
+
 *,
 *:before,
 *:after {
   box-sizing: inherit;
 }
 
-/* --- 기존 body 및 나머지 스타일들... --- */
+/* Cyberpunk Body Styles */
 body {
-  font-family: "Noto Sans KR", sans-serif;
-  background-color: #f0f2f5;
-  color: #333;
+  font-family: "Rajdhani", "Noto Sans KR", sans-serif !important;
+  background-color: #0a0a12 !important;
+  color: #e8e8ff !important;
   margin: 0;
-  /* body 자체의 padding은 제거하거나 최소화하는 것이 좋습니다.
-     필요한 padding은 .app-container 또는 내부 요소에서 관리합니다. */
   padding: 0;
-  overflow-x: hidden; /* 중요: 전체 페이지에서 가로 스크롤바가 생기지 않도록 함.
-                         단, 이로 인해 특정 요소가 잘린다면 그 요소의 너비 문제를 해결해야 함. */
+  overflow-x: hidden;
 }
 
-/* .page-container 스타일 등은 유지 */
+/* Cyberpunk Page Container */
 .page-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 1.5rem; /* 각 페이지 내용 영역의 안쪽 여백 */
-  background-color: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  position: relative;
-  width: 100%; /* 부모(main) 너비를 채움 */
-}
-
-/* --- 기본 레이아웃 및 페이지 요소 --- */
-body {
-  font-family: "Noto Sans KR", sans-serif; /* 기본 폰트 설정 */
-  background-color: #f0f2f5; /* 약간 밝은 회색 배경 */
-  color: #333;
-  margin: 0;
-  padding: 1rem; /* 페이지 전체 여백 */
-}
-
-.page-container {
-  max-width: 1200px; /* 최대 너비 설정 */
-  margin: 0 auto; /* 가운데 정렬 */
   padding: 1.5rem;
-  background-color: #ffffff; /* 컨텐츠 영역 배경 흰색 */
-  border-radius: 8px; /* 모서리 둥글게 */
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05); /* 부드러운 그림자 */
-  position: relative; /* 관리자 버튼 위치 기준점 */
+  background-color: rgba(20, 20, 35, 0.85) !important;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 1px rgba(0, 255, 242, 0.3) !important;
+  position: relative;
+  width: 100%;
+  border: 1px solid rgba(0, 255, 242, 0.15) !important;
 }
 
+/* Remove duplicate body definition */
+
+/* Cyberpunk Headings */
 h2,
 h3 {
-  color: #1a202c; /* 제목 색상 */
+  color: #e8e8ff !important;
 }
 
 .section-title {
-  font-size: 1.15rem; /* 섹션 제목 크기 조정 */
-  font-weight: 600; /* 섹션 제목 두께 */
-  color: #2d3748; /* 섹션 제목 색상 */
-  margin-bottom: 1rem; /* 제목 아래 여백 */
-  padding-bottom: 0.5rem; /* 제목 아래 밑줄 공간 */
-  border-bottom: 1px solid #e2e8f0; /* 제목 아래 옅은 밑줄 */
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #00fff2 !important;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(0, 255, 242, 0.15) !important;
 }
 
 .content-card-section {
-  background-color: #ffffff; /* 섹션 배경 흰색 */
-  padding: 1rem; /* 섹션 내부 여백 */
-  border-radius: 6px; /* 섹션 모서리 둥글게 */
-  /* box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03); 섹션별 그림자 제거 (선택 사항) */
-  margin-bottom: 1.5rem; /* 섹션 간 여백 */
+  background-color: rgba(20, 20, 35, 0.85) !important;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
+  margin-bottom: 1.5rem;
+  border: 1px solid rgba(0, 255, 242, 0.1) !important;
 }
 
 /* Tailwind CSS 클래스 대체 (예시) */
 .mb-4 {
   margin-bottom: 1rem;
 }
+
 .mb-6 {
   margin-bottom: 1.5rem;
 }
+
 .p-3 {
   padding: 0.75rem;
 }
+
 .p-4 {
   padding: 1rem;
 }
+
 .py-8 {
   padding-top: 2rem;
   padding-bottom: 2rem;
 }
+
 .text-xl {
   font-size: 1.25rem;
   line-height: 1.75rem;
 }
+
 .font-bold {
   font-weight: 700;
 }
+
 .font-medium {
   font-weight: 500;
 }
+
 .text-sm {
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
+
 .text-gray-500 {
   color: #a0aec0;
 }
+
 .text-gray-700 {
   color: #4a5568;
 }
+
 .text-center {
   text-align: center;
 }
+
 .rounded-md {
   border-radius: 0.375rem;
 }
-.space-y-4 > * + * {
+
+.space-y-4>*+* {
   margin-top: 1rem;
 }
+
 .grid {
   display: grid;
 }
+
 .grid-cols-1 {
   grid-template-columns: repeat(1, minmax(0, 1fr));
 }
+
 .sm\:grid-cols-2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-} /* 화면 작을 때 1열, 커지면 2열 */
+}
+
+/* 화면 작을 때 1열, 커지면 2열 */
 .gap-4 {
   gap: 1rem;
 }
+
 .relative {
   position: relative;
 }
+
 .absolute {
   position: absolute;
 }
+
 .top-0 {
   top: 0;
 }
+
 .right-0 {
   right: 0;
 }
+
 .mt-1 {
   margin-top: 0.25rem;
 }
+
 .w-full {
   width: 100%;
 }
+
 .px-3 {
   padding-left: 0.75rem;
   padding-right: 0.75rem;
 }
+
 .py-2 {
   padding-top: 0.5rem;
   padding-bottom: 0.5rem;
 }
+
 .border {
   border-width: 1px;
 }
+
 .border-gray-300 {
   border-color: #d2d6dc;
 }
+
 .shadow-sm {
   box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
@@ -172,18 +185,23 @@ h3 {
 .bg-green-100 {
   background-color: #d1fae5;
 }
+
 .text-green-800 {
   color: #065f46;
 }
+
 .bg-red-100 {
   background-color: #fee2e2;
 }
+
 .text-red-800 {
   color: #991b1b;
 }
+
 .bg-blue-100 {
   background-color: #dbeafe;
 }
+
 .text-blue-800 {
   color: #1e40af;
 }
@@ -191,8 +209,10 @@ h3 {
 /* --- 아이템 그리드 --- */
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(1, minmax(0, 1fr)); /* 기본 1열 */
-  gap: 1rem; /* 아이템 간격 */
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  /* 기본 1열 */
+  gap: 1rem;
+  /* 아이템 간격 */
 }
 
 /* 작은 화면 이상(sm breakpoint: 640px)에서 2열 */
@@ -286,9 +306,12 @@ h3 {
   margin-top: auto;
   padding-top: 0.5rem;
   border-top: 1px solid #f1f3f5;
-  padding-left: 1rem; /* .p-4 패딩이 적용되지 않으므로 추가 */
-  padding-right: 1rem; /* .p-4 패딩이 적용되지 않으므로 추가 */
-  padding-bottom: 1rem; /* .p-4 패딩이 적용되지 않으므로 추가 */
+  padding-left: 1rem;
+  /* .p-4 패딩이 적용되지 않으므로 추가 */
+  padding-right: 1rem;
+  /* .p-4 패딩이 적용되지 않으므로 추가 */
+  padding-bottom: 1rem;
+  /* .p-4 패딩이 적용되지 않으므로 추가 */
 }
 
 .item-price {
@@ -420,7 +443,8 @@ h3 {
   display: block;
   width: 100%;
   padding: 0.6rem 0.8rem;
-  font-size: 1rem; /* 아이콘 잘 보이게 크기 조정 */
+  font-size: 1rem;
+  /* 아이콘 잘 보이게 크기 조정 */
   line-height: 1.5;
   color: #495057;
   background-color: #fff;
@@ -429,9 +453,12 @@ h3 {
   border-radius: 0.25rem;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
   box-sizing: border-box;
-  font-family: inherit; /* 기본 폰트 상속 */
-  appearance: none; /* 기본 브라우저 스타일 제거 */
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e"); /* 커스텀 화살표 */
+  font-family: inherit;
+  /* 기본 폰트 상속 */
+  appearance: none;
+  /* 기본 브라우저 스타일 제거 */
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  /* 커스텀 화살표 */
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 16px 12px;
@@ -446,8 +473,10 @@ h3 {
 /* 관리자 폼 버튼 그룹 */
 .admin-form-buttons {
   display: flex;
-  gap: 0.5rem; /* 버튼 사이 간격 */
-  margin-top: 1rem; /* 위 요소와의 간격 */
+  gap: 0.5rem;
+  /* 버튼 사이 간격 */
+  margin-top: 1rem;
+  /* 위 요소와의 간격 */
 }
 
 /* 관리자 액션(추가/수정) 버튼 */
@@ -458,7 +487,8 @@ h3 {
   vertical-align: middle;
   cursor: pointer;
   user-select: none;
-  background-color: #007bff; /* 파란색 계열 */
+  background-color: #007bff;
+  /* 파란색 계열 */
   border: 1px solid transparent;
   padding: 0.6rem 1.2rem;
   font-size: 0.9rem;
@@ -504,13 +534,17 @@ h3 {
 .edit-item-button {
   padding: 0.3rem 0.6rem;
   font-size: 0.8rem;
-  border: 1px solid #ffc107; /* 노란색 테두리 */
-  background-color: #fff3cd; /* 연한 노란색 배경 */
-  color: #856404; /* 어두운 노란색 텍스트 */
+  border: 1px solid #ffc107;
+  /* 노란색 테두리 */
+  background-color: #fff3cd;
+  /* 연한 노란색 배경 */
+  color: #856404;
+  /* 어두운 노란색 텍스트 */
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
-  margin-left: 0.5rem; /* 구매 버튼과의 간격 */
+  margin-left: 0.5rem;
+  /* 구매 버튼과의 간격 */
 }
 
 .edit-item-button:hover {

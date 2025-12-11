@@ -1,21 +1,102 @@
 /* src/index.css */
 
+/* ============================================
+   🌌 CYBERPUNK DESIGN SYSTEM
+   ============================================ */
+
 /* Tailwind CSS v3 */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Google Fonts for Alchan UI - 고품질 한글 폰트 */
-@import url('https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800;900&display=swap');
+/* Google Fonts for Cyberpunk UI */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;600;700;800;900&display=swap');
 
 /* ============================================
-   전역 폰트 크기 설정 - 가독성 최적화 (+2 증가)
+   Cyberpunk CSS Variables (Design Tokens)
+   ============================================ */
+:root {
+  /* Dark Backgrounds */
+  --cyber-bg-darkest: #050508;
+  --cyber-bg-dark: #0a0a12;
+  --cyber-bg-medium: #12121f;
+  --cyber-bg-light: #1a1a2e;
+  --cyber-bg-card: rgba(20, 20, 35, 0.85);
+  --cyber-bg-glass: rgba(15, 15, 25, 0.75);
+
+  /* Neon Accent Colors */
+  --cyber-neon-cyan: #00fff2;
+  --cyber-neon-cyan-dim: #00b8b0;
+  --cyber-neon-magenta: #ff00ff;
+  --cyber-neon-magenta-dim: #cc00cc;
+  --cyber-neon-blue: #0088ff;
+  --cyber-neon-purple: #8b5cf6;
+  --cyber-neon-pink: #ff4ecf;
+  --cyber-neon-yellow: #ffd166;
+  --cyber-neon-green: #00ff88;
+  --cyber-neon-orange: #ff6b35;
+  --cyber-neon-red: #ff3366;
+
+  /* Semantic Colors */
+  --cyber-primary: var(--cyber-neon-cyan);
+  --cyber-secondary: var(--cyber-neon-purple);
+  --cyber-success: var(--cyber-neon-green);
+  --cyber-warning: var(--cyber-neon-yellow);
+  --cyber-danger: var(--cyber-neon-red);
+  --cyber-info: var(--cyber-neon-blue);
+
+  /* Text Colors */
+  --cyber-text-primary: #e8e8ff;
+  --cyber-text-secondary: #9999bb;
+  --cyber-text-muted: #6666888;
+  --cyber-text-highlight: var(--cyber-neon-cyan);
+
+  /* Borders */
+  --cyber-border-dim: rgba(0, 255, 242, 0.15);
+  --cyber-border-glow: rgba(0, 255, 242, 0.4);
+  --cyber-border-bright: rgba(0, 255, 242, 0.7);
+
+  /* Glow Effects */
+  --cyber-glow-cyan: 0 0 15px rgba(0, 255, 242, 0.5), 0 0 30px rgba(0, 255, 242, 0.2);
+  --cyber-glow-cyan-intense: 0 0 20px rgba(0, 255, 242, 0.8), 0 0 40px rgba(0, 255, 242, 0.4), 0 0 60px rgba(0, 255, 242, 0.2);
+  --cyber-glow-magenta: 0 0 15px rgba(255, 0, 255, 0.5), 0 0 30px rgba(255, 0, 255, 0.2);
+  --cyber-glow-purple: 0 0 15px rgba(139, 92, 246, 0.5), 0 0 30px rgba(139, 92, 246, 0.2);
+  --cyber-glow-green: 0 0 15px rgba(0, 255, 136, 0.5), 0 0 30px rgba(0, 255, 136, 0.2);
+  --cyber-glow-red: 0 0 15px rgba(255, 51, 102, 0.5), 0 0 30px rgba(255, 51, 102, 0.2);
+  --cyber-glow-yellow: 0 0 15px rgba(255, 209, 102, 0.5), 0 0 30px rgba(255, 209, 102, 0.2);
+
+  /* Card Shadows */
+  --cyber-shadow-card: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 1px rgba(0, 255, 242, 0.3);
+  --cyber-shadow-card-hover: 0 8px 30px rgba(0, 0, 0, 0.6), var(--cyber-glow-cyan);
+  --cyber-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  /* Gradients */
+  --cyber-gradient-header: linear-gradient(135deg, #0a0a12 0%, #1a1a2e 50%, #0a0a12 100%);
+  --cyber-gradient-card: linear-gradient(180deg, rgba(25, 25, 45, 0.9) 0%, rgba(15, 15, 30, 0.95) 100%);
+  --cyber-gradient-button: linear-gradient(135deg, rgba(0, 255, 242, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%);
+  --cyber-gradient-neon: linear-gradient(90deg, var(--cyber-neon-cyan), var(--cyber-neon-magenta));
+
+  /* Border Radius */
+  --cyber-radius-sm: 4px;
+  --cyber-radius-md: 8px;
+  --cyber-radius-lg: 12px;
+  --cyber-radius-xl: 16px;
+
+  /* Transitions */
+  --cyber-transition-fast: 0.15s ease;
+  --cyber-transition-normal: 0.25s ease;
+  --cyber-transition-slow: 0.4s ease;
+}
+
+/* ============================================
+   전역 폰트 크기 설정 - 가독성 최적화
    ============================================ */
 html {
   font-size: 18px;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  scroll-behavior: smooth;
 }
 
 /* 태블릿 (768px 이하) */
@@ -32,18 +113,25 @@ html {
   }
 }
 
+/* ============================================
+   Cyberpunk Body Styles - Direct Colors
+   ============================================ */
 body {
   margin: 0;
-  font-family: "Noto Sans KR", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+  font-family: "Rajdhani", "Noto Sans KR", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: "kern" 1, "liga" 1;
-  background-color: #f8fafc;
-  color: #1e293b;
+  background-color: #0a0a12 !important;
+  background-image:
+    linear-gradient(rgba(0, 255, 242, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 242, 0.03) 1px, transparent 1px) !important;
+  background-size: 50px 50px !important;
+  background-attachment: fixed !important;
+  color: #e8e8ff !important;
   line-height: 1.6;
-  letter-spacing: -0.01em;
+  letter-spacing: 0.02em;
+  min-height: 100vh;
 }
 
 * {
@@ -51,8 +139,11 @@ body {
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+  font-family: "Orbitron", source-code-pro, Menlo, Monaco, Consolas, monospace;
+  color: #00fff2;
+  background: rgba(0, 255, 242, 0.1);
+  padding: 0.1em 0.4em;
+  border-radius: 4px;
 }
 
 /* ============================================
@@ -71,6 +162,7 @@ input[type="submit"],
 
 /* 모바일에서 작은 버튼 허용 */
 @media (max-width: 768px) {
+
   .btn-sm,
   button.small,
   .small-button {
@@ -80,27 +172,57 @@ input[type="submit"],
 }
 
 /* 텍스트 가독성 개선 */
-p, li, td, th {
+p,
+li,
+td,
+th {
   line-height: 1.7;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   line-height: 1.4;
 }
 
 /* 제목 폰트 스타일 */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 /* PC에서 가독성 좋은 폰트 크기 */
 @media (min-width: 1024px) {
-  h1 { font-size: 2rem; }
-  h2 { font-size: 1.5rem; }
-  h3 { font-size: 1.25rem; }
-  h4 { font-size: 1.125rem; }
-  p, li, td, th { font-size: 0.9375rem; }
+  h1 {
+    font-size: 2rem;
+  }
+
+  h2 {
+    font-size: 1.5rem;
+  }
+
+  h3 {
+    font-size: 1.25rem;
+  }
+
+  h4 {
+    font-size: 1.125rem;
+  }
+
+  p,
+  li,
+  td,
+  th {
+    font-size: 0.9375rem;
+  }
 }
 
 /* 입력 필드 크기 개선 */
@@ -117,6 +239,7 @@ select {
 }
 
 @media (min-width: 1024px) {
+
   input[type="text"],
   input[type="email"],
   input[type="password"],
@@ -138,6 +261,7 @@ select {
 }
 
 @media (min-width: 768px) {
+
   .page-container,
   .card,
   .panel,
@@ -147,6 +271,7 @@ select {
 }
 
 @media (min-width: 1024px) {
+
   .page-container,
   .card,
   .panel,
@@ -200,63 +325,77 @@ select {
 }
 
 /* ============================================
-   고품질 UI 스타일
+   Cyberpunk UI Elements
    ============================================ */
 
-/* 스크롤바 스타일 */
+/* Neon Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--cyber-bg-medium);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 3px;
+  background: linear-gradient(180deg, var(--cyber-neon-cyan-dim), var(--cyber-neon-purple));
+  border-radius: 4px;
+  border: 1px solid var(--cyber-border-dim);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: linear-gradient(180deg, var(--cyber-neon-cyan), var(--cyber-neon-magenta));
+  box-shadow: var(--cyber-glow-cyan);
 }
 
-/* 선택 스타일 */
+/* Selection Style */
 ::selection {
-  background-color: rgba(99, 102, 241, 0.2);
-  color: #1e293b;
+  background-color: rgba(0, 255, 242, 0.3);
+  color: var(--cyber-text-primary);
+  text-shadow: 0 0 8px var(--cyber-neon-cyan);
 }
 
-/* 부드러운 전환 효과 */
-button, a, input, select, textarea {
-  transition: all 0.2s ease;
+/* Smooth transitions for interactive elements */
+button,
+a,
+input,
+select,
+textarea {
+  transition: all var(--cyber-transition-normal);
 }
 
-/* 포커스 스타일 */
+/* Cyberpunk Focus Style */
 *:focus-visible {
-  outline: 2px solid #6366f1;
+  outline: 2px solid var(--cyber-neon-cyan);
   outline-offset: 2px;
+  box-shadow: var(--cyber-glow-cyan);
 }
 
-/* 카드 호버 효과 */
+/* Cyberpunk Card Hover Effects */
 .hover-lift {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform var(--cyber-transition-normal), box-shadow var(--cyber-transition-normal);
 }
 
 .hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
+  box-shadow: var(--cyber-shadow-card-hover);
 }
 
-/* 슬레이트 기반 그라데이션 배경 */
+/* Cyberpunk Gradient Background */
 .gradient-bg {
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: var(--cyber-gradient-card);
 }
 
-/* 앱 전용 폰트 클래스 */
-.font-jua {
-  font-family: 'Jua', sans-serif;
+/* Cyberpunk Font Classes */
+.font-cyber {
+  font-family: 'Orbitron', sans-serif;
+  letter-spacing: 0.05em;
+}
+
+.font-cyber-ui {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
 }
 
 .font-display {
@@ -270,20 +409,78 @@ button, a, input, select, textarea {
   font-variant-numeric: tabular-nums;
 }
 
-/* 애니메이션 키프레임 */
+/* ============================================
+   Cyberpunk Animations
+   ============================================ */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes pulse-soft {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.7; }
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Cyber Neon Glow Animation */
+@keyframes neonPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px var(--cyber-neon-cyan), 0 0 15px rgba(0, 255, 242, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 20px var(--cyber-neon-cyan), 0 0 40px rgba(0, 255, 242, 0.6);
+  }
+}
+
+@keyframes borderGlow {
+
+  0%,
+  100% {
+    border-color: var(--cyber-border-dim);
+  }
+
+  50% {
+    border-color: var(--cyber-border-bright);
+  }
+}
+
+@keyframes scanLine {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100vh);
+  }
 }
 
 .animate-fadeIn {
@@ -298,12 +495,22 @@ button, a, input, select, textarea {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
+.animate-neon-pulse {
+  animation: neonPulse 2s ease-in-out infinite;
+}
+
+.animate-border-glow {
+  animation: borderGlow 2s ease-in-out infinite;
+}
+
 /* ============================================
    스크롤 문제 수정 - 전역
    ============================================ */
 
 /* 메인 컨테이너 스크롤 수정 */
-html, body, #root {
+html,
+body,
+#root {
   min-height: 100%;
   overflow-x: hidden;
 }
@@ -338,13 +545,24 @@ body {
 }
 
 /* 제목들 더 진하게 */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   color: #0f172a !important;
   font-weight: 700 !important;
 }
 
 /* 본문 텍스트 시인성 */
-p, span, div, li, td, th, label {
+p,
+span,
+div,
+li,
+td,
+th,
+label {
   color: #334155;
 }
 
@@ -418,7 +636,8 @@ table td {
 }
 
 /* 라벨 */
-label, .form-label {
+label,
+.form-label {
   color: #334155 !important;
   font-weight: 600 !important;
 }
