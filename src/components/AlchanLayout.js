@@ -283,7 +283,10 @@ export default function AlchanLayout() {
 
             {/* 관리자 페이지 */}
             <Route path="/admin/app-settings" element={<AdminRoute><Dashboard adminTabMode="generalSettings" /></AdminRoute>} />
+            <Route path="/admin/task-management" element={<AdminRoute><Dashboard adminTabMode="taskManagement" /></AdminRoute>} />
             <Route path="/admin/job-settings" element={<AdminRoute><Dashboard adminTabMode="jobSettings" /></AdminRoute>} />
+            <Route path="/admin/salary-settings" element={<AdminRoute><Dashboard adminTabMode="salarySettings" /></AdminRoute>} />
+            <Route path="/admin/class-members" element={<AdminRoute><Dashboard adminTabMode="memberManagement" /></AdminRoute>} />
             <Route path="/admin/app-management" element={<AdminRoute><Dashboard adminTabMode="appManagement" /></AdminRoute>} />
             <Route path="/admin/coupon-transfer" element={<AdminRoute><CouponTransfer /></AdminRoute>} />
             <Route path="/admin/money-transfer" element={<AdminRoute><MoneyTransfer /></AdminRoute>} />

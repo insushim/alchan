@@ -799,3 +799,219 @@ label,
   background-color: rgba(0, 0, 0, 0.3) !important;
   border-color: rgba(0, 255, 242, 0.3) !important;
 }
+
+/* ============================================
+   🌌 관리자 설정 모달 - 다크 테마
+   ============================================ */
+
+.admin-settings-modal {
+  background-color: rgba(5, 5, 8, 0.95) !important;
+}
+
+.admin-settings-content {
+  background: linear-gradient(180deg, rgba(20, 20, 35, 0.98) 0%, rgba(10, 10, 18, 0.98) 100%) !important;
+  border: 1px solid rgba(0, 255, 242, 0.3) !important;
+  box-shadow: 0 0 30px rgba(0, 255, 242, 0.2), 0 20px 60px rgba(0, 0, 0, 0.8) !important;
+}
+
+.admin-settings-content h2 {
+  color: #00fff2 !important;
+  text-shadow: 0 0 10px rgba(0, 255, 242, 0.5);
+  border-bottom-color: rgba(0, 255, 242, 0.3) !important;
+}
+
+.admin-menu-tabs {
+  background: rgba(10, 10, 18, 0.8) !important;
+  border: 1px solid rgba(0, 255, 242, 0.2) !important;
+}
+
+.admin-menu-tabs button {
+  background: rgba(20, 20, 35, 0.8) !important;
+  border: 1px solid rgba(0, 255, 242, 0.2) !important;
+  color: #9999bb !important;
+}
+
+.admin-menu-tabs button:hover {
+  background: rgba(0, 255, 242, 0.1) !important;
+  border-color: rgba(0, 255, 242, 0.4) !important;
+  color: #00fff2 !important;
+}
+
+.admin-menu-tabs button.active {
+  background: linear-gradient(135deg, rgba(0, 255, 242, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%) !important;
+  border-color: rgba(0, 255, 242, 0.6) !important;
+  color: #00fff2 !important;
+  box-shadow: 0 0 15px rgba(0, 255, 242, 0.3) !important;
+}
+
+.section-card {
+  background: rgba(15, 15, 25, 0.9) !important;
+  border: 1px solid rgba(0, 255, 242, 0.2) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.section-card h3 {
+  color: #00fff2 !important;
+  border-bottom-color: rgba(0, 255, 242, 0.3) !important;
+  text-shadow: 0 0 8px rgba(0, 255, 242, 0.4);
+}
+
+.section-card h4 {
+  color: #e8e8ff !important;
+}
+
+.admin-section-desc {
+  background: rgba(0, 255, 242, 0.05) !important;
+  border-left: 3px solid rgba(0, 255, 242, 0.5) !important;
+  color: #9999bb !important;
+}
+
+/* 목록 아이템 */
+.admin-job-item,
+.admin-task-item,
+.code-item {
+  background: rgba(20, 20, 35, 0.8) !important;
+  border: 1px solid rgba(0, 255, 242, 0.15) !important;
+}
+
+.admin-job-item:hover,
+.admin-task-item:hover,
+.code-item:hover {
+  border-color: rgba(0, 255, 242, 0.4) !important;
+  box-shadow: 0 0 15px rgba(0, 255, 242, 0.2) !important;
+}
+
+/* 테이블 스타일 */
+.members-table-container {
+  border-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+.members-table th {
+  background: rgba(0, 255, 242, 0.1) !important;
+  color: #00fff2 !important;
+  border-bottom-color: rgba(0, 255, 242, 0.3) !important;
+}
+
+.members-table td {
+  background: rgba(15, 15, 25, 0.6) !important;
+  color: #e8e8ff !important;
+  border-bottom-color: rgba(0, 255, 242, 0.1) !important;
+}
+
+.members-table tbody tr:hover {
+  background: rgba(0, 255, 242, 0.08) !important;
+}
+
+/* 유저 카드 */
+.user-card {
+  background: rgba(20, 20, 35, 0.9) !important;
+  border: 1px solid rgba(0, 255, 242, 0.2) !important;
+}
+
+.user-card:hover {
+  border-color: rgba(0, 255, 242, 0.5) !important;
+  box-shadow: 0 0 20px rgba(0, 255, 242, 0.2) !important;
+}
+
+.user-card-header {
+  border-bottom-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+.user-card-name {
+  color: #e8e8ff !important;
+}
+
+/* 모달 스타일 */
+.modal-overlay {
+  background-color: rgba(5, 5, 8, 0.95) !important;
+}
+
+.edit-student-jobs-modal {
+  background: rgba(20, 20, 35, 0.98) !important;
+  border: 1px solid rgba(0, 255, 242, 0.3) !important;
+}
+
+.modal-header {
+  background: rgba(0, 255, 242, 0.08) !important;
+  border-bottom-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+.modal-header h3 {
+  color: #00fff2 !important;
+}
+
+.modal-footer {
+  background: rgba(10, 10, 18, 0.8) !important;
+  border-top-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+/* 급여 관련 스타일 */
+.salary-management {
+  background: rgba(15, 15, 25, 0.9) !important;
+  border-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+.salary-info h4 {
+  color: #00fff2 !important;
+}
+
+.salary-info p {
+  color: #9999bb !important;
+}
+
+.current-salary-settings {
+  background: rgba(15, 15, 25, 0.9) !important;
+  border-color: rgba(0, 255, 242, 0.2) !important;
+}
+
+.settings-display {
+  background: rgba(10, 10, 18, 0.8) !important;
+}
+
+.salary-calculation-example {
+  background: rgba(139, 92, 246, 0.1) !important;
+  border-left-color: rgba(139, 92, 246, 0.6) !important;
+}
+
+.auto-payment-info {
+  background: rgba(255, 209, 102, 0.1) !important;
+  border-left-color: rgba(255, 209, 102, 0.6) !important;
+}
+
+/* 학급 정보 헤더 */
+.class-info-header {
+  background: linear-gradient(135deg, rgba(0, 255, 242, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%) !important;
+  border: 1px solid rgba(0, 255, 242, 0.3) !important;
+}
+
+.current-class-info {
+  color: #e8e8ff !important;
+}
+
+.current-class-info strong {
+  color: #00fff2 !important;
+}
+
+/* 폼 그룹 */
+.form-group label {
+  color: #e8e8ff !important;
+}
+
+.form-help {
+  color: #9999bb !important;
+}
+
+/* 에러 메시지 */
+.error-message {
+  background: rgba(255, 51, 102, 0.15) !important;
+  border-left-color: #ff3366 !important;
+  color: #ff6688 !important;
+}
+
+/* 빈 상태 메시지 */
+.no-items-message,
+.no-codes-message,
+.no-members-message {
+  background: rgba(20, 20, 35, 0.8) !important;
+  color: #9999bb !important;
+}

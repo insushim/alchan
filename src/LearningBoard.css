@@ -503,3 +503,296 @@
   padding: 40px;
   font-style: italic;
 }
+
+/* ============================================
+   🎴 학급 게시판 카드 스타일 - 글쓰기/글보기/숨김관리
+   ============================================ */
+
+/* 메인 액션 버튼들 카드 스타일 */
+.board-actions {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 30px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.write-btn,
+.view-btn,
+.hidden-boards-toggle-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 32px;
+  min-width: 160px;
+  min-height: 120px;
+  border-radius: 16px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 글쓰기 카드 - 시안 네온 */
+.write-btn {
+  background: linear-gradient(145deg, rgba(0, 255, 242, 0.1) 0%, rgba(0, 184, 176, 0.08) 100%) !important;
+  border: 2px solid rgba(0, 255, 242, 0.4) !important;
+  color: #00fff2 !important;
+  box-shadow: 0 8px 24px rgba(0, 255, 242, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.write-btn::before {
+  content: '✏️';
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.write-btn:hover,
+.write-btn.active {
+  background: linear-gradient(145deg, rgba(0, 255, 242, 0.25) 0%, rgba(0, 184, 176, 0.2) 100%) !important;
+  border-color: rgba(0, 255, 242, 0.8) !important;
+  box-shadow: 0 12px 36px rgba(0, 255, 242, 0.3), 0 0 60px rgba(0, 255, 242, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-4px);
+}
+
+/* 글보기 카드 - 퍼플 네온 */
+.view-btn {
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.1) 0%, rgba(124, 58, 237, 0.08) 100%) !important;
+  border: 2px solid rgba(139, 92, 246, 0.4) !important;
+  color: #8b5cf6 !important;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.view-btn::before {
+  content: '📖';
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.view-btn:hover,
+.view-btn.active {
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.25) 0%, rgba(124, 58, 237, 0.2) 100%) !important;
+  border-color: rgba(139, 92, 246, 0.8) !important;
+  box-shadow: 0 12px 36px rgba(139, 92, 246, 0.3), 0 0 60px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-4px);
+}
+
+/* 숨김관리 카드 - 옐로우 네온 */
+.hidden-boards-toggle-btn {
+  background: linear-gradient(145deg, rgba(255, 209, 102, 0.1) 0%, rgba(245, 158, 11, 0.08) 100%) !important;
+  border: 2px solid rgba(255, 209, 102, 0.4) !important;
+  color: #ffd166 !important;
+  box-shadow: 0 8px 24px rgba(255, 209, 102, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.hidden-boards-toggle-btn::before {
+  content: '👁️‍🗨️';
+  font-size: 2rem;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.hidden-boards-toggle-btn:hover,
+.hidden-boards-toggle-btn.active {
+  background: linear-gradient(145deg, rgba(255, 209, 102, 0.25) 0%, rgba(245, 158, 11, 0.2) 100%) !important;
+  border-color: rgba(255, 209, 102, 0.8) !important;
+  box-shadow: 0 12px 36px rgba(255, 209, 102, 0.3), 0 0 60px rgba(255, 209, 102, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-4px);
+}
+
+/* 관리자 패널 토글 버튼 */
+.admin-panel-toggle-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: linear-gradient(135deg, rgba(255, 0, 255, 0.15) 0%, rgba(188, 19, 254, 0.15) 100%) !important;
+  border: 1px solid rgba(255, 0, 255, 0.5) !important;
+  color: #ff00ff !important;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.admin-panel-toggle-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 0, 255, 0.3) 0%, rgba(188, 19, 254, 0.3) 100%) !important;
+  box-shadow: 0 0 20px rgba(255, 0, 255, 0.4), 0 0 40px rgba(188, 19, 254, 0.2) !important;
+  transform: translateY(-2px);
+}
+
+/* 게시판 선택 버튼 그리드 */
+.board-buttons-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+  padding: 10px;
+}
+
+.board-button-item .board-btn {
+  width: 100%;
+  padding: 16px 20px;
+  background: rgba(20, 20, 35, 0.8) !important;
+  border: 1px solid rgba(0, 255, 242, 0.25) !important;
+  border-radius: 12px;
+  color: #e8e8ff !important;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.board-button-item .board-btn:hover {
+  background: rgba(0, 255, 242, 0.1) !important;
+  border-color: rgba(0, 255, 242, 0.6) !important;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 255, 242, 0.2) !important;
+}
+
+.board-button-item .board-btn.selected {
+  background: linear-gradient(135deg, rgba(0, 255, 242, 0.2) 0%, rgba(139, 92, 246, 0.15) 100%) !important;
+  border-color: rgba(0, 255, 242, 0.7) !important;
+  color: #00fff2 !important;
+  box-shadow: 0 0 20px rgba(0, 255, 242, 0.3) !important;
+}
+
+/* 숨김 게시판 관리 목록 */
+.hidden-boards-list {
+  background: rgba(15, 15, 25, 0.9);
+  border: 1px solid rgba(255, 209, 102, 0.3);
+  border-radius: 16px;
+  padding: 24px;
+  margin-top: 20px;
+}
+
+.hidden-boards-list h2,
+.hidden-boards-list h3 {
+  color: #ffd166;
+  text-shadow: 0 0 10px rgba(255, 209, 102, 0.4);
+  margin-bottom: 20px;
+}
+
+.hidden-boards-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.hidden-board-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(20, 20, 35, 0.8);
+  border: 1px solid rgba(0, 255, 242, 0.15);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  transition: all 0.3s ease;
+}
+
+.hidden-board-item:hover {
+  border-color: rgba(0, 255, 242, 0.4);
+  box-shadow: 0 4px 15px rgba(0, 255, 242, 0.15);
+}
+
+.hidden-board-item.item-is-hidden {
+  border-color: rgba(255, 209, 102, 0.3);
+  background: rgba(255, 209, 102, 0.05);
+}
+
+.hidden-board-item.item-is-hidden span {
+  color: #ffd166;
+}
+
+.hidden-board-item.item-is-visible span {
+  color: #00ff88;
+}
+
+.hidden-board-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.hide-board-btn,
+.restore-board-btn,
+.delete-board-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+/* 숨김 게시판 - 관리자 뷰 */
+.hidden-board-for-admin {
+  background: rgba(255, 209, 102, 0.1) !important;
+  border-color: rgba(255, 209, 102, 0.4) !important;
+}
+
+/* 게시글 작성 폼 컨테이너 */
+.post-form-container {
+  background: rgba(15, 15, 25, 0.95);
+  border: 1px solid rgba(0, 255, 242, 0.3);
+  border-radius: 16px;
+  padding: 30px;
+  margin-top: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.post-form-container h2 {
+  color: #00fff2;
+  text-shadow: 0 0 10px rgba(0, 255, 242, 0.5);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0, 255, 242, 0.2);
+}
+
+/* 게시글 목록 컨테이너 */
+.posts-container {
+  background: rgba(15, 15, 25, 0.9);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 16px;
+  padding: 30px;
+  margin-top: 20px;
+}
+
+.posts-container h2 {
+  color: #8b5cf6;
+  text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .board-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .write-btn,
+  .view-btn,
+  .hidden-boards-toggle-btn {
+    min-width: 100%;
+    min-height: 100px;
+    padding: 20px;
+  }
+
+  .board-buttons-container {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+
+  .admin-panel-toggle-btn {
+    position: relative;
+    top: 0;
+    right: 0;
+    margin-bottom: 15px;
+    width: 100%;
+  }
+}

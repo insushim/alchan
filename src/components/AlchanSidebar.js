@@ -9,7 +9,8 @@ import {
   LayoutDashboard, Wallet, Target, Gamepad2, Package, TrendingUp,
   Landmark, FileText, Crown, ShoppingBag, Building2, Music,
   Settings, Users, Banknote, Scale, Shield, Sparkles, LogOut,
-  Boxes, Store, RefreshCw, Hammer, BarChart3, BookOpen, Keyboard, Circle
+  Boxes, Store, RefreshCw, Hammer, BarChart3, BookOpen, Keyboard, Circle,
+  Briefcase, ListTodo
 } from 'lucide-react';
 
 // ============================================
@@ -90,7 +91,11 @@ export const ALCHAN_MENU_ITEMS = [
   // Admin Category - 관리자
   { id: 'adminCategory', label: '알찬 관리자', icon: Settings, isCategory: true, category: 'admin', adminOnly: true },
   { id: 'studentManagement', label: '학생 관리', icon: Users, path: '/admin/students', parentId: 'adminCategory', adminOnly: true },
-  { id: 'adminAppSettings', label: '앱 설정', icon: Settings, path: '/admin/app-settings', parentId: 'adminCategory', adminOnly: true },
+  { id: 'adminAppSettings', label: '목표/쿠폰 설정', icon: Target, path: '/admin/app-settings', parentId: 'adminCategory', adminOnly: true },
+  { id: 'taskManagement', label: '할일 관리', icon: ListTodo, path: '/admin/task-management', parentId: 'adminCategory', adminOnly: true },
+  { id: 'jobManagement', label: '직업 관리', icon: Briefcase, path: '/admin/job-settings', parentId: 'adminCategory', adminOnly: true },
+  { id: 'salarySettings', label: '급여 설정', icon: Banknote, path: '/admin/salary-settings', parentId: 'adminCategory', adminOnly: true },
+  { id: 'classMemberManagement', label: '학급 구성원 관리', icon: Users, path: '/admin/class-members', parentId: 'adminCategory', adminOnly: true },
   { id: 'couponTransfer', label: '쿠폰 보내기/가져오기', icon: Target, path: '/admin/coupon-transfer', parentId: 'adminCategory', adminOnly: true },
   { id: 'moneyTransfer', label: '돈 보내기/가져오기', icon: Banknote, path: '/admin/money-transfer', parentId: 'adminCategory', adminOnly: true },
   { id: 'activityLog', label: '데이터베이스', icon: FileText, path: '/admin/activity-log', parentId: 'adminCategory', adminOnly: true },

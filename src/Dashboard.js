@@ -1574,28 +1574,30 @@ function Dashboard({ adminTabMode }) {
 
   return (
     <div className="min-h-full w-full bg-[#0a0a12] px-2 pt-1 pb-0">
-      {/* 페이지 헤더 - 컴팩트 버전 */}
-      <section className="bg-[#14142380] backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg border border-cyan-900/30 flex flex-col md:flex-row md:items-center justify-between gap-1.5 mb-2">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-cyan-900/30 rounded-md flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
-            <ListTodo className="w-4 h-4" />
+      {/* 페이지 헤더 - 컴팩트 버전 (관리자 탭 모드가 아닐 때만 표시) */}
+      {!adminTabMode && (
+        <section className="bg-[#14142380] backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg border border-cyan-900/30 flex flex-col md:flex-row md:items-center justify-between gap-1.5 mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-cyan-900/30 rounded-md flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
+              <ListTodo className="w-4 h-4" />
+            </div>
+            <div className="leading-tight">
+              <h2 className="text-sm md:text-base font-bold text-white">오늘의 할일</h2>
+              <p className="text-[11px] text-slate-400">{userNickname}님, 오늘도 화이팅!</p>
+            </div>
           </div>
-          <div className="leading-tight">
-            <h2 className="text-sm md:text-base font-bold text-white">오늘의 할일</h2>
-            <p className="text-[11px] text-slate-400">{userNickname}님, 오늘도 화이팅!</p>
-          </div>
-        </div>
-        {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
-          <div className="flex flex-wrap gap-1.5">
-            <ActionButton variant="primary" icon={Settings} onClick={() => handleOpenAdminSettings("generalSettings")} size="sm">관리자 기능</ActionButton>
-            <ActionButton variant="success" icon={RefreshCw} onClick={handleForceRefresh} size="sm">새로고침</ActionButton>
-            <ActionButton variant="danger" icon={RotateCcw} onClick={handleManualTaskReset} size="sm" title="이 클래스의 모든 사용자 할일을 리셋합니다">할일 리셋</ActionButton>
-          </div>
-        )}
-        {viewMode === "selectJob" && (
-          <ActionButton variant="ghost" icon={ChevronLeft} onClick={handleCancelForm}>뒤로가기</ActionButton>
-        )}
-      </section>
+          {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && (
+            <div className="flex flex-wrap gap-1.5">
+              <ActionButton variant="primary" icon={Settings} onClick={() => handleOpenAdminSettings("generalSettings")} size="sm">관리자 기능</ActionButton>
+              <ActionButton variant="success" icon={RefreshCw} onClick={handleForceRefresh} size="sm">새로고침</ActionButton>
+              <ActionButton variant="danger" icon={RotateCcw} onClick={handleManualTaskReset} size="sm" title="이 클래스의 모든 사용자 할일을 리셋합니다">할일 리셋</ActionButton>
+            </div>
+          )}
+          {viewMode === "selectJob" && (
+            <ActionButton variant="ghost" icon={ChevronLeft} onClick={handleCancelForm}>뒤로가기</ActionButton>
+          )}
+        </section>
+      )}
 
       {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
         <>
