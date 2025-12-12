@@ -1,1006 +1,505 @@
-/* LearningBoard.css - 수정된 코드 */
-
-/* --- 기본 스타일 및 리셋 (기존 유지) --- */
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  font-family: "Pretendard", "Noto Sans KR", sans-serif;
-}
-body {
-  background-color: #f5f7fa;
-  color: #333;
-  line-height: 1.6;
-}
-
-/* --- 메인 레이아웃 --- */
-.learning-board-container {
-  display: flex;
-  width: 100%; /* 기본 너비를 100%로 설정 */
-  /* min-height: calc(100vh - 4rem) 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
-  margin: 2rem auto;
-  gap: 1rem; /* 관리자 패널과의 간격은 줄임 */
-  align-items: flex-start;
-  padding: 0 1rem; /* 좌우 최소 여백 */
-  transition: padding-right 0.4s ease-in-out; /* 관리자 패널에 따른 패딩 변경 애니메이션 */
+/* Cyberpunk Dark Theme for LearningBoard */
+:root {
+  --neon-cyan: #00fff2;
+  --neon-pink: #ff00ff;
+  --neon-purple: #bc13fe;
+  --neon-blue: #00a8ff;
+  --bg-dark: #0a0a12;
+  --bg-panel: #1a1a2e;
+  --bg-input: rgba(30, 30, 50, 0.8);
+  --text-primary: #e2e8f0;
+  --text-secondary: #94a3b8;
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --success: #00ff9d;
+  --danger: #ff3860;
 }
 
-/* 전체 화면 모드일 때 컨테이너 패딩 조정 */
-.learning-board-container.full-width-mode {
-  max-width: 100%;
-  padding: 0; /* 전체 화면일 때 좌우 패딩 제거 */
-  margin: 0 auto; /* 상하 마진만 유지 */
-  gap: 0; /* 관리자 패널과의 간격 제거 */
+/* Main Container */
+.board-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+  color: var(--text-primary);
+  /* Ensure parent doesn't force white */
+  background-color: transparent !important;
 }
 
-.main-board {
-  flex: 1;
-  background-color: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
-  padding: 2.5rem;
-  min-width: 0; /* flex 아이템이 줄어들 수 있도록 */
-  position: relative;
-  width: 100%; /* 부모 컨테이너 너비에 맞춤 */
-  transition: margin-right 0.4s ease-in-out; /* 관리자 패널에 따른 마진 변경 애니메이션 */
-}
-
-/* 전체 화면 모드일 때 메인 보드 스타일 */
-.learning-board-container.full-width-mode .main-board {
-  margin: 0; /* 전체 화면일 때 마진 제거 */
-  border-radius: 0; /* 전체 화면일 때 모서리 각 제거 (선택 사항) */
-  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
-  padding: 2rem 3rem; /* 내부 콘텐츠 패딩 조정 (선택 사항) */
-}
-
-/* --- 관리자 패널 --- */
-.admin-panel {
-  width: 350px; /* 관리자 패널 너비 고정 */
-  position: fixed; /* 화면 오른쪽에 고정 */
-  right: -350px; /* 기본적으로 완전히 숨김 (패널 너비만큼) */
-  top: 0;
-  bottom: 0;
-  background-color: #fafafa;
-  border-left: 1px solid #e0e0e0;
-  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.1);
-  padding: 2rem;
-  transition: right 0.4s ease-in-out;
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-/* 관리자 패널이 visible 클래스가 있을 때만 보이도록 수정 */
-.admin-panel.visible {
-  right: 0; /* 관리자 패널 보이기 */
-}
-
-/* 관리자 패널이 보일 때 메인 컨테이너의 오른쪽 패딩 추가 (메인 콘텐츠 밀림 효과) */
-.learning-board-container.admin-panel-active:not(.full-width-mode) {
-  /* 전체 화면 모드가 아닐 때만 메인 컨텐츠 밀림 */
-  padding-right: calc(
-    350px + 1rem
-  ); /* 관리자 패널 너비 + 간격 만큼 오른쪽 패딩 */
-}
-
-/* --- 헤더 (H1) --- */
-h1 {
-  color: #1a237e;
-  margin-bottom: 1.5rem;
+/* Header */
+.board-header {
+  margin-bottom: 30px;
   text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.board-header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px rgba(0, 255, 242, 0.4);
   font-weight: 800;
-  font-size: 2.2rem;
-  padding-top: 1rem; /* 패딩 약간 줄임 */
-  position: relative;
-}
-.learning-board-container.full-width-mode h1 {
-  padding-top: 2.5rem; /* 전체 화면 시 상단 패딩 추가 */
+  letter-spacing: 1px;
 }
 
-/* --- 섹션 제목 (H2) --- */
-h2 {
-  color: #283593;
-  margin: 2rem 0 1.2rem 0;
-  font-weight: 700;
-  font-size: 1.6rem;
-  border-bottom: 2px solid #c5cae9;
-  padding-bottom: 0.6rem;
-}
-
-/* --- 카드 제목 (H3) --- */
-h3 {
-  color: #3f51b5;
-  margin-bottom: 0.8rem;
-  font-weight: 600;
-  font-size: 1.2rem;
-}
-
-/* --- 부제목 (H4) --- */
-h4 {
-  color: #5c6bc0;
-  margin: 1rem 0 0.6rem 0;
-  font-weight: 600;
-  font-size: 1rem;
-}
-
-/* --- 단락 (p) --- */
-p {
-  margin-bottom: 1rem;
-}
-.info-message {
-  text-align: center;
-  padding: 2rem;
-  color: #455a64;
-  background-color: #eceff1;
+/* Admin Toggle Button */
+.admin-toggle-btn {
+  background: var(--bg-panel);
+  border: 1px solid var(--neon-purple);
+  color: var(--neon-purple);
+  padding: 8px 16px;
   border-radius: 8px;
-  margin-top: 1.5rem;
-  font-weight: 500;
-}
-.info-message.small {
-  padding: 1rem;
-  font-size: 0.9rem;
-}
-.no-posts {
-  text-align: center;
-  color: #78909c;
-  padding: 2rem;
-  background-color: #f8f9fa;
-  border-radius: 8px;
-  border: 1px dashed #cfd8dc;
-  margin-top: 1rem;
-}
-
-/* --- 버튼 공통 --- */
-button {
   cursor: pointer;
-  border: none;
-  border-radius: 8px;
-  transition: all 0.2s ease-out;
+  transition: all 0.3s ease;
   font-weight: 600;
-  padding: 0.6rem 1.2rem;
-  font-size: 0.95rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-button:hover:not(:disabled) {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-button:active:not(:disabled) {
-  filter: brightness(0.95);
-  transform: translateY(0px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-}
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
-  box-shadow: none;
-}
-.action-btn {
-  padding: 0.4rem 0.6rem;
-  font-size: 1rem;
-  line-height: 1;
-  box-shadow: none;
-  border-radius: 6px;
-  background-color: #e0e0e0;
-  color: #424242;
-}
-.action-btn:hover:not(:disabled) {
-  background-color: #bdbdbd;
+  margin-top: 10px;
 }
 
-/* --- 관리자 패널 토글 버튼 --- */
-.admin-panel-toggle-btn {
-  position: absolute; /* .main-board 기준 */
-  top: 2.5rem;
-  right: 2.5rem; /* .main-board 패딩 고려 */
-  background-color: #4a148c;
-  color: white;
-  padding: 0.4rem 0.9rem;
-  font-size: 0.85rem;
-  z-index: 20; /* 관리자 패널보다 위에 있을 필요는 없음 */
-  border-radius: 18px;
-}
-.learning-board-container.full-width-mode .admin-panel-toggle-btn {
-  top: 1.5rem; /* 전체화면 시 위치 조정 */
-  right: 1.5rem;
-}
-.admin-panel-toggle-btn:hover {
-  background-color: #6a1b9a;
+.admin-toggle-btn:hover {
+  background: rgba(188, 19, 254, 0.1);
+  box-shadow: 0 0 10px rgba(188, 19, 254, 0.3);
 }
 
-/* --- 메인 액션 버튼 (글쓰기/글보기/숨김관리) --- */
+/* Main Board Layout */
+.main-board {
+  background: rgba(26, 26, 46, 0.8);
+  /* Glass dark */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  padding: 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Board Actions (Buttons) */
 .board-actions {
   display: flex;
-  gap: 0.75rem;
-  margin-bottom: 2rem;
-}
-.write-btn,
-.view-btn,
-.hidden-boards-toggle-btn {
-  flex: 1;
-  padding: 0.8rem 1.5rem;
-  font-size: 1rem;
-  text-align: center;
-}
-.write-btn {
-  background-color: #1976d2;
-  color: white;
-}
-.view-btn {
-  background-color: #607d8b;
-  color: white;
-  border: none;
-}
-.hidden-boards-toggle-btn {
-  background-color: #f57c00;
-  color: white;
-  border: none;
-}
-
-/* 활성 상태 버튼 */
-.write-btn.active {
-  background-color: #0d47a1;
-  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.2);
-}
-.view-btn.active {
-  background-color: #37474f;
-  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.2);
-}
-.hidden-boards-toggle-btn.active {
-  background-color: #e65100;
-  box-shadow: inset 0 3px 5px rgba(0, 0, 0, 0.2);
-}
-
-/* --- 콘텐츠 영역 --- */
-.board-content-area {
-  margin-top: 1rem;
-}
-
-/* --- 게시판 선택 --- */
-.board-selection {
-  margin-bottom: 2rem;
-  background: linear-gradient(135deg, #e3f2fd, #e8eaf6);
-  padding: 0; /* 내부 h2와 버튼 컨테이너에서 패딩 관리 */
-  border-radius: 12px;
-  border: 1px solid #bbdefb;
-  overflow: hidden;
-  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.05);
-}
-.board-selection h2 {
-  padding: 1.2rem 2rem;
-  margin: 0; /* 여기서 마진 제거 */
-  border-bottom: 1px solid #bbdefb;
-  color: #1a237e;
-  font-size: 1.4rem;
-}
-.board-buttons-container {
-  padding: 1.5rem 2rem; /* 상하 패딩 줄임, 좌우 패딩 유지 */
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
-}
-.board-button-item {
-  display: block; /* flex 대신 block으로 변경 */
-}
-.board-btn {
-  width: 100%; /* 부모 너비 전체 사용 */
-  background: #ffffff;
-  color: #303f9f;
-  border: 1px solid #c5cae9;
-  padding: 0.8rem 1rem; /* 패딩 조정 */
-  font-size: 1rem; /* 글꼴 크기 조정 */
-  font-weight: 600;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-  /* 아이콘과 이름 정렬을 위한 flex 속성 추가 */
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  text-align: left;
-}
-.board-btn:hover:not(.selected) {
-  background-color: #e8eaf6;
-}
-.board-btn.selected {
-  background: linear-gradient(to right, #3f51b5, #5c6bc0);
-  color: white;
-  border-color: #3f51b5;
-  font-weight: 700;
-  box-shadow: 0 3px 6px rgba(63, 81, 181, 0.3);
-}
-
-.board-btn .board-name {
-  flex-grow: 1;
-  text-align: center;
-}
-
-.board-btn .hidden-icon {
-  font-size: 0.75rem;
-  flex-shrink: 0;
-  margin-left: 8px; /* 이름과의 간격 */
-}
-
-/* 숨김 관리 뷰의 게시판 버튼은 아이콘과 텍스트가 중앙에 오도록 */
-.hidden-boards-list .board-btn {
+  gap: 15px;
+  margin-bottom: 24px;
   justify-content: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
-.hide-board-btn {
-  /* 게시판 목록의 숨김 버튼 (숨김 관리 뷰에서만 사용) */
-  flex-shrink: 0; /* 크기 고정 */
-  background-color: #ffcdd2; /* 눈에 띄는 색상 */
-  color: #c62828;
+.action-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
   border: none;
-  padding: 0.8rem 0.6rem; /* 아이콘에 맞게 패딩 조정 */
-}
-.hide-board-btn:hover {
-  background-color: #ef9a9a;
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
 }
 
-/* --- 숨겨진 게시판 관리 --- */
-/* .admin-section 스타일을 재활용하거나, .hidden-boards-list에 유사한 스타일 적용 */
-.hidden-boards-list {
-  margin-top: 1.5rem;
-  padding: 1.5rem 2rem; /* 내부 패딩 */
-  background-color: #fffde7; /* 다른 배경색으로 구분 */
-  border: 1px solid #fff9c4;
+.action-btn.active {
+  background: linear-gradient(135deg, var(--neon-blue) 0%, var(--neon-purple) 100%);
+  color: white;
+  border: none;
+  box-shadow: 0 0 15px rgba(0, 168, 255, 0.4);
+}
+
+.action-btn:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-2px);
+}
+
+/* Board Selection Area */
+.board-selection {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 20px;
   border-radius: 12px;
-}
-.hidden-boards-list h2 {
-  /* .board-selection h2 와 유사하게 */
-  color: #f57f17; /* 다른 색상 사용 */
-  border-bottom-color: #fff176;
-  margin-top: 0; /* h2의 기본 마진 제거 */
-}
-/* 숨김 관리 내 게시판 선택 버튼 컨테이너는 .board-buttons-container 재활용 */
-.hidden-boards-list .board-btn.hidden-board-for-admin {
-  /* 관리자 뷰에서 숨겨진 게시판 구분 */
-  border-style: dashed;
-  opacity: 0.8;
-}
-.hidden-boards-list ul {
-  list-style: none;
-  padding: 0;
-  margin-top: 1rem;
-}
-.hidden-board-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.8rem 0; /* 상하 패딩, 좌우는 부모에서 */
-  border-bottom: 1px dashed #fff59d;
-}
-.hidden-board-item:last-child {
-  border-bottom: none;
-}
-.hidden-board-item span {
-  font-weight: 500;
-  color: #795548; /* 텍스트 색상 */
-}
-.hidden-board-actions {
-  display: flex;
-  gap: 0.6rem;
-}
-.restore-board-btn {
-  /* 복구 버튼 스타일 */
-  background-color: #c8e6c9;
-  color: #2e7d32;
-}
-.delete-board-btn {
-  /* 영구 삭제 버튼 스타일 */
-  background-color: #ffcdd2;
-  color: #b71c1c;
-}
-.restore-board-btn:hover {
-  background-color: #a5d6a7;
-}
-.delete-board-btn:hover {
-  background-color: #ef9a9a;
-}
-.hidden-board-item.item-is-hidden span {
-  /* CSS에서 숨김 상태 시각적 표현 */
-  color: #9e9e9e;
-  font-style: italic;
+  margin-bottom: 30px;
+  border: 1px solid var(--glass-border);
+  text-align: center;
 }
 
-/* --- 글쓰기 폼 --- */
-.post-form-container {
-  margin-top: 2rem; /* 위쪽 여백 */
+.board-selection h2 {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  margin-bottom: 15px;
 }
+
+.board-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+}
+
+.board-btn {
+  padding: 10px 18px;
+  border-radius: 20px;
+  border: 1px solid var(--glass-border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.board-btn:hover {
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  background: rgba(0, 255, 242, 0.05);
+}
+
+.board-btn.active {
+  background: rgba(0, 255, 242, 0.15);
+  border-color: var(--neon-cyan);
+  color: var(--neon-cyan);
+  box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
+}
+
+/* Post Form (Writing) */
 .post-form {
-  background-color: #f8f9fa; /* 밝은 배경 */
-  padding: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 24px;
   border-radius: 12px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--glass-border);
 }
+
+.post-form h2 {
+  color: var(--neon-pink);
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+}
+
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 20px;
 }
+
 .form-group label {
   display: block;
-  margin-bottom: 0.6rem;
-  font-weight: 600;
-  color: #495057; /* 레이블 색상 */
-}
-input[type="text"],
-textarea {
-  width: 100%;
-  padding: 0.8rem 1rem;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #495057;
-  background-color: #fff;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-}
-input[type="text"]:focus,
-textarea:focus {
-  border-color: #80bdff; /* 포커스 시 테두리 색상 */
-  outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); /* 포커스 시 그림자 효과 */
-}
-textarea {
-  resize: vertical; /* 세로 크기만 조절 가능 */
-  min-height: 150px;
-}
-.submit-btn {
-  background: linear-gradient(to right, #1e88e5, #42a5f5); /* 그라데이션 배경 */
-  color: white;
-  padding: 0.8rem 1.5rem;
-  font-size: 1.1rem;
-  width: 100%;
-  margin-top: 1rem; /* 폼 요소와 간격 */
-  border: none;
-}
-.submit-btn:hover {
-  filter: brightness(1.1);
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
-/* --- 글 목록 & 카드 --- */
-.posts-container {
-  margin-top: 2rem;
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--glass-border);
+  background: var(--bg-input);
+  color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease;
 }
-.posts-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1.8rem; /* 카드 간 간격 */
+
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--neon-blue);
+  box-shadow: 0 0 10px rgba(0, 168, 255, 0.2);
 }
+
+.submit-btn {
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
+  color: #000;
+  font-weight: 800;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  width: 100%;
+  font-size: 1.1rem;
+}
+
+.submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 255, 242, 0.4);
+}
+
+/* Posts Container & List */
+.posts-container h2 {
+  color: var(--neon-pink);
+  margin-bottom: 20px;
+}
+
 .post-card {
-  background-color: #ffffff;
-  border-radius: 12px; /* 둥근 모서리 */
-  padding: 2rem;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.06);
-  transition: box-shadow 0.3s ease;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  transition: all 0.3s ease;
 }
+
 .post-card:hover {
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* 호버 시 그림자 강조 */
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
 }
+
+.post-card h3 {
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  font-size: 1.3rem;
+}
+
 .post-meta {
   display: flex;
-  gap: 1rem; /* 작성자, 작성일 간격 */
-  margin-bottom: 1rem;
-  color: #757575; /* 메타 정보 색상 */
+  gap: 15px;
+  color: var(--text-secondary);
   font-size: 0.9rem;
+  margin-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 10px;
 }
+
 .post-content {
-  margin-bottom: 1.5rem;
-  line-height: 1.75; /* 가독성 좋은 줄 간격 */
-  white-space: pre-wrap; /* 공백, 줄바꿈 유지 */
-  word-break: break-word; /* 긴 단어 자동 줄바꿈 */
-  color: #424242; /* 본문 색상 */
+  color: #d1d5db;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
 }
+
+/* Post Stats & Actions */
 .post-stats {
-  border-top: 1px solid #eee; /* 구분선 */
-  padding-top: 1.2rem;
-}
-
-/* --- 좋아요/싫어요 버튼 --- */
-.likes-container {
-  display: flex;
-  gap: 0.8rem;
-  margin-bottom: 1rem;
-  align-items: center;
-}
-.like-btn,
-.dislike-btn {
-  padding: 0.6rem 1.1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem; /* 아이콘과 텍스트 간격 */
-  font-size: 0.9rem;
-  border-radius: 20px; /* 타원형 버튼 */
-  border: none;
-}
-.like-btn {
-  background-color: #e3f2fd; /* 좋아요 기본 배경 */
-  color: #1565c0; /* 좋아요 기본 텍스트 */
-}
-.like-btn:hover:not(:disabled) {
-  background-color: #bbdefb;
-}
-.like-btn.active {
-  /* 활성화(클릭) 상태 */
-  background-color: #1e88e5;
-  color: white;
-}
-.dislike-btn {
-  background-color: #ffebee; /* 싫어요 기본 배경 */
-  color: #c62828; /* 싫어요 기본 텍스트 */
-}
-.dislike-btn:hover:not(:disabled) {
-  background-color: #ffcdd2;
-}
-.dislike-btn.active {
-  /* 활성화(클릭) 상태 */
-  background-color: #d32f2f;
-  color: white;
-}
-/* 본인 글에 대한 추천/비추천 비활성화 스타일 */
-.like-btn.disabled, /* JS에서 disabled 속성과 함께 이 클래스 추가 */
-.dislike-btn.disabled {
-  background-color: #f5f5f5; /* 비활성 배경 */
-  color: #bdbdbd; /* 비활성 텍스트 */
-  border: 1px solid #eee; /* 비활성 테두리 */
-  cursor: not-allowed;
-  opacity: 1; /* button:disabled 의 opacity와 충돌 방지 */
-}
-.like-btn.disabled:hover,
-.dislike-btn.disabled:hover {
-  filter: none; /* 호버 효과 제거 */
-}
-
-/* --- 쿠폰 정보 --- */
-.coupon-info {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 0.9rem;
-  color: #424242;
-  margin-bottom: 1.2rem;
-  background-color: #f5f5f5; /* 배경 추가 */
-  padding: 0.6rem 1rem; /* 내부 여백 */
-  border-radius: 6px;
-}
-.coupon-info span {
-  font-weight: 500;
-}
-.admin-verified-badge {
-  /* 관리자 확인 완료 뱃지 */
-  background-color: #e0f2f1; /* 민트색 계열 */
-  color: #00796b;
-  padding: 0.2em 0.5em;
-  border-radius: 4px;
-  font-size: 0.8em;
-  margin-left: 0.5em; /* 다른 요소와 간격 */
+  flex-wrap: wrap;
+  gap: 15px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 12px;
+  border-radius: 8px;
 }
 
-/* --- 관리자 쿠폰 컨트롤 --- */
+.likes-container {
+  display: flex;
+  gap: 10px;
+}
+
+.like-btn,
+.dislike-btn {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+}
+
+.like-btn:hover:not(:disabled) {
+  border-color: var(--success);
+  color: var(--success);
+  background: rgba(0, 255, 157, 0.1);
+}
+
+.like-btn.active {
+  background: rgba(0, 255, 157, 0.2);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.dislike-btn:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+  background: rgba(255, 56, 96, 0.1);
+}
+
+.dislike-btn.active {
+  background: rgba(255, 56, 96, 0.2);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.like-btn:disabled,
+.dislike-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coupon-info {
+  display: flex;
+  gap: 12px;
+  font-size: 0.9rem;
+  color: var(--neon-cyan);
+}
+
+.admin-verified-badge {
+  background: var(--neon-purple);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+/* Admin Coupon Controls (Inside Post) */
 .admin-coupon-controls {
-  background-color: #f1f8e9; /* 연두색 계열 배경 */
-  padding: 1.2rem;
-  border-radius: 8px;
-  margin-top: 1rem; /* 쿠폰 정보와 간격 */
-  border: 1px solid #dcedc8;
+  width: 100%;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.1);
 }
+
 .admin-coupon-controls h4 {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  color: #33691e; /* 진한 녹색 */
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
 }
+
 .coupon-buttons {
   display: flex;
-  flex-wrap: wrap; /* 버튼 많을 시 줄바꿈 */
-  gap: 0.6rem;
-  margin-bottom: 0.8rem; /* 직접 입력과 간격 */
+  gap: 8px;
+  margin-bottom: 8px;
 }
+
 .coupon-buttons button {
-  background-color: #558b2f; /* 녹색 계열 */
+  background: rgba(188, 19, 254, 0.1);
+  border: 1px solid var(--neon-purple);
+  color: var(--neon-purple);
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.coupon-buttons button:hover {
+  background: var(--neon-purple);
   color: white;
-  padding: 0.5rem 0.8rem;
-  font-size: 0.85rem;
-  box-shadow: none;
 }
-.coupon-buttons button:hover:not(:disabled) {
-  background-color: #33691e;
-}
+
 .custom-coupon {
   display: flex;
-  gap: 0.6rem;
-  align-items: center;
+  gap: 8px;
 }
-.custom-coupon input[type="number"] {
-  flex: 1; /* 남은 공간 차지 */
-  max-width: 90px; /* 최대 너비 */
-  padding: 0.6rem;
-  font-size: 0.9rem;
-  text-align: right;
-  border-radius: 6px;
-  border: 1px solid #ced4da;
-}
-.custom-coupon button {
-  background-color: #00796b; /* 청록색 계열 */
-  color: white;
-  padding: 0.6rem 0.9rem;
-  font-size: 0.9rem;
-  box-shadow: none;
-}
-.custom-coupon button:hover:not(:disabled) {
-  background-color: #004d40;
-}
-.coupon-given-message {
-  /* 쿠폰 이미 지급 메시지 */
-  color: #2e7d32; /* 녹색 계열 */
-  font-weight: 500;
-  background-color: #e8f5e9;
-  padding: 0.5rem;
+
+.custom-coupon input {
+  padding: 4px 8px;
   border-radius: 4px;
-  text-align: center;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.3);
+  color: white;
+  width: 80px;
 }
 
-/* --- 관리자 패널 (기존 스타일에서 position 및 transition 관련 수정) --- */
-
-.admin-panel h2 {
-  color: #37474f;
-  margin-bottom: 1.8rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 2px solid #78909c;
-  text-align: center;
-  font-size: 1.5rem;
+.custom-coupon button {
+  background: var(--neon-blue);
+  color: white;
+  border: none;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
 }
+
+/* Admin Panel (Side/Popup) */
+.admin-panel {
+  position: fixed;
+  top: 0;
+  right: -100vw;
+  /* Hidden by default */
+  width: 400px;
+  height: 100vh;
+  background: rgba(10, 10, 18, 0.95);
+  border-left: 1px solid var(--neon-purple);
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+  padding: 30px;
+  z-index: 1000;
+  overflow-y: auto;
+  color: var(--text-primary);
+}
+
+.admin-panel.visible {
+  right: 0;
+}
+
 .admin-panel-close-btn {
   position: absolute;
-  top: 1rem;
-  right: 1rem;
+  top: 15px;
+  left: 15px;
   background: none;
   border: none;
-  font-size: 1.8rem;
-  color: #757575;
+  color: var(--text-secondary);
+  font-size: 2rem;
   cursor: pointer;
-  padding: 0.5rem;
-  line-height: 1;
-  box-shadow: none;
 }
+
 .admin-panel-close-btn:hover {
-  color: #424242;
+  color: white;
 }
 
 .admin-section {
-  margin-bottom: 2.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px dashed #bdbdbd;
-}
-.admin-section:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
-}
-.admin-section h3 {
-  color: #546e7a;
-  margin-bottom: 1.2rem;
-  font-size: 1.1rem;
+  margin-bottom: 30px;
 }
 
+.admin-section h3 {
+  color: var(--neon-cyan);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+/* Admin Board List */
 .admin-board-list {
-  /* 관리자 패널 내 게시판 목록 */
   list-style: none;
   padding: 0;
-  margin-top: 1rem;
-  max-height: 300px; /* 너무 길어지면 스크롤 */
-  overflow-y: auto;
 }
+
 .admin-board-manage-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.8rem 0.5rem; /* 내부 여백 */
-  border-bottom: 1px solid #eee;
-}
-.admin-board-manage-item.hidden span {
-  /* 관리자 패널에서 숨김 표시 */
-  color: #9e9e9e;
-  font-style: italic;
-}
-.admin-board-manage-item:last-child {
-  border-bottom: none;
-}
-.admin-board-manage-item span {
-  font-weight: 500;
-  color: #37474f;
-}
-.admin-board-item-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.edit-board-btn {
-  /* 관리자 패널 내 수정 버튼 */
-  background-color: #fff176; /* 노란색 계열 */
-  color: #f57f17;
-}
-.save-board-btn {
-  /* 관리자 패널 내 저장 버튼 */
-  background-color: #a5d6a7; /* 연한 녹색 */
-  color: #1b5e20;
-}
-.cancel-edit-btn {
-  /* 관리자 패널 내 취소 버튼 */
-  background-color: #e0e0e0; /* 회색 */
-  color: #424242;
-}
-/* 관리자 패널 내에서 사용되는 숨김/복구 버튼 (기존 .hide-board-btn, .restore-board-btn과 다르게) */
-.admin-board-manage-item .hide-board-btn {
-  background-color: #ffcc80; /* 주황색 계열 */
-  color: #e65100;
-}
-.admin-board-manage-item .restore-board-btn {
-  background-color: #c5e1a5; /* 연두색 계열 */
-  color: #33691e;
+  padding: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.edit-board-form {
-  /* 관리자 패널 내 이름 수정 폼 */
-  display: flex;
-  width: 100%;
-  gap: 0.5rem;
-  align-items: center;
+.admin-board-manage-item.hidden span {
+  opacity: 0.5;
+  text-decoration: line-through;
 }
-.edit-board-form input[type="text"] {
-  flex-grow: 1;
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-.edit-board-form button {
-  flex-shrink: 0;
+
+.action-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
 }
 
 .add-board-form {
-  /* 관리자 패널 내 게시판 추가 폼 */
-  display: flex;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-}
-.add-board-form input[type="text"] {
-  flex: 1;
-  padding: 0.7rem;
-  border: 1px solid #bdbdbd;
-  border-radius: 6px;
-}
-.add-board-form button {
-  background-color: #4db6ac; /* 청록색 계열 */
-  color: white;
-  padding: 0.7rem 1rem;
-  border: none;
-}
-.add-board-form button:hover {
-  background-color: #00897b;
-}
-
-.admin-stats ul {
-  list-style: none;
-  padding-left: 0;
-}
-.admin-stats li {
-  padding: 0.7rem 0;
-  border-bottom: 1px solid #eee;
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.95rem;
-}
-.admin-stats li:last-child {
-  border-bottom: none;
-}
-
-/* --- 반응형 스타일 (수정) --- */
-@media (max-width: 1600px) {
-  /* 전체 화면 모드가 아닐 때, learning-board-container에 좌우 여백 유지 */
-  .learning-board-container:not(.full-width-mode) {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-}
-
-@media (max-width: 1200px) {
-  .learning-board-container:not(.full-width-mode) {
-    gap: 1rem; /* 전체 화면 모드가 아닐 때만 간격 적용 */
-  }
-  .learning-board-container:not(.full-width-mode) .main-board {
-    margin: 0 1rem; /* 전체 화면 모드가 아닐 때만 마진 적용, 상하는 0으로 고정 */
-  }
-
-  /* 관리자 패널이 열려 있을 때 메인 콘텐츠 밀림 효과 (1200px 이하) */
-  .learning-board-container.admin-panel-active:not(.full-width-mode) {
-    padding-right: calc(300px + 1rem); /* 관리자 패널 너비 300px 가정 */
-  }
-  .admin-panel {
-    width: 300px;
-    right: -320px; /* 너비에 맞게 조정 */
-  }
-}
-
-@media (max-width: 768px) {
-  /* 모바일에서는 항상 full-width-mode와 유사하게 동작하도록 설정 */
-  .learning-board-container {
-    flex-direction: column;
-    padding: 0 !important; /* 모바일에서는 항상 패딩 0 */
-    margin: 0 auto !important; /* 모바일에서는 항상 마진 0 auto */
-    gap: 0;
-  }
-  .main-board {
-    padding: 1.5rem;
-    margin: 0 !important; /* 모바일에서는 항상 마진 0 */
-    border-radius: 0; /* 모바일에서는 항상 모서리 각 제거 */
-    /* min-height: calc(100vh - 1rem) 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
-  }
-
-  .admin-panel-toggle-btn {
-    top: 1rem;
-    right: 1rem;
-    padding: 0.3rem 0.7rem;
-    font-size: 0.8rem;
-  }
-
-  /* 모바일에서 관리자 패널은 하단에서 올라오도록 스타일 변경 */
-  .admin-panel {
-    width: 100%;
-    height: 70vh; /* 화면 높이의 70% */
-    bottom: -70vh; /* 기본적으로 숨김 */
-    top: auto; /* top 속성 제거 */
-    right: 0; /* 오른쪽 정렬 유지 */
-    left: 0; /* 왼쪽도 0으로 설정하여 전체 너비 차지 */
-    transition: bottom 0.4s ease-in-out; /* 아래에서 올라오는 애니메이션 */
-    border-left: none;
-    border-top: 1px solid #e0e0e0;
-    box-sizing: border-box;
-  }
-  .admin-panel.visible {
-    bottom: 0; /* 관리자 패널 보이기 (아래에서 올라옴) */
-    right: 0; /* 확실히 오른쪽 정렬 */
-  }
-  .admin-panel-close-btn {
-    top: 0.5rem;
-    right: 0.5rem;
-  }
-
-  h1 {
-    font-size: 1.8rem;
-    padding-top: 1.5rem;
-  }
-  h2 {
-    font-size: 1.4rem;
-  }
-
-  .board-selection h2,
-  .board-buttons-container,
-  .hidden-boards-list, /* 숨김 관리 리스트도 패딩 적용 */
-  .post-form,
-  .post-card {
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-  .board-actions {
-    /* 메인 액션 버튼 세로 정렬 */
-    flex-direction: column;
-  }
-  .board-buttons-container {
-    /* 게시판 선택 버튼 한 줄에 하나씩 */
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 480px) {
-  .main-board {
-    padding: 1rem; /* 모바일에서 내부 패딩 더 줄임 */
-  }
-  h1 {
-    font-size: 1.6rem;
-  }
-  h2 {
-    font-size: 1.3rem;
-  }
-
-  .board-selection h2,
-  .board-buttons-container,
-  .hidden-boards-list,
-  .post-form,
-  .post-card {
-    padding-left: 0.8rem; /* 더 작은 화면에서 패딩 약간 줄임 */
-    padding-right: 0.8rem;
-  }
-  .likes-container {
-    /* 좋아요/싫어요 세로 정렬 */
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
-  }
-  .post-meta {
-    /* 게시글 메타 정보 세로 정렬 */
-    flex-direction: column;
-    gap: 0.2rem;
-  }
-  .coupon-buttons {
-    /* 쿠폰 버튼 간격 조정 */
-    gap: 0.4rem;
-  }
-  .custom-coupon {
-    /* 직접 입력 쿠폰 세로 정렬 */
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .custom-coupon input[type="number"] {
-    max-width: none; /* 너비 100% */
-  }
-  .add-board-form {
-    /* 관리자 패널 게시판 추가 폼 세로 정렬 */
-    flex-direction: column;
-  }
-}
-
-/* 뷰 모드 전환 버튼 스타일 */
-.view-mode-toggle {
   display: flex;
   gap: 10px;
-  margin: 20px 0;
-  justify-content: center;
+  margin-bottom: 15px;
 }
 
-.mode-btn {
-  padding: 10px 20px;
-  border: 2px solid #007bff;
-  background: white;
-  color: #007bff;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.mode-btn.active {
-  background: #007bff;
+.add-board-form input {
+  flex: 1;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--glass-border);
+  background: rgba(0, 0, 0, 0.3);
   color: white;
 }
 
-.mode-btn:hover {
-  opacity: 0.8;
+.add-board-btn {
+  background: var(--neon-purple);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
-.learning-activities-menu {
-  padding: 20px;
-}
-
-.board-menu {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
+/* Info Messages */
+.info-message {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 30px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
   margin-top: 20px;
 }
 
-.menu-item {
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  text-decoration: none;
-  color: inherit;
-  transition: transform 0.2s, box-shadow 0.2s;
-  background: white;
-}
-
-.menu-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.menu-item.coming-soon {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.menu-item h2 {
-  color: #333;
-  margin-bottom: 10px;
-}
-
-.menu-item p {
-  color: #666;
-  font-size: 14px;
+.no-posts {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 40px;
+  font-style: italic;
 }

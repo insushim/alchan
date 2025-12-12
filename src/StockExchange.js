@@ -38,9 +38,9 @@ import { logActivity, ACTIVITY_TYPES } from "./utils/firestoreHelpers";
 // === 배치 데이터 로딩 시스템 ===
 const batchDataLoader = {
   pendingRequests: new Map(),
-  
+
   // 배치로 여러 데이터를 한 번에 로드
-  loadBatchData: async function(classCode, userId, forceRefresh = false) {
+  loadBatchData: async function (classCode, userId, forceRefresh = false) {
     const batchKey = globalCache.generateKey('BATCH', { classCode, userId });
 
     if (!forceRefresh) {
@@ -72,7 +72,7 @@ const batchDataLoader = {
     }
   },
 
-  _executeBatchLoad: async function(classCode, userId) {
+  _executeBatchLoad: async function (classCode, userId) {
     const [stocks, portfolio] = await Promise.all([
       this._loadStocks(classCode),
       this._loadPortfolio(userId, classCode),
@@ -85,7 +85,7 @@ const batchDataLoader = {
     };
   },
 
-  _loadStocks: async function(classCode) {
+  _loadStocks: async function (classCode) {
     try {
       // 1) Cloud Function 우선: Firestore Rules 우회 + 단일 호출
       try {
@@ -126,7 +126,7 @@ const batchDataLoader = {
     }
   },
 
-  _loadPortfolio: async function(userId, classCode) {
+  _loadPortfolio: async function (userId, classCode) {
     try {
       const portfolioRef = collection(db, "users", userId, "portfolio");
       const q = query(portfolioRef, where("classCode", "==", classCode));
@@ -192,7 +192,7 @@ const Settings = ({ size = 24, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m17.5-3.5L19 10m-2 2l-2.5 2.5M6.5 6.5L9 9m-2 2l-2.5 2.5" /></svg>
 );
 const RefreshCw = ({ size = 16, color = "currentColor" }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L3.51 14"></path></svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L20.49 10"></path><path d="M20.49 15a9 9 0 0 1-14.85 3.36L3.51 14"></path></svg>
 );
 const BarChart3 = ({ size = 24, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><line x1="12" y1="20" x2="12" y2="10" /><line x1="18" y1="20" x2="18" y2="4" /><line x1="6" y1="20" x2="6" y2="16" /></svg>
@@ -201,7 +201,7 @@ const ChevronDown = ({ size = 24, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="6 9 12 15 18 9" /></svg>
 );
 const ChevronUp = ({ size = 24, color = "currentColor" }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="18 15 12 9 6 15" /></svg>
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><polyline points="18 15 12 9 6 15" /></svg>
 );
 const Lock = ({ size = 24, color = "currentColor" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
@@ -267,39 +267,39 @@ const calculateStockTax = (profit, productType = PRODUCT_TYPES.STOCK) => {
 const treasuryUpdateQueue = new Map();
 const updateNationalTreasury = async (amount, type, classCode) => {
   if (amount <= 0 || !classCode) return;
-  
+
   const key = `${classCode}_${type}`;
   const existing = treasuryUpdateQueue.get(key) || { amount: 0, type, classCode };
   existing.amount += amount;
   treasuryUpdateQueue.set(key, existing);
-  
+
   // 배치 처리를 위해 지연
   setTimeout(() => processTreasuryQueue(), 1000);
 };
 
 const processTreasuryQueue = async () => {
   if (treasuryUpdateQueue.size === 0) return;
-  
+
   const batch = writeBatch(db);
   const updates = Array.from(treasuryUpdateQueue.values());
   treasuryUpdateQueue.clear();
-  
+
   for (const { amount, type, classCode } of updates) {
     const treasuryRef = doc(db, "nationalTreasuries", classCode);
     const updateData = {
       totalAmount: increment(amount),
       lastUpdated: serverTimestamp(),
     };
-    
+
     if (type === 'tax') {
       updateData.stockTaxRevenue = increment(amount);
     } else if (type === 'commission') {
       updateData.stockCommissionRevenue = increment(amount);
     }
-    
+
     batch.update(treasuryRef, updateData, { merge: true });
   }
-  
+
   try {
     await batch.commit();
   } catch (error) {
@@ -385,7 +385,7 @@ const formatTime = (milliseconds) => {
 };
 
 const getProductIcon = (productType) => {
-  switch(productType) {
+  switch (productType) {
     case PRODUCT_TYPES.ETF: return "📊";
     case PRODUCT_TYPES.BOND: return "📜";
     default: return "📈";
@@ -393,7 +393,7 @@ const getProductIcon = (productType) => {
 };
 
 const getProductBadgeClass = (productType) => {
-  switch(productType) {
+  switch (productType) {
     case PRODUCT_TYPES.ETF: return "etf";
     case PRODUCT_TYPES.BOND: return "bond";
     default: return "stock";
@@ -495,8 +495,8 @@ const RealStockAdder = React.memo(({ onAddStock }) => {
         {showForm ? '접기' : '➕ 개별 주식/ETF 추가'}
       </button>
       {showForm && (
-        <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '10px' }}>
+        <div style={{ background: 'rgba(20, 20, 35, 0.8)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '10px' }}>
             📌 빠른 추가 (클릭하면 바로 추가됩니다)
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '15px' }}>
@@ -508,8 +508,9 @@ const RealStockAdder = React.memo(({ onAddStock }) => {
                 style={{
                   padding: '4px 8px',
                   fontSize: '0.75rem',
-                  background: stock.type.includes('ETF') ? '#dbeafe' : stock.type.includes('채권') ? '#fef3c7' : stock.type.includes('원자재') ? '#fce7f3' : '#f0fdf4',
-                  border: '1px solid #e2e8f0',
+                  background: stock.type.includes('ETF') ? 'rgba(59, 130, 246, 0.2)' : stock.type.includes('채권') ? 'rgba(245, 158, 11, 0.2)' : stock.type.includes('원자재') ? 'rgba(236, 72, 153, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                  border: stock.type.includes('ETF') ? '1px solid rgba(59, 130, 246, 0.3)' : stock.type.includes('채권') ? '1px solid rgba(245, 158, 11, 0.3)' : stock.type.includes('원자재') ? '1px solid rgba(236, 72, 153, 0.3)' : '1px solid rgba(16, 185, 129, 0.3)',
+                  color: 'white',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   whiteSpace: 'nowrap'
@@ -520,7 +521,7 @@ const RealStockAdder = React.memo(({ onAddStock }) => {
               </button>
             ))}
           </div>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '8px' }}>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '8px' }}>
             ✏️ 직접 입력 (Yahoo Finance 심볼 사용)
           </p>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
@@ -529,14 +530,14 @@ const RealStockAdder = React.memo(({ onAddStock }) => {
               placeholder="이름 (예: 삼성전자)"
               value={formData.name}
               onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(0,0,0,0.3)', color: 'white' }}
             />
             <input
               type="text"
               placeholder="심볼 (예: 005930.KS)"
               value={formData.symbol}
               onChange={e => setFormData(p => ({ ...p, symbol: e.target.value }))}
-              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db' }}
+              style={{ flex: 1, minWidth: '120px', padding: '8px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.2)', background: 'rgba(0,0,0,0.3)', color: 'white' }}
             />
             <button onClick={handleCustomAdd} disabled={isAdding} className="btn btn-success" style={{ padding: '8px 16px' }}>
               {isAdding ? '추가 중...' : '추가'}
@@ -553,257 +554,257 @@ const RealStockAdder = React.memo(({ onAddStock }) => {
 
 // === 관리자 패널 컴포넌트 ===
 const AdminPanel = React.memo(({ stocks, classCode, onClose, onAddStock, onDeleteStock, onEditStock, onToggleManualStock, cacheStats, onManualUpdate, onCreateRealStocks, onUpdateRealStocks, onAddSingleRealStock, onDeleteSimulationStocks }) => {
-    const [showAddForm, setShowAddForm] = useState(false);
-    const [isUpdating, setIsUpdating] = useState(false);
-    const [isCreatingRealStocks, setIsCreatingRealStocks] = useState(false);
-    const [isUpdatingRealStocks, setIsUpdatingRealStocks] = useState(false);
-    const [isDeletingSimulation, setIsDeletingSimulation] = useState(false);
-    const [newStock, setNewStock] = useState({
-        name: "",
-        price: "",
-        minListingPrice: "",
-        isManual: false,
-        sector: "TECH",
-        productType: PRODUCT_TYPES.STOCK,
-        maturityYears: "",
-        couponRate: ""
-    });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isCreatingRealStocks, setIsCreatingRealStocks] = useState(false);
+  const [isUpdatingRealStocks, setIsUpdatingRealStocks] = useState(false);
+  const [isDeletingSimulation, setIsDeletingSimulation] = useState(false);
+  const [newStock, setNewStock] = useState({
+    name: "",
+    price: "",
+    minListingPrice: "",
+    isManual: false,
+    sector: "TECH",
+    productType: PRODUCT_TYPES.STOCK,
+    maturityYears: "",
+    couponRate: ""
+  });
 
-    const handleManualUpdate = async () => {
-        if (isUpdating) return;
-        setIsUpdating(true);
-        try {
-            await onManualUpdate();
-            alert("주식 가격 업데이트 완료!");
-        } catch (error) {
-            alert("업데이트 실패: " + error.message);
-        } finally {
-            setIsUpdating(false);
-        }
+  const handleManualUpdate = async () => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    try {
+      await onManualUpdate();
+      alert("주식 가격 업데이트 완료!");
+    } catch (error) {
+      alert("업데이트 실패: " + error.message);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleCreateRealStocks = async () => {
+    if (!window.confirm("실제 주식 데이터(삼성전자, 애플 등)를 생성하시겠습니까?\n(Yahoo Finance에서 실시간 가격을 가져옵니다)")) {
+      return;
+    }
+    if (isCreatingRealStocks) return;
+    setIsCreatingRealStocks(true);
+    try {
+      await onCreateRealStocks();
+      alert("실제 주식이 생성되었습니다! 15분마다 자동으로 가격이 업데이트됩니다.");
+    } catch (error) {
+      alert("실제 주식 생성 실패: " + error.message);
+    } finally {
+      setIsCreatingRealStocks(false);
+    }
+  };
+
+  const handleUpdateRealStocks = async () => {
+    if (isUpdatingRealStocks) return;
+    setIsUpdatingRealStocks(true);
+    try {
+      await onUpdateRealStocks();
+      alert("실제 주식 가격이 업데이트되었습니다!");
+    } catch (error) {
+      alert("실제 주식 업데이트 실패: " + error.message);
+    } finally {
+      setIsUpdatingRealStocks(false);
+    }
+  };
+
+  const handleDeleteSimulationStocks = async () => {
+    if (!window.confirm("⚠️ 모든 시뮬레이션 주식을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.\n(실제 주식은 유지됩니다)")) {
+      return;
+    }
+    if (isDeletingSimulation) return;
+    setIsDeletingSimulation(true);
+    try {
+      await onDeleteSimulationStocks();
+      alert("시뮬레이션 주식이 삭제되었습니다!");
+    } catch (error) {
+      alert("삭제 실패: " + error.message);
+    } finally {
+      setIsDeletingSimulation(false);
+    }
+  };
+
+  const handleAddStock = async () => {
+    if (!newStock.name || !newStock.price || !newStock.minListingPrice) return alert("모든 필드를 입력해주세요.");
+    const price = parseFloat(newStock.price);
+    const minPrice = parseFloat(newStock.minListingPrice);
+    if (price <= 0 || minPrice <= 0) return alert("가격은 0보다 커야 합니다.");
+
+    const stockData = {
+      name: newStock.name,
+      price,
+      minListingPrice: minPrice,
+      isListed: true,
+      isManual: newStock.isManual,
+      sector: newStock.sector,
+      productType: newStock.productType,
+      buyVolume: 0,
+      sellVolume: 0,
+      recentBuyVolume: 0,
+      recentSellVolume: 0,
+      volatility: newStock.productType === PRODUCT_TYPES.BOND ? 0.005 : 0.02
     };
 
-    const handleCreateRealStocks = async () => {
-        if (!window.confirm("실제 주식 데이터(삼성전자, 애플 등)를 생성하시겠습니까?\n(Yahoo Finance에서 실시간 가격을 가져옵니다)")) {
-            return;
-        }
-        if (isCreatingRealStocks) return;
-        setIsCreatingRealStocks(true);
-        try {
-            await onCreateRealStocks();
-            alert("실제 주식이 생성되었습니다! 15분마다 자동으로 가격이 업데이트됩니다.");
-        } catch (error) {
-            alert("실제 주식 생성 실패: " + error.message);
-        } finally {
-            setIsCreatingRealStocks(false);
-        }
-    };
+    if (newStock.productType === PRODUCT_TYPES.BOND) {
+      stockData.maturityYears = parseFloat(newStock.maturityYears) || 10;
+      stockData.couponRate = parseFloat(newStock.couponRate) || 3.5;
+      stockData.sector = "GOVERNMENT";
+    }
 
-    const handleUpdateRealStocks = async () => {
-        if (isUpdatingRealStocks) return;
-        setIsUpdatingRealStocks(true);
-        try {
-            await onUpdateRealStocks();
-            alert("실제 주식 가격이 업데이트되었습니다!");
-        } catch (error) {
-            alert("실제 주식 업데이트 실패: " + error.message);
-        } finally {
-            setIsUpdatingRealStocks(false);
-        }
-    };
+    if (newStock.productType === PRODUCT_TYPES.ETF) {
+      stockData.sector = "INDEX";
+    }
 
-    const handleDeleteSimulationStocks = async () => {
-        if (!window.confirm("⚠️ 모든 시뮬레이션 주식을 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다.\n(실제 주식은 유지됩니다)")) {
-            return;
-        }
-        if (isDeletingSimulation) return;
-        setIsDeletingSimulation(true);
-        try {
-            await onDeleteSimulationStocks();
-            alert("시뮬레이션 주식이 삭제되었습니다!");
-        } catch (error) {
-            alert("삭제 실패: " + error.message);
-        } finally {
-            setIsDeletingSimulation(false);
-        }
-    };
+    await onAddStock(stockData);
+    setNewStock({ name: "", price: "", minListingPrice: "", isManual: false, sector: "TECH", productType: PRODUCT_TYPES.STOCK, maturityYears: "", couponRate: "" });
+    setShowAddForm(false);
+  };
 
-    const handleAddStock = async () => {
-        if (!newStock.name || !newStock.price || !newStock.minListingPrice) return alert("모든 필드를 입력해주세요.");
-        const price = parseFloat(newStock.price);
-        const minPrice = parseFloat(newStock.minListingPrice);
-        if (price <= 0 || minPrice <= 0) return alert("가격은 0보다 커야 합니다.");
-
-        const stockData = {
-            name: newStock.name,
-            price,
-            minListingPrice: minPrice,
-            isListed: true,
-            isManual: newStock.isManual,
-            sector: newStock.sector,
-            productType: newStock.productType,
-            buyVolume: 0,
-            sellVolume: 0,
-            recentBuyVolume: 0,
-            recentSellVolume: 0,
-            volatility: newStock.productType === PRODUCT_TYPES.BOND ? 0.005 : 0.02
-        };
-
-        if (newStock.productType === PRODUCT_TYPES.BOND) {
-            stockData.maturityYears = parseFloat(newStock.maturityYears) || 10;
-            stockData.couponRate = parseFloat(newStock.couponRate) || 3.5;
-            stockData.sector = "GOVERNMENT";
-        }
-
-        if (newStock.productType === PRODUCT_TYPES.ETF) {
-            stockData.sector = "INDEX";
-        }
-
-        await onAddStock(stockData);
-        setNewStock({ name: "", price: "", minListingPrice: "", isManual: false, sector: "TECH", productType: PRODUCT_TYPES.STOCK, maturityYears: "", couponRate: "" });
-        setShowAddForm(false);
-    };
-
-    return (
-        <div className="admin-panel-fullscreen">
-            <div className="admin-header">
-                <h2><Settings size={24} /> 관리자 패널 ({classCode})</h2>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                    <div style={{ fontSize: '0.85rem', color: '#666' }}>
-                        캐시 통계: 적중 {cacheStats.hits}, 누락 {cacheStats.misses}, 절약 {cacheStats.savings}회
-                    </div>
-                    <button onClick={onClose} className="btn btn-danger">닫기</button>
-                </div>
-            </div>
-            <div className="admin-content">
-                <div className="admin-section">
-                    <h3>📊 실제 주식 관리 (Yahoo Finance)</h3>
-                    <div style={{ marginBottom: '20px', padding: '15px', background: '#ecfdf5', borderRadius: '8px', border: '1px solid #10b981' }}>
-                        <p style={{ marginBottom: '10px', color: '#047857', fontSize: '0.9rem' }}>
-                            🌐 실제 주식 데이터를 Yahoo Finance에서 가져옵니다.<br/>
-                            📈 삼성전자, SK하이닉스, 애플, 테슬라, ETF, 채권 ETF 등 지원<br/>
-                            ⏰ 15분마다 자동으로 가격이 업데이트됩니다. | 💱 환율: 하루 1회 자동 업데이트
-                        </p>
-                        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-                            <button
-                                onClick={handleCreateRealStocks}
-                                disabled={isCreatingRealStocks}
-                                className="btn btn-success"
-                                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
-                            >
-                                {isCreatingRealStocks ? '⏳ 생성 중...' : '🏢 기본 주식 생성'}
-                            </button>
-                            <button
-                                onClick={handleUpdateRealStocks}
-                                disabled={isUpdatingRealStocks}
-                                className="btn btn-primary"
-                                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
-                            >
-                                {isUpdatingRealStocks ? '⏳ 업데이트 중...' : '🔄 가격 즉시 업데이트'}
-                            </button>
-                        </div>
-                        <RealStockAdder onAddStock={onAddSingleRealStock} />
-                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #d1d5db' }}>
-                            <button
-                                onClick={handleDeleteSimulationStocks}
-                                disabled={isDeletingSimulation}
-                                className="btn btn-danger"
-                                style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
-                            >
-                                {isDeletingSimulation ? '⏳ 삭제 중...' : '🗑️ 시뮬레이션 주식 전체 삭제'}
-                            </button>
-                            <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '5px', textAlign: 'center' }}>
-                                ⚠️ 실제 주식(실시간)만 남기고 가상 주식을 모두 삭제합니다
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                <div className="admin-section">
-                    <h3><BarChart3 size={20} /> 상품 목록 관리</h3>
-                    <div className="admin-stock-list">
-                        {stocks.map(stock => (
-                            <div key={stock.id} className="admin-stock-item">
-                                <div className="admin-stock-info">
-                                    <span className="stock-name">
-                                        {getProductIcon(stock.productType)} {stock.name}
-                                        {stock.isRealStock && <span style={{marginLeft: '6px', background: '#10b981', color: 'white', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold'}}>실시간</span>}
-                                    </span>
-                                    <span className="stock-details">
-                                        {formatCurrency(stock.price)} | {SECTORS[stock.sector]?.name || '기타'} | {stock.isListed ? '상장' : '상장폐지'} | {stock.isManual ? '수동' : stock.isRealStock ? '실시간' : '자동'}
-                                        {stock.productType === PRODUCT_TYPES.BOND && ` | 만기: ${stock.maturityYears}년 | 이자율: ${stock.couponRate}%`}
-                                    </span>
-                                </div>
-                                <div className="form-actions">
-                                    <button onClick={() => onEditStock(stock.id)} className="btn btn-primary">가격 수정</button>
-                                    <button onClick={() => onToggleManualStock(stock.id, stock.isListed)} className={`btn ${stock.isListed ? 'btn-secondary' : 'btn-success'}`}>{stock.isListed ? '상장폐지' : '재상장'}</button>
-                                    <button onClick={() => onDeleteStock(stock.id, stock.name)} className="btn btn-danger">삭제</button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                <div className="admin-section">
-                    <h3>새 상품 추가</h3>
-                    <button onClick={() => setShowAddForm(!showAddForm)} className="btn btn-primary">{showAddForm ? '취소' : '새 상품 추가 양식 열기'}</button>
-                    {showAddForm && (
-                        <div className="add-stock-form">
-                            <div className="form-grid">
-                                <div className="form-group">
-                                    <label className="form-label">상품 유형</label>
-                                    <select value={newStock.productType} onChange={e => setNewStock(p => ({ ...p, productType: e.target.value }))} className="form-input">
-                                        <option value={PRODUCT_TYPES.STOCK}>주식</option>
-                                        <option value={PRODUCT_TYPES.ETF}>ETF/지수</option>
-                                        <option value={PRODUCT_TYPES.BOND}>채권</option>
-                                    </select>
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">상품명</label>
-                                    <input type="text" value={newStock.name} onChange={e => setNewStock(p => ({ ...p, name: e.target.value }))} className="form-input"
-                                        placeholder={newStock.productType === PRODUCT_TYPES.BOND ? "예: 국고채 10년" : newStock.productType === PRODUCT_TYPES.ETF ? "예: KOSPI 200" : "예: 삼성전자"} />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">초기 가격</label>
-                                    <input type="number" value={newStock.price} onChange={e => setNewStock(p => ({ ...p, price: e.target.value }))} className="form-input" />
-                                </div>
-                                <div className="form-group">
-                                    <label className="form-label">최소 상장가</label>
-                                    <input type="number" value={newStock.minListingPrice} onChange={e => setNewStock(p => ({ ...p, minListingPrice: e.target.value }))} className="form-input" />
-                                </div>
-                                {newStock.productType === PRODUCT_TYPES.STOCK && (
-                                    <div className="form-group">
-                                        <label className="form-label">섹터</label>
-                                        <select value={newStock.sector} onChange={e => setNewStock(p => ({ ...p, sector: e.target.value }))} className="form-input">
-                                            {Object.entries(SECTORS).filter(([key]) => !['INDEX', 'GOVERNMENT', 'CORPORATE'].includes(key)).map(([key, value]) => (
-                                                <option key={key} value={key}>{value.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-                                )}
-                                {newStock.productType === PRODUCT_TYPES.BOND && (
-                                    <>
-                                        <div className="form-group">
-                                            <label className="form-label">만기 (년)</label>
-                                            <input type="number" value={newStock.maturityYears} onChange={e => setNewStock(p => ({ ...p, maturityYears: e.target.value }))} className="form-input" placeholder="예: 10" />
-                                        </div>
-                                        <div className="form-group">
-                                            <label className="form-label">표면이자율 (%)</label>
-                                            <input type="number" step="0.1" value={newStock.couponRate} onChange={e => setNewStock(p => ({ ...p, couponRate: e.target.value }))} className="form-input" placeholder="예: 3.5" />
-                                        </div>
-                                    </>
-                                )}
-                                <div className="form-group checkbox-group">
-                                    <input type="checkbox" checked={newStock.isManual} onChange={e => setNewStock(p => ({ ...p, isManual: e.target.checked }))} id="isManualCheckbox" className="checkbox-input" />
-                                    <label htmlFor="isManualCheckbox">수동 관리 (자동 가격 변동 제외)</label>
-                                </div>
-                            </div>
-                            <div className="form-actions">
-                                <button onClick={handleAddStock} className="btn btn-success">상품 추가</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+  return (
+    <div className="admin-panel-fullscreen">
+      <div className="admin-header">
+        <h2><Settings size={24} /> 관리자 패널 ({classCode})</h2>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div style={{ fontSize: '0.85rem', color: '#666' }}>
+            캐시 통계: 적중 {cacheStats.hits}, 누락 {cacheStats.misses}, 절약 {cacheStats.savings}회
+          </div>
+          <button onClick={onClose} className="btn btn-danger">닫기</button>
         </div>
-    );
+      </div>
+      <div className="admin-content">
+        <div className="admin-section">
+          <h3>📊 실제 주식 관리 (Yahoo Finance)</h3>
+          <div style={{ marginBottom: '20px', padding: '15px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <p style={{ marginBottom: '10px', color: '#34d399', fontSize: '0.9rem' }}>
+              🌐 실제 주식 데이터를 Yahoo Finance에서 가져옵니다.<br />
+              📈 삼성전자, SK하이닉스, 애플, 테슬라, ETF, 채권 ETF 등 지원<br />
+              ⏰ 15분마다 자동으로 가격이 업데이트됩니다. | 💱 환율: 하루 1회 자동 업데이트
+            </p>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+              <button
+                onClick={handleCreateRealStocks}
+                disabled={isCreatingRealStocks}
+                className="btn btn-success"
+                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
+              >
+                {isCreatingRealStocks ? '⏳ 생성 중...' : '🏢 기본 주식 생성'}
+              </button>
+              <button
+                onClick={handleUpdateRealStocks}
+                disabled={isUpdatingRealStocks}
+                className="btn btn-primary"
+                style={{ flex: 1, padding: '12px', fontSize: '0.9rem', fontWeight: 'bold' }}
+              >
+                {isUpdatingRealStocks ? '⏳ 업데이트 중...' : '🔄 가격 즉시 업데이트'}
+              </button>
+            </div>
+            <RealStockAdder onAddStock={onAddSingleRealStock} />
+            <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <button
+                onClick={handleDeleteSimulationStocks}
+                disabled={isDeletingSimulation}
+                className="btn btn-danger"
+                style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
+              >
+                {isDeletingSimulation ? '⏳ 삭제 중...' : '🗑️ 시뮬레이션 주식 전체 삭제'}
+              </button>
+              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '5px', textAlign: 'center' }}>
+                ⚠️ 실제 주식(실시간)만 남기고 가상 주식을 모두 삭제합니다
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="admin-section">
+          <h3><BarChart3 size={20} /> 상품 목록 관리</h3>
+          <div className="admin-stock-list">
+            {stocks.map(stock => (
+              <div key={stock.id} className="admin-stock-item">
+                <div className="admin-stock-info">
+                  <span className="stock-name">
+                    {getProductIcon(stock.productType)} {stock.name}
+                    {stock.isRealStock && <span style={{ marginLeft: '6px', background: '#10b981', color: 'white', fontSize: '0.65rem', padding: '1px 4px', borderRadius: '3px', fontWeight: 'bold' }}>실시간</span>}
+                  </span>
+                  <span className="stock-details">
+                    {formatCurrency(stock.price)} | {SECTORS[stock.sector]?.name || '기타'} | {stock.isListed ? '상장' : '상장폐지'} | {stock.isManual ? '수동' : stock.isRealStock ? '실시간' : '자동'}
+                    {stock.productType === PRODUCT_TYPES.BOND && ` | 만기: ${stock.maturityYears}년 | 이자율: ${stock.couponRate}%`}
+                  </span>
+                </div>
+                <div className="form-actions">
+                  <button onClick={() => onEditStock(stock.id)} className="btn btn-primary">가격 수정</button>
+                  <button onClick={() => onToggleManualStock(stock.id, stock.isListed)} className={`btn ${stock.isListed ? 'btn-secondary' : 'btn-success'}`}>{stock.isListed ? '상장폐지' : '재상장'}</button>
+                  <button onClick={() => onDeleteStock(stock.id, stock.name)} className="btn btn-danger">삭제</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="admin-section">
+          <h3>새 상품 추가</h3>
+          <button onClick={() => setShowAddForm(!showAddForm)} className="btn btn-primary">{showAddForm ? '취소' : '새 상품 추가 양식 열기'}</button>
+          {showAddForm && (
+            <div className="add-stock-form">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label className="form-label">상품 유형</label>
+                  <select value={newStock.productType} onChange={e => setNewStock(p => ({ ...p, productType: e.target.value }))} className="form-input">
+                    <option value={PRODUCT_TYPES.STOCK}>주식</option>
+                    <option value={PRODUCT_TYPES.ETF}>ETF/지수</option>
+                    <option value={PRODUCT_TYPES.BOND}>채권</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">상품명</label>
+                  <input type="text" value={newStock.name} onChange={e => setNewStock(p => ({ ...p, name: e.target.value }))} className="form-input"
+                    placeholder={newStock.productType === PRODUCT_TYPES.BOND ? "예: 국고채 10년" : newStock.productType === PRODUCT_TYPES.ETF ? "예: KOSPI 200" : "예: 삼성전자"} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">초기 가격</label>
+                  <input type="number" value={newStock.price} onChange={e => setNewStock(p => ({ ...p, price: e.target.value }))} className="form-input" />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">최소 상장가</label>
+                  <input type="number" value={newStock.minListingPrice} onChange={e => setNewStock(p => ({ ...p, minListingPrice: e.target.value }))} className="form-input" />
+                </div>
+                {newStock.productType === PRODUCT_TYPES.STOCK && (
+                  <div className="form-group">
+                    <label className="form-label">섹터</label>
+                    <select value={newStock.sector} onChange={e => setNewStock(p => ({ ...p, sector: e.target.value }))} className="form-input">
+                      {Object.entries(SECTORS).filter(([key]) => !['INDEX', 'GOVERNMENT', 'CORPORATE'].includes(key)).map(([key, value]) => (
+                        <option key={key} value={key}>{value.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {newStock.productType === PRODUCT_TYPES.BOND && (
+                  <>
+                    <div className="form-group">
+                      <label className="form-label">만기 (년)</label>
+                      <input type="number" value={newStock.maturityYears} onChange={e => setNewStock(p => ({ ...p, maturityYears: e.target.value }))} className="form-input" placeholder="예: 10" />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">표면이자율 (%)</label>
+                      <input type="number" step="0.1" value={newStock.couponRate} onChange={e => setNewStock(p => ({ ...p, couponRate: e.target.value }))} className="form-input" placeholder="예: 3.5" />
+                    </div>
+                  </>
+                )}
+                <div className="form-group checkbox-group">
+                  <input type="checkbox" checked={newStock.isManual} onChange={e => setNewStock(p => ({ ...p, isManual: e.target.checked }))} id="isManualCheckbox" className="checkbox-input" />
+                  <label htmlFor="isManualCheckbox">수동 관리 (자동 가격 변동 제외)</label>
+                </div>
+              </div>
+              <div className="form-actions">
+                <button onClick={handleAddStock} className="btn btn-success">상품 추가</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 });
 
 // === 메인 컴포넌트 ===
@@ -822,7 +823,7 @@ const StockExchange = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isFetching, setIsFetching] = useState(false);
   const [marketOpen, setMarketOpen] = useState(false);
-  
+
   // 성능 최적화를 위한 상태 추가
   const [cacheStatus, setCacheStatus] = useState({ hits: 0, misses: 0, savings: 0 });
   const [lastBatchLoad, setLastBatchLoad] = useState(null);
@@ -929,7 +930,7 @@ const StockExchange = () => {
     }
 
     const now = Date.now();
-    
+
     // usePolling이 간격을 제어하므로, 시간 기반 캐시 체크 로직은 제거하거나 수정할 수 있지만,
     // 수동 새로고침 시에도 동작해야 하므로 유지.
     const timeSinceLastBatch = now - lastFetchTimeRef.current.batchLoad;
@@ -1109,8 +1110,8 @@ const StockExchange = () => {
     if (window.confirm(`'${stock.name}' 상품을 ${action}하시겠습니까?`)) {
       try {
         const updateData = currentIsListed
-            ? { isListed: false, price: 0, delistedAt: serverTimestamp() }
-            : { isListed: true, price: stock.minListingPrice, priceHistory: [stock.minListingPrice], delistedAt: null };
+          ? { isListed: false, price: 0, delistedAt: serverTimestamp() }
+          : { isListed: true, price: stock.minListingPrice, priceHistory: [stock.minListingPrice], delistedAt: null };
 
         await updateDoc(doc(db, "CentralStocks", stockId), updateData);
 
@@ -1594,13 +1595,13 @@ const StockExchange = () => {
             </div>
           </div>
         </header>
-        <main className="market-section" style={{justifyContent: 'center', alignItems: 'center', display: 'flex'}}>
-          <div style={{textAlign: 'center', padding: '20px', background: '#fff', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)'}}>
+        <main className="market-section" style={{ justifyContent: 'center', alignItems: 'center', display: 'flex' }}>
+          <div style={{ textAlign: 'center', padding: '20px', background: '#fff', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
             <h2>학급 미배정 안내</h2>
-            <p style={{marginTop: '10px', fontSize: '1rem', color: '#333'}}>
+            <p style={{ marginTop: '10px', fontSize: '1rem', color: '#333' }}>
               소속된 학급이 없어 주식 시장을 이용할 수 없습니다.
             </p>
-            <p style={{marginTop: '5px', fontSize: '0.9rem', color: '#666'}}>
+            <p style={{ marginTop: '5px', fontSize: '0.9rem', color: '#666' }}>
               담당 선생님께 문의하여 학급에 등록해주세요.
             </p>
           </div>
@@ -1610,263 +1611,263 @@ const StockExchange = () => {
   }
 
   if (!classCode && !authLoading) return <div className="loading-message">참여 중인 클래스 정보를 불러오는 중...</div>;
-  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onCreateRealStocks={createRealStocks} onUpdateRealStocks={updateRealStocks} onAddSingleRealStock={addSingleRealStock} onDeleteSimulationStocks={deleteSimulationStocks} />; 
+  if (showAdminPanel && isAdmin()) return <AdminPanel stocks={stocks} classCode={classCode} onClose={() => setShowAdminPanel(false)} onAddStock={addStock} onDeleteStock={deleteStock} onEditStock={editStock} onToggleManualStock={toggleManualStock} cacheStats={cacheStatus} onManualUpdate={manualUpdateStockMarket} onCreateRealStocks={createRealStocks} onUpdateRealStocks={updateRealStocks} onAddSingleRealStock={addSingleRealStock} onDeleteSimulationStocks={deleteSimulationStocks} />;
 
   return (
     <div className="stock-exchange-container">
-        <header className="stock-header">
-            <div className="stock-header-content">
-                <div className="logo-title">
-                    <BarChart3 size={32} color="white" /><h1>투자 거래소 ({classCode})</h1>
-                </div>
-                <div className={`market-status ${marketOpen ? 'open' : 'closed'}`}>
-                    {marketOpen ? '● 개장' : '○ 마감'}
-                </div>
-                <div className="stock-header-actions">
-                    <div className="user-info-display">{formatCurrency(userDoc.cash)}</div>
-                    {isAdmin() && <button onClick={() => setShowAdminPanel(true)} className="btn btn-primary"><Settings size={16} /> 관리</button>}
-                </div>
+      <header className="stock-header">
+        <div className="stock-header-content">
+          <div className="logo-title">
+            <BarChart3 size={32} color="white" /><h1>투자 거래소 ({classCode})</h1>
+          </div>
+          <div className={`market-status ${marketOpen ? 'open' : 'closed'}`}>
+            {marketOpen ? '● 개장' : '○ 마감'}
+          </div>
+          <div className="stock-header-actions">
+            <div className="user-info-display">{formatCurrency(userDoc.cash)}</div>
+            {isAdmin() && <button onClick={() => setShowAdminPanel(true)} className="btn btn-primary"><Settings size={16} /> 관리</button>}
+          </div>
+        </div>
+      </header>
+      <main className="market-section">
+        <section className="asset-summary">
+          <div className="asset-cards">
+            <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div><div className="asset-card-icon blue">📊</div></div></div>
+            <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div><div className="asset-card-icon purple">💎</div></div></div>
+            <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div><div className={`asset-card-icon ${portfolioStats.totalProfit >= 0 ? 'red' : 'blue'}`}>{portfolioStats.totalProfit >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
+            <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div><div className={`asset-card-icon ${portfolioStats.profitPercent >= 0 ? 'red' : 'blue'}`}>{portfolioStats.profitPercent >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
+          </div>
+
+          {/* 성능 통계 표시 (관리자 전용) */}
+          {isAdmin() && (
+            <div style={{
+              marginTop: '10px',
+              padding: '8px 12px',
+              background: '#f0f9ff',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
+              color: '#0369a1',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                🚀 성능 최적화 상태: 캐시 적중 {cacheStatus.hits}회, 누락 {cacheStatus.misses}회
+                (절약률: {cacheStatus.hits + cacheStatus.misses > 0 ? Math.round((cacheStatus.hits / (cacheStatus.hits + cacheStatus.misses)) * 100) : 0}%)
+              </div>
+              {lastBatchLoad && (
+                <div>마지막 배치로드: {lastBatchLoad.toLocaleTimeString()}</div>
+              )}
             </div>
-        </header>
-        <main className="market-section">
-            <section className="asset-summary">
-                <div className="asset-cards">
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>투자 평가액</h3><p className="value">{formatCurrency(portfolioStats.totalValue)}</p></div><div className="asset-card-icon blue">📊</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>총 자산</h3><p className="value">{formatCurrency(userDoc.cash + portfolioStats.totalValue)}</p></div><div className="asset-card-icon purple">💎</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>평가손익</h3><p className={`value ${portfolioStats.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatCurrency(portfolioStats.totalProfit)}</p></div><div className={`asset-card-icon ${portfolioStats.totalProfit >= 0 ? 'red' : 'blue'}`}>{portfolioStats.totalProfit >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
-                    <div className="asset-card"><div className="asset-card-content"><div className="asset-card-info"><h3>수익률</h3><p className={`value ${portfolioStats.profitPercent >= 0 ? 'profit-positive' : 'profit-negative'}`}>{formatPercent(portfolioStats.profitPercent)}</p></div><div className={`asset-card-icon ${portfolioStats.profitPercent >= 0 ? 'red' : 'blue'}`}>{portfolioStats.profitPercent >= 0 ? <TrendingUp size={24} color="white" /> : <TrendingDown size={24} color="white" />}</div></div></div>
-                </div>
-                
-                {/* 성능 통계 표시 (관리자 전용) */}
-                {isAdmin() && (
-                    <div style={{ 
-                        marginTop: '10px', 
-                        padding: '8px 12px', 
-                        background: '#f0f9ff', 
-                        borderRadius: '6px', 
-                        fontSize: '0.8rem', 
-                        color: '#0369a1',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <div>
-                            🚀 성능 최적화 상태: 캐시 적중 {cacheStatus.hits}회, 누락 {cacheStatus.misses}회 
-                            (절약률: {cacheStatus.hits + cacheStatus.misses > 0 ? Math.round((cacheStatus.hits / (cacheStatus.hits + cacheStatus.misses)) * 100) : 0}%)
-                        </div>
-                        {lastBatchLoad && (
-                            <div>마지막 배치로드: {lastBatchLoad.toLocaleTimeString()}</div>
+          )}
+        </section>
+
+        <section className="market-list-section">
+          <div className="section-header">
+            <h2 className="section-title">📈 투자 시장</h2>
+            <div className="update-indicator">
+              <button onClick={handleManualRefresh} disabled={isFetching} className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>
+                <RefreshCw size={12} />
+                {isFetching ? '갱신중...' : '새로고침'}
+              </button>
+              {lastUpdated && <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>마지막 갱신: {lastUpdated.toLocaleTimeString()}</span>}
+            </div>
+          </div>
+
+          <div className="market-tabs">
+            <button onClick={() => setActiveTab("stocks")} className={`tab-button ${activeTab === "stocks" ? "active" : ""}`}>주식 ({categoryCounts.stocks})</button>
+            <button onClick={() => setActiveTab("etfs")} className={`tab-button ${activeTab === "etfs" ? "active" : ""}`}>ETF/지수 ({categoryCounts.etfs})</button>
+            <button onClick={() => setActiveTab("bonds")} className={`tab-button ${activeTab === "bonds" ? "active" : ""}`}>채권 ({categoryCounts.bonds})</button>
+          </div>
+
+          <div className="market-grid">
+            {displayedStocks.map(stock => {
+              const priceHistory = stock.priceHistory || [stock.price];
+              const priceChange = priceHistory.length >= 2 ? ((priceHistory.slice(-1)[0] - priceHistory.slice(-2)[0]) / priceHistory.slice(-2)[0]) * 100 : 0;
+              const isRealStock = stock.isRealStock === true;
+              return (
+                <div key={stock.id} className={`stock-card ${priceChange > 0 ? 'price-up' : priceChange < 0 ? 'price-down' : ''} ${isRealStock ? 'real-stock' : ''}`}>
+                  <div className="stock-card-header">
+                    <div className="stock-info">
+                      <h3>{getProductIcon(stock.productType)} {stock.name}</h3>
+                      <div className="stock-badges">
+                        {isRealStock && (
+                          <span className="stock-badge real" style={{
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white',
+                            fontWeight: 'bold',
+                            fontSize: '0.7rem',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            marginRight: '4px'
+                          }}>
+                            실시간
+                          </span>
                         )}
+                        <span className={`stock-badge ${getProductBadgeClass(stock.productType)}`}>
+                          {stock.productType === PRODUCT_TYPES.BOND ? `${stock.maturityYears}년 ${stock.couponRate}%` : SECTORS[stock.sector]?.name || '기타'}
+                        </span>
+                      </div>
                     </div>
-                )}
-            </section>
-
-            <section className="market-list-section">
-                <div className="section-header">
-                    <h2 className="section-title">📈 투자 시장</h2>
-                    <div className="update-indicator">
-                        <button onClick={handleManualRefresh} disabled={isFetching} className="btn btn-secondary" style={{padding: '4px 8px', fontSize: '0.75rem'}}>
-                            <RefreshCw size={12} />
-                            {isFetching ? '갱신중...' : '새로고침'}
-                        </button>
-                        {lastUpdated && <span style={{fontSize: '0.75rem', color: '#6b7280'}}>마지막 갱신: {lastUpdated.toLocaleTimeString()}</span>}
+                    <div className="stock-price-section">
+                      <div className="stock-price">{formatCurrency(stock.price)}</div>
+                      <div className={`stock-change ${priceChange > 0 ? 'up' : 'down'}`}>
+                        <span>{formatPercent(priceChange)}</span>
+                      </div>
+                      {isRealStock && (
+                        <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '2px' }}>
+                          {getMarketStateLabel(stock) || '장마감'}
+                        </div>
+                      )}
                     </div>
-                </div>
-
-                <div className="market-tabs">
-                    <button onClick={() => setActiveTab("stocks")} className={`tab-button ${activeTab === "stocks" ? "active" : ""}`}>주식 ({categoryCounts.stocks})</button>
-                    <button onClick={() => setActiveTab("etfs")} className={`tab-button ${activeTab === "etfs" ? "active" : ""}`}>ETF/지수 ({categoryCounts.etfs})</button>
-                    <button onClick={() => setActiveTab("bonds")} className={`tab-button ${activeTab === "bonds" ? "active" : ""}`}>채권 ({categoryCounts.bonds})</button>
-                </div>
-
-                <div className="market-grid">
-                    {displayedStocks.map(stock => {
-                        const priceHistory = stock.priceHistory || [stock.price];
-                        const priceChange = priceHistory.length >= 2 ? ((priceHistory.slice(-1)[0] - priceHistory.slice(-2)[0]) / priceHistory.slice(-2)[0]) * 100 : 0;
-                        const isRealStock = stock.isRealStock === true;
-                        return (
-                            <div key={stock.id} className={`stock-card ${priceChange > 0 ? 'price-up' : priceChange < 0 ? 'price-down' : ''} ${isRealStock ? 'real-stock' : ''}`}>
-                                <div className="stock-card-header">
-                                    <div className="stock-info">
-                                        <h3>{getProductIcon(stock.productType)} {stock.name}</h3>
-                                        <div className="stock-badges">
-                                            {isRealStock && (
-                                                <span className="stock-badge real" style={{
-                                                    background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                                    color: 'white',
-                                                    fontWeight: 'bold',
-                                                    fontSize: '0.7rem',
-                                                    padding: '2px 6px',
-                                                    borderRadius: '4px',
-                                                    marginRight: '4px'
-                                                }}>
-                                                    실시간
-                                                </span>
-                                            )}
-                                            <span className={`stock-badge ${getProductBadgeClass(stock.productType)}`}>
-                                                {stock.productType === PRODUCT_TYPES.BOND ? `${stock.maturityYears}년 ${stock.couponRate}%` : SECTORS[stock.sector]?.name || '기타'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="stock-price-section">
-                                        <div className="stock-price">{formatCurrency(stock.price)}</div>
-                                        <div className={`stock-change ${priceChange > 0 ? 'up' : 'down'}`}>
-                                            <span>{formatPercent(priceChange)}</span>
-                                        </div>
-                                        {isRealStock && (
-                                            <div style={{fontSize: '0.7rem', color: '#6b7280', marginTop: '2px'}}>
-                                                {getMarketStateLabel(stock) || '장마감'}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="stock-actions">
-                                    <input type="number" min="1" value={buyQuantities[stock.id] || ''} onChange={e => setBuyQuantities(p => ({ ...p, [stock.id]: e.target.value }))} placeholder="수량" className="quantity-input" />
-                                    <button onClick={() => buyStock(stock.id, buyQuantities[stock.id])} disabled={!buyQuantities[stock.id] || isTrading || !marketOpen} className="trade-button buy">매수</button>
-                                </div>
-                                <div className="cost-display">
-                                    {buyQuantities[stock.id] && `예상 비용: ${formatCurrency(stock.price * parseInt(buyQuantities[stock.id]) * (1 + COMMISSION_RATE))}`}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-                {filteredStocks.length > 20 && (
-                  <div className="load-more-container">
-                    <button onClick={() => setShowAllStocks(!showAllStocks)} className="load-more-button">
-                      {showAllStocks ? "접기" : "더 보기"}
-                    </button>
                   </div>
-                )}
-            </section>
-            <section className="portfolio-section">
-                <div className="section-header">
-                    <h2 className="section-title">💼 내 포트폴리오</h2>
+                  <div className="stock-actions">
+                    <input type="number" min="1" value={buyQuantities[stock.id] || ''} onChange={e => setBuyQuantities(p => ({ ...p, [stock.id]: e.target.value }))} placeholder="수량" className="quantity-input" />
+                    <button onClick={() => buyStock(stock.id, buyQuantities[stock.id])} disabled={!buyQuantities[stock.id] || isTrading || !marketOpen} className="trade-button buy">매수</button>
+                  </div>
+                  <div className="cost-display">
+                    {buyQuantities[stock.id] && `예상 비용: ${formatCurrency(stock.price * parseInt(buyQuantities[stock.id]) * (1 + COMMISSION_RATE))}`}
+                  </div>
                 </div>
-                <div className="portfolio-cards">
-                    {portfolio.length === 0 ? <p className="no-transactions">보유한 상품이 없습니다.</p> : portfolio.map(holding => {
-                        const stock = stocksMap.get(holding.stockId);
+              );
+            })}
+          </div>
+          {filteredStocks.length > 20 && (
+            <div className="load-more-container">
+              <button onClick={() => setShowAllStocks(!showAllStocks)} className="load-more-button">
+                {showAllStocks ? "접기" : "더 보기"}
+              </button>
+            </div>
+          )}
+        </section>
+        <section className="portfolio-section">
+          <div className="section-header">
+            <h2 className="section-title">💼 내 포트폴리오</h2>
+          </div>
+          <div className="portfolio-cards">
+            {portfolio.length === 0 ? <p className="no-transactions">보유한 상품이 없습니다.</p> : portfolio.map(holding => {
+              const stock = stocksMap.get(holding.stockId);
 
-                        // 휴지조각 주식 처리 (상장폐지로 가치 0이 된 주식)
-                        if (holding.isWorthless) {
-                            return (
-                                <div key={holding.id} className="portfolio-card delisted">
-                                    <div className="portfolio-card-header">
-                                        <div className="stock-title-section">
-                                            <h3 className="stock-name">{holding.stockName}</h3>
-                                            <span className="stock-status delisted">🗑️ 휴지조각</span>
-                                        </div>
-                                        <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
-                                    </div>
-                                    <div className="portfolio-metrics-compact">
-                                        <div className="metrics-row">
-                                            <div className="metric-item"><span className="metric-label">현재 가치</span><span className="metric-value" style={{color: '#ef4444', fontWeight: 'bold'}}>0원</span></div>
-                                            <div className="metric-item"><span className="metric-label">손실</span><span className="metric-value" style={{color: '#ef4444'}}>-100%</span></div>
-                                        </div>
-                                    </div>
-                                    <p style={{fontSize: '0.85rem', color: '#6b7280', marginTop: '8px'}}>상장폐지된 상품입니다. 10분 후 자동 삭제됩니다.</p>
-                                    <div className="portfolio-card-actions">
-                                        <button onClick={() => deleteHolding(holding.id)} className="action-btn delete-btn">지금 삭제</button>
-                                    </div>
-                                </div>
-                            );
-                        }
+              // 휴지조각 주식 처리 (상장폐지로 가치 0이 된 주식)
+              if (holding.isWorthless) {
+                return (
+                  <div key={holding.id} className="portfolio-card delisted">
+                    <div className="portfolio-card-header">
+                      <div className="stock-title-section">
+                        <h3 className="stock-name">{holding.stockName}</h3>
+                        <span className="stock-status delisted">🗑️ 휴지조각</span>
+                      </div>
+                      <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
+                    </div>
+                    <div className="portfolio-metrics-compact">
+                      <div className="metrics-row">
+                        <div className="metric-item"><span className="metric-label">현재 가치</span><span className="metric-value" style={{ color: '#ef4444', fontWeight: 'bold' }}>0원</span></div>
+                        <div className="metric-item"><span className="metric-label">손실</span><span className="metric-value" style={{ color: '#ef4444' }}>-100%</span></div>
+                      </div>
+                    </div>
+                    <p style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '8px' }}>상장폐지된 상품입니다. 10분 후 자동 삭제됩니다.</p>
+                    <div className="portfolio-card-actions">
+                      <button onClick={() => deleteHolding(holding.id)} className="action-btn delete-btn">지금 삭제</button>
+                    </div>
+                  </div>
+                );
+              }
 
-                        if (!stock) return null;
-                        const currentValue = stock.price * holding.quantity;
-                        const investedValue = holding.averagePrice * holding.quantity;
-                        const profit = currentValue - investedValue;
-                        const profitPercent = investedValue > 0 ? (profit / investedValue) * 100 : 0;
-                        const isLocked = !!lockTimers[holding.id];
-                        const canSell = !isLocked;
+              if (!stock) return null;
+              const currentValue = stock.price * holding.quantity;
+              const investedValue = holding.averagePrice * holding.quantity;
+              const profit = currentValue - investedValue;
+              const profitPercent = investedValue > 0 ? (profit / investedValue) * 100 : 0;
+              const isLocked = !!lockTimers[holding.id];
+              const canSell = !isLocked;
 
-                        return (
-                            <div key={holding.id} className={`portfolio-card ${profit >= 0 ? 'profit' : 'loss'}`}>
-                                <div className="portfolio-card-header">
-                                    <div className="stock-title-section">
-                                        <h3 className="stock-name">{getProductIcon(stock.productType)} {holding.stockName}</h3>
-                                        {isLocked && (
-                                            <span style={{
-                                                fontSize: '0.75rem',
-                                                padding: '2px 8px',
-                                                background: '#fef3c7',
-                                                color: '#92400e',
-                                                borderRadius: '4px',
-                                                fontWeight: 'bold',
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: '4px'
-                                            }}>
-                                                <Lock size={12} />
-                                                매도 불가
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
-                                </div>
-                                <div className="portfolio-metrics-compact">
-                                    <div className="metrics-row">
-                                        <div className="metric-item"><span className="metric-label">평균 매수가</span><span className="metric-value">{formatCurrency(holding.averagePrice)}</span></div>
-                                        <div className="metric-item"><span className="metric-label">현재가</span><span className="metric-value current">{formatCurrency(stock.price)}</span></div>
-                                    </div>
-                                </div>
-                                <div className={`profit-summary ${profit >= 0 ? 'profit' : 'loss'}`}>
-                                    <div className="profit-amount">{formatCurrency(profit)}</div>
-                                    <div className="profit-percent">{formatPercent(profitPercent)}</div>
-                                </div>
-                                {isLocked && (
-                                    <div style={{
-                                        padding: '10px 12px',
-                                        background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                                        borderRadius: '8px',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        gap: '4px',
-                                        marginTop: '8px',
-                                        border: '1px solid #fbbf24'
-                                    }}>
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px',
-                                            fontSize: '0.9rem',
-                                            color: '#92400e',
-                                            fontWeight: 'bold'
-                                        }}>
-                                            <Lock size={16} />
-                                            <span>매도 제한 시간</span>
-                                        </div>
-                                        <div style={{
-                                            fontSize: '1.1rem',
-                                            color: '#78350f',
-                                            fontWeight: 'bold',
-                                            textAlign: 'center',
-                                            marginTop: '4px',
-                                            fontFamily: 'monospace'
-                                        }}>
-                                            ⏱️ {formatTime(lockTimers[holding.id])} 남음
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="portfolio-card-actions">
-                                    <div className="trade-section">
-                                        <div className="trade-input-group">
-                                            <input type="number" min="1" max={holding.quantity} value={sellQuantities[holding.id] || ''} onChange={e => setSellQuantities(p => ({ ...p, [holding.id]: e.target.value }))} placeholder="매도 수량" className="trade-input" disabled={!!lockTimers[holding.id] || !marketOpen} />
-                                            <button onClick={() => sellStock(holding.id, sellQuantities[holding.id])} disabled={!sellQuantities[holding.id] || isTrading || !!lockTimers[holding.id] || !marketOpen} className="action-btn sell-btn">매도</button>
-                                        </div>
-                                        {sellQuantities[holding.id] && !lockTimers[holding.id] && (
-                                            <div className="expected-amount">
-                                                예상 수익: {formatCurrency((stock.price * parseInt(sellQuantities[holding.id])) * (1 - COMMISSION_RATE) - calculateStockTax(Math.max(0, (stock.price - holding.averagePrice) * parseInt(sellQuantities[holding.id])), stock.productType))}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
+              return (
+                <div key={holding.id} className={`portfolio-card ${profit >= 0 ? 'profit' : 'loss'}`}>
+                  <div className="portfolio-card-header">
+                    <div className="stock-title-section">
+                      <h3 className="stock-name">{getProductIcon(stock.productType)} {holding.stockName}</h3>
+                      {isLocked && (
+                        <span style={{
+                          fontSize: '0.75rem',
+                          padding: '2px 8px',
+                          background: '#fef3c7',
+                          color: '#92400e',
+                          borderRadius: '4px',
+                          fontWeight: 'bold',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          <Lock size={12} />
+                          매도 불가
+                        </span>
+                      )}
+                    </div>
+                    <div className="stock-quantity">{holding.quantity}<span className="unit">주</span></div>
+                  </div>
+                  <div className="portfolio-metrics-compact">
+                    <div className="metrics-row">
+                      <div className="metric-item"><span className="metric-label">평균 매수가</span><span className="metric-value">{formatCurrency(holding.averagePrice)}</span></div>
+                      <div className="metric-item"><span className="metric-label">현재가</span><span className="metric-value current">{formatCurrency(stock.price)}</span></div>
+                    </div>
+                  </div>
+                  <div className={`profit-summary ${profit >= 0 ? 'profit' : 'loss'}`}>
+                    <div className="profit-amount">{formatCurrency(profit)}</div>
+                    <div className="profit-percent">{formatPercent(profitPercent)}</div>
+                  </div>
+                  {isLocked && (
+                    <div style={{
+                      padding: '10px 12px',
+                      background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      marginTop: '8px',
+                      border: '1px solid #fbbf24'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.9rem',
+                        color: '#92400e',
+                        fontWeight: 'bold'
+                      }}>
+                        <Lock size={16} />
+                        <span>매도 제한 시간</span>
+                      </div>
+                      <div style={{
+                        fontSize: '1.1rem',
+                        color: '#78350f',
+                        fontWeight: 'bold',
+                        textAlign: 'center',
+                        marginTop: '4px',
+                        fontFamily: 'monospace'
+                      }}>
+                        ⏱️ {formatTime(lockTimers[holding.id])} 남음
+                      </div>
+                    </div>
+                  )}
+                  <div className="portfolio-card-actions">
+                    <div className="trade-section">
+                      <div className="trade-input-group">
+                        <input type="number" min="1" max={holding.quantity} value={sellQuantities[holding.id] || ''} onChange={e => setSellQuantities(p => ({ ...p, [holding.id]: e.target.value }))} placeholder="매도 수량" className="trade-input" disabled={!!lockTimers[holding.id] || !marketOpen} />
+                        <button onClick={() => sellStock(holding.id, sellQuantities[holding.id])} disabled={!sellQuantities[holding.id] || isTrading || !!lockTimers[holding.id] || !marketOpen} className="action-btn sell-btn">매도</button>
+                      </div>
+                      {sellQuantities[holding.id] && !lockTimers[holding.id] && (
+                        <div className="expected-amount">
+                          예상 수익: {formatCurrency((stock.price * parseInt(sellQuantities[holding.id])) * (1 - COMMISSION_RATE) - calculateStockTax(Math.max(0, (stock.price - holding.averagePrice) * parseInt(sellQuantities[holding.id])), stock.productType))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-            </section>
-        </main>
+              );
+            })}
+          </div>
+        </section>
+      </main>
     </div>
   );
 };

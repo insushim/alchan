@@ -16,13 +16,13 @@ const StockBadge = ({ stock }) => {
     label = "품절";
   } else if (stock <= 3) {
     badgeClass = "stock-low";
-    label = "매진 임박";
+    label = `매진 임박 (${stock}개)`;
   } else if (stock <= 5) {
     badgeClass = "stock-medium";
-    label = "인기 상품";
+    label = `인기 상품 (${stock}개)`;
   } else {
     badgeClass = "stock-high";
-    label = "재고 충분";
+    label = `재고 충분 (${stock}개)`;
   }
   return <span className={`stock-badge ${badgeClass}`}>{label}</span>;
 };
@@ -201,7 +201,7 @@ const ItemStore = () => {
     }
     try {
       // addItem 함수는 newItemData 객체 하나만 받도록 ItemContext에서 처리
-      const result = await addItem(newItemData); 
+      const result = await addItem(newItemData);
       if (result.success) {
         showNotification("success", `${newItemData.name} 추가 완료`);
         return true;
@@ -231,7 +231,7 @@ const ItemStore = () => {
         showNotification("error", "업데이트할 아이템의 ID가 없습니다.");
         return false;
       }
-      
+
       // [수정] updateItem 함수에 (itemId, updatesToApply) 두 개의 인자로 전달
       const result = await updateItem(itemId, updatesToApply);
 
@@ -263,9 +263,8 @@ const ItemStore = () => {
 
   return (
     <div
-      className={`page-container ${
-        showAdminPanel && canOpenAdminPanel ? "admin-mode" : ""
-      }`}
+      className={`page-container ${showAdminPanel && canOpenAdminPanel ? "admin-mode" : ""
+        }`}
     >
       <div className="page-header-container">
         <h2 className="page-title">
@@ -303,13 +302,12 @@ const ItemStore = () => {
 
       {notification && (
         <div
-          className={`notification ${
-            notification.type === "success"
+          className={`notification ${notification.type === "success"
               ? "bg-green-100 text-green-800"
               : notification.type === "error"
-              ? "bg-red-100 text-red-800"
-              : "bg-blue-100 text-blue-800"
-          }`}
+                ? "bg-red-100 text-red-800"
+                : "bg-blue-100 text-blue-800"
+            }`}
         >
           {notification.message}
         </div>
@@ -393,15 +391,14 @@ const ItemStore = () => {
                             <p className="item-description-compact">{item.description}</p>
                           )}
                           <div
-                            className={`item-actions-primary ${
-                              isMobile ? "flex-col" : ""
-                            }`}
+                            className={`item-actions-primary ${isMobile ? "flex-col" : ""
+                              }`}
                           >
                             <span
                               className={`item-price ${isMobile ? "mb-2" : ""}`}
                             >
                               {item.price?.toLocaleString() || 0} 원
-                              
+
                             </span>
                             <div className="quantity-and-buy-container">
                               <input
@@ -417,17 +414,16 @@ const ItemStore = () => {
                               />
                               <button
                                 onClick={() => handlePurchase(item)}
-                                className={`buy-item-button ${
-                                  isMobile ? "w-full" : ""
-                                }`}
+                                className={`buy-item-button ${isMobile ? "w-full" : ""
+                                  }`}
                                 disabled={
                                   !user ||
                                   item.stock <= 0 ||
                                   (userDoc?.cash !== undefined
                                     ? userDoc.cash
                                     : user?.cash) <
-                                    item.price *
-                                      (purchaseQuantities[item.id] || 1)
+                                  item.price *
+                                  (purchaseQuantities[item.id] || 1)
                                 }
                               >
                                 {getButtonText(item)}

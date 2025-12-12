@@ -1,34 +1,47 @@
-/* Police.css - 모달 표시 문제 해결 버전 */
+/* src/Police.css - Cyberpunk Dark Theme */
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap");
 
-/* --- 기본 설정 및 변수 --- */
+/* --- 기본 설정 및 변수 (Cyberpunk Palette) --- */
 :root {
-  --primary-color: #007bff;
-  --primary-dark: #0056b3;
-  --secondary-color: #6c757d;
-  --light-gray: #f8f9fa;
-  --medium-gray: #dee2e6;
-  --dark-gray: #495057;
-  --text-color: #212529;
-  --white-color: #ffffff;
-  --success-color: #28a745;
-  --danger-color: #dc3545;
-  --warning-color: #ffc107;
-  --info-color: #17a2b8;
-  --fine-color: #e74c3c;
+  --primary-color: #00fff2;
+  /* Neon Cyan */
+  --primary-dark: #0088ff;
+  /* Neon Blue */
+  --secondary-color: #a0a0c0;
+  /* Muted Lavender */
+  --light-gray: rgba(20, 20, 35, 0.6);
+  /* Translucent Card Bg */
+  --medium-gray: rgba(0, 255, 242, 0.2);
+  /* Neon Border */
+  --dark-gray: #e8e8ff;
+  /* Light Text */
+  --text-color: #ffffff;
+  /* White Text */
+  --white-color: #0a0a12;
+  /* Dark Background */
+  --success-color: #00ff9d;
+  /* Neon Green */
+  --danger-color: #ff003c;
+  /* Neon Red */
+  --warning-color: #fcee0a;
+  /* Neon Yellow */
+  --info-color: #00fff2;
+  /* Neon Cyan */
+  --fine-color: #ff003c;
+  /* Neon Red */
 
   --border-radius-sm: 4px;
   --border-radius-md: 8px;
   --border-radius-lg: 12px;
 
-  --box-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --box-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.07);
-  --box-shadow-lg: 0 6px 12px rgba(0, 0, 0, 0.1);
+  --box-shadow-sm: 0 0 10px rgba(0, 136, 255, 0.1);
+  --box-shadow-md: 0 0 20px rgba(0, 0, 0, 0.6);
+  --box-shadow-lg: 0 0 30px rgba(0, 255, 242, 0.15);
 }
 
 body {
   font-family: "Noto Sans KR", sans-serif;
-  background-color: #eef2f7;
+  background-color: var(--white-color);
   color: var(--text-color);
   line-height: 1.6;
 }
@@ -41,9 +54,10 @@ body {
   background-color: var(--white-color);
   border-radius: var(--border-radius-lg);
   box-shadow: var(--box-shadow-lg);
-  /* 🔥 overflow 문제 해결: overflow: hidden을 제거하고 visible로 변경 */
+  border: 1px solid var(--medium-gray);
   overflow: visible;
-  position: relative; /* z-index 컨텍스트 생성 */
+  position: relative;
+  font-family: 'Rajdhani', sans-serif;
 }
 
 /* --- 헤더 영역 --- */
@@ -55,14 +69,16 @@ body {
   gap: 15px;
   padding-bottom: 20px;
   margin-bottom: 25px;
-  border-bottom: 2px solid var(--primary-color);
+  border-bottom: 1px solid var(--primary-color);
 }
 
 .police-header {
   font-size: 2.2rem;
   font-weight: 700;
-  color: var(--primary-dark);
+  color: #fff;
   margin: 0;
+  font-family: 'Orbitron', sans-serif;
+  text-shadow: 0 0 10px var(--primary-dark);
 }
 
 .header-info {
@@ -70,18 +86,22 @@ body {
   align-items: center;
   gap: 20px;
   font-size: 0.95rem;
-  color: var(--dark-gray);
+  color: var(--secondary-color);
 }
 
 .welcome-message {
   font-weight: 500;
+  color: var(--primary-color);
 }
 
 .treasury-balance {
   font-weight: 500;
-  background-color: #e9ecef;
+  background-color: rgba(30, 30, 50, 0.8);
   padding: 5px 10px;
   border-radius: var(--border-radius-sm);
+  color: var(--success-color);
+  border: 1px solid var(--success-color);
+  box-shadow: 0 0 5px rgba(0, 255, 157, 0.3);
 }
 
 /* 관리 설정 버튼 (헤더 오른쪽) */
@@ -92,34 +112,39 @@ body {
   border-radius: var(--border-radius-md);
   cursor: pointer;
   border: 1px solid var(--medium-gray);
-  color: var(--dark-gray);
-  background-color: var(--white-color);
+  color: var(--primary-color);
+  background-color: rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease-in-out;
   box-shadow: var(--box-shadow-sm);
 }
+
 .admin-settings-button:hover {
-  background-color: #f1f3f5;
-  border-color: var(--secondary-color);
-  color: var(--text-color);
-  box-shadow: var(--box-shadow-md);
+  background-color: rgba(0, 136, 255, 0.2);
+  border-color: var(--primary-color);
+  color: #fff;
+  box-shadow: 0 0 10px var(--primary-dark);
   transform: translateY(-1px);
 }
+
 .admin-settings-button.active {
-  background-color: var(--primary-color);
+  background-color: var(--primary-dark);
   border-color: var(--primary-color);
-  color: var(--white-color);
+  color: #fff;
   font-weight: 700;
+  box-shadow: 0 0 15px var(--primary-dark);
 }
 
 /* --- 탭 버튼 영역 --- */
-.police-tabs {
+.police-tabs,
+.tabs-container {
   display: flex;
   gap: 8px;
   margin-bottom: 25px;
   border-bottom: 1px solid var(--medium-gray);
 }
 
-.police-tab-button {
+.police-tab-button,
+.tab-button {
   padding: 12px 24px;
   cursor: pointer;
   border: none;
@@ -132,17 +157,23 @@ body {
   border-radius: 0;
   position: relative;
   bottom: -1px;
+  font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase;
 }
 
-.police-tab-button.active {
-  color: var(--primary-color);
-  border-bottom-color: var(--primary-color);
+.police-tab-button.active,
+.tab-button.active {
+  color: var(--primary-color) !important;
+  border-bottom-color: var(--primary-color) !important;
   font-weight: 700;
+  text-shadow: 0 0 5px var(--primary-color);
+  background-color: rgba(0, 255, 242, 0.1) !important;
 }
 
-.police-tab-button:hover:not(.active) {
-  color: var(--primary-dark);
-  background-color: rgba(0, 123, 255, 0.05);
+.police-tab-button:hover:not(.active),
+.tab-button:hover:not(.active) {
+  color: #fff !important;
+  background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 /* --- 탭 컨텐츠 영역 --- */
@@ -153,18 +184,18 @@ body {
   min-height: 350px;
   border: 1px solid var(--medium-gray);
   margin-top: -1px;
-  /* 🔥 탭 컨텐츠도 overflow visible로 설정 */
   overflow: visible;
+  backdrop-filter: blur(5px);
 }
 
 .police-admin-content {
   padding: 25px;
-  background-color: #f0f4f8;
+  background-color: var(--light-gray);
   border-radius: var(--border-radius-md);
   margin-bottom: 25px;
   border: 1px solid var(--medium-gray);
-  /* 🔥 관리자 컨텐츠도 overflow visible로 설정 */
   overflow: visible;
+  backdrop-filter: blur(5px);
 }
 
 /* --- 공통 버튼 스타일 --- */
@@ -178,14 +209,23 @@ button {
 .report-actions button,
 .form-actions button,
 .police-admin-settings-container button,
-.save-button, .add-button, .deleteAllButton {
+.save-button,
+.add-button,
+.deleteAllButton,
+.admin-button,
+.danger-zone-button,
+.reason-delete-button,
+.reason-add-button,
+.reason-save-button {
   padding: 10px 20px;
   font-size: 0.95rem;
   font-weight: 500;
   border-radius: var(--border-radius-md);
-  border: none;
-  color: var(--white-color);
+  border: 1px solid transparent;
+  color: #fff;
   box-shadow: var(--box-shadow-sm);
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
 }
 
 .submit-button:hover,
@@ -194,72 +234,109 @@ button {
 .police-admin-settings-container button:hover,
 .save-button:hover,
 .add-button:hover,
-.deleteAllButton:hover {
-  opacity: 0.9;
-  box-shadow: var(--box-shadow-md);
+.deleteAllButton:hover,
+.admin-button:hover,
+.danger-zone-button:hover,
+.reason-delete-button:hover,
+.reason-add-button:hover,
+.reason-save-button:hover {
+  opacity: 1;
+  box-shadow: 0 0 10px currentColor;
   transform: translateY(-1px);
 }
 
 /* 개별 버튼 배경색 */
 .submit-button {
-  background-color: var(--primary-color);
+  background-color: rgba(0, 136, 255, 0.2);
+  border-color: var(--primary-dark);
+  color: var(--primary-dark);
 }
+
 .submit-button:hover {
-  background-color: var(--primary-dark);
+  background-color: rgba(0, 136, 255, 0.4);
 }
 
-.accept-button {
-  background-color: var(--success-color);
-}
-.accept-button:hover {
-  background-color: #1e7e34;
+.accept-button,
+.reason-save-button {
+  background-color: rgba(0, 255, 157, 0.2);
+  border-color: var(--success-color);
+  color: var(--success-color);
 }
 
-.fine-button {
-  background-color: var(--fine-color);
-  color: var(--white-color);
+.accept-button:hover,
+.reason-save-button:hover {
+  background-color: rgba(0, 255, 157, 0.4);
 }
-.fine-button:hover {
-  background-color: #c0392b;
+
+.fine-button,
+.danger-zone-button,
+.reason-delete-button {
+  background-color: rgba(255, 0, 60, 0.2);
+  border-color: var(--fine-color);
+  color: var(--fine-color);
+}
+
+.fine-button:hover,
+.danger-zone-button:hover,
+.reason-delete-button:hover {
+  background-color: rgba(255, 0, 60, 0.4);
 }
 
 .settlement-button {
-  background-color: var(--info-color);
+  background-color: rgba(0, 255, 242, 0.2);
+  border-color: var(--info-color);
+  color: var(--info-color);
 }
+
 .settlement-button:hover {
-  background-color: #117a8b;
+  background-color: rgba(0, 255, 242, 0.4);
 }
 
 .dismiss-button,
 .delete-button,
 .deleteAllButton {
-  background-color: var(--danger-color);
+  background-color: rgba(252, 238, 10, 0.2);
+  border-color: var(--warning-color);
+  color: var(--warning-color);
 }
+
 .dismiss-button:hover,
 .delete-button:hover,
 .deleteAllButton:hover {
-  background-color: #bd2130;
+  background-color: rgba(252, 238, 10, 0.4);
 }
 
 .edit-button {
-  background-color: var(--secondary-color);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--secondary-color);
+  color: var(--secondary-color);
 }
+
 .edit-button:hover {
-  background-color: #5a6268;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .save-button {
-  background-color: var(--success-color);
-}
-.save-button:hover {
-  background-color: #218838;
+  background-color: rgba(0, 136, 255, 0.2);
+  border-color: var(--primary-dark);
+  color: var(--primary-dark);
 }
 
-.add-button {
-  background-color: var(--primary-color);
+.save-button:hover {
+  background-color: rgba(0, 136, 255, 0.4);
 }
-.add-button:hover {
-  background-color: var(--primary-dark);
+
+.add-button,
+.reason-add-button {
+  background-color: rgba(0, 255, 242, 0.2);
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.add-button:hover,
+.reason-add-button:hover {
+  background-color: rgba(0, 255, 242, 0.4);
 }
 
 .small-button {
@@ -271,17 +348,27 @@ button {
 .submit-report-container,
 .report-status-container,
 .report-results-container,
-.police-admin-settings-container {
+.police-admin-settings-container,
+.admin-settings-container {
+
   h2,
   h3,
   h4 {
     margin-top: 0;
     margin-bottom: 20px;
     font-weight: 700;
-    color: var(--primary-dark);
+    color: #fff;
     padding-bottom: 10px;
     border-bottom: 1px solid var(--medium-gray);
   }
+}
+
+.admin-settings-h2 {
+  font-size: 24px;
+  color: #fff;
+  border-bottom: 2px solid var(--medium-gray);
+  padding-bottom: 12px;
+  margin-bottom: 20px;
 }
 
 .report-form,
@@ -299,7 +386,7 @@ button {
 
 .form-group label {
   font-weight: 500;
-  color: var(--dark-gray);
+  color: var(--secondary-color);
   font-size: 0.9rem;
 }
 
@@ -313,19 +400,26 @@ button {
   font-size: 0.95rem;
   font-family: inherit;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  background-color: var(--white-color);
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
 }
+
 .form-group select:focus,
 .form-group input:focus,
 .form-group textarea:focus {
   border-color: var(--primary-color);
   outline: 0;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+  box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
 }
 
 .form-group textarea {
   min-height: 100px;
   resize: vertical;
+}
+
+.form-select option {
+  background-color: #1a1a2e;
+  color: #fff;
 }
 
 .submit-report-form button,
@@ -342,17 +436,18 @@ button {
 }
 
 .report-item {
-  background-color: var(--white-color);
+  background-color: rgba(20, 20, 35, 0.4);
   border: 1px solid var(--medium-gray);
-  border-left: 5px solid var(--secondary-color);
+  border-left: 4px solid var(--secondary-color);
   border-radius: var(--border-radius-md);
   padding: 20px;
   box-shadow: var(--box-shadow-sm);
+  backdrop-filter: blur(5px);
 }
 
 .report-item.law-report {
-  border-left-color: var(--primary-dark);
-  background-color: #f0f4f8;
+  border-left-color: var(--primary-color);
+  background: linear-gradient(90deg, rgba(0, 255, 242, 0.05) 0%, rgba(20, 20, 35, 0.4) 100%);
 }
 
 .report-header {
@@ -363,17 +458,18 @@ button {
   color: var(--secondary-color);
   margin-bottom: 15px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px dashed var(--medium-gray);
 }
 
 .report-content p {
   margin: 8px 0;
   font-size: 0.95rem;
+  color: var(--secondary-color);
 }
 
 .report-content strong {
   font-weight: 500;
-  color: var(--text-color);
+  color: #fff;
   margin-right: 8px;
 }
 
@@ -386,56 +482,147 @@ button {
 
 .law-reason-highlight {
   font-weight: bold;
-  color: var(--primary-dark);
-  background-color: rgba(0, 123, 255, 0.1);
+  color: var(--primary-color);
+  background-color: rgba(0, 255, 242, 0.1);
   padding: 2px 5px;
   border-radius: var(--border-radius-sm);
+  border: 1px solid var(--primary-color);
 }
 
 /* --- 관리자 설정 탭 내부 --- */
+.admin-settings-container {
+  background-color: #1a1a2e;
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid var(--medium-gray);
+}
+
+.admin-section,
 .settings-section {
-  background-color: var(--white-color);
+  background-color: rgba(20, 20, 35, 0.4);
   border-radius: var(--border-radius-md);
   padding: 25px;
   margin-bottom: 30px;
   box-shadow: var(--box-shadow-md);
   border: 1px solid var(--medium-gray);
 }
+
 .settings-section:last-child {
   margin-bottom: 0;
 }
-.police-admin-settings-container h3 {
-  color: var(--secondary-color);
-  border-bottom-color: var(--secondary-color);
+
+.police-admin-settings-container h3,
+.admin-section-title {
+  color: #fff;
+  border-bottom-color: var(--medium-gray);
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 8px;
 }
+
 .settings-section h4 {
-  color: var(--dark-gray);
-  border-bottom-color: #eee;
+  color: #fff;
+  border-bottom-color: var(--medium-gray);
   font-size: 1.1rem;
   font-weight: 600;
 }
 
+.admin-section-desc {
+  font-size: 14px;
+  color: var(--secondary-color);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.reasons-list,
 .reason-list {
   list-style: none;
   padding: 0;
   margin: 0 0 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
-.reason-list-item {
+
+.reason-list-item,
+.reason-item-editor {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 15px 10px;
-  border-bottom: 1px dashed var(--medium-gray);
+  padding: 10px;
+  border: 1px solid var(--medium-gray);
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 6px;
   transition: background-color 0.2s ease;
+  gap: 10px;
 }
-.reason-list-item:last-child { border-bottom: none; }
-.reason-list-item:hover { background-color: #f8f9fa; }
+
+.reason-list-item:hover,
+.reason-item-editor:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
 
 .reason-text {
   font-size: 0.95rem;
-  color: var(--text-color);
+  color: #fff;
   flex-grow: 1;
   margin-right: 15px;
+}
+
+.reason-input {
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--medium-gray);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #fff;
+  flex-grow: 1;
+}
+
+.reason-amount-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--secondary-color);
+}
+
+.reason-amount-input {
+  width: 100px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--medium-gray);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.reason-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.danger-zone {
+  border-color: var(--danger-color);
+  background-color: rgba(255, 0, 60, 0.05);
+}
+
+.danger-zone-title {
+  color: var(--danger-color) !important;
+}
+
+.danger-zone-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.danger-zone-p {
+  margin: 0;
+  color: var(--secondary-color);
+  flex-basis: 60%;
 }
 
 .amount-control {
@@ -452,7 +639,10 @@ button {
   border-radius: var(--border-radius-md);
   text-align: right;
   font-size: 0.9rem;
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
 }
+
 .amount-input.small-input {
   width: 120px;
 }
@@ -475,6 +665,7 @@ button {
   display: flex;
   gap: 10px;
 }
+
 .settings-section .reason-input {
   flex-grow: 1;
 }
@@ -482,6 +673,7 @@ button {
 .settings-section .deleteAllButton {
   margin-right: 15px;
 }
+
 .warningText {
   color: var(--danger-color);
   font-size: 0.85rem;
@@ -490,80 +682,90 @@ button {
 }
 
 /* --- 기타 스타일 --- */
-.empty-state, .no-results-message {
+.empty-state,
+.no-results-message {
   text-align: center;
   color: var(--secondary-color);
   margin-top: 30px;
   font-style: italic;
   padding: 20px;
-  background-color: var(--light-gray);
+  background-color: rgba(255, 255, 255, 0.02);
   border-radius: var(--border-radius-md);
+  border: 1px dashed var(--medium-gray);
 }
 
 /* ==========================================================================
-   모달 (Modal) 스타일 - 🔥 문제 해결 버전
+   모달 (Modal) 스타일 - Cyberpunk Dark Theme
    ========================================================================== */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  /* 🔥 z-index를 훨씬 높게 설정 */
-  z-index: 999999;
-  /* 🔥 백드롭 필터 추가 */
-  -webkit-backdrop-filter: blur(5px);
-  backdrop-filter: blur(5px);
+.modal-overlay,
+.settlement-modal-overlay,
+.process-modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  z-index: 999999 !important;
+  -webkit-backdrop-filter: blur(5px) !important;
+  backdrop-filter: blur(5px) !important;
 }
 
-.modal-container {
-  background-color: var(--white-color);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--box-shadow-lg);
-  width: 90%;
-  max-width: 500px;
-  display: flex;
-  flex-direction: column;
-  /* 🔥 모달 컨테이너의 z-index도 높게 설정 */
-  z-index: 1000000;
-  /* 🔥 애니메이션 추가 */
-  animation: modalFadeIn 0.3s ease-out;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
+.modal-container,
+.settlement-modal-container,
+.settlement-modal-safe-container,
+.process-modal-container {
+  background-color: #1a1a2e !important;
+  border-radius: var(--border-radius-lg) !important;
+  box-shadow: 0 0 30px rgba(0, 136, 255, 0.2), 0 0 10px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid var(--primary-color) !important;
+  width: 90% !important;
+  max-width: 500px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  z-index: 1000000 !important;
+  animation: modalFadeIn 0.3s ease-out !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+  position: relative !important;
+  color: #fff !important;
 }
 
-/* 🔥 모달 애니메이션 추가 */
 @keyframes modalFadeIn {
   from {
     opacity: 0;
     transform: translateY(-20px) scale(0.95);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
 }
 
-.modal-header {
+.modal-header,
+.settlement-modal-header,
+.process-modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 20px 25px;
   border-bottom: 1px solid var(--medium-gray);
-  background-color: var(--light-gray);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .modal-header h2,
-.modal-header h3 {
+.modal-header h3,
+.settlement-modal-header h3,
+.process-modal-header h2 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--primary-dark);
+  color: #fff;
+  text-shadow: 0 0 5px var(--primary-dark);
 }
 
 .close-button {
@@ -576,11 +778,15 @@ button {
   cursor: pointer;
   padding: 0;
 }
+
 .close-button:hover {
-  color: var(--text-color);
+  color: #fff;
+  text-shadow: 0 0 5px #fff;
 }
 
-.modal-content {
+.modal-content,
+.settlement-modal-content,
+.process-modal-content {
   padding: 25px;
   max-height: 60vh;
   overflow-y: auto;
@@ -597,13 +803,15 @@ button {
 }
 
 .report-summary {
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: var(--border-radius-md);
-  padding: 15px;
-  margin-bottom: 20px;
-  font-size: 0.9rem;
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid var(--medium-gray) !important;
+  border-radius: var(--border-radius-md) !important;
+  padding: 15px !important;
+  margin-bottom: 20px !important;
+  font-size: 0.9rem !important;
+  color: var(--secondary-color) !important;
 }
+
 .report-summary p {
   margin: 5px 0;
 }
@@ -614,13 +822,15 @@ button {
   margin-top: 5px;
 }
 
-.modal-footer {
+.modal-footer,
+.settlement-modal-footer,
+.process-modal-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
   padding: 20px 25px;
   border-top: 1px solid var(--medium-gray);
-  background-color: var(--light-gray);
+  background-color: rgba(0, 0, 0, 0.2);
 }
 
 .modal-button {
@@ -629,76 +839,201 @@ button {
   font-weight: 500;
   border-radius: var(--border-radius-md);
   border: 1px solid transparent;
+  cursor: pointer;
 }
 
 .modal-button.cancel {
-  background-color: var(--white-color);
-  border-color: var(--medium-gray);
-  color: var(--dark-gray);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--secondary-color);
+  color: #ccc;
 }
+
 .modal-button.cancel:hover {
-  background-color: #e9ecef;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .modal-button.process {
-  background-color: var(--primary-color);
-  color: var(--white-color);
+  background-color: rgba(0, 136, 255, 0.2);
+  border-color: var(--primary-dark);
+  color: var(--primary-dark);
+  cursor: pointer;
 }
+
 .modal-button.process:hover {
-  background-color: var(--primary-dark);
+  background-color: rgba(0, 136, 255, 0.4);
+  box-shadow: 0 0 10px var(--primary-dark);
+}
+
+.quick-reasons-container {
+  margin-top: 15px;
+}
+
+.quick-reasons-label {
+  font-weight: 500;
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.quick-reasons-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quick-reason-btn {
+  padding: 5px 10px;
+  font-size: 0.8rem;
+  border: 1px solid var(--primary-dark);
+  background-color: rgba(0, 136, 255, 0.1);
+  color: var(--primary-dark);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.quick-reason-btn:hover {
+  background-color: rgba(0, 136, 255, 0.3);
+  color: #fff;
+  box-shadow: 0 0 5px var(--primary-dark);
 }
 
 /* --- 반응형 디자인 --- */
 @media (max-width: 768px) {
-  .police-container { 
-    padding: 20px; 
-    /* 🔥 모바일에서도 overflow visible 유지 */
-    overflow: visible;
-  }
-  .police-header-container { flex-direction: column; align-items: flex-start; }
-  .header-info { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
-  .admin-settings-button { align-self: flex-start; }
-
-  .police-tabs { flex-direction: column; align-items: stretch; border-bottom: none; }
-  .police-tab-button { text-align: center; border-bottom: none; border: 1px solid var(--medium-gray); border-radius: var(--border-radius-md); margin-bottom: 5px; }
-  .police-tab-button.active { border-color: var(--primary-color); background-color: var(--primary-color); color: var(--white-color); }
-  .police-tab-content, .police-admin-content { 
-    padding: 15px; 
-    /* 🔥 모바일에서도 overflow visible 유지 */
+  .police-container {
+    padding: 20px;
     overflow: visible;
   }
 
-  .report-header { flex-direction: column; align-items: flex-start; }
-  
-  .report-actions, .form-actions { flex-direction: column; align-items: stretch; }
-  .report-actions button, .form-actions button { width: 100%; }
+  .police-header-container {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 
-  .settings-section .add-form { flex-direction: column; align-items: stretch; }
-  .settings-section .reason-input, .settings-section .amount-input.small-input { width: 100%; }
+  .header-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+  }
 
-  .reason-list-item { flex-direction: column; align-items: flex-start; }
-  .amount-control { margin-top: 10px; width: 100%; justify-content: space-between; }
-  .reason-list-item .delete-button { align-self: flex-end; }
-  .settings-section .warningText { display: block; margin-top: 10px; }
+  .admin-settings-button {
+    align-self: flex-start;
+  }
 
-  /* 🔥 모바일에서 모달 z-index 더 높게 */
+  .police-tabs {
+    flex-direction: column;
+    align-items: stretch;
+    border-bottom: none;
+  }
+
+  .police-tab-button {
+    text-align: center;
+    border-bottom: none;
+    border: 1px solid var(--medium-gray);
+    border-radius: var(--border-radius-md);
+    margin-bottom: 5px;
+  }
+
+  .police-tab-button.active {
+    border-color: var(--primary-color);
+    background-color: rgba(0, 255, 242, 0.2);
+    color: var(--primary-color);
+  }
+
+  .police-tab-content,
+  .police-admin-content {
+    padding: 15px;
+    overflow: visible;
+  }
+
+  .report-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .report-actions,
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .report-actions button,
+  .form-actions button {
+    width: 100%;
+  }
+
+  .settings-section .add-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-section .reason-input,
+  .settings-section .amount-input.small-input {
+    width: 100%;
+  }
+
+  .reason-list-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .amount-control {
+    margin-top: 10px;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .reason-list-item .delete-button {
+    align-self: flex-end;
+  }
+
+  .settings-section .warningText {
+    display: block;
+    margin-top: 10px;
+  }
+
   .modal-overlay {
     z-index: 9999999;
   }
+
   .modal-container {
     width: 95%;
     z-index: 10000000;
   }
-  .modal-content { padding: 20px 15px; }
-  .modal-header, .modal-footer { padding: 15px; }
+
+  .modal-content {
+    padding: 20px 15px;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding: 15px;
+  }
 }
 
 @media (max-width: 480px) {
-  .police-header { font-size: 1.8rem; }
-  .police-tab-button { padding: 10px 15px; font-size: 0.9rem; }
-  .modal-container { width: 95%; }
-  .modal-content { padding: 20px 15px; }
-  .modal-header, .modal-footer { padding: 15px; }
+  .police-header {
+    font-size: 1.8rem;
+  }
+
+  .police-tab-button {
+    padding: 10px 15px;
+    font-size: 0.9rem;
+  }
+
+  .modal-container {
+    width: 95%;
+  }
+
+  .modal-content {
+    padding: 20px 15px;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding: 15px;
+  }
 }
 
 .admin-nav-buttons {
@@ -708,9 +1043,9 @@ button {
 }
 
 .back-to-police-button {
-  background-color: #3b5998;
-  color: white;
-  border: none;
+  background-color: rgba(59, 89, 152, 0.3);
+  color: #fff;
+  border: 1px solid #3b5998;
   border-radius: 5px;
   padding: 10px 15px;
   font-size: 1rem;
@@ -722,32 +1057,25 @@ button {
   gap: 8px;
 }
 
-.back-to-police-button:hover { background-color: #2d4373; }
-.back-to-police-button::before { content: "←"; display: inline-block; margin-right: 5px; }
+.back-to-police-button:hover {
+  background-color: rgba(59, 89, 152, 0.6);
+}
+
+.back-to-police-button::before {
+  content: "←";
+  display: inline-block;
+  margin-right: 5px;
+}
 
 @media (max-width: 768px) {
-  .admin-nav-buttons { margin-bottom: 15px; }
-  .back-to-police-button { font-size: 0.9rem; padding: 8px 12px; width: 100%; justify-content: center; }
-}
+  .admin-nav-buttons {
+    margin-bottom: 15px;
+  }
 
-/* 🔥 중복 제거: 기존의 Universal Modal Styles 섹션을 통합함 */
-
-/* 🔥 추가 디버깅을 위한 스타일 */
-.settlement-modal-container {
-  /* 합의 모달 전용 스타일 */
-  border: 2px solid #007bff !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
-}
-
-/* 🔥 강제로 모달을 표시하기 위한 높은 우선순위 스타일 */
-.modal-overlay[style*="position: fixed"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-}
-
-.modal-container[style*="position: relative"] {
-  display: flex !important;
-  visibility: visible !important;
-  opacity: 1 !important;
+  .back-to-police-button {
+    font-size: 0.9rem;
+    padding: 8px 12px;
+    width: 100%;
+    justify-content: center;
+  }
 }

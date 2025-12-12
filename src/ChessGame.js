@@ -262,6 +262,14 @@ const findBestMove = (board, color, difficulty, getValidMovesFunc) => {
 
 const ChessGame = () => {
     const { user, userDoc } = useAuth();
+    // ... (state definitions)
+
+    // Force strict dark mode background via inline style
+    const containerStyle = {
+        backgroundColor: '#0a0a12',
+        minHeight: '100%',
+        width: '100%'
+    };
     const [gameId, setGameId] = useState(null);
     const [gameData, setGameData] = useState(null);
     const [showCreateRoom, setShowCreateRoom] = useState(true);
@@ -308,7 +316,7 @@ const ChessGame = () => {
     useEffect(() => { gameDataRef.current = gameData; }, [gameData]);
     const userRef = useRef(user);
     useEffect(() => { userRef.current = user; }, [user]);
-    
+
     useEffect(() => {
         const cleanup = () => {
             const currentGameId = gameIdRef.current;
@@ -375,7 +383,7 @@ const ChessGame = () => {
                 } else {
                     const newTime = Math.max(0, blackTime - 1);
                     setBlackTime(newTime);
-                     if (newTime <= 0) {
+                    if (newTime <= 0) {
                         await handleTimeout('b');
                     }
                 }
@@ -386,7 +394,7 @@ const ChessGame = () => {
 
     const fetchAvailableRooms = useCallback(async () => {
         if (!user) return;
-        
+
         try {
             const q = query(
                 collection(db, 'chessGames'),
@@ -477,7 +485,7 @@ const ChessGame = () => {
         const moves = [];
         const color = piece[0];
         const type = piece[1];
-        
+
         const addMove = (r, c) => {
             if (r >= 0 && r < 8 && c >= 0 && c < 8) {
                 const target = board[r][c];
@@ -500,42 +508,42 @@ const ChessGame = () => {
             case 'P':
                 const direction = color === 'w' ? -1 : 1;
                 const startRow = color === 'w' ? 6 : 1;
-                
+
                 if (row + direction >= 0 && row + direction < 8 && !board[row + direction][col]) {
                     addMove(row + direction, col);
                     if (row === startRow && !board[row + 2 * direction][col]) {
                         addMove(row + 2 * direction, col);
                     }
                 }
-                
+
                 [-1, 1].forEach(dc => {
-                    if (row + direction >=0 && row+direction < 8 && col + dc >=0 && col + dc < 8) {
+                    if (row + direction >= 0 && row + direction < 8 && col + dc >= 0 && col + dc < 8) {
                         const target = board[row + direction][col + dc];
                         if (target && target[0] !== color) {
                             addMove(row + direction, col + dc);
                         }
                     }
                 });
-                
+
                 if (gameData?.enPassant) {
                     const [epRow, epCol] = gameData.enPassant;
                     if (row + direction === epRow && Math.abs(col - epCol) === 1) {
-                         addMove(epRow, epCol);
+                        addMove(epRow, epCol);
                     }
                 }
                 break;
 
             case 'N':
-                [[-2,-1], [-2,1], [-1,-2], [-1,2], [1,-2], [1,2], [2,-1], [2,1]].forEach(([dr, dc]) => {
+                [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]].forEach(([dr, dc]) => {
                     addMove(row + dr, col + dc);
                 });
                 break;
 
             case 'B': case 'R': case 'Q':
                 const directions = {
-                    'B': [[1,1], [1,-1], [-1,1], [-1,-1]],
-                    'R': [[0,1], [0,-1], [1,0], [-1,0]],
-                    'Q': [[0,1], [0,-1], [1,0], [-1,0], [1,1], [1,-1], [-1,1], [-1,-1]]
+                    'B': [[1, 1], [1, -1], [-1, 1], [-1, -1]],
+                    'R': [[0, 1], [0, -1], [1, 0], [-1, 0]],
+                    'Q': [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]]
                 }[type];
 
                 directions.forEach(([dr, dc]) => {
@@ -555,14 +563,14 @@ const ChessGame = () => {
                 break;
 
             case 'K':
-                [[-1,-1], [-1,0], [-1,1], [0,-1], [0,1], [1,-1], [1,0], [1,1]].forEach(([dr, dc]) => {
+                [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]].forEach(([dr, dc]) => {
                     addMove(row + dr, col + dc);
                 });
-                
+
                 if (checkForCheck && gameData?.castling) {
                     const kingRow = color === 'w' ? 7 : 0;
                     if (row === kingRow && col === 4) {
-                        if (gameData.castling[color + 'K'] && 
+                        if (gameData.castling[color + 'K'] &&
                             !board[kingRow][5] && !board[kingRow][6] &&
                             board[kingRow][7] === color + 'R') {
                             if (!isSquareUnderAttack(board, kingRow, 4, color) &&
@@ -571,7 +579,7 @@ const ChessGame = () => {
                                 addMove(kingRow, 6);
                             }
                         }
-                        if (gameData.castling[color + 'Q'] && 
+                        if (gameData.castling[color + 'Q'] &&
                             !board[kingRow][3] && !board[kingRow][2] && !board[kingRow][1] &&
                             board[kingRow][0] === color + 'R') {
                             if (!isSquareUnderAttack(board, kingRow, 4, color) &&
@@ -585,13 +593,13 @@ const ChessGame = () => {
                 break;
             default: break;
         }
-        
+
         return moves;
     }, [gameData]);
 
     const isSquareUnderAttack = useCallback((board, row, col, color) => {
         const opponentColor = color === 'w' ? 'b' : 'w';
-        
+
         for (let r = 0; r < 8; r++) {
             for (let c = 0; c < 8; c++) {
                 const piece = board[r][c];
@@ -605,7 +613,7 @@ const ChessGame = () => {
         }
         return false;
     }, [getValidMoves]);
-    
+
     const isInCheck = useCallback((board, color) => {
         let kingPos = null;
         for (let r = 0; r < 8; r++) {
@@ -617,9 +625,9 @@ const ChessGame = () => {
             }
             if (kingPos) break;
         }
-        
+
         if (!kingPos) return false;
-        
+
         return isSquareUnderAttack(board, kingPos[0], kingPos[1], color);
     }, [isSquareUnderAttack]);
 
@@ -826,7 +834,7 @@ const ChessGame = () => {
 
     const handleJoinRoom = async (roomId = null) => {
         const targetRoomId = roomId || newRoomId.trim();
-        
+
         if (!targetRoomId) {
             setFeedback({ message: '참가할 방 코드를 입력하세요.', type: 'error' });
             return;
@@ -862,7 +870,7 @@ const ChessGame = () => {
             setFeedback({ message: `참가 실패: ${error.message}`, type: 'error' });
         }
     };
-    
+
     const handleAdminDeleteRoom = async (roomId) => {
         if (!userDoc?.isAdmin) {
             setFeedback({ message: '삭제 권한이 없습니다.', type: 'error' });
@@ -880,9 +888,9 @@ const ChessGame = () => {
 
     const handlePieceClick = (row, col) => {
         if (!isMyTurn || gameData.status !== 'active' || isMoving) return;
-        
+
         const piece = gameData.board[row][col];
-        
+
         if (selectedPiece && possibleMoves.some(([r, c]) => r === row && c === col)) {
             handleMove(row, col);
         } else if (piece && piece[0] === myColor) {
@@ -899,7 +907,7 @@ const ChessGame = () => {
         if (!selectedPiece || !gameData) return;
 
         const { row: fromRow, col: fromCol, piece } = selectedPiece;
-        
+
         if (piece[1] === 'P' && (toRow === 0 || toRow === 7)) {
             setShowPromotion({ toRow, toCol, fromRow, fromCol });
             return;
@@ -956,16 +964,16 @@ const ChessGame = () => {
                 if (currentData.turn !== color) {
                     throw new Error("상대방의 턴입니다.");
                 }
-                
+
                 const board = deserializeBoard(currentData.board);
 
                 let newBoard = board.map(r => [...r]);
                 newBoard[fromRow][fromCol] = null;
                 newBoard[toRow][toCol] = promotionPiece ? color + promotionPiece : piece;
-                
+
                 const newCastling = { ...currentData.castling };
                 let newEnPassant = null;
-                
+
                 if (piece === 'wK') { newCastling.wK = false; newCastling.wQ = false; }
                 if (piece === 'bK') { newCastling.bK = false; newCastling.bQ = false; }
                 if (piece === 'wR' && fromRow === 7 && fromCol === 0) newCastling.wQ = false;
@@ -982,20 +990,20 @@ const ChessGame = () => {
                         newBoard[fromRow][0] = null;
                     }
                 }
-                
+
                 if (piece[1] === 'P' && currentData.enPassant) {
                     const [epRow, epCol] = currentData.enPassant;
                     if (toRow === epRow && toCol === epCol) {
                         newBoard[fromRow][toCol] = null;
                     }
                 }
-                
+
                 if (piece[1] === 'P' && Math.abs(fromRow - toRow) === 2) {
-                    newEnPassant = [ (fromRow + toRow) / 2, fromCol ];
+                    newEnPassant = [(fromRow + toRow) / 2, fromCol];
                 }
-                
+
                 const files = 'abcdefgh';
-                const moveNotation = `${piece[1] !== 'P' ? piece[1] : ''}${files[fromCol]}${8-fromRow} -> ${files[toCol]}${8-toRow}`;
+                const moveNotation = `${piece[1] !== 'P' ? piece[1] : ''}${files[fromCol]}${8 - fromRow} -> ${files[toCol]}${8 - toRow}`;
                 const newMoveHistory = [...currentData.moveHistory, moveNotation];
 
                 const nextTurn = color === 'w' ? 'b' : 'w';
@@ -1003,7 +1011,7 @@ const ChessGame = () => {
                 let newWinner = null;
                 let endReason = null;
                 let newRatingChange = null;
-                
+
                 const gameEndState = checkGameEnd(newBoard, nextTurn);
                 if (gameEndState) {
                     newStatus = 'finished';
@@ -1014,7 +1022,7 @@ const ChessGame = () => {
                         newWinner = 'draw';
                     }
                 }
-                
+
                 if (newStatus === 'finished' && newWinner !== 'draw') {
                     newRatingChange = {
                         [newWinner === 'w' ? 'white' : 'black']: RATING_CHANGE.WIN,
@@ -1058,7 +1066,7 @@ const ChessGame = () => {
                     const newCount = dailyPlayCount + 1;
                     localStorage.setItem(storageKey, newCount.toString());
                     setDailyPlayCount(newCount);
-                    
+
                     if (isDraw) {
                         setFeedback({ message: '무승부! 아쉽지만 보상은 다음 기회에!', type: 'info' });
                     }
@@ -1238,12 +1246,12 @@ const ChessGame = () => {
                                     className={timeControl === time ? 'selected' : ''}
                                     onClick={() => setTimeControl(time)}
                                 >
-                                    {time/60}분
+                                    {time / 60}분
                                 </button>
                             ))}
                         </div>
                     </div>
-                    
+
                     <div className="room-actions">
                         <button onClick={handleCreateRoom} className="create-room-btn">
                             {gameMode === 'ai' ? '🤖 AI 대전 시작' : '새로운 방 만들기'}
@@ -1263,7 +1271,7 @@ const ChessGame = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     {availableRooms.length > 0 && (
                         <div className="available-rooms">
                             <h3>📋 대기 중인 방 목록</h3>
@@ -1278,7 +1286,7 @@ const ChessGame = () => {
                                             <span className="room-code">코드: {room.id}</span>
                                         </div>
                                         <div className="room-item-buttons">
-                                            <button 
+                                            <button
                                                 onClick={() => handleJoinRoom(room.id)}
                                                 className="join-btn"
                                             >
@@ -1298,7 +1306,7 @@ const ChessGame = () => {
                             </div>
                         </div>
                     )}
-                    
+
                     <div className="chess-rules">
                         <h3>체스 기본 규칙</h3>
                         <ul>
@@ -1312,7 +1320,7 @@ const ChessGame = () => {
             </div>
         );
     }
-    
+
     if (!gameData) {
         return <AlchanLoading />;
     }
@@ -1321,16 +1329,16 @@ const ChessGame = () => {
     const blackPlayerId = gameData.players.black;
 
     return (
-        <div className="chess-container">
+        <div className="chess-container" style={containerStyle}>
             <div className="game-info">
-                 <div className={`player black ${gameData.turn === 'b' ? 'active' : ''} ${user?.uid === blackPlayerId ? 'my-player' : 'opponent-player'}`}>
+                <div className={`player black ${gameData.turn === 'b' ? 'active' : ''} ${user?.uid === blackPlayerId ? 'my-player' : 'opponent-player'}`}>
                     <span className="player-name">
                         ♛ {gameData.playerNames.black || '대기중...'}
                         <span className="player-rank">[{gameData.playerRanks?.black || 'Unranked'}] ({gameData.playerRatings?.black || 0}점)</span>
                     </span>
                     <span className="player-time">{formatTime(blackTime)}</span>
                 </div>
-                
+
                 <div className="game-status">
                     {gameData.status === 'finished' ? (
                         gameData.winner === 'draw' ? (
@@ -1346,7 +1354,7 @@ const ChessGame = () => {
                         <span>{isMyTurn ? '당신의 차례' : '상대방 차례'}</span>
                     )}
                 </div>
-                
+
                 <div className={`player white ${gameData.turn === 'w' ? 'active' : ''} ${user?.uid === whitePlayerId ? 'my-player' : 'opponent-player'}`}>
                     <span className="player-name">
                         ♕ {gameData.playerNames.white}
@@ -1355,7 +1363,7 @@ const ChessGame = () => {
                     <span className="player-time">{formatTime(whiteTime)}</span>
                 </div>
             </div>
-            
+
             <div className="board-container">
                 <div className={`chess-board ${myColor === 'b' ? 'flipped' : ''}`}>
                     {gameData.board.map((row, rIndex) => (
@@ -1364,7 +1372,7 @@ const ChessGame = () => {
                             const isPossibleMove = possibleMoves.some(([r, c]) => r === rIndex && c === cIndex);
                             const isLight = (rIndex + cIndex) % 2 === 0;
                             const isCheck = piece && piece[1] === 'K' && isInCheck(gameData.board, piece[0]);
-                            
+
                             return (
                                 <div
                                     key={`${rIndex}-${cIndex}`}
@@ -1386,7 +1394,7 @@ const ChessGame = () => {
                         })
                     ))}
                 </div>
-                
+
                 {showPromotion && (
                     <div className="promotion-modal">
                         <div className="promotion-content">
@@ -1447,24 +1455,24 @@ const ChessGame = () => {
                     </div>
                 )}
             </div>
-            
+
             {feedback.message && (
                 <div className={`feedback ${feedback.type}`}>{feedback.message}</div>
             )}
-            
+
             <div className="game-controls">
                 <button onClick={handleLeaveGame} className="leave-button">
                     게임 나가기
                 </button>
             </div>
-            
+
             {moveHistory.length > 0 && (
                 <div className="move-history">
                     <h4>이동 기록</h4>
                     <div className="moves-list">
                         {moveHistory.map((move, idx) => (
-                             <span key={idx} className="move">
-                                {idx % 2 === 0 ? `${Math.floor(idx/2) + 1}. ` : ''}{move}
+                            <span key={idx} className="move">
+                                {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}. ` : ''}{move}
                             </span>
                         ))}
                     </div>

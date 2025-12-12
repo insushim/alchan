@@ -241,9 +241,8 @@ const Investment = ({ classCode }) => {
       });
 
       setMessage({
-        text: `${
-          operationType === "withdraw_to_admin" ? "인출" : "입금"
-        } 성공! (${amount.toLocaleString()}원)`,
+        text: `${operationType === "withdraw_to_admin" ? "인출" : "입금"
+          } 성공! (${amount.toLocaleString()}원)`,
         type: "success",
       });
       setTransferAmount("");
@@ -396,8 +395,8 @@ const Investment = ({ classCode }) => {
                   {tx.type === "withdraw_to_admin"
                     ? "인출(관리자)"
                     : tx.type === "deposit_from_admin"
-                    ? "입금(관리자)"
-                    : tx.type || "알 수 없음"}
+                      ? "입금(관리자)"
+                      : tx.type || "알 수 없음"}
                   ]
                 </span>
                 <span style={styles.transactionItem_span}>
@@ -443,64 +442,72 @@ const styles = {
     maxWidth: "800px",
     margin: "20px auto",
     padding: "20px",
-    border: "1px solid #e0e0e0",
-    borderRadius: "8px",
-    backgroundColor: "#fff",
+    border: "1px solid rgba(0, 255, 242, 0.2)",
+    borderRadius: "20px",
+    backgroundColor: "#1a1a2e",
     fontFamily: "'Noto Sans KR', sans-serif",
+    boxShadow: "0 10px 40px rgba(0, 0, 0, 0.5)",
+    color: "#e8e8ff",
   },
   classCodeDisplay: {
     textAlign: "center",
     marginBottom: "15px",
     fontSize: "0.9em",
-    color: "#666",
-    backgroundColor: "#f0f0f0",
+    color: "#00fff2",
+    backgroundColor: "rgba(0, 255, 242, 0.1)",
     padding: "5px",
     borderRadius: "4px",
+    border: "1px solid rgba(0, 255, 242, 0.2)",
   },
   balanceDisplay: {
     marginBottom: "20px",
-    padding: "15px",
-    backgroundColor: "#f8f9fa",
-    borderRadius: "8px",
-    border: "1px solid #e9ecef",
+    padding: "20px",
+    backgroundColor: "#13131f",
+    borderRadius: "16px",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    boxShadow: "inset 0 2px 10px rgba(0, 0, 0, 0.3)",
   },
-  balanceValue: { fontWeight: "bold", color: "#007bff" },
+  balanceValue: { fontWeight: "bold", color: "#00fff2", textShadow: "0 0 10px rgba(0, 255, 242, 0.3)" },
   form: {
     marginBottom: "20px",
     padding: "20px",
-    border: "1px solid #dee2e6",
-    borderRadius: "8px",
-    backgroundColor: "#f8f9fa",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    borderRadius: "16px",
+    backgroundColor: "#13131f",
   },
   formGroup: { marginBottom: "15px" },
   label: {
     display: "block",
     marginBottom: "8px",
     fontWeight: "500",
-    color: "#495057",
+    color: "#94a3b8",
   },
   input: {
     width: "calc(100% - 22px)", // 패딩 고려
     padding: "10px",
-    border: "1px solid #ced4da",
-    borderRadius: "4px",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
+    borderRadius: "8px",
     fontSize: "1rem",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
+    color: "white",
   },
   actionButton: {
     padding: "10px 20px",
-    backgroundColor: "#28a745",
-    color: "white",
-    border: "none",
-    borderRadius: "5px",
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    color: "#34d399",
+    border: "1px solid rgba(16, 185, 129, 0.3)",
+    borderRadius: "8px",
     cursor: "pointer",
     fontSize: "1rem",
-    transition: "background-color 0.2s ease, opacity 0.2s ease",
+    fontWeight: "bold",
+    transition: "background-color 0.2s ease, opacity 0.2s ease, transform 0.2s ease",
+    boxShadow: "0 0 10px rgba(16, 185, 129, 0.1)",
   },
-  divider: { margin: "30px 0", border: 0, borderTop: "1px solid #dee2e6" },
+  divider: { margin: "30px 0", border: 0, borderTop: "1px solid rgba(255, 255, 255, 0.1)" },
   messageBox: {
     padding: "15px",
     marginBottom: "20px",
-    borderRadius: "5px",
+    borderRadius: "8px",
     borderWidth: "1px",
     borderStyle: "solid",
     fontSize: "1rem",
@@ -513,29 +520,32 @@ const styles = {
   linkButton: {
     display: "inline-block",
     padding: "10px 15px",
-    backgroundColor: "#6c757d",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     color: "white",
     textDecoration: "none",
-    borderRadius: "5px",
+    borderRadius: "8px",
     textAlign: "center",
     transition: "background-color 0.2s ease",
+    border: "1px solid rgba(255, 255, 255, 0.1)",
   },
   transactionList: {
     listStyleType: "none",
     paddingLeft: 0,
     maxHeight: "200px",
     overflowY: "auto",
-    border: "1px solid #eee",
-    borderRadius: "4px",
+    border: "1px solid rgba(255, 255, 255, 0.05)",
+    borderRadius: "8px",
     padding: "10px",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
   },
   transactionItem: {
     padding: "8px 0",
-    borderBottom: "1px solid #f0f0f0",
+    borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
     fontSize: "0.9em",
     display: "flex",
     flexWrap: "wrap",
     gap: "5px",
+    color: "#a0a0c0",
   },
   transactionItem_span: {
     // 최근 거래 내역의 각 span 태그에 오른쪽 여백을 주기 위한 스타일

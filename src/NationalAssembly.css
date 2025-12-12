@@ -1,47 +1,60 @@
-/* src/NationalAssembly.css */
+/* src/NationalAssembly.css - Cyberpunk Dark Theme */
 .national-assembly-container {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  font-family: "Noto Sans KR", sans-serif;
+  font-family: 'Rajdhani', "Noto Sans KR", sans-serif;
+  color: var(--cyber-text-primary);
 }
 
 .assembly-header {
   margin-bottom: 30px;
+  border-bottom: 1px solid var(--cyber-border-dim);
+  padding-bottom: 20px;
 }
 
 .assembly-title {
   font-size: 2.2rem;
-  color: #3b5998;
+  color: #fff;
   margin-bottom: 20px;
+  font-family: 'Orbitron', sans-serif;
+  text-shadow: 0 0 10px rgba(0, 136, 255, 0.4);
 }
 
 .assembly-tabs {
   display: flex;
-  border-bottom: 2px solid #dee2e6;
+  border-bottom: 1px solid var(--cyber-border-dim);
   margin-bottom: 20px;
 }
 
 .assembly-tab {
   padding: 10px 20px;
   background: none;
-  border: none;
-  border-bottom: 3px solid transparent;
+  border: 1px solid transparent;
+  border-bottom: none;
   margin-right: 5px;
   cursor: pointer;
   font-size: 1rem;
   font-weight: 500;
-  color: #6c757d;
+  color: var(--cyber-text-secondary);
   transition: all 0.3s;
+  border-radius: 8px 8px 0 0;
+  font-family: 'Rajdhani', sans-serif;
 }
 
 .assembly-tab:hover {
-  color: #3b5998;
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 .assembly-tab.active {
-  color: #3b5998;
-  border-bottom-color: #3b5998;
+  color: var(--cyber-neon-blue);
+  background: var(--cyber-bg-card);
+  border: 1px solid var(--cyber-border-dim);
+  border-bottom: 1px solid var(--cyber-bg-card);
+  font-weight: 600;
+  box-shadow: 0 -4px 10px rgba(0, 136, 255, 0.1);
+  text-shadow: 0 0 5px rgba(0, 136, 255, 0.3);
 }
 
 .content-actions {
@@ -52,38 +65,45 @@
 
 .action-button {
   padding: 10px 20px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 5px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+  font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase;
 }
 
 .propose-button {
-  background-color: #007bff;
-  color: white;
+  background: rgba(0, 136, 255, 0.2);
+  color: var(--cyber-neon-blue);
+  border-color: rgba(0, 136, 255, 0.5);
 }
 
 .propose-button:hover {
-  background-color: #0069d9;
+  background: rgba(0, 136, 255, 0.4);
+  box-shadow: 0 0 15px rgba(0, 136, 255, 0.3);
+  transform: translateY(-2px);
 }
 
 .section-title {
   font-size: 1.6rem;
-  color: #343a40;
+  color: #fff;
   margin-bottom: 20px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 1px solid var(--cyber-border-dim);
+  font-family: 'Orbitron', sans-serif;
 }
 
 .empty-state {
-  background-color: #f8f9fa;
+  background: rgba(255, 255, 255, 0.03);
   padding: 40px 20px;
   border-radius: 8px;
   text-align: center;
-  color: #6c757d;
+  color: var(--cyber-text-secondary);
   font-style: italic;
   margin-bottom: 20px;
+  border: 1px dashed var(--cyber-border-dim);
 }
 
 .law-list {
@@ -92,26 +112,30 @@
   gap: 20px;
 }
 
+/* 법안 카드 스타일 */
 .law-card {
-  background-color: white;
+  background: var(--cyber-bg-card);
+  border: 1px solid var(--cyber-border-dim);
   border-radius: 10px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--cyber-shadow-card);
   overflow: hidden;
-  transition: transform 0.2s;
-  border-left: 4px solid #6c757d;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border-left: 4px solid var(--cyber-text-secondary);
   margin-bottom: 15px;
 }
 
 .law-card:hover {
   transform: translateY(-5px);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+  border-color: var(--cyber-border-bright);
 }
 
 .law-card.approved {
-  border-left-color: #28a745;
+  border-left-color: var(--cyber-neon-green);
 }
 
 .law-card.rejected {
-  border-left-color: #dc3545;
+  border-left-color: var(--cyber-neon-red);
 }
 
 .law-card.auto-rejected {
@@ -119,15 +143,19 @@
 }
 
 .law-card.pending {
-  border-left-color: #ffc107;
+  border-left-color: var(--cyber-neon-yellow);
 }
 
 .law-card.vetoed {
-  border-left-color: #dc3545;
+  border-left-color: var(--cyber-neon-red);
 }
 
 .law-card.veto_overridden {
-  border-left-color: #17a2b8;
+  border-left-color: var(--cyber-neon-cyan);
+}
+
+.law-card.pending-gov {
+  border-left-color: var(--cyber-neon-blue);
 }
 
 .law-content-wrapper {
@@ -141,15 +169,16 @@
   justify-content: space-between;
   align-items: center;
   padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--cyber-border-dim);
 }
 
 .law-title {
   margin: 0;
   font-size: 1.2rem;
-  color: #343a40;
+  color: #fff;
   flex: 1;
+  font-weight: 600;
 }
 
 .law-status-container {
@@ -161,49 +190,60 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   color: white;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .law-status.approved {
-  background-color: #28a745;
+  background: rgba(16, 185, 129, 0.3);
+  color: var(--cyber-neon-green);
+  border: 1px solid rgba(16, 185, 129, 0.5);
 }
 
 .law-status.rejected {
-  background-color: #dc3545;
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--cyber-neon-red);
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
 .law-status.auto-rejected {
-  background-color: #6f42c1;
+  background: rgba(139, 92, 246, 0.3);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.5);
 }
 
 .law-status.pending {
-  background-color: #ffc107;
-  color: #212529;
+  background: rgba(245, 158, 11, 0.3);
+  color: var(--cyber-neon-yellow);
+  border: 1px solid rgba(245, 158, 11, 0.5);
 }
 
 .law-status.vetoed {
-  background-color: #dc3545;
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--cyber-neon-red);
+  border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
 .law-status.override {
-  background-color: #17a2b8;
+  background: rgba(6, 182, 212, 0.3);
+  color: var(--cyber-neon-cyan);
+  border: 1px solid rgba(6, 182, 212, 0.5);
 }
 
 .law-status.final-approved {
-  background-color: #28a745;
-  border: 1px solid #1e7e34;
+  background: rgba(16, 185, 129, 0.3);
+  color: var(--cyber-neon-green);
+  border: 1px solid var(--cyber-neon-green);
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.3);
 }
 
 .law-status.pending-gov {
-  background-color: #6366f1;
-  color: #ffffff;
-  font-weight: 600;
+  background: rgba(59, 130, 246, 0.3);
+  color: var(--cyber-neon-blue);
+  border: 1px solid rgba(59, 130, 246, 0.5);
 }
 
-.law-card.pending-gov {
-  border-left-color: #6366f1;
-}
 
 .law-content {
   padding: 15px 20px;
@@ -213,17 +253,17 @@
 .law-content p {
   margin: 8px 0;
   font-size: 0.95rem;
-  color: #495057;
+  color: var(--cyber-text-secondary);
 }
 
 .law-content strong {
-  color: #343a40;
+  color: #fff;
 }
 
 .law-footer {
-  border-top: 1px solid #e9ecef;
+  border-top: 1px solid var(--cyber-border-dim);
   padding: 15px 20px;
-  background-color: #f8f9fa;
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .vote-stats {
@@ -239,25 +279,27 @@
   display: flex;
   align-items: center;
   font-size: 0.9rem;
-  color: #495057;
+  color: var(--cyber-text-secondary);
 }
 
 .vote-type.approval {
-  color: #28a745;
+  color: var(--cyber-neon-green);
 }
 
 .vote-type.disapproval {
-  color: #dc3545;
+  color: var(--cyber-neon-red);
 }
 
 .vote-number {
   font-weight: bold;
   margin: 0 3px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.1rem;
 }
 
 .vote-required {
   font-size: 0.8rem;
-  color: #6c757d;
+  color: var(--cyber-text-secondary);
 }
 
 .action-buttons {
@@ -273,47 +315,57 @@
 
 .vote-button {
   padding: 6px 15px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 5px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s;
+  font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase;
 }
 
 .vote-button.approve {
-  background-color: #28a745;
-  color: white;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--cyber-neon-green);
+  border-color: rgba(16, 185, 129, 0.5);
 }
 
 .vote-button.approve:hover {
-  background-color: #218838;
+  background: rgba(16, 185, 129, 0.4);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
 }
 
 .vote-button.approve:disabled,
 .vote-button.approve.voted {
-  background-color: #8fd19e;
+  background: rgba(16, 185, 129, 0.1);
+  color: rgba(16, 185, 129, 0.5);
+  border-color: transparent;
   cursor: not-allowed;
 }
 
 .vote-button.disapprove {
-  background-color: #dc3545;
-  color: white;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--cyber-neon-red);
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .vote-button.disapprove:hover {
-  background-color: #c82333;
+  background: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
 .vote-button.disapprove:disabled,
 .vote-button.disapprove.voted {
-  background-color: #e4606d;
+  background: rgba(239, 68, 68, 0.1);
+  color: rgba(239, 68, 68, 0.5);
+  border-color: transparent;
   cursor: not-allowed;
 }
 
 .reject-delete-button {
-  background-color: #6c757d;
-  color: white;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cyber-text-secondary);
+  border: 1px solid var(--cyber-border-dim);
   padding: 6px 15px;
   border-radius: 5px;
   cursor: pointer;
@@ -321,7 +373,8 @@
 }
 
 .reject-delete-button:hover {
-  background-color: #5a6268;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .admin-actions {
@@ -331,7 +384,7 @@
 
 .admin-button {
   padding: 6px 12px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 4px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -340,30 +393,34 @@
 }
 
 .edit-button {
-  background-color: #17a2b8;
-  color: white;
+  background: rgba(6, 182, 212, 0.2);
+  color: var(--cyber-neon-cyan);
+  border-color: rgba(6, 182, 212, 0.5);
 }
 
 .edit-button:hover {
-  background-color: #138496;
+  background: rgba(6, 182, 212, 0.4);
 }
 
 .delete-button {
-  background-color: #dc3545;
-  color: white;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--cyber-neon-red);
+  border-color: rgba(239, 68, 68, 0.5);
 }
 
 .delete-button:hover {
-  background-color: #c82333;
+  background: rgba(239, 68, 68, 0.4);
 }
 
 .reset-button {
-  background-color: #6c757d;
-  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cyber-text-secondary);
+  border: 1px solid var(--cyber-border-dim);
 }
 
 .reset-button:hover {
-  background-color: #5a6268;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 /* 관리자 설정 영역 */
@@ -379,26 +436,28 @@
 }
 
 .admin-setting-card {
-  background-color: white;
+  background: var(--cyber-bg-card);
   border-radius: 10px;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--cyber-border-dim);
+  box-shadow: var(--cyber-shadow-card);
   overflow: hidden;
 }
 
 .setting-header {
   padding: 15px 20px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid var(--cyber-border-dim);
 }
 
 .setting-header h3 {
   margin: 0;
   font-size: 1.2rem;
-  color: #343a40;
+  color: #fff;
 }
 
 .setting-content {
   padding: 20px;
+  color: var(--cyber-text-primary);
 }
 
 .switch {
@@ -422,7 +481,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #ccc;
+  background-color: #4a5568;
   transition: 0.4s;
 }
 
@@ -437,15 +496,15 @@
   transition: 0.4s;
 }
 
-input:checked + .slider {
-  background-color: #28a745;
+input:checked+.slider {
+  background-color: var(--cyber-neon-green);
 }
 
-input:focus + .slider {
-  box-shadow: 0 0 1px #28a745;
+input:focus+.slider {
+  box-shadow: 0 0 1px var(--cyber-neon-green);
 }
 
-input:checked + .slider:before {
+input:checked+.slider:before {
   transform: translateX(26px);
 }
 
@@ -459,7 +518,7 @@ input:checked + .slider:before {
 
 .setting-label {
   font-weight: 500;
-  color: #495057;
+  color: var(--cyber-text-primary);
   vertical-align: middle;
 }
 
@@ -473,13 +532,14 @@ input:checked + .slider:before {
   width: 40px;
   height: 40px;
   border: none;
-  background-color: #6c757d;
-  color: white;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #fff;
   font-size: 1.2rem;
   display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
+  border: 1px solid var(--cyber-border-dim);
 }
 
 .count-button.decrease {
@@ -493,15 +553,18 @@ input:checked + .slider:before {
 .setting-input {
   width: 60px;
   height: 40px;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--cyber-border-dim);
   text-align: center;
   font-size: 1rem;
-}
-
-.setting-input.student-count {
-  border-radius: 0;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
   border-left: none;
   border-right: none;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: var(--cyber-neon-blue);
 }
 
 .setting-info {
@@ -510,65 +573,70 @@ input:checked + .slider:before {
 
 .setting-description {
   font-size: 0.85rem;
-  color: #6c757d;
+  color: var(--cyber-text-secondary);
   font-style: italic;
   margin-top: 5px;
 }
 
 .admin-button.danger {
-  background-color: #dc3545;
-  color: white;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--cyber-neon-red);
+  border: 1px solid rgba(239, 68, 68, 0.5);
   padding: 8px 15px;
   margin-top: 15px;
 }
 
 .admin-button.danger:hover {
-  background-color: #c82333;
+  background: rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
 }
 
-/* 모달 스타일 */
-.national-assembly-container .modal-overlay {
+/* 모달 스타일 Override for Dark Theme */
+.national-assembly-container .modal-overlay,
+.modal-overlay {
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  background-color: rgba(0, 0, 0, 0.5) !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(5px) !important;
   display: flex !important;
   justify-content: center !important;
   align-items: center !important;
   z-index: 99999 !important;
-  visibility: visible !important;
-  opacity: 1 !important;
 }
 
-.national-assembly-container .modal-container {
-  background-color: white !important;
+.national-assembly-container .modal-container,
+.modal-container {
+  background-color: #1a1a2e !important;
   width: 90% !important;
   max-width: 600px !important;
   border-radius: 10px !important;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 136, 255, 0.2) !important;
   overflow: hidden !important;
   z-index: 100000 !important;
   position: relative !important;
-  visibility: visible !important;
-  opacity: 1 !important;
+  border: 1px solid var(--cyber-border-dim) !important;
 }
 
 .modal-header {
   padding: 15px 20px;
-  border-bottom: 1px solid #e9ecef;
-  background-color: #f8f9fa;
+  border-bottom: 1px solid var(--cyber-border-dim);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .modal-title {
   margin: 0;
   font-size: 1.4rem;
-  color: #343a40;
+  color: #fff;
+  font-family: 'Orbitron', sans-serif;
+  text-shadow: 0 0 10px rgba(0, 136, 255, 0.4);
 }
 
 .modal-content {
   padding: 20px;
+  color: var(--cyber-text-primary);
 }
 
 .form-group {
@@ -579,17 +647,26 @@ input:checked + .slider:before {
   display: block;
   margin-bottom: 5px;
   font-weight: 500;
-  color: #495057;
+  color: var(--cyber-text-primary);
 }
 
 .form-input,
 .form-textarea {
   width: 100%;
   padding: 10px;
-  border: 1px solid #ced4da;
+  border: 1px solid var(--cyber-border-dim);
   border-radius: 5px;
   font-size: 1rem;
-  color: #495057;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.3);
+  transition: all 0.2s ease;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+  outline: none;
+  border-color: var(--cyber-neon-blue);
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.2);
 }
 
 .form-textarea {
@@ -602,40 +679,48 @@ input:checked + .slider:before {
   justify-content: flex-end;
   gap: 10px;
   padding: 15px 20px;
-  border-top: 1px solid #e9ecef;
-  background-color: #f8f9fa;
+  border-top: 1px solid var(--cyber-border-dim);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .modal-button {
   padding: 8px 20px;
-  border: none;
+  border: 1px solid transparent;
   border-radius: 5px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s;
+  font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase;
 }
 
 .modal-button.cancel {
-  background-color: #6c757d;
-  color: white;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--cyber-text-secondary);
+  border: 1px solid var(--cyber-border-dim);
 }
 
 .modal-button.cancel:hover {
-  background-color: #5a6268;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
 
 .modal-button.submit {
-  background-color: #007bff;
-  color: white;
+  background: rgba(0, 136, 255, 0.2);
+  color: var(--cyber-neon-blue);
+  border-color: rgba(0, 136, 255, 0.5);
 }
 
 .modal-button.submit:hover {
-  background-color: #0069d9;
+  background: rgba(0, 136, 255, 0.4);
+  box-shadow: 0 0 15px rgba(0, 136, 255, 0.3);
 }
 
 .modal-button:disabled {
-  opacity: 0.7;
+  opacity: 0.5;
   cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.05);
+  color: #666;
 }
 
 /* 모바일 화면에서 카드가 전체 너비를 차지하도록 조정 */
@@ -690,103 +775,5 @@ input:checked + .slider:before {
   .vote-count {
     flex-direction: column;
     gap: 5px;
-  }
-}
-
-/* 다크 모드 */
-@media (prefers-color-scheme: dark) {
-  .national-assembly-container {
-    background-color: #1a1a1a;
-    color: #f0f0f0;
-  }
-
-  .assembly-title {
-    color: #4a6bab;
-  }
-
-  .assembly-tabs {
-    border-bottom-color: #444;
-  }
-
-  .assembly-tab {
-    color: #aaa;
-  }
-
-  .assembly-tab.active {
-    color: #4a6bab;
-    border-bottom-color: #4a6bab;
-  }
-
-  .section-title {
-    color: #e0e0e0;
-    border-bottom-color: #444;
-  }
-
-  .empty-state {
-    background-color: #2c2c2c;
-    color: #aaa;
-  }
-
-  .law-card {
-    background-color: #2c2c2c;
-  }
-
-  .law-header,
-  .law-footer {
-    background-color: #252525;
-    border-color: #444;
-  }
-
-  .law-title {
-    color: #e0e0e0;
-  }
-
-  .law-content p {
-    color: #ccc;
-  }
-
-  .law-content strong {
-    color: #e0e0e0;
-  }
-
-  .admin-setting-card {
-    background-color: #2c2c2c;
-  }
-
-  .setting-header {
-    background-color: #252525;
-    border-color: #444;
-  }
-
-  .setting-header h3 {
-    color: #e0e0e0;
-  }
-
-  .modal-container,
-  .modal-header,
-  .modal-content,
-  .modal-footer {
-    background-color: #2c2c2c;
-  }
-
-  .modal-header,
-  .modal-footer {
-    border-color: #444;
-    background-color: #252525;
-  }
-
-  .modal-title {
-    color: #e0e0e0;
-  }
-
-  .form-label {
-    color: #e0e0e0;
-  }
-
-  .form-input,
-  .form-textarea {
-    background-color: #333;
-    border-color: #555;
-    color: #e0e0e0;
   }
 }

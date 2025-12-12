@@ -4,6 +4,14 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { verifyClassCode } from "./firebase";
 import "./Header.css";
+// Force dark theme background on header load
+const headerStyle = {
+    background: "linear-gradient(90deg, rgba(0, 255, 242, 0.05) 0%, rgba(10, 10, 18, 0.95) 50%, rgba(139, 92, 246, 0.05) 100%)",
+    backgroundColor: "#0a0a12",
+    color: "#e8e8ff",
+    backdropFilter: "blur(10px)",
+    borderBottom: "1px solid rgba(0, 255, 242, 0.15)",
+};
 import { formatKoreanCurrency, formatCouponCount } from './numberFormatter';
 import { useStableCallback, useSelectiveMemo, useRenderCount } from './hooks/useOptimizedMemo';
 const MenuIcon = () => (
@@ -93,7 +101,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
         }
         setShowUserMenu(false);
     };
-    
+
     // --- 닉네임 변경 관련 함수들 (기존 로직 유지) ---
     const handleChangeNickname = () => {
         setNewNickname(userDoc?.name || userDoc?.nickname || "");
@@ -116,7 +124,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
         if (trimmedNickname.length < 2) return setNicknameError("닉네임은 최소 2자 이상이어야 합니다.");
         if (trimmedNickname.length > 12) return setNicknameError("닉네임은 최대 12자까지 가능합니다.");
         if (trimmedNickname === (userDoc?.name || userDoc?.nickname)) return setNicknameError("현재 닉네임과 동일합니다.");
-        
+
         setIsLoading(true);
         try {
             const success = await updateUser({ name: trimmedNickname });
@@ -163,10 +171,10 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
         try {
             // 🚀 [수정됨] 세 번째 인자로 true를 전달하여 재인증임을 알림
             await loginWithEmailPassword(user.email, currentPassword, true);
-            
+
             // 2. 재인증 성공 시 비밀번호 변경
             await changePassword(newPassword);
-            
+
             setPasswordSuccess(true);
             setTimeout(() => {
                 cancelPasswordChange();
@@ -183,7 +191,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
             setIsLoading(false);
         }
     };
-    
+
     // --- 학급 코드 입력/변경 관련 함수들 (기존 로직 유지) ---
     const handleEnterClassCodeClick = () => {
         setNewClassCodeInput(userDoc?.classCode || "");
@@ -240,7 +248,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
             setIsVerifyingAndSavingCode(false);
         }
     };
-    
+
     const handleClassCodeKeyPress = (event) => {
         if (event.key === "Enter" && !isVerifyingAndSavingCode) {
             event.preventDefault();
@@ -252,7 +260,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
     const handleDeleteAccount = async () => {
         setShowUserMenu(false);
         const confirmation = window.prompt("정말로 계정을 삭제하시려면 '계정삭제'라고 입력해주세요. 이 작업은 되돌릴 수 없습니다.");
-        
+
         if (confirmation === '계정삭제') {
             const password = window.prompt("계정 삭제를 위해 현재 비밀번호를 입력해주세요.");
             if (password) {
@@ -295,24 +303,24 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
     }, []);
 
     const displayName = userDoc?.name || userDoc?.nickname || user?.displayName || "사용자";
-    
+
     // UI 렌더링 부분은 보내주신 원본 구조를 최대한 유지합니다.
     return (
-        <header className="header">
+        <header className="header" style={headerStyle}>
             <div className="header-left">
                 <button onClick={toggleSidebar} className="menu-button">
                     <MenuIcon />
                     <span className="menu-text">메뉴</span>
                 </button>
             </div>
-    
+
             <div className="header-center">
                 <a href="/" className="header-title">
                     Ineconomy<span className="highlight-text">s</span>U Clas
                     <span className="highlight-text">S</span>
                 </a>
             </div>
-    
+
             <div className="header-right" ref={userMenuRef}>
                 {user ? (
                     <>
@@ -340,7 +348,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                                 </div>
                             </div>
                         )}
-    
+
                         {/* 비밀번호 변경 UI */}
                         {isChangingPassword && (
                             <div className="password-change-container">
@@ -390,7 +398,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                                 </div>
                             </div>
                         )}
-    
+
                         {/* 학급 코드 입력/변경 UI */}
                         {isEnteringClassCode && (
                             <div className="classcode-entry-container">
@@ -428,7 +436,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                                 </div>
                             </div>
                         )}
-    
+
                         {/* 사용자 정보 버튼 및 드롭다운 메뉴 */}
                         {!isChangingNickname && !isChangingPassword && !isEnteringClassCode && (
                             <button onClick={toggleUserMenu} className="my-info-button">
@@ -436,7 +444,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                                 <span className="my-info-text">{displayName}</span>
                             </button>
                         )}
-    
+
                         {showUserMenu && (
                             <div className="user-dropdown-menu">
                                 <div className="user-info-section">
@@ -473,5 +481,5 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
 // 🔥 [최적화] props가 변경될 때만 재렌더링되도록 메모이제이션
 export default memo(Header, (prevProps, nextProps) => {
     return prevProps.isAdmin === nextProps.isAdmin &&
-           prevProps.toggleSidebar === nextProps.toggleSidebar;
+        prevProps.toggleSidebar === nextProps.toggleSidebar;
 });

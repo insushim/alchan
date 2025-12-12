@@ -27,6 +27,7 @@ import {
   orderBy as firebaseOrderBy,
 } from "firebase/firestore";
 import { AlchanLoading } from "./components/AlchanLayout";
+import "./Auction.css";
 
 export default function Auction() {
   // --- Context Data ---
@@ -123,14 +124,14 @@ export default function Auction() {
         let sellerItemDoc = null;
         let sellerItemRef = null;
         if (!auctionData.highestBidder) {
-            // 유찰된 경우에만 판매자 아이템 문서 읽기
-            const returnCollection = auctionData.assetSourceCollection || 'inventory'; // 안전장치
-            sellerItemRef = doc(db, "users", auctionData.seller, returnCollection, auctionData.assetId);
-            sellerItemDoc = await transaction.get(sellerItemRef);
+          // 유찰된 경우에만 판매자 아이템 문서 읽기
+          const returnCollection = auctionData.assetSourceCollection || 'inventory'; // 안전장치
+          sellerItemRef = doc(db, "users", auctionData.seller, returnCollection, auctionData.assetId);
+          sellerItemDoc = await transaction.get(sellerItemRef);
         }
 
         // ====== 모든 쓰기 작업을 읽기 완료 후 실행 ======
-        
+
         if (auctionData.highestBidder) {
           // --- 성공적인 경매 (낙찰자 있음) ---
           const sellerRef = doc(db, "users", auctionData.seller);
@@ -184,23 +185,23 @@ export default function Auction() {
           // --- 유찰된 경매 (낙찰자 없음) ---
           // 1. 판매자에게 아이템 반환 (개선된 로직)
           if (sellerItemDoc && sellerItemDoc.exists()) {
-              // 판매자 인벤토리에 해당 아이템 문서가 아직 존재하면 수량만 증가
-              transaction.update(sellerItemRef, {
-                  quantity: increment(1),
-                  updatedAt: serverTimestamp(),
-              });
-          } else if(sellerItemRef) {
-              // 판매자가 해당 종류의 아이템을 모두 소진해 문서가 없다면 새로 생성
-              transaction.set(sellerItemRef, {
-                  itemId: auctionData.originalStoreItemId,
-                  name: auctionData.name,
-                  description: auctionData.description,
-                  icon: auctionData.itemIcon || "📦",
-                  quantity: 1,
-                  type: "item",
-                  addedAt: serverTimestamp(),
-                  updatedAt: serverTimestamp(),
-              });
+            // 판매자 인벤토리에 해당 아이템 문서가 아직 존재하면 수량만 증가
+            transaction.update(sellerItemRef, {
+              quantity: increment(1),
+              updatedAt: serverTimestamp(),
+            });
+          } else if (sellerItemRef) {
+            // 판매자가 해당 종류의 아이템을 모두 소진해 문서가 없다면 새로 생성
+            transaction.set(sellerItemRef, {
+              itemId: auctionData.originalStoreItemId,
+              name: auctionData.name,
+              description: auctionData.description,
+              icon: auctionData.itemIcon || "📦",
+              quantity: 1,
+              type: "item",
+              addedAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            });
           }
 
           // 2. 활동 로그 기록
@@ -571,27 +572,27 @@ export default function Auction() {
         showNotification("입찰이 진행된 경매는 취소할 수 없습니다 (Firestore 확인).", "error");
         return;
       }
-      
+
       // 아이템 반환 로직을 updateUserItemQuantity를 사용하도록 수정하지 않고,
       // settleAuction과 동일한 강력한 로직을 사용하기 위해 트랜잭션으로 처리합니다.
       const returnCollection = firestoreAuctionData.assetSourceCollection || 'inventory';
       const sellerItemRef = doc(db, "users", firestoreAuctionData.seller, returnCollection, firestoreAuctionData.assetId);
-      
+
       await runTransaction(db, async (transaction) => {
-          const sellerItemDoc = await transaction.get(sellerItemRef);
-          if (sellerItemDoc.exists()) {
-              transaction.update(sellerItemRef, { quantity: increment(1) });
-          } else {
-              transaction.set(sellerItemRef, {
-                  itemId: firestoreAuctionData.originalStoreItemId,
-                  name: firestoreAuctionData.name,
-                  icon: firestoreAuctionData.itemIcon,
-                  description: firestoreAuctionData.description,
-                  quantity: 1,
-                  type: "item",
-              });
-          }
-          transaction.delete(auctionRef);
+        const sellerItemDoc = await transaction.get(sellerItemRef);
+        if (sellerItemDoc.exists()) {
+          transaction.update(sellerItemRef, { quantity: increment(1) });
+        } else {
+          transaction.set(sellerItemRef, {
+            itemId: firestoreAuctionData.originalStoreItemId,
+            name: firestoreAuctionData.name,
+            icon: firestoreAuctionData.itemIcon,
+            description: firestoreAuctionData.description,
+            quantity: 1,
+            type: "item",
+          });
+        }
+        transaction.delete(auctionRef);
       });
 
       showNotification("경매가 취소되었습니다.", "success");
@@ -614,58 +615,58 @@ export default function Auction() {
       return;
     }
     if (!window.confirm(`[관리자] '${auction.name}' 경매를 강제로 취소하고 아이템을 판매자에게 반환하시겠습니까? 입찰금이 있다면 최고 입찰자에게 환불됩니다.`)) {
-        return;
+      return;
     }
 
     const auctionRef = doc(db, "classes", classCode, "auctions", auction.id);
     console.log(`[Admin Cancel] 관리자 취소 시도: ${auction.id}`);
-    
+
     try {
-        await runTransaction(db, async (transaction) => {
-            const auctionDoc = await transaction.get(auctionRef);
-            if (!auctionDoc.exists() || auctionDoc.data().status !== 'ongoing') {
-                throw new Error("경매가 이미 처리되었거나 삭제되었습니다.");
-            }
-            const auctionData = auctionDoc.data();
-            
-            // 1. 최고 입찰자가 있으면 입찰금 환불
-            if (auctionData.highestBidder && auctionData.currentBid > 0) {
-                const bidderRef = doc(db, "users", auctionData.highestBidder);
-                transaction.update(bidderRef, {
-                    cash: increment(auctionData.currentBid),
-                    updatedAt: serverTimestamp(),
-                });
-            }
-            
-            // 2. 판매자에게 아이템 반환 (settleAuction의 유찰 로직과 동일)
-            const returnCollection = auctionData.assetSourceCollection || 'inventory';
-            const sellerItemRef = doc(db, "users", auctionData.seller, returnCollection, auctionData.assetId);
-            const sellerItemDoc = await transaction.get(sellerItemRef);
+      await runTransaction(db, async (transaction) => {
+        const auctionDoc = await transaction.get(auctionRef);
+        if (!auctionDoc.exists() || auctionDoc.data().status !== 'ongoing') {
+          throw new Error("경매가 이미 처리되었거나 삭제되었습니다.");
+        }
+        const auctionData = auctionDoc.data();
 
-            if (sellerItemDoc.exists()) {
-                transaction.update(sellerItemRef, { quantity: increment(1) });
-            } else {
-                transaction.set(sellerItemRef, {
-                    itemId: auctionData.originalStoreItemId,
-                    name: auctionData.name,
-                    icon: auctionData.itemIcon || "📦",
-                    description: auctionData.description,
-                    quantity: 1,
-                    type: "item",
-                });
-            }
+        // 1. 최고 입찰자가 있으면 입찰금 환불
+        if (auctionData.highestBidder && auctionData.currentBid > 0) {
+          const bidderRef = doc(db, "users", auctionData.highestBidder);
+          transaction.update(bidderRef, {
+            cash: increment(auctionData.currentBid),
+            updatedAt: serverTimestamp(),
+          });
+        }
 
-            // 3. 경매 문서 삭제
-            transaction.delete(auctionRef);
-        });
+        // 2. 판매자에게 아이템 반환 (settleAuction의 유찰 로직과 동일)
+        const returnCollection = auctionData.assetSourceCollection || 'inventory';
+        const sellerItemRef = doc(db, "users", auctionData.seller, returnCollection, auctionData.assetId);
+        const sellerItemDoc = await transaction.get(sellerItemRef);
 
-        showNotification(`'${auction.name}' 경매가 관리자에 의해 취소되었습니다.`, "success");
-        if (itemsContext.fetchUserItems) itemsContext.fetchUserItems();
-        if (authContext.fetchAllUsers) authContext.fetchAllUsers(true);
+        if (sellerItemDoc.exists()) {
+          transaction.update(sellerItemRef, { quantity: increment(1) });
+        } else {
+          transaction.set(sellerItemRef, {
+            itemId: auctionData.originalStoreItemId,
+            name: auctionData.name,
+            icon: auctionData.itemIcon || "📦",
+            description: auctionData.description,
+            quantity: 1,
+            type: "item",
+          });
+        }
+
+        // 3. 경매 문서 삭제
+        transaction.delete(auctionRef);
+      });
+
+      showNotification(`'${auction.name}' 경매가 관리자에 의해 취소되었습니다.`, "success");
+      if (itemsContext.fetchUserItems) itemsContext.fetchUserItems();
+      if (authContext.fetchAllUsers) authContext.fetchAllUsers(true);
 
     } catch (error) {
-        console.error("[Admin Cancel] 관리자 경매 취소 오류:", error);
-        showNotification(`관리자 취소 실패: ${error.message}`, "error");
+      console.error("[Admin Cancel] 관리자 경매 취소 오류:", error);
+      showNotification(`관리자 취소 실패: ${error.message}`, "error");
     }
   };
 
@@ -763,56 +764,56 @@ export default function Auction() {
             {ongoingAuctions.length > 0 ? (
               <div className="auctions-grid">
                 {ongoingAuctions.map((auction) => (
-                    <article key={auction.id} className="auction-card">
-                      <div className="auction-info">
-                        <header className="card-header">
-                          <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
-                          <span className={`time-left-badge ${!(auction.endTime instanceof Date) || isNaN(auction.endTime.getTime()) ? "error" : ""}`} title={auction.endTime instanceof Date ? auction.endTime.toLocaleString() : "종료 시간 정보 없음"}>
-                            {getTimeLeft(auction.endTime)}
-                          </span>
-                        </header>
-                        <p className="auction-description">{auction.description || "설명 없음"}</p>
-                        <div className="auction-price-details">
-                          <p>시작가: <span className="price start-price">{formatPrice(auction.startPrice)}</span></p>
-                          <p>현재가: <span className="price current-price">{formatPrice(auction.currentBid)}</span></p>
-                        </div>
-                        <p className="auction-meta">
-                          <span>입찰: {auction.bidCount}회</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
-                        </p>
-                        {auction.highestBidder === currentUserId && auction.seller !== currentUserId && (
-                          <p className="bid-status-indicator highest">현재 최고 입찰자입니다!</p>
-                        )}
+                  <article key={auction.id} className="auction-card">
+                    <div className="auction-info">
+                      <header className="card-header">
+                        <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
+                        <span className={`time-left-badge ${!(auction.endTime instanceof Date) || isNaN(auction.endTime.getTime()) ? "error" : ""}`} title={auction.endTime instanceof Date ? auction.endTime.toLocaleString() : "종료 시간 정보 없음"}>
+                          {getTimeLeft(auction.endTime)}
+                        </span>
+                      </header>
+                      <p className="auction-description">{auction.description || "설명 없음"}</p>
+                      <div className="auction-price-details">
+                        <p>시작가: <span className="price start-price">{formatPrice(auction.startPrice)}</span></p>
+                        <p>현재가: <span className="price current-price">{formatPrice(auction.currentBid)}</span></p>
                       </div>
-                      
-                      {/* --- 사용자 입찰 영역 --- */}
-                      {auction.seller !== currentUserId && auction.status === "ongoing" && auction.endTime instanceof Date && auction.endTime > currentTime && (
-                          <footer className="auction-actions">
-                            <div className="bid-input-group">
-                              <input type="text" inputMode="numeric" pattern="[0-9]*" className="bid-input" placeholder={`${formatPrice(auction.currentBid + 1)} 이상`} value={bidAmount[auction.id] || ""} onChange={(e) => handleBidAmountChange(e, auction.id)} aria-label={`${auction.name} 입찰 금액`} />
-                              <button className="bid-button" onClick={() => handleBid(auction.id)} disabled={!bidAmount[auction.id] || isNaN(parseInt(bidAmount[auction.id] || "0", 10)) || parseInt(bidAmount[auction.id] || "0", 10) <= auction.currentBid}>입찰</button>
-                            </div>
-                          </footer>
+                      <p className="auction-meta">
+                        <span>입찰: {auction.bidCount}회</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
+                      </p>
+                      {auction.highestBidder === currentUserId && auction.seller !== currentUserId && (
+                        <p className="bid-status-indicator highest">현재 최고 입찰자입니다!</p>
                       )}
+                    </div>
 
-                      {/* --- 내 경매 물품 표시 --- */}
-                      {auction.seller === currentUserId && auction.status === "ongoing" && (
-                          <footer className="auction-actions owner-notice">
-                            <span>내 경매 물품</span>
-                          </footer>
-                      )}
+                    {/* --- 사용자 입찰 영역 --- */}
+                    {auction.seller !== currentUserId && auction.status === "ongoing" && auction.endTime instanceof Date && auction.endTime > currentTime && (
+                      <footer className="auction-actions">
+                        <div className="bid-input-group">
+                          <input type="text" inputMode="numeric" pattern="[0-9]*" className="bid-input" placeholder={`${formatPrice(auction.currentBid + 1)} 이상`} value={bidAmount[auction.id] || ""} onChange={(e) => handleBidAmountChange(e, auction.id)} aria-label={`${auction.name} 입찰 금액`} />
+                          <button className="bid-button" onClick={() => handleBid(auction.id)} disabled={!bidAmount[auction.id] || isNaN(parseInt(bidAmount[auction.id] || "0", 10)) || parseInt(bidAmount[auction.id] || "0", 10) <= auction.currentBid}>입찰</button>
+                        </div>
+                      </footer>
+                    )}
 
-                      {/* --- [신규] 관리자 취소 버튼 --- */}
-                      {authContext.isAdmin() && auction.status === 'ongoing' && (
-                          <footer className="auction-actions admin-actions">
-                              <button
-                                  className="action-button admin-cancel-button"
-                                  onClick={() => handleAdminCancelAuction(auction)}
-                              >
-                                  관리자 취소
-                              </button>
-                          </footer>
-                      )}
-                    </article>
+                    {/* --- 내 경매 물품 표시 --- */}
+                    {auction.seller === currentUserId && auction.status === "ongoing" && (
+                      <footer className="auction-actions owner-notice">
+                        <span>내 경매 물품</span>
+                      </footer>
+                    )}
+
+                    {/* --- [신규] 관리자 취소 버튼 --- */}
+                    {authContext.isAdmin() && auction.status === 'ongoing' && (
+                      <footer className="auction-actions admin-actions">
+                        <button
+                          className="action-button admin-cancel-button"
+                          onClick={() => handleAdminCancelAuction(auction)}
+                        >
+                          관리자 취소
+                        </button>
+                      </footer>
+                    )}
+                  </article>
                 ))}
               </div>
             ) : (
@@ -826,42 +827,42 @@ export default function Auction() {
             {myAuctions.length > 0 ? (
               <div className="list-view">
                 {myAuctions.map((auction) => (
-                    <article key={auction.id} className="list-item my-auction-item">
-                      <div className="item-info">
-                        <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
-                        <p className="item-description">{auction.description || "설명 없음"}</p>
-                        <div className="price-details">
-                          <span>시작가: {formatPrice(auction.startPrice)}</span>
-                          <span>현재가: {formatPrice(auction.currentBid)}</span>
-                        </div>
-                        <p className="meta-details">
-                          <span>입찰: {auction.bidCount}회</span> | <span>남은 시간: {getTimeLeft(auction.endTime)}</span>
-                        </p>
-                        <p className={`status-indicator ${auction.status === "ongoing" ? "ongoing" : "completed"}`}>
-                          상태: {auction.status === "ongoing" ? "진행 중" : auction.highestBidder ? "판매 완료" : "유찰됨"}
-                          {auction.status === 'error' && <span className="error-text">(오류)</span>}
-                        </p>
-                        {auction.highestBidder && (<p className="highest-bidder-info">최고 입찰자: {auction.highestBidder === currentUserId ? "나" : allUsersData?.find((u) => u.id === auction.highestBidder)?.name || auction.highestBidder?.substring(0, 6)}</p>)}
+                  <article key={auction.id} className="list-item my-auction-item">
+                    <div className="item-info">
+                      <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
+                      <p className="item-description">{auction.description || "설명 없음"}</p>
+                      <div className="price-details">
+                        <span>시작가: {formatPrice(auction.startPrice)}</span>
+                        <span>현재가: {formatPrice(auction.currentBid)}</span>
                       </div>
-                      <div className="item-actions">
-                        {auction.status === "ongoing" && auction.bidCount === 0 && auction.seller === currentUserId && (<button className="action-button cancel-button" onClick={() => handleCancelAuction(auction.id)}>등록 취소</button>)}
-                        {auction.status === "ongoing" && auction.bidCount > 0 && (<span className="action-status-text">입찰 진행 중</span>)}
-                        
-                        {/* --- [신규] 관리자 취소 버튼 (내 경매 탭) --- */}
-                        {authContext.isAdmin() && auction.status === 'ongoing' && (
-                            <button
-                                className="action-button admin-cancel-button"
-                                onClick={() => handleAdminCancelAuction(auction)}
-                            >
-                                관리자 취소
-                            </button>
-                        )}
+                      <p className="meta-details">
+                        <span>입찰: {auction.bidCount}회</span> | <span>남은 시간: {getTimeLeft(auction.endTime)}</span>
+                      </p>
+                      <p className={`status-indicator ${auction.status === "ongoing" ? "ongoing" : "completed"}`}>
+                        상태: {auction.status === "ongoing" ? "진행 중" : auction.highestBidder ? "판매 완료" : "유찰됨"}
+                        {auction.status === 'error' && <span className="error-text">(오류)</span>}
+                      </p>
+                      {auction.highestBidder && (<p className="highest-bidder-info">최고 입찰자: {auction.highestBidder === currentUserId ? "나" : allUsersData?.find((u) => u.id === auction.highestBidder)?.name || auction.highestBidder?.substring(0, 6)}</p>)}
+                    </div>
+                    <div className="item-actions">
+                      {auction.status === "ongoing" && auction.bidCount === 0 && auction.seller === currentUserId && (<button className="action-button cancel-button" onClick={() => handleCancelAuction(auction.id)}>등록 취소</button>)}
+                      {auction.status === "ongoing" && auction.bidCount > 0 && (<span className="action-status-text">입찰 진행 중</span>)}
 
-                        {auction.status === "completed" && auction.highestBidder && (<span className="action-status-text sold">판매 완료</span>)}
-                        {auction.status === "completed" && !auction.highestBidder && (<span className="action-status-text unsold">유찰됨</span>)}
-                        {auction.status === "error" && (<span className="action-status-text error">오류 발생</span>)}
-                      </div>
-                    </article>
+                      {/* --- [신규] 관리자 취소 버튼 (내 경매 탭) --- */}
+                      {authContext.isAdmin() && auction.status === 'ongoing' && (
+                        <button
+                          className="action-button admin-cancel-button"
+                          onClick={() => handleAdminCancelAuction(auction)}
+                        >
+                          관리자 취소
+                        </button>
+                      )}
+
+                      {auction.status === "completed" && auction.highestBidder && (<span className="action-status-text sold">판매 완료</span>)}
+                      {auction.status === "completed" && !auction.highestBidder && (<span className="action-status-text unsold">유찰됨</span>)}
+                      {auction.status === "error" && (<span className="action-status-text error">오류 발생</span>)}
+                    </div>
+                  </article>
                 ))}
               </div>
             ) : (
@@ -880,30 +881,30 @@ export default function Auction() {
             {myBids.length > 0 ? (
               <div className="list-view">
                 {myBids.map((auction) => (
-                    <article key={auction.id} className={`list-item my-bid-item ${auction.highestBidder === currentUserId ? "status-highest" : "status-outbid"}`}>
-                      <div className="item-info">
-                        <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
-                        <p className="item-description">{auction.description || "설명 없음"}</p>
-                        <p className="bid-info">내 최고 입찰가: <span className="price">{formatPrice(auction.currentBid)}</span></p>
-                        <p className="meta-details">
-                          <span>남은 시간: {getTimeLeft(auction.endTime)}</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
-                        </p>
-                        <p className="status-indicator">
-                          상태:
-                          {auction.status === "completed" ? (
-                            auction.highestBidder === currentUserId ? (<span className="won">낙찰 완료</span>) : (<span className="lost">패찰</span>)
-                          ) : auction.highestBidder === currentUserId ? (<span className="highest">최고 입찰 중</span>) : (<span className="outbid">상회 입찰됨</span>)}
-                        </p>
+                  <article key={auction.id} className={`list-item my-bid-item ${auction.highestBidder === currentUserId ? "status-highest" : "status-outbid"}`}>
+                    <div className="item-info">
+                      <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
+                      <p className="item-description">{auction.description || "설명 없음"}</p>
+                      <p className="bid-info">내 최고 입찰가: <span className="price">{formatPrice(auction.currentBid)}</span></p>
+                      <p className="meta-details">
+                        <span>남은 시간: {getTimeLeft(auction.endTime)}</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
+                      </p>
+                      <p className="status-indicator">
+                        상태:
+                        {auction.status === "completed" ? (
+                          auction.highestBidder === currentUserId ? (<span className="won">낙찰 완료</span>) : (<span className="lost">패찰</span>)
+                        ) : auction.highestBidder === currentUserId ? (<span className="highest">최고 입찰 중</span>) : (<span className="outbid">상회 입찰됨</span>)}
+                      </p>
+                    </div>
+                    {auction.status === "ongoing" && auction.highestBidder !== currentUserId && (
+                      <div className="item-actions rebid-section">
+                        <input type="text" inputMode="numeric" pattern="[0-9]*" className="bid-input small" placeholder={`${formatPrice(auction.currentBid + 1)} 이상`} value={bidAmount[auction.id] || ""} onChange={(e) => handleBidAmountChange(e, auction.id)} aria-label={`${auction.name} 재입찰 금액`} />
+                        <button className="action-button rebid-button" onClick={() => handleBid(auction.id)} disabled={!bidAmount[auction.id] || isNaN(parseInt(bidAmount[auction.id] || "0", 10)) || parseInt(bidAmount[auction.id] || "0", 10) <= auction.currentBid}>재입찰</button>
                       </div>
-                      {auction.status === "ongoing" && auction.highestBidder !== currentUserId && (
-                          <div className="item-actions rebid-section">
-                            <input type="text" inputMode="numeric" pattern="[0-9]*" className="bid-input small" placeholder={`${formatPrice(auction.currentBid + 1)} 이상`} value={bidAmount[auction.id] || ""} onChange={(e) => handleBidAmountChange(e, auction.id)} aria-label={`${auction.name} 재입찰 금액`} />
-                            <button className="action-button rebid-button" onClick={() => handleBid(auction.id)} disabled={!bidAmount[auction.id] || isNaN(parseInt(bidAmount[auction.id] || "0", 10)) || parseInt(bidAmount[auction.id] || "0", 10) <= auction.currentBid}>재입찰</button>
-                          </div>
-                      )}
-                      {auction.status === "ongoing" && auction.highestBidder === currentUserId && (<div className="item-actions highest-bid-notice"><span>최고 입찰자</span></div>)}
-                      {auction.status === "completed" && (<div className="item-actions"><span className={`action-status-text ${auction.highestBidder === currentUserId ? "won" : "lost"}`}>{auction.highestBidder === currentUserId ? "낙찰" : "패찰"}</span></div>)}
-                    </article>
+                    )}
+                    {auction.status === "ongoing" && auction.highestBidder === currentUserId && (<div className="item-actions highest-bid-notice"><span>최고 입찰자</span></div>)}
+                    {auction.status === "completed" && (<div className="item-actions"><span className={`action-status-text ${auction.highestBidder === currentUserId ? "won" : "lost"}`}>{auction.highestBidder === currentUserId ? "낙찰" : "패찰"}</span></div>)}
+                  </article>
                 ))}
               </div>
             ) : (
@@ -920,29 +921,29 @@ export default function Auction() {
             {completedAuctions.length > 0 ? (
               <div className="list-view">
                 {completedAuctions.map((auction) => (
-                    <article key={auction.id} className={`list-item completed-item ${auction.highestBidder === currentUserId ? "result-won" : ""} ${auction.seller === currentUserId ? "result-sold" : ""} ${!auction.highestBidder ? "result-unsold" : ""}`}>
-                      <div className="item-info">
-                        <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
-                        <p className="item-description">{auction.description || "설명 없음"}</p>
-                        <p className="final-result">
-                          {auction.status === 'error' ? `오류 발생: ${auction.error || '알 수 없는 오류'}` :
-                           auction.highestBidder ? `최종 낙찰가: ${formatPrice(auction.currentBid)}` : `유찰됨 (시작가: ${formatPrice(auction.startPrice)})`}
-                        </p>
-                        <p className="meta-details">
-                          <span>총 입찰: {auction.bidCount}회</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
-                        </p>
-                        {auction.highestBidder && (<p className="winner-info">낙찰자: {auction.highestBidder === currentUserId ? "나" : allUsersData?.find((u) => u.id === auction.highestBidder)?.name || auction.highestBidder?.substring(0, 6)}</p>)}
-                        {!auction.highestBidder && auction.status !== 'error' && (<p className="status-indicator unsold">유찰됨</p>)}
-                      </div>
-                      <div className="item-actions result-badge">
-                        {auction.highestBidder === currentUserId && (<span className="badge won">낙찰 받음</span>)}
-                        {auction.seller === currentUserId && auction.highestBidder && (<span className="badge sold">판매 완료</span>)}
-                        {auction.seller === currentUserId && !auction.highestBidder && (<span className="badge unsold">유찰됨</span>)}
-                        {auction.seller !== currentUserId && auction.highestBidder !== currentUserId && auction.highestBidder && (<span className="badge neutral">종료됨</span>)}
-                        {auction.seller !== currentUserId && auction.highestBidder !== currentUserId && !auction.highestBidder && (<span className="badge unsold">유찰됨</span>)}
-                        {auction.status === 'error' && (<span className="badge error">오류</span>)}
-                      </div>
-                    </article>
+                  <article key={auction.id} className={`list-item completed-item ${auction.highestBidder === currentUserId ? "result-won" : ""} ${auction.seller === currentUserId ? "result-sold" : ""} ${!auction.highestBidder ? "result-unsold" : ""}`}>
+                    <div className="item-info">
+                      <h3><span style={{ marginRight: "5px" }}>{auction.itemIcon || "📦"}</span>{auction.name}</h3>
+                      <p className="item-description">{auction.description || "설명 없음"}</p>
+                      <p className="final-result">
+                        {auction.status === 'error' ? `오류 발생: ${auction.error || '알 수 없는 오류'}` :
+                          auction.highestBidder ? `최종 낙찰가: ${formatPrice(auction.currentBid)}` : `유찰됨 (시작가: ${formatPrice(auction.startPrice)})`}
+                      </p>
+                      <p className="meta-details">
+                        <span>총 입찰: {auction.bidCount}회</span> | <span>판매자: {auction.seller === currentUserId ? "나" : auction.sellerName || auction.seller?.substring(0, 6)}</span>
+                      </p>
+                      {auction.highestBidder && (<p className="winner-info">낙찰자: {auction.highestBidder === currentUserId ? "나" : allUsersData?.find((u) => u.id === auction.highestBidder)?.name || auction.highestBidder?.substring(0, 6)}</p>)}
+                      {!auction.highestBidder && auction.status !== 'error' && (<p className="status-indicator unsold">유찰됨</p>)}
+                    </div>
+                    <div className="item-actions result-badge">
+                      {auction.highestBidder === currentUserId && (<span className="badge won">낙찰 받음</span>)}
+                      {auction.seller === currentUserId && auction.highestBidder && (<span className="badge sold">판매 완료</span>)}
+                      {auction.seller === currentUserId && !auction.highestBidder && (<span className="badge unsold">유찰됨</span>)}
+                      {auction.seller !== currentUserId && auction.highestBidder !== currentUserId && auction.highestBidder && (<span className="badge neutral">종료됨</span>)}
+                      {auction.seller !== currentUserId && auction.highestBidder !== currentUserId && !auction.highestBidder && (<span className="badge unsold">유찰됨</span>)}
+                      {auction.status === 'error' && (<span className="badge error">오류</span>)}
+                    </div>
+                  </article>
                 ))}
               </div>
             ) : (
@@ -961,9 +962,9 @@ export default function Auction() {
                   {availableItems.length > 0 && (
                     <optgroup label="아이템 (수량 1개 이상)">
                       {availableItems.map((item) => (
-                          <option key={`item-${item.id}`} value={item.id}>
-                            {item.icon} {item.name} (수량: {item.quantity})
-                          </option>
+                        <option key={`item-${item.id}`} value={item.id}>
+                          {item.icon} {item.name} (수량: {item.quantity})
+                        </option>
                       ))}
                     </optgroup>
                   )}
@@ -990,7 +991,7 @@ export default function Auction() {
               </div>
               <div className="form-actions">
                 <button type="submit" className="action-button primary register-button" disabled={!selectedAssetForAuction || !newAuction.startPrice || isNaN(parseFloat(newAuction.startPrice)) || parseFloat(newAuction.startPrice) <= 0 || !newAuction.duration || selectedAssetForAuction.type !== "item"}>경매 등록</button>
-                <button type="button" className="action-button cancel-button" onClick={() => {setSelectedAssetForAuction(null); setActiveTab("ongoing");}}>취소</button>
+                <button type="button" className="action-button cancel-button" onClick={() => { setSelectedAssetForAuction(null); setActiveTab("ongoing"); }}>취소</button>
               </div>
             </form>
           </div>

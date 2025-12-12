@@ -32,10 +32,10 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-5 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-indigo-50/30 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors">
+      <div className="bg-[#1a1a2e] rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-700" onClick={e => e.stopPropagation()}>
+        <div className="px-6 py-5 border-b border-slate-700 bg-gradient-to-r from-[#141423] to-indigo-900/20 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-white">{title}</h3>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 transition-colors">
             <X size={18} />
           </button>
         </div>
@@ -223,23 +223,23 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
   return (
     <>
       {/* 모바일 헤더 */}
-      <header className="md:hidden sticky top-0 z-30 bg-white border-b border-slate-200">
+      <header className="md:hidden sticky top-0 z-30 bg-[#141423] border-b border-[#00fff2]/10">
         {/* 상단 헤더 바 */}
         <div className="h-16 px-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-slate-100 transition-colors">
-              <LayoutDashboard size={24} className="text-slate-600" />
+            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
+              <LayoutDashboard size={24} className="text-white" />
             </button>
             {/* 모바일에서도 앱 이름 표시 */}
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-1 sm:gap-2">
-                오늘도 <span className="text-indigo-600">알찬</span> 하루!
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-1 sm:gap-2">
+                오늘도 <span className="text-[#00fff2]">알찬</span> 하루!
               </h2>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-full hover:bg-slate-100 transition-colors">
-              <Bell size={20} className="text-slate-500" />
+            <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
+              <Bell size={20} className="text-slate-400" />
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
             </button>
             <button
@@ -254,24 +254,24 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
         {/* 모바일 자산 정보 바 */}
         <div className="px-4 pb-3 flex gap-3">
           {/* 현금 */}
-          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-xl border border-emerald-100">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-emerald-900/10 rounded-xl border border-emerald-500/20">
+            <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-sm flex-shrink-0">
               <span className="font-bold text-xs">₩</span>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider leading-none">현금</p>
-              <p className="text-sm font-bold text-slate-800 truncate">{formatMoney(userDoc?.cash || 0)}원</p>
+              <p className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider leading-none">현금</p>
+              <p className="text-sm font-bold text-white truncate">{formatMoney(userDoc?.cash || 0)}원</p>
             </div>
           </div>
 
           {/* 쿠폰 */}
-          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-rose-50 rounded-xl border border-rose-100">
-            <div className="w-8 h-8 rounded-lg bg-rose-500 text-white flex items-center justify-center shadow-sm flex-shrink-0">
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-rose-900/10 rounded-xl border border-rose-500/20">
+            <div className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center shadow-sm flex-shrink-0">
               <Gift size={14} />
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] text-rose-600 font-bold uppercase tracking-wider leading-none">쿠폰</p>
-              <p className="text-sm font-bold text-slate-800 truncate">{userDoc?.coupons || 0}개</p>
+              <p className="text-[9px] text-rose-400 font-bold uppercase tracking-wider leading-none">쿠폰</p>
+              <p className="text-sm font-bold text-white truncate">{userDoc?.coupons || 0}개</p>
             </div>
           </div>
         </div>
@@ -279,7 +279,7 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
 
       {/* PC 헤더 */}
       <header
-        className="hidden md:flex items-center justify-between bg-white border-b border-slate-200 shadow-sm z-10"
+        className="hidden md:flex items-center justify-between bg-[#141423] border-b border-[#00fff2]/10 shadow-sm z-10"
         style={{ height: '64px', minHeight: '64px', maxHeight: '64px', padding: '0 16px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -289,8 +289,9 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             style={{
               padding: '8px',
               borderRadius: '8px',
-              border: '1px solid #e2e8f0',
-              background: 'white',
+              border: '1px solid rgba(0, 255, 242, 0.1)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: 'white',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -300,10 +301,10 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#1e293b', whiteSpace: 'nowrap', lineHeight: '1.2' }}>
-              오늘도 <span style={{ color: '#4f46e5', fontFamily: "'Jua', sans-serif" }}>알찬</span> 하루! 👋
+            <div style={{ fontSize: '15px', fontWeight: 'bold', color: 'white', whiteSpace: 'nowrap', lineHeight: '1.2' }}>
+              오늘도 <span style={{ color: '#00fff2', fontFamily: "'Jua', sans-serif" }}>알찬</span> 하루! 👋
             </div>
-            <div style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{displayName}님 환영합니다</div>
+            <div style={{ fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{displayName}님 환영합니다</div>
           </div>
         </div>
 
@@ -314,9 +315,9 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             alignItems: 'center',
             gap: '8px',
             padding: '6px 12px',
-            background: '#ecfdf5',
+            background: 'rgba(16, 185, 129, 0.1)',
             borderRadius: '8px',
-            color: '#047857'
+            color: '#34d399'
           }}>
             <div style={{
               width: '32px',
@@ -342,9 +343,9 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             alignItems: 'center',
             gap: '8px',
             padding: '6px 12px',
-            background: '#fff1f2',
+            background: 'rgba(244, 63, 94, 0.1)',
             borderRadius: '8px',
-            color: '#be123c'
+            color: '#fb7185'
           }}>
             <div style={{
               width: '32px',
@@ -378,8 +379,8 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
               }}
             >
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e293b', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{displayName}</div>
-                <div style={{ fontSize: '11px', color: '#4f46e5', fontWeight: '500', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{userRole}</div>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'white', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{displayName}</div>
+                <div style={{ fontSize: '11px', color: '#818cf8', fontWeight: '500', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{userRole}</div>
               </div>
               <div style={{
                 width: '36px',
@@ -399,56 +400,56 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
 
             {/* 드롭다운 메뉴 */}
             {showUserMenu && (
-              <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50">
-                <div className="px-5 py-4 bg-gradient-to-r from-slate-50 to-indigo-50/30 border-b border-slate-100">
-                  <p className="font-bold text-slate-900">{displayName}</p>
-                  <p className="text-sm text-slate-500 flex items-center gap-2 mt-1">
-                    {isCurrentUserAdmin && <span className="text-indigo-600 font-semibold">관리자</span>}
+              <div className="absolute top-full right-0 mt-2 w-72 bg-[#1a1a2e] rounded-2xl shadow-2xl border border-slate-700 overflow-hidden z-50">
+                <div className="px-5 py-4 bg-gradient-to-r from-[#141423] to-indigo-900/20 border-b border-slate-700">
+                  <p className="font-bold text-white">{displayName}</p>
+                  <p className="text-sm text-slate-400 flex items-center gap-2 mt-1">
+                    {isCurrentUserAdmin && <span className="text-indigo-400 font-semibold">관리자</span>}
                     {userDoc?.classCode && <span>학급: {userDoc.classCode}</span>}
                   </p>
                 </div>
 
                 {/* 모바일: 자산 정보 */}
-                <div className="md:hidden px-5 py-4 bg-slate-50/50 border-b border-slate-100">
+                <div className="md:hidden px-5 py-4 bg-[#141423]/50 border-b border-slate-700">
                   <div className="flex justify-between items-center mb-2">
-                    <span className="text-sm text-slate-500">현금</span>
-                    <span className="font-bold text-emerald-600">{formatMoney(userDoc?.cash || 0)}원</span>
+                    <span className="text-sm text-slate-400">현금</span>
+                    <span className="font-bold text-emerald-400">{formatMoney(userDoc?.cash || 0)}원</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-slate-500">쿠폰</span>
-                    <span className="font-bold text-rose-600">{userDoc?.coupons || 0}개</span>
+                    <span className="text-sm text-slate-400">쿠폰</span>
+                    <span className="font-bold text-rose-400">{userDoc?.coupons || 0}개</span>
                   </div>
                 </div>
 
                 <div className="p-2">
-                  <button onClick={handleChangeNickname} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <User size={18} className="text-slate-400" />
+                  <button onClick={handleChangeNickname} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
+                    <User size={18} className="text-slate-500" />
                     닉네임 변경
                   </button>
-                  <button onClick={handleChangePassword} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Key size={18} className="text-slate-400" />
+                  <button onClick={handleChangePassword} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
+                    <Key size={18} className="text-slate-500" />
                     비밀번호 변경
                   </button>
-                  <button onClick={handleEnterClassCode} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Building2 size={18} className="text-slate-400" />
+                  <button onClick={handleEnterClassCode} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
+                    <Building2 size={18} className="text-slate-500" />
                     학급 코드 변경
                   </button>
-                  <button onClick={() => { setShowSettings(true); setShowUserMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <Settings size={18} className="text-slate-400" />
+                  <button onClick={() => { setShowSettings(true); setShowUserMenu(false); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
+                    <Settings size={18} className="text-slate-500" />
                     설정
                   </button>
 
-                  <div className="h-px bg-slate-100 my-2" />
+                  <div className="h-px bg-slate-700 my-2" />
 
-                  <button onClick={handleDeleteAccount} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-500 hover:bg-red-50 transition-colors">
+                  <button onClick={handleDeleteAccount} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-400 hover:bg-red-900/10 transition-colors">
                     <Trash2 size={18} />
                     계정 삭제
                   </button>
 
-                  <div className="h-px bg-slate-100 my-2" />
+                  <div className="h-px bg-slate-700 my-2" />
 
-                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors">
-                    <LogOut size={18} className="text-slate-400" />
+                  <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
+                    <LogOut size={18} className="text-slate-500" />
                     로그아웃
                   </button>
                 </div>
@@ -462,21 +463,21 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
       <Modal isOpen={activeModal === 'nickname'} onClose={closeModal} title="닉네임 변경">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">새 닉네임</label>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">새 닉네임</label>
             <input
               type="text"
               value={newNickname}
               onChange={(e) => setNewNickname(e.target.value)}
               placeholder="2-12자"
               maxLength={12}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full px-4 py-3 border-2 border-slate-700 bg-[#141423] text-white rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors"
               autoFocus
             />
           </div>
-          {nicknameError && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-xl">{nicknameError}</p>}
+          {nicknameError && <p className="text-sm text-red-400 bg-red-900/10 p-3 rounded-xl">{nicknameError}</p>}
           <div className="flex gap-3 pt-2">
-            <button onClick={closeModal} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">취소</button>
-            <button onClick={saveNickname} disabled={isLoading} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-200/50 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
+            <button onClick={closeModal} className="flex-1 py-3 border border-slate-700 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">취소</button>
+            <button onClick={saveNickname} disabled={isLoading} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
               {isLoading ? "저장 중..." : "저장"}
             </button>
           </div>
@@ -486,22 +487,22 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
       <Modal isOpen={activeModal === 'password'} onClose={closeModal} title="비밀번호 변경">
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">현재 비밀번호</label>
-            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+            <label className="block text-sm font-semibold text-slate-300 mb-2">현재 비밀번호</label>
+            <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-slate-700 bg-[#141423] text-white rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">새 비밀번호</label>
-            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+            <label className="block text-sm font-semibold text-slate-300 mb-2">새 비밀번호</label>
+            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-slate-700 bg-[#141423] text-white rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">비밀번호 확인</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
+            <label className="block text-sm font-semibold text-slate-300 mb-2">비밀번호 확인</label>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-4 py-3 border-2 border-slate-700 bg-[#141423] text-white rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors" />
           </div>
-          {passwordError && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-xl">{passwordError}</p>}
-          {passwordSuccess && <p className="text-sm text-green-600 bg-green-50 p-3 rounded-xl">비밀번호가 변경되었습니다!</p>}
+          {passwordError && <p className="text-sm text-red-400 bg-red-900/10 p-3 rounded-xl">{passwordError}</p>}
+          {passwordSuccess && <p className="text-sm text-green-400 bg-green-900/10 p-3 rounded-xl">비밀번호가 변경되었습니다!</p>}
           <div className="flex gap-3 pt-2">
-            <button onClick={closeModal} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">취소</button>
-            <button onClick={savePassword} disabled={isLoading || passwordSuccess} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-200/50 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
+            <button onClick={closeModal} className="flex-1 py-3 border border-slate-700 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">취소</button>
+            <button onClick={savePassword} disabled={isLoading || passwordSuccess} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
               {isLoading ? "변경 중..." : "변경"}
             </button>
           </div>
@@ -511,28 +512,28 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
       <Modal isOpen={activeModal === 'classCode'} onClose={closeModal} title="학급 코드 변경">
         <div className="space-y-4">
           {userDoc?.classCode && (
-            <p className="text-sm text-gray-500 bg-gray-50 p-3 rounded-xl">
-              현재 학급 코드: <strong className="text-gray-900">{userDoc.classCode}</strong>
+            <p className="text-sm text-slate-400 bg-slate-800/50 p-3 rounded-xl">
+              현재 학급 코드: <strong className="text-white">{userDoc.classCode}</strong>
             </p>
           )}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">새 학급 코드</label>
+            <label className="block text-sm font-semibold text-slate-300 mb-2">새 학급 코드</label>
             <input
               type="text"
               value={newClassCodeInput}
               onChange={(e) => setNewClassCodeInput(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase())}
               placeholder="영문자와 숫자만"
               maxLength={20}
-              className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full px-4 py-3 border-2 border-slate-700 bg-[#141423] text-white rounded-xl text-sm focus:outline-none focus:border-indigo-500 transition-colors"
               autoFocus
             />
-            <p className="text-xs text-gray-400 mt-2">영문자와 숫자만 입력 가능합니다.</p>
+            <p className="text-xs text-slate-500 mt-2">영문자와 숫자만 입력 가능합니다.</p>
           </div>
-          {classCodeError && <p className="text-sm text-red-500 bg-red-50 p-3 rounded-xl">{classCodeError}</p>}
-          {classCodeSuccess && <p className="text-sm text-green-600 bg-green-50 p-3 rounded-xl">학급 코드가 저장되었습니다!</p>}
+          {classCodeError && <p className="text-sm text-red-400 bg-red-900/10 p-3 rounded-xl">{classCodeError}</p>}
+          {classCodeSuccess && <p className="text-sm text-green-400 bg-green-900/10 p-3 rounded-xl">학급 코드가 저장되었습니다!</p>}
           <div className="flex gap-3 pt-2">
-            <button onClick={closeModal} className="flex-1 py-3 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">취소</button>
-            <button onClick={saveClassCode} disabled={isLoading} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-200/50 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
+            <button onClick={closeModal} className="flex-1 py-3 border border-slate-700 rounded-xl text-sm font-semibold text-slate-300 hover:bg-slate-800 transition-colors">취소</button>
+            <button onClick={saveClassCode} disabled={isLoading} className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-xl text-sm font-semibold shadow-lg shadow-indigo-500/30 hover:from-indigo-700 hover:to-violet-700 transition-all disabled:opacity-50">
               {isLoading ? "저장 중..." : "저장"}
             </button>
           </div>

@@ -1,5 +1,6 @@
 // src/TaskItem.js
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { generateJobTaskReward } from "./utils/jobTaskRewards";
 
 export default function TaskItem({
@@ -90,11 +91,11 @@ export default function TaskItem({
   const isMobile = window.innerWidth <= 768;
 
   const taskItemStyle = {
-    backgroundColor: isCompleted ? "#e0e7ff" : "#ffffff",
+    backgroundColor: isCompleted ? "rgba(20, 20, 35, 0.4)" : "rgba(30, 30, 50, 0.6)",
     borderRadius: "8px",
     cursor: isCompleted ? "default" : "pointer",
     transition: "all 0.2s ease",
-    border: `1px solid ${isCompleted ? "#c7d2fe" : "#e5e7eb"}`,
+    border: `1px solid ${isCompleted ? "rgba(100, 116, 139, 0.1)" : "rgba(0, 255, 242, 0.15)"}`,
     display: "flex",
     flexDirection: "row", // 모바일에서도 가로 배치
     alignItems: "center",
@@ -103,7 +104,7 @@ export default function TaskItem({
     opacity: isCompleted ? 0.6 : 1,
     padding: isMobile ? "8px 10px" : "12px",
     marginBottom: "8px",
-    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+    boxShadow: isCompleted ? "none" : "0 4px 12px rgba(0, 0, 0, 0.1)",
     gap: isMobile ? "6px" : "8px",
   };
 
@@ -117,7 +118,7 @@ export default function TaskItem({
   };
 
   const taskNameStyle = {
-    color: "#374151",
+    color: isCompleted ? "#64748b" : "#e8e8ff",
     fontWeight: "600",
     fontSize: isMobile ? "12px" : "16px",
     overflow: "hidden",
@@ -136,8 +137,9 @@ export default function TaskItem({
   };
 
   const couponStyle = {
-    backgroundColor: isJobTask ? "#4f46e5" : "#10b981",
-    color: "white",
+    backgroundColor: isJobTask ? "rgba(79, 70, 229, 0.3)" : "rgba(16, 185, 129, 0.3)",
+    color: isJobTask ? "#818cf8" : "#34d399",
+    border: isJobTask ? "1px solid rgba(99, 102, 241, 0.5)" : "1px solid rgba(52, 211, 153, 0.5)",
     padding: isMobile ? "3px 6px" : "4px 10px",
     borderRadius: "10px",
     fontSize: isMobile ? "10px" : "13px",
@@ -198,7 +200,7 @@ export default function TaskItem({
       fontSize: isMobile ? "14px" : "18px",
     };
 
-    return (
+    return createPortal(
       <div style={modalOverlayStyle} onClick={() => setShowCardModal(false)}>
         <div style={mobileModalContentStyle} onClick={(e) => e.stopPropagation()}>
           <h3 style={mobileModalTitleStyle}>🎁 보상 선택</h3>
@@ -221,7 +223,7 @@ export default function TaskItem({
                   <div style={mobileCardIconStyle}>💰</div>
                   <div style={mobileCardTextStyle}>현금</div>
                 </div>
-                <div style={{...cardBackStyle, ...(selectedCard === "cash" && cardBackVisibleStyle)}}>
+                <div style={{ ...cardBackStyle, ...(selectedCard === "cash" && cardBackVisibleStyle) }}>
                   <div style={mobileRewardAmountStyle}>{rewardData.cash.toLocaleString()}원</div>
                   <div style={mobileRewardLabelStyle}>💰 현금 획득!</div>
                 </div>
@@ -244,7 +246,7 @@ export default function TaskItem({
                   <div style={mobileCardIconStyle}>🎫</div>
                   <div style={mobileCardTextStyle}>쿠폰</div>
                 </div>
-                <div style={{...cardBackStyle, ...(selectedCard === "coupon" && cardBackVisibleStyle)}}>
+                <div style={{ ...cardBackStyle, ...(selectedCard === "coupon" && cardBackVisibleStyle) }}>
                   <div style={mobileRewardAmountStyle}>{rewardData.coupon}개</div>
                   <div style={mobileRewardLabelStyle}>🎫 쿠폰 획득!</div>
                 </div>
@@ -252,7 +254,8 @@ export default function TaskItem({
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   };
 
@@ -319,7 +322,7 @@ const adminButtonStyles = {
   cursor: "pointer",
   padding: "4px",
   fontSize: "16px",
-  color: "#6b7280",
+  color: "#94a3b8",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
@@ -369,7 +372,8 @@ const modalOverlayStyle = {
 };
 
 const modalContentStyle = {
-  backgroundColor: "white",
+  backgroundColor: "#1a1a2e",
+  border: "1px solid rgba(0, 255, 242, 0.3)",
   borderRadius: "20px",
   padding: "40px",
   maxWidth: "600px",
@@ -383,13 +387,14 @@ const modalTitleStyle = {
   fontWeight: "bold",
   textAlign: "center",
   marginBottom: "10px",
-  color: "#333",
+  color: "#ffffff",
+  textShadow: "0 0 10px rgba(0, 255, 242, 0.5)",
 };
 
 const modalSubtitleStyle = {
   fontSize: "16px",
   textAlign: "center",
-  color: "#666",
+  color: "#a0a0c0",
   marginBottom: "30px",
 };
 

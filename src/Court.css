@@ -1,25 +1,39 @@
-/* src/Court.css - Updated with Admin Button Right Align & Mobile Fixes & Paid Settlement Button State */
+/* src/Court.css - Cyberpunk Dark Theme */
 
-/* --- 기본 변수 --- */
+/* --- 기본 변수 (Cyberpunk Palette) --- */
 :root {
-  --court-primary-bg: #eef2f7;
-  --court-secondary-bg: #ffffff;
-  --court-border-color: #d1d9e6;
-  --court-header-border: #5c7cfa;
-  --court-text-primary: #343a40;
-  --court-text-secondary: #6c757d;
-  --court-accent-color: #0d6efd;
-  --court-success-color: #198754;
-  --court-warning-color: #ffc107;
-  --court-danger-color: #dc3545;
-  --court-info-color: #0dcaf0;
-  --court-trial-color: #6f42c1;
-  --court-resolved-color: #fd7e14;
-  --court-settlement-color: #20c997; /* 합의금 버튼 기본 색상 */
-  --court-settlement-paid-bg: #e9ecef; /* 지급 완료 버튼 배경 */
-  --court-settlement-paid-text: #6c757d; /* 지급 완료 버튼 텍스트 */
-  --court-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.07);
-  --court-shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --court-primary-bg: var(--cyber-bg-dark);
+  /* #0a0a12 */
+  --court-secondary-bg: var(--cyber-bg-card);
+  /* rgba(20, 20, 35, 0.6) */
+  --court-border-color: var(--cyber-border-dim);
+  /* rgba(0, 255, 242, 0.2) */
+  --court-header-border: var(--cyber-neon-blue);
+  /* #0088ff */
+  --court-text-primary: var(--cyber-text-primary);
+  /* #ffffff */
+  --court-text-secondary: var(--cyber-text-secondary);
+  /* #a0a0c0 */
+  --court-accent-color: var(--cyber-neon-blue);
+  /* #0088ff */
+  --court-success-color: var(--cyber-neon-green);
+  /* #00ff9d */
+  --court-warning-color: var(--cyber-neon-yellow);
+  /* #fcee0a */
+  --court-danger-color: var(--cyber-neon-red);
+  /* #ff003c */
+  --court-info-color: var(--cyber-neon-cyan);
+  /* #00fff2 */
+  --court-trial-color: #d633ff;
+  /* Neon Purple */
+  --court-resolved-color: #ff9d00;
+  /* Neon Orange */
+  --court-settlement-color: #00ff9d;
+  /* Neon Green */
+  --court-settlement-paid-bg: rgba(255, 255, 255, 0.1);
+  --court-settlement-paid-text: #888;
+  --court-shadow-sm: 0 0 10px rgba(0, 136, 255, 0.1);
+  --court-shadow-md: var(--cyber-shadow-card);
   --court-border-radius: 8px;
   --court-border-radius-lg: 12px;
 }
@@ -32,7 +46,8 @@
   border: 1px solid var(--court-border-color);
   box-shadow: var(--court-shadow-md);
   margin-bottom: 30px;
-  font-family: "Segoe UI", "Roboto", sans-serif;
+  font-family: 'Rajdhani', "Segoe UI", "Roboto", sans-serif;
+  color: var(--court-text-primary);
 }
 
 /* --- 헤더 영역 (제목 + 관리자 버튼) --- */
@@ -42,16 +57,18 @@
   align-items: center;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 3px solid var(--court-header-border);
+  border-bottom: 1px solid var(--court-header-border);
 }
 
 .court-header {
   font-size: 24px;
   font-weight: 700;
-  color: var(--court-text-primary);
+  color: #fff;
   margin: 0;
   padding: 0;
   border: none;
+  font-family: 'Orbitron', sans-serif;
+  text-shadow: 0 0 10px rgba(0, 136, 255, 0.4);
 }
 
 /* --- 관리자 설정 탭 버튼 스타일 --- */
@@ -59,29 +76,32 @@
   padding: 10px 18px;
   cursor: pointer;
   border: 1px solid var(--court-border-color);
-  background-color: #f8f9fa;
+  background-color: rgba(255, 255, 255, 0.05);
   font-size: 15px;
   font-weight: 600;
   color: var(--court-text-secondary);
   transition: all 0.3s ease;
   border-radius: var(--court-border-radius);
 }
+
 .admin-tab-button:hover {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
-  color: var(--court-text-primary);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: var(--court-accent-color);
+  color: #fff;
 }
+
 .admin-tab-button.active {
-  background-color: var(--court-accent-color);
-  color: white;
+  background-color: rgba(0, 136, 255, 0.2);
+  color: var(--court-accent-color);
   border-color: var(--court-accent-color);
   font-weight: 700;
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.2);
 }
 
 /* --- 탭 스타일 --- */
 .court-tabs {
   display: flex;
-  margin-bottom: 0;
+  margin-bottom: 0px;
   border-bottom: 1px solid var(--court-border-color);
 }
 
@@ -103,24 +123,28 @@
   border-radius: var(--court-border-radius) var(--court-border-radius) 0 0;
   position: relative;
   bottom: -1px;
+  font-family: 'Rajdhani', sans-serif;
 }
+
 .court-tab-button.active {
   color: var(--court-accent-color);
-  background-color: var(--court-secondary-bg);
-  border-color: var(--court-border-color) var(--court-border-color)
-    var(--court-secondary-bg);
+  background: var(--court-secondary-bg);
+  border: 1px solid var(--court-border-color);
+  border-bottom: 1px solid var(--court-secondary-bg);
   font-weight: 700;
   z-index: 1;
+  text-shadow: 0 0 5px rgba(0, 136, 255, 0.4);
 }
+
 .court-tab-button:hover:not(.active) {
-  color: var(--court-text-primary);
-  background-color: rgba(0, 0, 0, 0.03);
+  color: #fff;
+  background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* --- 탭 콘텐츠 영역 --- */
 .court-tab-content {
   padding: 30px;
-  background-color: var(--court-secondary-bg);
+  background: var(--court-secondary-bg);
   border: 1px solid var(--court-border-color);
   border-top: none;
   border-radius: 0 0 var(--court-border-radius-lg) var(--court-border-radius-lg);
@@ -146,31 +170,38 @@
 
 /* --- 개별 고소장 카드 --- */
 .complaint-card {
-  background-color: #fff;
-  border: 1px solid #e9ecef;
+  background: rgba(20, 20, 35, 0.4);
+  border: 1px solid var(--court-border-color);
   border-radius: var(--court-border-radius-lg);
   padding: 20px;
-  box-shadow: var(--court-shadow-sm);
-  transition: box-shadow 0.2s ease-in-out, border-color 0.2s ease-in-out;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease-in-out;
   display: flex;
   flex-direction: column;
   gap: 15px;
   overflow-wrap: break-word;
+  backdrop-filter: blur(5px);
 }
+
 .complaint-card:hover {
-  box-shadow: var(--court-shadow-md);
+  box-shadow: 0 0 15px rgba(0, 136, 255, 0.2);
+  border-color: var(--court-accent-color);
+  transform: translateY(-2px);
 }
+
 .complaint-card.indicted-card {
-  border-left: 5px solid var(--court-success-color);
-  background-color: #f6fef9;
+  border-left: 4px solid var(--court-success-color);
+  background: linear-gradient(90deg, rgba(0, 255, 157, 0.05) 0%, rgba(20, 20, 35, 0.4) 100%);
 }
+
 .complaint-card.on-trial-card {
-  border-left: 5px solid var(--court-trial-color);
-  background-color: #fbfaff;
+  border-left: 4px solid var(--court-trial-color);
+  background: linear-gradient(90deg, rgba(214, 51, 255, 0.05) 0%, rgba(20, 20, 35, 0.4) 100%);
 }
+
 .complaint-card.dismissed-card {
-  border-left: 5px solid var(--court-warning-color);
-  background-color: #fffefa;
+  border-left: 4px solid var(--court-warning-color);
+  background: linear-gradient(90deg, rgba(252, 238, 10, 0.05) 0%, rgba(20, 20, 35, 0.4) 100%);
   opacity: 0.8;
 }
 
@@ -181,45 +212,59 @@
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 8px;
-  border-bottom: 1px dashed #eee;
+  border-bottom: 1px dashed var(--court-border-color);
   padding-bottom: 10px;
 }
+
 .complaint-card-info {
   display: flex;
   flex-direction: column;
   gap: 6px;
   font-size: 14px;
 }
+
 .complaint-card-info strong {
   font-weight: 600;
   color: var(--court-text-primary);
   min-width: 60px;
   display: inline-block;
 }
+
 .parties-display {
   font-weight: 600;
+  color: var(--court-accent-color);
 }
+
 .case-status {
   font-weight: bold;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
-  color: white;
+  color: #000;
+  /* Dark text for contrast on neon backgrounds */
   white-space: nowrap;
+  box-shadow: 0 0 5px currentColor;
 }
+
 .status-pending {
   background-color: var(--court-text-secondary);
+  color: #fff;
+  box-shadow: none;
 }
+
 .status-indicted {
   background-color: var(--court-success-color);
 }
+
 .status-on_trial {
   background-color: var(--court-trial-color);
+  color: #fff;
 }
+
 .status-dismissed {
   background-color: var(--court-warning-color);
-  color: #333;
 }
+
 .status-resolved {
   background-color: var(--court-resolved-color);
 }
@@ -229,12 +274,14 @@
   font-size: 14px;
   line-height: 1.6;
 }
+
 .complaint-card-content h4 {
   font-size: 15px;
   font-weight: 600;
   margin-bottom: 5px;
-  color: var(--court-text-primary);
+  color: #fff;
 }
+
 .complaint-card-content p {
   margin: 0 0 8px 0;
   color: var(--court-text-secondary);
@@ -246,12 +293,13 @@
 .complaint-voting {
   margin-top: auto;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--court-border-color);
   display: flex;
   align-items: center;
   gap: 10px;
   justify-content: flex-start;
 }
+
 .vote-button {
   display: inline-flex;
   align-items: center;
@@ -261,79 +309,110 @@
   border-radius: 15px;
   cursor: pointer;
   border: 1px solid var(--court-border-color);
-  background-color: #f8f9fa;
+  background-color: rgba(255, 255, 255, 0.05);
   color: var(--court-text-secondary);
   transition: all 0.2s ease;
 }
+
 .vote-button:hover:not(:disabled) {
-  background-color: #e9ecef;
-  border-color: #adb5bd;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-color: #fff;
+  color: #fff;
 }
+
 .vote-button:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
+
 .vote-button.like-button.voted {
-  background-color: #d1e7dd;
-  border-color: #badbcc;
-  color: #0f5132;
+  background-color: rgba(0, 255, 157, 0.2);
+  border-color: var(--court-success-color);
+  color: var(--court-success-color);
   font-weight: bold;
+  box-shadow: 0 0 5px rgba(0, 255, 157, 0.2);
 }
+
 .vote-button.dislike-button.voted {
-  background-color: #f8d7da;
-  border-color: #f5c2c7;
-  color: #842029;
+  background-color: rgba(255, 0, 60, 0.2);
+  border-color: var(--court-danger-color);
+  color: var(--court-danger-color);
   font-weight: bold;
+  box-shadow: 0 0 5px rgba(255, 0, 60, 0.2);
 }
+
 .vote-count {
   font-size: 13px;
   font-weight: bold;
   min-width: 10px;
   text-align: right;
+  color: #fff;
 }
 
 /* 카드 액션 버튼 영역 */
 .complaint-card-actions {
   margin-top: 15px;
   padding-top: 15px;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--court-border-color);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
 }
+
 .complaint-card-actions button {
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 600;
   border-radius: var(--court-border-radius);
   cursor: pointer;
-  border: none;
-  color: white;
+  border: 1px solid transparent;
+  color: #000;
   transition: all 0.2s ease;
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
 }
+
 .complaint-card-actions button:hover {
-  opacity: 0.85;
+  opacity: 0.9;
   transform: translateY(-1px);
+  box-shadow: 0 0 10px currentColor;
 }
+
 .indict-button {
-  background-color: var(--court-success-color);
+  background-color: rgba(0, 255, 157, 0.2);
+  color: var(--court-success-color) !important;
+  border-color: var(--court-success-color) !important;
 }
+
 .dismiss-button {
-  background-color: var(--court-warning-color);
-  color: #333;
+  background-color: rgba(252, 238, 10, 0.2);
+  color: var(--court-warning-color) !important;
+  border-color: var(--court-warning-color) !important;
 }
+
 .edit-button {
-  background-color: var(--court-info-color);
+  background-color: rgba(0, 255, 242, 0.2);
+  color: var(--court-info-color) !important;
+  border-color: var(--court-info-color) !important;
 }
+
 .delete-button {
-  background-color: var(--court-danger-color);
+  background-color: rgba(255, 0, 60, 0.2);
+  color: var(--court-danger-color) !important;
+  border-color: var(--court-danger-color) !important;
 }
+
 .start-trial-button {
-  background-color: var(--court-trial-color);
+  background-color: rgba(214, 51, 255, 0.2);
+  color: var(--court-trial-color) !important;
+  border-color: var(--court-trial-color) !important;
 }
+
 .write-judgment-button {
-  background-color: var(--court-accent-color);
+  background-color: rgba(0, 136, 255, 0.2);
+  color: var(--court-accent-color) !important;
+  border-color: var(--court-accent-color) !important;
 }
 
 /* --- 제출 폼 스타일 --- */
@@ -343,6 +422,7 @@
   gap: 20px;
   max-width: 700px;
 }
+
 .form-label {
   font-weight: 600;
   font-size: 16px;
@@ -350,112 +430,184 @@
   display: block;
   color: var(--court-text-primary);
 }
+
 .form-input,
 .form-textarea,
 .form-select {
   width: 100%;
   padding: 12px 15px;
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--court-border-color);
   border-radius: var(--court-border-radius);
   font-size: 15px;
+  color: #fff;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
   box-sizing: border-box;
 }
+
 .form-input:focus,
 .form-textarea:focus,
 .form-select:focus {
   border-color: var(--court-accent-color);
-  box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.3);
   outline: none;
 }
+
 .form-textarea {
   min-height: 120px;
   resize: vertical;
 }
+
 .form-select {
-  background-color: #fff;
-  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 16px 12px;
   appearance: none;
 }
+
+.form-select option {
+  background-color: #1a1a2e;
+  color: #fff;
+}
+
 .submit-complaint-form button {
   padding: 12px 20px;
-  background-color: var(--court-accent-color);
-  color: white;
-  border: none;
+  background-color: rgba(0, 136, 255, 0.2);
+  color: var(--court-accent-color);
+  border: 1px solid var(--court-accent-color);
   border-radius: var(--court-border-radius);
   cursor: pointer;
   font-size: 17px;
   font-weight: 600;
-  transition: background-color 0.2s ease, transform 0.1s ease;
+  transition: all 0.2s ease;
   align-self: flex-start;
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
 }
+
 .submit-complaint-form button:hover {
-  background-color: #0b5ed7;
+  background-color: rgba(0, 136, 255, 0.4);
+  box-shadow: 0 0 15px rgba(0, 136, 255, 0.4);
   transform: translateY(-1px);
 }
 
 /* --- 편집/판결문 모달 공통 스타일 --- */
-.edit-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+.edit-modal-overlay,
+.modal-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(5px) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  z-index: 99999 !important;
 }
-.edit-modal-container {
-  background-color: var(--court-secondary-bg);
-  padding: 30px;
-  border-radius: var(--court-border-radius-lg);
-  width: 90%;
-  max-width: 600px;
-  box-shadow: var(--court-shadow-md);
+
+.edit-modal-container,
+.modal-container,
+.settlement-modal-container {
+  background-color: #1a1a2e !important;
+  padding: 30px !important;
+  border-radius: var(--court-border-radius-lg) !important;
+  width: 90% !important;
+  max-width: 600px !important;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), 0 0 10px rgba(0, 136, 255, 0.2) !important;
+  border: 1px solid var(--court-border-color) !important;
+  color: #fff !important;
 }
-.edit-modal-header {
+
+.edit-modal-header,
+.modal-header,
+.settlement-modal-header {
   font-size: 20px;
   font-weight: 700;
   margin-bottom: 20px;
-  color: var(--court-text-primary);
+  color: #fff;
+  border-bottom: 1px solid var(--court-border-color);
+  padding-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
-.edit-modal-content .form-group {
+
+.close-button {
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.close-button:hover {
+  color: #fff;
+}
+
+.edit-modal-content .form-group,
+.modal-content .form-group,
+.settlement-modal-content .form-group {
   margin-bottom: 15px;
 }
-.edit-modal-actions {
+
+.edit-modal-actions,
+.modal-footer,
+.settlement-modal-actions {
   margin-top: 25px;
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+  border-top: 1px solid var(--court-border-color);
+  padding-top: 15px;
 }
-.edit-modal-actions button {
+
+.edit-modal-actions button,
+.modal-footer button,
+.settlement-modal-actions button {
   padding: 10px 18px;
   font-size: 15px;
   font-weight: 600;
   border-radius: var(--court-border-radius);
   cursor: pointer;
+  background: transparent;
+  border: 1px solid transparent;
+  text-transform: uppercase;
+  font-family: 'Rajdhani', sans-serif;
 }
-.edit-modal-actions .save-button {
-  background-color: var(--court-accent-color);
-  color: white;
-  border: none;
+
+.edit-modal-actions .save-button,
+.modal-button.process,
+.settlement-modal-actions .save-button {
+  background-color: rgba(0, 136, 255, 0.2);
+  color: var(--court-accent-color);
+  border-color: var(--court-accent-color);
 }
-.edit-modal-actions .save-button:hover {
-  background-color: #0b5ed7;
+
+.edit-modal-actions .save-button:hover,
+.modal-button.process:hover,
+.settlement-modal-actions .save-button:hover {
+  background-color: rgba(0, 136, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 136, 255, 0.4);
 }
-.edit-modal-actions .cancel-button {
-  background-color: #6c757d;
-  color: white;
-  border: none;
+
+.edit-modal-actions .cancel-button,
+.modal-button.cancel,
+.settlement-modal-actions .cancel-button {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ccc;
+  border-color: var(--court-border-color);
 }
-.edit-modal-actions .cancel-button:hover {
-  background-color: #5a6268;
+
+.edit-modal-actions .cancel-button:hover,
+.modal-button.cancel:hover,
+.settlement-modal-actions .cancel-button:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
 }
+
 .judgment-textarea {
   min-height: 200px;
 }
@@ -466,18 +618,21 @@
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 25px;
 }
+
 .result-card {
-  background-color: #fff;
+  background-color: rgba(20, 20, 35, 0.6);
   border: 1px solid var(--court-border-color);
   border-radius: var(--court-border-radius-lg);
   box-shadow: var(--court-shadow-sm);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  backdrop-filter: blur(5px);
 }
+
 .result-header {
   padding: 15px 20px;
-  background-color: #f8f9fa;
+  background: rgba(0, 0, 0, 0.3);
   border-bottom: 1px solid var(--court-border-color);
   display: flex;
   justify-content: space-between;
@@ -486,153 +641,88 @@
   gap: 10px;
   font-size: 14px;
 }
+
 .case-id {
   font-weight: 500;
   color: var(--court-text-secondary);
 }
+
 .result-content {
   padding: 20px;
   flex-grow: 1;
 }
+
 .result-content h4 {
   font-size: 16px;
   font-weight: 700;
   margin-bottom: 8px;
-  color: var(--court-text-primary);
+  color: #fff;
 }
+
 .result-content p.summary {
   font-size: 14px;
   color: var(--court-text-secondary);
   margin-bottom: 15px;
   font-style: italic;
 }
+
 .judgment-display {
-  background-color: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  background-color: rgba(0, 0, 0, 0.2);
+  border: 1px solid var(--court-border-color);
   border-radius: var(--court-border-radius);
   padding: 15px;
   margin-top: 10px;
   max-height: 200px;
   overflow-y: auto;
 }
+
 .judgment-display p {
   margin: 0;
   font-size: 15px;
   line-height: 1.7;
-  color: #333;
+  color: #ddd;
   white-space: pre-wrap;
 }
+
 .result-actions {
   padding: 15px 20px;
-  background-color: #f8f9fa;
+  background: rgba(0, 0, 0, 0.3);
   border-top: 1px solid var(--court-border-color);
   display: flex;
   justify-content: flex-end;
   gap: 10px;
 }
+
 .settlement-button {
-  /* 합의금 지급 버튼 기본 상태 */
   padding: 8px 15px;
   font-size: 14px;
   font-weight: 600;
   border-radius: var(--court-border-radius);
   cursor: pointer;
-  border: none;
-  color: white;
+  border: 1px solid transparent;
+  color: #000;
   background-color: var(--court-settlement-color);
-  transition: background-color 0.2s ease, opacity 0.2s ease;
+  transition: all 0.2s ease;
+  font-family: 'Rajdhani', sans-serif;
+  text-transform: uppercase;
 }
+
 .settlement-button:hover:not(.paid) {
-  /* 지급 완료가 아닐 때만 hover 효과 */
-  background-color: #1aa080; /* 조금 더 진한 색 */
-  opacity: 0.9;
+  background-color: #00e08b;
+  box-shadow: 0 0 10px var(--court-settlement-color);
 }
+
 .settlement-button.paid {
-  /* 합의금 지급 완료 상태 */
-  background-color: var(--court-settlement-paid-bg);
-  color: var(--court-settlement-paid-text);
-  cursor: default; /* 클릭 불가 커서 */
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #888;
+  cursor: default;
+  border: 1px solid var(--court-border-color);
+}
+
+.settlement-button.paid:hover {
+  background-color: rgba(255, 255, 255, 0.1);
   opacity: 0.7;
 }
-.settlement-button.paid:hover {
-  /* 지급 완료 상태에서는 hover 효과 제거 */
-  background-color: var(--court-settlement-paid-bg); /* 색상 유지 */
-  opacity: 0.7; /* 투명도 유지 */
-}
-
-/* --- 합의금 지급 모달 스타일 --- */
-.settlement-modal-container {
-  background-color: var(--court-secondary-bg);
-  padding: 30px;
-  border-radius: var(--court-border-radius-lg);
-  width: 90%;
-  max-width: 550px;
-  box-shadow: var(--court-shadow-md);
-}
-.settlement-modal-header {
-  font-size: 20px;
-  font-weight: 700;
-  margin-bottom: 20px;
-  color: var(--court-text-primary);
-}
-.settlement-modal-content .form-group {
-  margin-bottom: 18px;
-}
-.settlement-modal-content .form-label {
-  font-weight: 600;
-  font-size: 15px;
-  margin-bottom: 6px;
-  display: block;
-  color: var(--court-text-primary);
-}
-.settlement-modal-content .form-select,
-.settlement-modal-content .form-input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid var(--court-border-color);
-  border-radius: var(--court-border-radius);
-  font-size: 14px;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-  box-sizing: border-box;
-}
-.settlement-modal-content .form-select:focus,
-.settlement-modal-content .form-input:focus {
-  border-color: var(--court-settlement-color);
-  box-shadow: 0 0 0 3px rgba(32, 201, 151, 0.15);
-  outline: none;
-}
-.settlement-modal-actions {
-  margin-top: 25px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-.settlement-modal-actions button {
-  padding: 10px 18px;
-  font-size: 15px;
-  font-weight: 600;
-  border-radius: var(--court-border-radius);
-  cursor: pointer;
-}
-.settlement-modal-actions .save-button {
-  background-color: var(--court-settlement-color);
-  color: white;
-  border: none;
-}
-.settlement-modal-actions .save-button:hover {
-  background-color: #1aa080;
-}
-.settlement-modal-actions .cancel-button {
-  background-color: #6c757d;
-  color: white;
-  border: none;
-}
-.settlement-modal-actions .cancel-button:hover {
-  background-color: #5a6268;
-}
-
-/* --- 송금 섹션 스타일 (필요시 유지) --- */
-/* .payment-section { ... } */
 
 /* --- 기타 유틸리티 --- */
 .empty-state {
@@ -640,6 +730,9 @@
   padding: 40px 20px;
   color: var(--court-text-secondary);
   font-size: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  border: 1px dashed var(--court-border-color);
 }
 
 /* --- 모바일 반응형 스타일 (768px 이하) --- */
@@ -651,7 +744,7 @@
   .court-header-container {
     flex-direction: column;
     align-items: flex-start;
-    border-bottom-width: 2px;
+    border-bottom-width: 1px;
     padding-bottom: 10px;
     margin-bottom: 15px;
   }
@@ -671,6 +764,7 @@
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
+
   .court-tabs::-webkit-scrollbar {
     display: none;
   }
@@ -705,10 +799,12 @@
     padding-bottom: 8px;
     gap: 5px;
   }
+
   .complaint-card-info {
     font-size: 13px;
     gap: 4px;
   }
+
   .case-status {
     font-size: 11px;
     padding: 3px 6px;
@@ -717,10 +813,12 @@
   .complaint-card-content {
     font-size: 13px;
   }
+
   .complaint-card-content h4 {
     font-size: 14px;
     margin-bottom: 4px;
   }
+
   .complaint-card-content p {
     margin-bottom: 6px;
   }
@@ -729,10 +827,12 @@
     padding-top: 10px;
     gap: 8px;
   }
+
   .vote-button {
     padding: 4px 8px;
     font-size: 13px;
   }
+
   .vote-count {
     font-size: 12px;
   }
@@ -742,6 +842,7 @@
     gap: 6px;
     justify-content: flex-start;
   }
+
   .complaint-card-actions button {
     padding: 6px 10px;
     font-size: 12px;
@@ -758,68 +859,52 @@
     font-size: 13px;
     gap: 8px;
   }
+
   .result-content {
     padding: 15px;
   }
+
   .result-content h4 {
     font-size: 15px;
   }
+
   .result-content p.summary {
     font-size: 13px;
   }
+
   .judgment-display {
     padding: 12px;
     font-size: 14px;
     max-height: 150px;
   }
+
   .result-actions {
     padding: 12px 15px;
     gap: 8px;
   }
+
   .settlement-button {
-    /* 모바일 합의금 버튼 */
     padding: 7px 12px;
     font-size: 13px;
   }
-  /* 모바일에서도 .paid 상태 스타일은 동일하게 적용됩니다. */
 
   /* 제출 폼 */
   .submit-complaint-form {
     gap: 15px;
   }
+
   .form-label {
     font-size: 15px;
   }
+
   .form-input,
   .form-textarea,
   .form-select {
     padding: 10px 12px;
     font-size: 14px;
   }
+
   .submit-complaint-form button {
     padding: 10px 15px;
-    font-size: 16px;
-  }
-
-  /* 모달 */
-  .edit-modal-container,
-  .settlement-modal-container {
-    padding: 20px;
-    max-width: 95%;
-  }
-  .edit-modal-header,
-  .settlement-modal-header {
-    font-size: 18px;
-    margin-bottom: 15px;
-  }
-  .edit-modal-actions,
-  .settlement-modal-actions {
-    margin-top: 20px;
-    gap: 8px;
-  }
-  .edit-modal-actions button,
-  .settlement-modal-actions button {
-    padding: 8px 15px;
-    font-size: 14px;
   }
 }

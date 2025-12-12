@@ -406,12 +406,12 @@ const GonuGame = () => {
             handleMove(row, col);
         }
     };
-    
+
     const handleLeaveGame = async () => {
         if (gameData && gameData.status === 'waiting' && gameId && gameData.players.B === user.uid) {
             try { await deleteDoc(doc(db, 'gonuGames', gameId)); } catch (error) { console.error("Error deleting room:", error); }
         }
-        
+
         setGameId(null);
         setGameData(null);
         setShowCreateRoom(true);
@@ -424,9 +424,9 @@ const GonuGame = () => {
                 <div className="room-creation">
                     <h2>🎯 고누 게임</h2>
                     <p>전통 한국 보드게임을 온라인으로 즐겨보세요!</p>
-                    
+
                     {feedback.message && <div className={`feedback ${feedback.type}`}>{feedback.message}</div>}
-                    
+
                     <div className="game-type-selector">
                         <h3>게임 종류 선택</h3>
                         <div className="game-types">
@@ -443,7 +443,7 @@ const GonuGame = () => {
                         <button onClick={() => setShowRules(!showRules)} className="rules-toggle-btn">
                             {showRules ? '규칙 숨기기' : '규칙 보기'}
                         </button>
-                        
+
                         {showRules && (
                             <div className="rules-display">
                                 <h4>{GONU_TYPES[selectedGameType].name} 규칙</h4>
@@ -453,18 +453,18 @@ const GonuGame = () => {
                             </div>
                         )}
                     </div>
-                    
+
                     <div className="room-actions">
                         <button onClick={handleCreateRoom} className="create-room-btn" disabled={loading}>
                             {loading ? <span className="loading"></span> : '새로운 방 만들기'}
                         </button>
-                        
+
                         <div className="join-room">
                             <input type="text" value={newRoomId} onChange={(e) => setNewRoomId(e.target.value)} placeholder="방 코드 입력" maxLength="6" />
                             <button onClick={() => handleJoinRoom()} disabled={loading}>{loading ? <span className="loading"></span> : '코드로 참가'}</button>
                         </div>
                     </div>
-                    
+
                     {availableRooms.length > 0 && (
                         <div className="available-rooms">
                             <h3>📋 대기 중인 방 목록</h3>
@@ -491,13 +491,20 @@ const GonuGame = () => {
             </div>
         );
     }
-    
+
     if (!gameData) {
         return <AlchanLoading />;
     }
 
+    // Force strict dark mode background via inline style
+    const containerStyle = {
+        backgroundColor: '#0a0a12',
+        minHeight: '100%',
+        width: '100%'
+    };
+
     return (
-        <div className="gonu-container">
+        <div className="gonu-container" style={containerStyle}>
             <div className="game-info">
                 <h2>{gameData.gameName || '고누 게임'} (방: {gameId})</h2>
                 <div className="player-info">
@@ -508,7 +515,7 @@ const GonuGame = () => {
                         🔴 {gameData.playerNames.R || '대기중...'} {gameData.players.R === user?.uid && '(나)'}
                     </p>
                 </div>
-                
+
                 {gameData.status === 'finished' ? (
                     <div className="game-status winner">
                         {gameData.winner === myColor ? '🎉 승리! 쿠폰 1개를 획득했습니다!' : '😢 패배했습니다.'}
@@ -519,7 +526,7 @@ const GonuGame = () => {
                     <div className="game-status">{isMyTurn ? "🎯 당신의 턴입니다." : "⏳ 상대방의 턴을 기다리는 중..."}</div>
                 )}
             </div>
-            
+
             <div className="board-area">
                 <div className="gonu-board">
                     {gameData.board.map((row, rIndex) => (
@@ -536,9 +543,9 @@ const GonuGame = () => {
                     ))}
                 </div>
             </div>
-            
+
             {feedback.message && <div className={`feedback ${feedback.type}`}>{feedback.message}</div>}
-            
+
             <button onClick={handleLeaveGame} className="leave-button">
                 {gameData.status === 'finished' ? '나가기' : '게임 나가기'}
             </button>

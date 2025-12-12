@@ -321,10 +321,9 @@ const Banking = () => {
       );
 
       setMessage(
-        `${
-          type === "deposits"
-            ? "예금"
-            : type === "installments"
+        `${type === "deposits"
+          ? "예금"
+          : type === "installments"
             ? "적금"
             : "대출"
         } 상품이 성공적으로 저장되었습니다.`
@@ -347,13 +346,12 @@ const Banking = () => {
   const addParkingProduct = (type) => {
     const newProduct = {
       id: Date.now(),
-      name: `새 ${
-        type === "deposits"
-          ? "예금"
-          : type === "installments"
+      name: `새 ${type === "deposits"
+        ? "예금"
+        : type === "installments"
           ? "적금"
           : "대출"
-      } 상품`,
+        } 상품`,
       dailyRate: 0.01,
       termInDays: 365,
       minAmount: type === "loans" ? 0 : 100000,
@@ -412,8 +410,8 @@ const Banking = () => {
           type === "deposits"
             ? "deposits"
             : type === "installments"
-            ? "savings"
-            : "loans";
+              ? "savings"
+              : "loans";
         await updateBankingProducts(
           auth.userDoc.classCode,
           firestoreType,
@@ -469,13 +467,12 @@ const Banking = () => {
 
         {/* 메시지 표시 */}
         {message && (
-          <div className={`mb-4 p-4 rounded-xl ${
-            messageType === 'error'
-              ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800'
-              : messageType === 'success'
-              ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-              : 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800'
-          }`}>
+          <div className={`mb-4 p-4 rounded-xl ${messageType === 'error'
+            ? 'bg-red-900/40 text-red-200 border border-red-800/50'
+            : messageType === 'success'
+              ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-800/50'
+              : 'bg-blue-900/40 text-blue-200 border border-blue-800/50'
+            }`}>
             {message}
           </div>
         )}
@@ -512,19 +509,19 @@ const Banking = () => {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{width: "25%" }}>
+                        <th style={{ width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{width: "15%" }}>
+                        <th style={{ width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           최소금액(원)
                         </th>
-                        <th style={{width: "12%" }}>
+                        <th style={{ width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -546,6 +543,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -563,6 +561,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -582,6 +581,7 @@ const Banking = () => {
                               className="admin-input"
                               placeholder="예: 0.01"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -599,6 +599,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -641,19 +642,19 @@ const Banking = () => {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{width: "25%" }}>
+                        <th style={{ width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{width: "15%" }}>
+                        <th style={{ width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           최소 월납입(원)
                         </th>
-                        <th style={{width: "12%" }}>
+                        <th style={{ width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -675,6 +676,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -692,6 +694,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -711,6 +714,7 @@ const Banking = () => {
                               className="admin-input"
                               placeholder="예: 0.011"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -728,6 +732,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -770,19 +775,19 @@ const Banking = () => {
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th style={{width: "25%" }}>
+                        <th style={{ width: "25%" }}>
                           상품명
                         </th>
-                        <th style={{width: "15%" }}>
+                        <th style={{ width: "15%" }}>
                           기간(일)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           일 이율(%)
                         </th>
-                        <th style={{width: "18%" }}>
+                        <th style={{ width: "18%" }}>
                           최대 대출액(원)
                         </th>
-                        <th style={{width: "12%" }}>
+                        <th style={{ width: "12%" }}>
                           관리
                         </th>
                       </tr>
@@ -804,6 +809,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -821,6 +827,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -840,6 +847,7 @@ const Banking = () => {
                               className="admin-input"
                               placeholder="예: 0.05"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">
@@ -857,6 +865,7 @@ const Banking = () => {
                               }
                               className="admin-input"
                               disabled={isLoading}
+                              style={{ backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
                             />
                           </td>
                           <td className="admin-td">

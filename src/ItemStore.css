@@ -48,147 +48,26 @@ body {
   padding: 20px;
   max-width: 1280px;
   margin: 0 auto;
-  background-color: transparent !important;
+  background-color: #0a0a12 !important;
   box-sizing: border-box;
   position: relative;
   width: 100%;
   transition: all 0.3s ease;
+  min-height: 100vh;
 }
 
-/* --- 헤더 --- */
-.page-header-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  position: relative;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding-right: 55px;
-  padding: 0 1rem;
-}
-
-.page-title {
-  font-size: 2.1rem;
-  font-weight: 800;
-  color: var(--color-text);
-  position: relative;
-  display: inline-block;
-  padding-bottom: 8px;
-  margin: 0;
-}
-
-.page-title:after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 50%;
-  height: 3px;
-  background: linear-gradient(90deg,
-      var(--color-primary),
-      var(--color-primary-dark));
-}
-
-/* 헤더 액션 영역 스타일 */
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-/* 인벤토리 링크 스타일 */
-.inventory-link {
-  display: flex;
-  align-items: center;
-  background-color: var(--color-primary);
-  color: white;
-  padding: 8px 15px;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  text-decoration: none;
-  transition: background-color 0.2s;
-}
-
-.inventory-link:hover {
-  background-color: var(--color-primary-dark);
-  text-decoration: none;
-}
-
-.inventory-link:before {
-  content: "🎒";
-  margin-right: 5px;
-  font-size: 1.1rem;
-}
-
-/* --- 관리자 아이콘 버튼 --- */
-.admin-icon-button {
-  background: var(--color-secondary-dark);
-  color: var(--color-white);
-  padding: var(--padding-small);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  border: 1px solid var(--color-gray-300);
-  font-size: 1.3rem;
-  line-height: 1;
-  width: 40px;
-  height: 40px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 10;
-  opacity: 1 !important;
-}
-
-.admin-icon-button:hover {
-  background: var(--color-secondary-darker);
-  transform: translateY(-1px) scale(1.05);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
-  color: var(--color-white);
-}
-
-.admin-icon-button:active {
-  transform: translateY(0) scale(1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-/* --- 섹션 제목 --- */
-.section-title {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: var(--color-secondary-dark);
-  margin-bottom: 1.2rem;
-  padding-bottom: 0.6rem;
-  border-bottom: 2px solid var(--color-gray-300);
-  position: relative;
-}
-
-.section-title:after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: -2px;
-  width: 70px;
-  height: 2.5px;
-  background: linear-gradient(90deg,
-      var(--color-primary),
-      var(--color-primary-dark));
-}
+/* ... headers ... */
 
 /* --- 콘텐츠 카드 --- */
 .content-card-section {
-  background-color: var(--color-white);
+  background-color: rgba(20, 20, 35, 0.8) !important;
   border-radius: var(--border-radius-large);
   padding: 16px;
   margin-bottom: 25px;
-  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.04), 0 4px 6px rgba(0, 0, 0, 0.06);
-  border: 1px solid var(--color-gray-300);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+  border: 1px solid rgba(0, 255, 242, 0.2);
   overflow: hidden;
+  backdrop-filter: blur(10px);
 }
 
 /* --- 아이템 그리드 --- */
@@ -929,17 +808,19 @@ body {
 .item-name-compact {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #111827;
+  color: #00fff2;
+  /* Neon Cyan */
   margin: 0;
   padding: 6px 12px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: rgba(0, 255, 242, 0.1);
+  border: 1px solid rgba(0, 255, 242, 0.3);
   border-radius: 8px;
   display: inline-block;
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-shadow: 0 0 5px rgba(0, 255, 242, 0.1);
 }
 
 .item-stock-compact {
@@ -952,12 +833,12 @@ body {
 .item-stock-compact .stock-normal,
 .item-stock-compact .stock-low {
   font-weight: 600;
-  color: #374151;
+  color: #e2e8f0;
 }
 
 .item-description-compact {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: #bdc6cf;
   margin: 0 0 12px 0;
   line-height: 1.5;
   display: -webkit-box;
@@ -966,48 +847,65 @@ body {
   overflow: hidden;
 }
 
+.compact-card {
+  background: rgba(20, 20, 35, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* More subtle border */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+}
+
 .compact-card .item-actions-primary {
   padding-top: 12px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   margin-top: 8px;
 }
 
 .compact-card .item-price {
   font-size: 1rem;
   font-weight: 700;
-  color: #111827;
+  color: #ff00ff;
+  /* Neon Pink */
+  text-shadow: 0 0 5px rgba(255, 0, 255, 0.3);
 }
 
 .compact-card .quantity-input {
   border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
   font-weight: 600;
 }
 
 .compact-card .buy-item-button {
-  background: #111827;
-  color: #fff;
+  background: linear-gradient(135deg, #00fff2 0%, #00a8ff 100%);
+  color: #000;
   border: none;
   border-radius: 8px;
   padding: 10px 16px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.875rem;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 10px rgba(0, 255, 242, 0.3);
 }
 
 .compact-card .buy-item-button:hover:not(:disabled) {
-  background: #1f2937;
+  transform: translateY(-2px);
+  box-shadow: 0 0 15px rgba(0, 255, 242, 0.5);
 }
 
 .compact-card .buy-item-button:disabled {
-  background: #e5e7eb;
-  color: #9ca3af;
+  background: #334155;
+  color: #94a3b8;
+  box-shadow: none;
+  transform: none;
 }
 
 .compact-card .item-actions-admin {
   padding-top: 10px;
   margin-top: 10px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   gap: 8px;
 }
 
@@ -1018,25 +916,29 @@ body {
   font-weight: 600;
   font-size: 0.8rem;
   border: none;
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .compact-card .edit-item-button {
-  background: #f3f4f6;
-  color: #374151;
+  background: rgba(0, 255, 0, 0.1);
+  color: #00ff00;
+  border: 1px solid rgba(0, 255, 0, 0.3);
 }
 
 .compact-card .edit-item-button:hover {
-  background: #e5e7eb;
+  background: rgba(0, 255, 0, 0.2);
+  box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
 }
 
 .compact-card .delete-item-button {
-  background: #fef2f2;
-  color: #dc2626;
+  background: rgba(255, 0, 0, 0.1);
+  color: #ff3333;
+  border: 1px solid rgba(255, 0, 0, 0.3);
 }
 
 .compact-card .delete-item-button:hover {
-  background: #fee2e2;
+  background: rgba(255, 0, 0, 0.2);
+  box-shadow: 0 0 10px rgba(255, 0, 0, 0.2);
 }
 
 /* ItemStore.css에 추가할 스타일 */
@@ -1051,15 +953,20 @@ body {
   width: 60px;
   height: 36px;
   padding: 4px 8px;
-  border: 1px solid #ccc;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 4px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
   text-align: center;
   font-size: 14px;
 }
 
 .quantity-input:disabled {
-  background-color: #f0f0f0;
+  background-color: rgba(255, 255, 255, 0.05);
+  /* Darker disabled background */
+  color: #666;
   cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 /* 모바일 대응 */

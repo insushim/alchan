@@ -674,7 +674,7 @@ const Court = () => {
     if (["resolved", "dismissed"].includes(complaint.status) && !isAdmin) {
       return alert("완료된 사건은 수정할 수 없습니다.");
     }
-    
+
     if (complaint.caseType === 'bankruptcy') {
       return alert("파산 신청서는 수정할 수 없습니다.");
     }
@@ -765,7 +765,7 @@ const Court = () => {
       alert("투표 처리 중 오류가 발생했습니다: " + error.message);
     }
   };
-  
+
   const handleStartTrial = async (complaintId) => {
     if (!hasJudgePrivileges || !classCode)
       return alert("재판 시작 권한이 없습니다.");
@@ -1080,7 +1080,7 @@ const Court = () => {
                     <h4>사건번호: {room.caseNumber}</h4>
                     <p>판사: {room.judgeName}</p>
                     <p>참여자: {room.participants?.length || 0}명</p>
-                    <button 
+                    <button
                       className="enter-room-btn"
                       onClick={() => {
                         setActiveTrialRoom(room.id);
@@ -1175,9 +1175,8 @@ const Court = () => {
             재판방 ⚖️
           </button>
           <button
-            className={`court-tab-button ${activeTab === "bankruptcy" ? "active" : ""}`}
+            className={`court-tab-button bankruptcy-tab-button ${activeTab === "bankruptcy" ? "active" : ""}`}
             onClick={() => setActiveTab("bankruptcy")}
-            style={{ color: "#c0392b" }}
           >
             파산 신청
           </button>

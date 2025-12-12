@@ -16,7 +16,7 @@ const CircularProgress = ({ percentage, size = 140, strokeWidth = 12, color, chi
           cy={size / 2}
           r={radius}
           fill="none"
-          stroke="#e5e7eb"
+          stroke="rgba(255, 255, 255, 0.1)"
           strokeWidth={strokeWidth}
         />
         {/* 프로그레스 원 */}
@@ -84,15 +84,16 @@ export default function CouponGoal({
     <div
       className="class-coupon-goal"
       style={{
-        backgroundColor: "#ffffff",
+        backgroundColor: "rgba(20, 20, 35, 0.6)",
         padding: "24px",
         borderRadius: "20px",
         boxShadow: goalAchieved
           ? "0 4px 20px rgba(16, 185, 129, 0.25)"
-          : "0 4px 20px rgba(99, 102, 241, 0.15)",
-        border: goalAchieved ? "2px solid #10b981" : "2px solid #e0e7ff",
+          : "0 4px 20px rgba(0, 255, 242, 0.15)",
+        border: goalAchieved ? "2px solid #10b981" : "1px solid rgba(0, 255, 242, 0.2)",
         position: "relative",
         overflow: "hidden",
+        backdropFilter: "blur(10px)",
       }}
     >
       {/* 배경 장식 */}
@@ -125,8 +126,9 @@ export default function CouponGoal({
             style={{
               fontSize: "20px",
               fontWeight: "700",
-              color: "#1f2937",
+              color: "#e8e8ff",
               margin: 0,
+              textShadow: "0 0 5px rgba(0, 255, 242, 0.5)",
             }}
           >
             학급 쿠폰 목표
@@ -194,16 +196,16 @@ export default function CouponGoal({
             <div style={{ fontSize: "32px", fontWeight: "800", color: mainColor }}>
               {goalPercentage}%
             </div>
-            <div style={{ fontSize: "11px", color: "#6b7280", fontWeight: "500" }}>
+            <div style={{ fontSize: "11px", color: "#a0a0c0", fontWeight: "500" }}>
               달성률
             </div>
           </CircularProgress>
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "22px", fontWeight: "800", color: "#1f2937" }}>
+            <div style={{ fontSize: "22px", fontWeight: "800", color: "#e8e8ff" }}>
               {(goalProgress || 0).toLocaleString()}
-              <span style={{ fontSize: "14px", color: "#6b7280", fontWeight: "500" }}> / {validClassCouponGoal.toLocaleString()}</span>
+              <span style={{ fontSize: "14px", color: "#a0a0c0", fontWeight: "500" }}> / {validClassCouponGoal.toLocaleString()}</span>
             </div>
-            <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "2px" }}>학급 전체 기부량</div>
+            <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>학급 전체 기부량</div>
           </div>
         </div>
 
@@ -218,38 +220,39 @@ export default function CouponGoal({
             <div style={{ fontSize: "24px", fontWeight: "800", color: "#f59e0b" }}>
               {myContributionPercentage}%
             </div>
-            <div style={{ fontSize: "10px", color: "#6b7280", fontWeight: "500" }}>
+            <div style={{ fontSize: "10px", color: "#a0a0c0", fontWeight: "500" }}>
               내 기여
             </div>
           </CircularProgress>
           <div style={{ marginTop: "12px" }}>
-            <div style={{ fontSize: "18px", fontWeight: "700", color: "#1f2937" }}>
+            <div style={{ fontSize: "18px", fontWeight: "700", color: "#e8e8ff" }}>
               {(myContribution || 0).toLocaleString()}
-              <span style={{ fontSize: "12px", color: "#6b7280", fontWeight: "500" }}> 쿠폰</span>
+              <span style={{ fontSize: "12px", color: "#a0a0c0", fontWeight: "500" }}> 쿠폰</span>
             </div>
-            <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "2px" }}>내가 기부한 쿠폰</div>
+            <div style={{ fontSize: "11px", color: "#6b7280", marginTop: "2px" }}>내가 기부한 쿠폰</div>
           </div>
         </div>
 
         {/* 내 보유량 카드 */}
         <div
           style={{
-            background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)",
+            background: "linear-gradient(135deg, rgba(251, 191, 36, 0.2) 0%, rgba(245, 158, 11, 0.2) 100%)",
             borderRadius: "16px",
             padding: "20px",
             textAlign: "center",
             minWidth: "130px",
-            boxShadow: "0 4px 12px rgba(245, 158, 11, 0.2)",
+            boxShadow: "0 4px 12px rgba(245, 158, 11, 0.1)",
+            border: "1px solid rgba(251, 191, 36, 0.3)",
           }}
         >
           <div style={{ fontSize: "32px", marginBottom: "8px" }}>🎫</div>
-          <div style={{ fontSize: "28px", fontWeight: "800", color: "#92400e" }}>
+          <div style={{ fontSize: "28px", fontWeight: "800", color: "#fbbf24", textShadow: "0 0 10px rgba(251, 191, 36, 0.3)" }}>
             {(currentCoupons || 0).toLocaleString()}
           </div>
-          <div style={{ fontSize: "12px", color: "#a16207", fontWeight: "600", marginTop: "4px" }}>
+          <div style={{ fontSize: "12px", color: "#fcd34d", fontWeight: "600", marginTop: "4px" }}>
             보유 쿠폰
           </div>
-          <div style={{ fontSize: "10px", color: "#b45309", marginTop: "8px", padding: "4px 8px", background: "rgba(255,255,255,0.5)", borderRadius: "8px" }}>
+          <div style={{ fontSize: "10px", color: "#fcd34d", marginTop: "8px", padding: "4px 8px", background: "rgba(0,0,0,0.3)", borderRadius: "8px" }}>
             1쿠폰 = {typeof couponValue === "number" ? couponValue.toLocaleString() : "0"}원
           </div>
         </div>
@@ -344,7 +347,7 @@ export default function CouponGoal({
           }}
         >
           <span style={{ fontSize: "22px" }}>📋</span>
-          <span style={{ color: "#374151", fontSize: "12px", fontWeight: "700" }}>기부 내역</span>
+          <span style={{ color: "#a0a0c0", fontSize: "12px", fontWeight: "700" }}>기부 내역</span>
         </button>
       </div>
 

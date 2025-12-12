@@ -7,11 +7,12 @@
 
 .game-page-container {
   /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0a0a12;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* [수정] 중앙 정렬에서 상단 정렬로 변경 */
+  justify-content: flex-start;
+  /* [수정] 중앙 정렬에서 상단 정렬로 변경 */
   padding: 2rem;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
@@ -21,14 +22,16 @@
   text-align: center;
   margin-bottom: 2rem;
   color: white;
-  width: 100%; /* [추가] 헤더 너비 확보 */
+  width: 100%;
+  /* [추가] 헤더 너비 확보 */
 }
 
 .omok-header h2 {
   font-size: 2.5rem;
   font-weight: 700;
   margin: 0 0 0.5rem 0;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 0 0 10px rgba(0, 255, 242, 0.5);
+  color: #00fff2;
 }
 
 .omok-header p {
@@ -48,21 +51,28 @@
 
 /* 로비 스타일 */
 .omok-lobby {
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(20, 20, 35, 0.6);
   backdrop-filter: blur(10px);
   border-radius: 20px;
-  padding: 2rem; /* [수정] 패딩 조정 */
-  box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-  width: 100%; /* [수정] 너비 100%로 설정 */
-  max-width: 800px; /* [추가] 최대 너비 제한 */
-  display: flex; /* [추가] flexbox 레이아웃 */
-  flex-direction: column; /* [추가] 컬럼 방향 */
-  gap: 2rem; /* [추가] 섹션 간 간격 */
+  padding: 2rem;
+  /* [수정] 패딩 조정 */
+  box-shadow: 0 8px 32px rgba(0, 255, 242, 0.1);
+  border: 1px solid rgba(0, 255, 242, 0.2);
+  width: 100%;
+  /* [수정] 너비 100%로 설정 */
+  max-width: 800px;
+  /* [추가] 최대 너비 제한 */
+  display: flex;
+  /* [추가] flexbox 레이아웃 */
+  flex-direction: column;
+  /* [추가] 컬럼 방향 */
+  gap: 2rem;
+  /* [추가] 섹션 간 간격 */
 }
 
 /* [추가] 로비 섹션 스타일 */
 .lobby-section {
-  background: rgba(240, 240, 240, 0.5);
+  background: rgba(255, 255, 255, 0.05);
   padding: 1.5rem;
   border-radius: 16px;
 }
@@ -70,7 +80,7 @@
 .lobby-section h3 {
   margin-top: 0;
   margin-bottom: 1.5rem;
-  color: #333;
+  color: #e8e8ff;
   text-align: center;
 }
 
@@ -92,7 +102,7 @@
   display: flex;
   width: 100%;
   max-width: 300px;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   border-radius: 12px;
   overflow: hidden;
 }
@@ -101,13 +111,14 @@
   flex: 1;
   padding: 12px 16px;
   border: none;
-  background: white;
+  background: rgba(255, 255, 255, 0.1);
+  color: #e8e8ff;
   font-size: 1rem;
   outline: none;
 }
 
 .game-input::placeholder {
-  color: #999;
+  color: #a0a0c0;
 }
 
 /* [추가] 게임방 목록 컨테이너 */
@@ -122,13 +133,13 @@
 
 /* [수정] 게임방 카드 디자인 */
 .game-room-card {
-  background: #fff;
+  background: rgba(30, 30, 45, 0.8);
   border-radius: 12px;
   padding: 1rem;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid #e0e0e0;
+  border: 1px solid rgba(0, 255, 242, 0.1);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -137,7 +148,8 @@
 
 .game-room-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+  box-shadow: 0 0 15px rgba(0, 255, 242, 0.2);
+  border-color: rgba(0, 255, 242, 0.4);
 }
 
 .room-header {
@@ -149,7 +161,7 @@
 
 .room-title {
   font-weight: 600;
-  color: #333;
+  color: #e8e8ff;
   font-size: 1.1rem;
   display: flex;
   flex-direction: column;
@@ -158,13 +170,13 @@
 .host-class {
   font-size: 0.8rem;
   font-weight: normal;
-  color: #777;
+  color: #a0a0c0;
 }
 
 .room-id {
   font-size: 0.8rem;
-  color: #999;
-  background-color: #f5f5f5;
+  color: #a0a0c0;
+  background-color: rgba(255, 255, 255, 0.1);
   padding: 2px 6px;
   border-radius: 4px;
 }
@@ -174,7 +186,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 0.9rem;
-  color: #555;
+  color: #a0a0c0;
   margin-bottom: 0.75rem;
 }
 
@@ -183,8 +195,8 @@
 }
 
 .room-status.global-status {
-  background-color: #e8f5e9;
-  color: #4caf50;
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
   padding: 4px 8px;
   border-radius: 8px;
   font-weight: 600;
@@ -212,7 +224,7 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
@@ -272,13 +284,17 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 2rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #0a0a12;
   /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
   color: white;
-  display: flex; /* [추가] */
-  flex-direction: column; /* [추가] */
-  align-items: center; /* [추가] */
-  justify-content: center; /* [추가] */
+  display: flex;
+  /* [추가] */
+  flex-direction: column;
+  /* [추가] */
+  align-items: center;
+  /* [추가] */
+  justify-content: center;
+  /* [추가] */
 }
 
 /* 플레이어 상태 */
@@ -288,7 +304,8 @@
   gap: 3rem;
   margin: 2rem 0;
   width: 100%;
-  max-width: 600px; /* [추가] 최대 너비 */
+  max-width: 600px;
+  /* [추가] 최대 너비 */
 }
 
 .player-card {
@@ -296,7 +313,8 @@
   backdrop-filter: blur(10px);
   border-radius: 16px;
   padding: 1.5rem;
-  width: 100%; /* [수정] 너비 조정 */
+  width: 100%;
+  /* [수정] 너비 조정 */
   text-align: center;
   transition: all 0.3s ease;
   border: 2px solid transparent;
@@ -315,7 +333,8 @@
   justify-content: center;
   gap: 1rem;
   margin-bottom: 1rem;
-  flex-wrap: wrap; /* [추가] 이름 길어지면 줄바꿈 */
+  flex-wrap: wrap;
+  /* [추가] 이름 길어지면 줄바꿈 */
 }
 
 .player-name {
@@ -327,7 +346,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .stone-indicator.black {
@@ -374,8 +393,15 @@
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.8; }
-  50% { opacity: 1; }
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
 }
 
 /* 바둑판 컨테이너 */
@@ -387,19 +413,20 @@
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 20px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
 /* 바둑판 */
 .omok-board {
   display: grid;
-  --cell-size: 30px; /* [추가] 셀 크기 변수화 */
+  --cell-size: 30px;
+  /* [추가] 셀 크기 변수화 */
   grid-template-columns: repeat(19, var(--cell-size));
   grid-template-rows: repeat(19, var(--cell-size));
   background: linear-gradient(135deg, #deb887, #cd853f);
   padding: 20px;
   border-radius: 12px;
-  box-shadow: inset 0 4px 8px rgba(0,0,0,0.1);
+  box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);
   position: relative;
 }
 
@@ -429,10 +456,13 @@
 }
 
 @keyframes pulse-preview {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translate(-50%, -50%) scale(0.9);
     opacity: 0.7;
   }
+
   50% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
@@ -446,8 +476,13 @@
 }
 
 @keyframes highlight {
-  0% { background: rgba(255, 215, 0, 0.8); }
-  100% { background: rgba(255, 215, 0, 0.5); }
+  0% {
+    background: rgba(255, 215, 0, 0.8);
+  }
+
+  100% {
+    background: rgba(255, 215, 0, 0.5);
+  }
 }
 
 /* 바둑판 선 */
@@ -496,24 +531,26 @@
 
 /* 바둑돌 */
 .omok-stone {
-  width: 85%; /* [수정] 셀 크기에 비례하도록 변경 */
+  width: 85%;
+  /* [수정] 셀 크기에 비례하도록 변경 */
   height: 85%;
   border-radius: 50%;
   position: absolute;
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   z-index: 1;
   animation: placeStone 0.3s ease-out;
 }
 
 @keyframes placeStone {
-  0% { 
+  0% {
     transform: translate(-50%, -50%) scale(0);
     opacity: 0;
   }
-  100% { 
+
+  100% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 1;
   }
@@ -544,7 +581,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: #ffd700;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
   line-height: 1.5;
 }
 
@@ -577,7 +614,7 @@
   font-size: 4rem;
   font-weight: 700;
   color: #ffd700;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
   z-index: 1000;
   animation: winAnimation 3s ease-out forwards;
   pointer-events: none;
@@ -588,10 +625,12 @@
     transform: translate(-50%, -50%) scale(0);
     opacity: 0;
   }
+
   50% {
     transform: translate(-50%, -50%) scale(1.2);
     opacity: 1;
   }
+
   100% {
     transform: translate(-50%, -50%) scale(1);
     opacity: 0;
@@ -600,31 +639,34 @@
 
 /* 반응형 디자인 */
 @media (max-width: 768px) {
-  .omok-container, .game-page-container {
+
+  .omok-container,
+  .game-page-container {
     padding: 1rem;
   }
-  
+
   .player-status {
     flex-direction: column;
     gap: 1rem;
     align-items: center;
   }
-  
+
   .player-card {
     min-width: auto;
     width: 100%;
     max-width: 300px;
   }
-  
+
   .omok-board {
-    --cell-size: 24px; /* [수정] 모바일 셀 크기 조정 */
+    --cell-size: 24px;
+    /* [수정] 모바일 셀 크기 조정 */
     padding: 15px;
   }
-    
+
   .omok-header h2 {
     font-size: 2rem;
   }
-  
+
   .game-info {
     flex-direction: column;
     gap: 0.5rem;
@@ -638,10 +680,11 @@
 
 @media (max-width: 480px) {
   .omok-board {
-    --cell-size: 4.5vw; /* [수정] 더 작은 화면에서 유연하게 크기 조정 */
+    --cell-size: 4.5vw;
+    /* [수정] 더 작은 화면에서 유연하게 크기 조정 */
     padding: 10px;
   }
-    
+
   .star-point {
     width: 4px;
     height: 4px;
@@ -650,7 +693,7 @@
   .omok-header h2 {
     font-size: 1.8rem;
   }
-  
+
   .player-name {
     font-size: 1rem;
   }
@@ -661,21 +704,7 @@
 }
 
 /* 다크모드 지원 */
-@media (prefers-color-scheme: dark) {
-  .omok-lobby {
-    background: rgba(30, 30, 30, 0.95);
-    color: white;
-  }
-  
-  .game-input {
-    background: #333;
-    color: white;
-  }
-  
-  .game-input::placeholder {
-    color: #bbb;
-  }
-}
+
 
 /* 접근성 개선 */
 .sr-only {

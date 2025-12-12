@@ -7,12 +7,13 @@ import { formatKoreanCurrency } from './numberFormatter';
 import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 
 // --- Styles ---
+// --- Styles ---
 const styles = {
   container: {
     fontFamily: 'sans-serif',
-    backgroundColor: '#e8f4f8',
+    backgroundColor: 'transparent',
     padding: '32px',
-    minHeight: '100vh'
+    minHeight: 'auto'
   },
   message: (type) => ({
     padding: '16px 20px',
@@ -21,9 +22,10 @@ const styles = {
     textAlign: 'center',
     fontSize: '16px',
     fontWeight: '500',
-    color: type === 'error' ? '#721c24' : '#155724',
-    backgroundColor: type === 'error' ? '#f8d7da' : '#d4edda',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+    color: type === 'error' ? '#f87171' : '#34d399',
+    backgroundColor: type === 'error' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+    border: `1px solid ${type === 'error' ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
   }),
   grid: {
     display: 'grid',
@@ -32,11 +34,12 @@ const styles = {
     margin: '0 auto'
   },
   card: {
-    backgroundColor: '#ffffff',
-    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)',
+    backgroundColor: 'rgba(20, 20, 35, 0.6)',
+    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.2)',
     borderRadius: '16px',
     padding: '32px',
-    border: '1px solid rgba(0,0,0,0.05)'
+    border: '1px solid rgba(255, 255, 255, 0.05)',
+    backdropFilter: 'blur(10px)'
   },
   cardHeader: {
     display: 'flex',
@@ -44,53 +47,56 @@ const styles = {
     gap: '16px',
     marginBottom: '24px',
     paddingBottom: '20px',
-    borderBottom: '2px solid #f0f0f0'
+    borderBottom: '2px solid rgba(255, 255, 255, 0.05)'
   },
   cardTitle: {
     fontSize: '26px',
     fontWeight: 'bold',
-    color: '#111827',
-    letterSpacing: '-0.5px'
+    color: '#fff',
+    letterSpacing: '-0.5px',
+    textShadow: '0 0 10px rgba(0, 255, 242, 0.3)'
   },
   tabContainer: {
     display: 'flex',
-    borderBottom: '2px solid #e5e7eb',
+    borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
     marginBottom: '20px',
     gap: '8px'
   },
   tabButton: (isActive) => ({
     padding: '12px 24px',
     border: 'none',
-    background: isActive ? '#f0f9ff' : 'none',
+    background: isActive ? 'rgba(99, 102, 241, 0.2)' : 'none',
     cursor: 'pointer',
     fontSize: '17px',
     fontWeight: isActive ? '700' : '500',
-    color: isActive ? '#0369a1' : '#6b7280',
-    borderBottom: `3px solid ${isActive ? '#0369a1' : 'transparent'}`,
+    color: isActive ? '#00fff2' : '#94a3b8',
+    borderBottom: `3px solid ${isActive ? '#00fff2' : 'transparent'}`,
     marginBottom: '-2px',
     borderRadius: '8px 8px 0 0',
-    transition: 'all 0.2s ease'
+    transition: 'all 0.2s ease',
+    textShadow: isActive ? '0 0 5px rgba(0, 255, 242, 0.3)' : 'none'
   }),
   button: (disabled, variant = 'primary') => ({
-    backgroundColor: variant === 'primary' ? '#0369a1' : (variant === 'danger' ? '#dc2626' : (variant === 'success' ? '#059669' : '#4b5563')),
+    backgroundColor: variant === 'primary' ? 'rgba(3, 105, 161, 0.8)' : (variant === 'danger' ? 'rgba(220, 38, 38, 0.8)' : (variant === 'success' ? 'rgba(5, 150, 105, 0.8)' : '#4b5563')),
     color: 'white',
     padding: '12px 20px',
     borderRadius: '10px',
-    border: 'none',
+    border: '1px solid rgba(255,255,255,0.1)',
     cursor: disabled ? 'not-allowed' : 'pointer',
     opacity: disabled ? 0.5 : 1,
     fontSize: '15px',
     fontWeight: '600',
-    boxShadow: disabled ? 'none' : '0 4px 12px rgba(0,0,0,0.15)',
+    boxShadow: disabled ? 'none' : '0 4px 12px rgba(0,0,0,0.3)',
     transition: 'all 0.2s ease',
     ':hover': !disabled && {
       transform: 'translateY(-2px)',
-      boxShadow: '0 6px 16px rgba(0,0,0,0.2)'
+      boxShadow: '0 6px 16px rgba(0,0,0,0.4)',
+      filter: 'brightness(1.1)'
     }
   }),
   noProduct: {
     textAlign: 'center',
-    color: '#9ca3af',
+    color: '#94a3b8',
     padding: '32px 0',
     fontSize: '16px',
     fontStyle: 'italic'
@@ -98,15 +104,17 @@ const styles = {
   input: {
     width: '100%',
     padding: '14px 16px',
-    backgroundColor: '#f9fafb',
-    border: '2px solid #e5e7eb',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    border: '2px solid rgba(255, 255, 255, 0.1)',
     borderRadius: '10px',
     marginBottom: '16px',
     fontSize: '16px',
+    color: 'white',
     transition: 'border-color 0.2s ease',
     ':focus': {
       outline: 'none',
-      borderColor: '#0369a1'
+      borderColor: '#00fff2',
+      boxShadow: '0 0 0 2px rgba(0, 255, 242, 0.1)'
     }
   },
   modalOverlay: {
@@ -115,27 +123,30 @@ const styles = {
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    backdropFilter: 'blur(4px)'
+    backdropFilter: 'blur(8px)'
   },
   modalContent: {
-    background: 'white',
+    background: '#1a1a2e',
     padding: '32px',
     borderRadius: '16px',
     width: '90%',
     maxWidth: '450px',
     position: 'relative',
-    boxShadow: '0 20px 50px rgba(0,0,0,0.3)'
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    color: '#e2e8f0'
   },
   modalTitle: {
     fontSize: '24px',
     fontWeight: 'bold',
     marginBottom: '20px',
-    color: '#111827'
+    color: '#fff',
+    textShadow: '0 0 10px rgba(0, 255, 242, 0.3)'
   },
   modalCloseBtn: {
     position: 'absolute',
@@ -144,10 +155,10 @@ const styles = {
     background: 'none',
     border: 'none',
     cursor: 'pointer',
-    color: '#6b7280',
+    color: '#94a3b8',
     transition: 'color 0.2s ease',
     ':hover': {
-      color: '#111827'
+      color: '#fff'
     }
   },
 };
@@ -198,9 +209,9 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
       background: isMatured ? '#f0fdf4' : '#fafafa',
       boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
     }}>
-      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px'}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
         <div>
-          <div style={{fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '4px'}}>{product.name}</div>
+          <div style={{ fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '4px' }}>{product.name}</div>
           {isMatured && <span style={{
             backgroundColor: '#10b981',
             color: 'white',
@@ -210,59 +221,59 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
             fontWeight: '600'
           }}>만기</span>}
         </div>
-        <span style={{fontSize: '20px', fontWeight: '700', color: '#0369a1'}}>{formatCurrency(product.balance)}원</span>
+        <span style={{ fontSize: '20px', fontWeight: '700', color: '#0369a1' }}>{formatCurrency(product.balance)}원</span>
       </div>
 
-      <div style={{fontSize: '15px', color: '#4b5563', marginTop: '16px', display: 'grid', gap: '10px', backgroundColor: 'white', padding: '16px', borderRadius: '8px'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between'}}>
-          <span style={{fontWeight: '500'}}>금리 (일):</span>
-          <span style={{fontWeight: '700', color: '#0369a1'}}>{product.rate}%</span>
+      <div style={{ fontSize: '15px', color: '#4b5563', marginTop: '16px', display: 'grid', gap: '10px', backgroundColor: 'white', padding: '16px', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: '500' }}>금리 (일):</span>
+          <span style={{ fontWeight: '700', color: '#0369a1' }}>{product.rate}%</span>
         </div>
-        <div style={{display: 'flex', justifyContent: 'space-between'}}>
-          <span style={{fontWeight: '500'}}>일일 이자:</span>
-          <span style={{fontWeight: '700', color: '#059669'}}>+{formatCurrency(dailyInterestAmount)}원/일</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: '500' }}>일일 이자:</span>
+          <span style={{ fontWeight: '700', color: '#059669' }}>+{formatCurrency(dailyInterestAmount)}원/일</span>
         </div>
         {product.maturityDate && (
           <>
-            <div style={{display: 'flex', justifyContent: 'space-between'}}>
-              <span style={{fontWeight: '500'}}>만기일:</span>
-              <span style={{fontWeight: '600'}}>{format(product.maturityDate, 'yyyy-MM-dd')}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontWeight: '500' }}>만기일:</span>
+              <span style={{ fontWeight: '600' }}>{format(product.maturityDate, 'yyyy-MM-dd')}</span>
             </div>
             {!isMatured && (
-              <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                <span style={{fontWeight: '500'}}>남은 기간:</span>
-                <span style={{fontWeight: '600', color: '#0369a1'}}>{daysRemaining}일</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontWeight: '500' }}>남은 기간:</span>
+                <span style={{ fontWeight: '600', color: '#0369a1' }}>{daysRemaining}일</span>
               </div>
             )}
           </>
         )}
       </div>
 
-      <div style={{borderTop: '1px dashed #d1d5db', margin: '16px 0'}}></div>
+      <div style={{ borderTop: '1px dashed #d1d5db', margin: '16px 0' }}></div>
 
-      <div style={{fontSize: '15px', color: '#111827', display: 'grid', gap: '10px', backgroundColor: '#f0f9ff', padding: '16px', borderRadius: '8px'}}>
-        <div style={{display: 'flex', justifyContent: 'space-between'}}>
-          <span style={{fontWeight: '600'}}>만기 시 이자 (세전):</span>
-          <span style={{fontWeight: '700', color: '#059669', fontSize: '17px'}}>+{formatCurrency(interest)}원</span>
+      <div style={{ fontSize: '15px', color: '#111827', display: 'grid', gap: '10px', backgroundColor: '#f0f9ff', padding: '16px', borderRadius: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: '600' }}>만기 시 이자 (세전):</span>
+          <span style={{ fontWeight: '700', color: '#059669', fontSize: '17px' }}>+{formatCurrency(interest)}원</span>
         </div>
-        <div style={{display: 'flex', justifyContent: 'space-between', fontSize: '17px'}}>
-          <span style={{fontWeight: '700'}}>만기 시 총액:</span>
-          <span style={{fontWeight: '700', color: '#0369a1'}}>{formatCurrency(total)}원</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px' }}>
+          <span style={{ fontWeight: '700' }}>만기 시 총액:</span>
+          <span style={{ fontWeight: '700', color: '#0369a1' }}>{formatCurrency(total)}원</span>
         </div>
       </div>
 
-      <div style={{marginTop: '20px', textAlign: 'right'}}>
+      <div style={{ marginTop: '20px', textAlign: 'right' }}>
         {isMatured ? (
           <button
             onClick={onMaturity}
-            style={{...styles.button(false, 'success'), padding: '10px 20px', fontSize: '15px'}}
+            style={{ ...styles.button(false, 'success'), padding: '10px 20px', fontSize: '15px' }}
           >
             만기 수령 ({formatCurrency(total)}원)
           </button>
         ) : (
           <button
             onClick={onCancel}
-            style={{...styles.button(false, 'danger'), padding: '10px 20px', fontSize: '15px'}}
+            style={{ ...styles.button(false, 'danger'), padding: '10px 20px', fontSize: '15px' }}
           >
             {product.type === 'loan' ? '대출 상환' : '중도 해지'}
           </button>
@@ -295,18 +306,18 @@ const AvailableProductItem = ({ product, onSubscribe }) => {
       }
     }}>
       <div>
-        <div style={{fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '8px'}}>{product.name}</div>
-        <div style={{fontSize: '15px', color: '#6b7280', marginBottom: '6px'}}>
-          <strong style={{color: '#0369a1'}}>일 {product.dailyRate}%</strong> (기간: {product.termInDays}일)
+        <div style={{ fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '8px' }}>{product.name}</div>
+        <div style={{ fontSize: '15px', color: '#6b7280', marginBottom: '6px' }}>
+          <strong style={{ color: '#0369a1' }}>일 {product.dailyRate}%</strong> (기간: {product.termInDays}일)
         </div>
-        <div style={{fontSize: '14px', color: '#059669', fontWeight: '600'}}>
-          <TrendingUp size={14} style={{display: 'inline', marginRight: '4px'}} />
+        <div style={{ fontSize: '14px', color: '#059669', fontWeight: '600' }}>
+          <TrendingUp size={14} style={{ display: 'inline', marginRight: '4px' }} />
           10만원 가입 시 예상 이자: +{formatCurrency(projectedInterest)}원
         </div>
       </div>
       <button
         onClick={onSubscribe}
-        style={{...styles.button(false), padding: '12px 24px', fontSize: '16px'}}
+        style={{ ...styles.button(false), padding: '12px 24px', fontSize: '16px' }}
       >
         가입
       </button>
@@ -340,24 +351,24 @@ const ProductSection = ({ title, icon, subscribedProducts, availableProducts, on
         {activeTab === 'subscribed' && (
           subscribedProducts.length > 0
             ? subscribedProducts.map(p => (
-                <SubscribedProductItem
-                  key={p.id}
-                  product={p}
-                  onCancel={() => onCancel(p)}
-                  onMaturity={() => onMaturity(p)}
-                />
-              ))
+              <SubscribedProductItem
+                key={p.id}
+                product={p}
+                onCancel={() => onCancel(p)}
+                onMaturity={() => onMaturity(p)}
+              />
+            ))
             : <p style={styles.noProduct}>가입한 상품이 없습니다.</p>
         )}
         {activeTab === 'available' && (
           availableProducts.length > 0
             ? availableProducts.map(p => (
-                <AvailableProductItem
-                  key={p.id}
-                  product={p}
-                  onSubscribe={() => onSubscribe(p)}
-                />
-              ))
+              <AvailableProductItem
+                key={p.id}
+                product={p}
+                onSubscribe={() => onSubscribe(p)}
+              />
+            ))
             : <p style={styles.noProduct}>가입 가능한 상품이 없습니다.</p>
         )}
       </div>
@@ -382,16 +393,16 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
         <button onClick={onClose} style={styles.modalCloseBtn}><X size={24} /></button>
         <h3 style={styles.modalTitle}>{product.name} 가입</h3>
 
-        <div style={{marginBottom: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd'}}>
-          <div style={{fontSize: '15px', color: '#0c4a6e', marginBottom: '8px'}}>
+        <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd' }}>
+          <div style={{ fontSize: '15px', color: '#0c4a6e', marginBottom: '8px' }}>
             <strong>금리:</strong> 일 {product.dailyRate}% (일복리)
           </div>
-          <div style={{fontSize: '15px', color: '#0c4a6e'}}>
+          <div style={{ fontSize: '15px', color: '#0c4a6e' }}>
             <strong>기간:</strong> {product.termInDays}일
           </div>
         </div>
 
-        <p style={{marginBottom: '12px', fontSize: '16px', fontWeight: '600'}}>가입 금액을 입력해주세요</p>
+        <p style={{ marginBottom: '12px', fontSize: '16px', fontWeight: '600' }}>가입 금액을 입력해주세요</p>
         <input
           type="number"
           value={amount}
@@ -402,20 +413,20 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
         />
 
         {numAmount > 0 && (
-          <div style={{marginBottom: '20px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0'}}>
-            <div style={{fontSize: '15px', color: '#166534', marginBottom: '6px'}}>
+          <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
+            <div style={{ fontSize: '15px', color: '#166534', marginBottom: '6px' }}>
               예상 만기 이자: <strong>+{formatCurrency(projectedInterest)}원</strong>
             </div>
-            <div style={{fontSize: '16px', color: '#166534', fontWeight: '700'}}>
+            <div style={{ fontSize: '16px', color: '#166534', fontWeight: '700' }}>
               만기 시 총액: {formatCurrency(projectedTotal)}원
             </div>
           </div>
         )}
 
         <button
-          onClick={() => {onConfirm(amount); setAmount("");}}
+          onClick={() => { onConfirm(amount); setAmount(""); }}
           disabled={isProcessing || !amount}
-          style={{...styles.button(isProcessing || !amount), width: '100%', fontSize: '17px', padding: '16px'}}
+          style={{ ...styles.button(isProcessing || !amount), width: '100%', fontSize: '17px', padding: '16px' }}
         >
           {isProcessing ? '처리 중...' : '가입하기'}
         </button>
@@ -434,9 +445,9 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
       color: 'white',
       boxShadow: '0 8px 24px rgba(3, 105, 161, 0.3)'
     }}>
-      <div style={{...styles.cardHeader, borderBottom: '2px solid rgba(255,255,255,0.2)'}}>
+      <div style={{ ...styles.cardHeader, borderBottom: '2px solid rgba(255,255,255,0.2)' }}>
         <Wallet size={32} style={{ color: 'white' }} />
-        <h2 style={{...styles.cardTitle, color: 'white'}}>파킹통장</h2>
+        <h2 style={{ ...styles.cardTitle, color: 'white' }}>파킹통장</h2>
       </div>
 
       {/* 보유현금 표시 추가 */}
@@ -450,15 +461,15 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <span style={{fontSize: '16px', fontWeight: '500', opacity: 0.9}}>보유 현금</span>
-        <span style={{fontSize: '20px', fontWeight: '700'}}>{formatCurrency(userCash || 0)}원</span>
+        <span style={{ fontSize: '16px', fontWeight: '500', opacity: 0.9 }}>보유 현금</span>
+        <span style={{ fontSize: '20px', fontWeight: '700' }}>{formatCurrency(userCash || 0)}원</span>
       </div>
 
-      <div style={{fontSize: '42px', fontWeight: 'bold', color: 'white', marginBottom: '8px'}}>
+      <div style={{ fontSize: '42px', fontWeight: 'bold', color: 'white', marginBottom: '8px' }}>
         {formatCurrency(balance)}원
       </div>
 
-      <p style={{fontSize: '16px', color: 'rgba(255,255,255,0.9)', marginBottom: '16px', fontWeight: '500'}}>
+      <p style={{ fontSize: '16px', color: 'rgba(255,255,255,0.9)', marginBottom: '16px', fontWeight: '500' }}>
         매일 이자가 자동 지급되는 자유 입출금 통장
       </p>
 
@@ -469,19 +480,19 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
         marginBottom: '24px',
         backdropFilter: 'blur(10px)'
       }}>
-        <div style={{display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px'}}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
           <TrendingUp size={20} />
-          <span style={{fontSize: '15px', fontWeight: '600'}}>일일 이자 수익</span>
+          <span style={{ fontSize: '15px', fontWeight: '600' }}>일일 이자 수익</span>
         </div>
-        <div style={{fontSize: '28px', fontWeight: '700'}}>
+        <div style={{ fontSize: '28px', fontWeight: '700' }}>
           +{formatCurrency(dailyInterest)}원/일
         </div>
-        <div style={{fontSize: '14px', marginTop: '6px', opacity: 0.9}}>
+        <div style={{ fontSize: '14px', marginTop: '6px', opacity: 0.9 }}>
           (일 1% 복리 기준)
         </div>
       </div>
 
-      <div style={{display: 'flex', gap: '10px'}}>
+      <div style={{ display: 'flex', gap: '10px' }}>
         <input
           type="number"
           value={amount}
@@ -496,7 +507,7 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
           disabled={isProcessing}
         />
         <button
-          onClick={() => {onDeposit(amount); setAmount("");}}
+          onClick={() => { onDeposit(amount); setAmount(""); }}
           disabled={isProcessing}
           style={{
             ...styles.button(isProcessing, 'success'),
@@ -507,7 +518,7 @@ const ParkingAccountSection = ({ balance, dailyInterest, onDeposit, onWithdraw, 
           입금
         </button>
         <button
-          onClick={() => {onWithdraw(amount); setAmount("");}}
+          onClick={() => { onWithdraw(amount); setAmount(""); }}
           disabled={isProcessing}
           style={{
             ...styles.button(isProcessing),
@@ -699,13 +710,13 @@ const ParkingAccount = ({
     // 현금 보유량 낙관적 업데이트
     const cashChangeAmount = type === 'loans' ? amount : -amount;
     setCurrentCash(prev => prev + cashChangeAmount); // 로컬 UI 상태만 먼저 업데이트
-    
+
     try {
       await runTransaction(db, async (transaction) => {
         const userRef = doc(db, "users", userId);
         const userSnapshot = await transaction.get(userRef);
         if (!userSnapshot.exists()) throw new Error("사용자 정보를 찾을 수 없습니다.");
-        
+
         const currentCashInDb = userSnapshot.data()?.cash ?? 0;
         if (type !== 'loans' && currentCashInDb < amount) {
           throw new Error("보유 현금이 부족합니다.");
@@ -731,7 +742,7 @@ const ParkingAccount = ({
       // 🔥 활동 로그 기록 (예금/적금/대출 가입)
       const activityType = type === 'deposits' ? ACTIVITY_TYPES.DEPOSIT_CREATE
         : type === 'savings' ? ACTIVITY_TYPES.DEPOSIT_CREATE
-        : ACTIVITY_TYPES.LOAN_CREATE;
+          : ACTIVITY_TYPES.LOAN_CREATE;
       logActivity(db, {
         classCode: userDoc?.classCode,
         userId: userId,
@@ -755,7 +766,7 @@ const ParkingAccount = ({
     } catch (error) {
       console.error("가입 처리 중 오류 발생:", error);
       displayMessage(`가입 처리 오류: ${error.message}`, "error");
-      
+
       // --- 낙관적 업데이트 롤백 ---
       if (optimisticProduct.type === 'deposit') {
         setUserDeposits(prev => prev.filter(p => p.id !== tempId));
@@ -764,7 +775,7 @@ const ParkingAccount = ({
       } else if (optimisticProduct.type === 'loan') {
         setUserLoans(prev => prev.filter(p => p.id !== tempId));
       }
-      
+
       // 현금 롤백 (로컬 UI)
       setCurrentCash(prev => prev - cashChangeAmount);
 
@@ -774,214 +785,214 @@ const ParkingAccount = ({
   };
 
   // 만기 수령
-    const handleMaturity = async (product) => {
-      console.log("--- handleMaturity 시작 ---");
-      console.log("처리할 상품:", product);
+  const handleMaturity = async (product) => {
+    console.log("--- handleMaturity 시작 ---");
+    console.log("처리할 상품:", product);
 
-      const { id, name, type, balance, termInDays, rate } = product;
-      const isLoan = type === 'loan';
-  
-      if (!userId) {
-        displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
-        console.error("handleMaturity: userId가 없습니다.");
-        return;
-      }
-  
-      const dailyRate = rate;
-      const { total, interest } = calculateCompoundInterest(balance, dailyRate, termInDays);
-      
-      console.log(`계산 결과: 원금=${balance}, 이자=${interest}, 총액=${total}`);
+    const { id, name, type, balance, termInDays, rate } = product;
+    const isLoan = type === 'loan';
 
-      if (!window.confirm(`만기 수령: 원금 ${formatCurrency(balance)}원 + 이자 ${formatCurrency(interest)}원 = ${formatCurrency(total)}원을 수령하시겠습니까?`)) {
-        console.log("사용자가 만기 수령을 취소했습니다.");
-        return;
-      }
-  
-      setIsProcessing(true);
-      console.log("만기 처리 시작...");
+    if (!userId) {
+      displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
+      console.error("handleMaturity: userId가 없습니다.");
+      return;
+    }
 
-      try {
-        const productRef = doc(db, "users", userId, "products", String(id));
-        console.log("Firestore 문서 참조:", productRef.path);
+    const dailyRate = rate;
+    const { total, interest } = calculateCompoundInterest(balance, dailyRate, termInDays);
 
-        await runTransaction(db, async (transaction) => {
-          console.log("트랜잭션 시작");
-          const userRef = doc(db, "users", userId);
-          
-          // 대출인 경우 상환, 예적금인 경우 수령
-          const cashChange = isLoan ? -total : total;
-          console.log(`현금 변경: ${cashChange}`);
+    console.log(`계산 결과: 원금=${balance}, 이자=${interest}, 총액=${total}`);
 
-          transaction.update(userRef, { cash: increment(cashChange) });
-          console.log("사용자 현금 업데이트 예약");
+    if (!window.confirm(`만기 수령: 원금 ${formatCurrency(balance)}원 + 이자 ${formatCurrency(interest)}원 = ${formatCurrency(total)}원을 수령하시겠습니까?`)) {
+      console.log("사용자가 만기 수령을 취소했습니다.");
+      return;
+    }
 
-          transaction.delete(productRef);
-          console.log("상품 문서 삭제 예약");
-          console.log("트랜잭션 커밋 시도");
-        });
-  
-        console.log("트랜잭션 성공");
+    setIsProcessing(true);
+    console.log("만기 처리 시작...");
 
-        displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
+    try {
+      const productRef = doc(db, "users", userId, "products", String(id));
+      console.log("Firestore 문서 참조:", productRef.path);
 
-        // 🔥 활동 로그 기록 (예금 만기)
-        logActivity(db, {
-          classCode: userDoc?.classCode,
-          userId: userId,
-          userName: userDoc?.name || '사용자',
-          type: ACTIVITY_TYPES.DEPOSIT_MATURITY,
-          description: `${name} 만기 수령 (원금: ${formatCurrency(balance)}, 이자: ${formatCurrency(interest)})`,
-          amount: total,
-          metadata: {
-            productName: name,
-            productType: type,
-            principal: balance,
-            interest,
-            total
-          }
-        });
+      await runTransaction(db, async (transaction) => {
+        console.log("트랜잭션 시작");
+        const userRef = doc(db, "users", userId);
 
-        // 백그라운드에서 userDoc 갱신
-        if (refreshUserDocument) {
-          console.log("userDoc 갱신 시작");
-          refreshUserDocument().then(() => {
-            console.log("[ParkingAccount] 만기 수령 후 userDoc 갱신 완료");
-          });
+        // 대출인 경우 상환, 예적금인 경우 수령
+        const cashChange = isLoan ? -total : total;
+        console.log(`현금 변경: ${cashChange}`);
+
+        transaction.update(userRef, { cash: increment(cashChange) });
+        console.log("사용자 현금 업데이트 예약");
+
+        transaction.delete(productRef);
+        console.log("상품 문서 삭제 예약");
+        console.log("트랜잭션 커밋 시도");
+      });
+
+      console.log("트랜잭션 성공");
+
+      displayMessage(`만기 수령 완료: ${formatCurrency(total)}원`, "success");
+
+      // 🔥 활동 로그 기록 (예금 만기)
+      logActivity(db, {
+        classCode: userDoc?.classCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: ACTIVITY_TYPES.DEPOSIT_MATURITY,
+        description: `${name} 만기 수령 (원금: ${formatCurrency(balance)}, 이자: ${formatCurrency(interest)})`,
+        amount: total,
+        metadata: {
+          productName: name,
+          productType: type,
+          principal: balance,
+          interest,
+          total
         }
+      });
 
-        console.log("전체 데이터 다시 로드");
-        await loadAllData();
-
-      } catch (error) {
-        console.error("만기 처리 중 오류 발생:", error);
-        displayMessage(`처리 오류: ${error.message}`, "error");
-        // 에러 발생 시 currentCash 롤백
-        if (userDoc?.cash !== undefined) {
-          console.log("오류 발생으로 현금 롤백:", userDoc.cash);
-          setCurrentCash(userDoc.cash);
-        }
-      } finally {
-        setIsProcessing(false);
-        console.log("--- handleMaturity 종료 ---");
+      // 백그라운드에서 userDoc 갱신
+      if (refreshUserDocument) {
+        console.log("userDoc 갱신 시작");
+        refreshUserDocument().then(() => {
+          console.log("[ParkingAccount] 만기 수령 후 userDoc 갱신 완료");
+        });
       }
-    };
+
+      console.log("전체 데이터 다시 로드");
+      await loadAllData();
+
+    } catch (error) {
+      console.error("만기 처리 중 오류 발생:", error);
+      displayMessage(`처리 오류: ${error.message}`, "error");
+      // 에러 발생 시 currentCash 롤백
+      if (userDoc?.cash !== undefined) {
+        console.log("오류 발생으로 현금 롤백:", userDoc.cash);
+        setCurrentCash(userDoc.cash);
+      }
+    } finally {
+      setIsProcessing(false);
+      console.log("--- handleMaturity 종료 ---");
+    }
+  };
 
   // 중도 해지
-    const handleCancelEarly = async (product) => {
-      console.log("--- handleCancelEarly 시작 ---");
-      console.log("중도 해지할 상품:", product);
+  const handleCancelEarly = async (product) => {
+    console.log("--- handleCancelEarly 시작 ---");
+    console.log("중도 해지할 상품:", product);
 
-      const { id, name, type, balance } = product;
-      const isLoan = type === 'loan';
-  
-      if (!userId) {
-        displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
-        console.error("handleCancelEarly: userId가 없습니다.");
-        return;
-      }
-  
-      const confirmMessage = isLoan
-        ? `대출금 ${formatCurrency(balance)}원을 상환하시겠습니까?`
-        : `'${name}'을(를) 중도 해지하시겠습니까? (이자 없이 원금만 반환됩니다)`;
+    const { id, name, type, balance } = product;
+    const isLoan = type === 'loan';
 
-      if (!window.confirm(confirmMessage)) {
-        console.log("사용자가 중도 해지를 취소했습니다.");
-        return;
-      }
-  
-      setIsProcessing(true);
-      console.log("중도 해지 처리 시작...");
+    if (!userId) {
+      displayMessage("사용자 정보가 없습니다. 다시 로그인해주세요.", "error");
+      console.error("handleCancelEarly: userId가 없습니다.");
+      return;
+    }
 
-      // --- 낙관적 업데이트 (Optimistic Update) ---
-      const originalProducts = {
-        deposit: [...userDeposits],
-        savings: [...userSavings],
-        loan: [...userLoans]
-      };
-      const originalCash = currentCash;
+    const confirmMessage = isLoan
+      ? `대출금 ${formatCurrency(balance)}원을 상환하시겠습니까?`
+      : `'${name}'을(를) 중도 해지하시겠습니까? (이자 없이 원금만 반환됩니다)`;
 
-      const cashChangeAmount = isLoan ? -balance : balance;
-      setCurrentCash(prev => prev + cashChangeAmount);
+    if (!window.confirm(confirmMessage)) {
+      console.log("사용자가 중도 해지를 취소했습니다.");
+      return;
+    }
 
-      if (type === 'deposit') {
-        setUserDeposits(prev => prev.filter(p => p.id !== id));
-      } else if (type === 'savings') {
-        setUserSavings(prev => prev.filter(p => p.id !== id));
-      } else if (type === 'loan') {
-        setUserLoans(prev => prev.filter(p => p.id !== id));
-      }
+    setIsProcessing(true);
+    console.log("중도 해지 처리 시작...");
 
-      try {
-        const productRef = doc(db, "users", userId, "products", String(id));
-        console.log("Firestore 문서 참조:", productRef.path);
-
-        await runTransaction(db, async (transaction) => {
-          console.log("트랜잭션 시작");
-          const userRef = doc(db, "users", userId);
-          const userSnapshot = await transaction.get(userRef);
-          if (!userSnapshot.exists()) {
-            throw new Error("사용자 정보를 찾을 수 없습니다.");
-          }
-          const currentCashInDb = userSnapshot.data()?.cash ?? 0;
-          console.log(`현재 보유 현금 (DB): ${currentCashInDb}`);
-          
-          if (isLoan && currentCashInDb < balance) {
-            throw new Error("대출금을 상환하기에 현금이 부족합니다.");
-          }
-          
-          transaction.update(userRef, { cash: increment(cashChangeAmount) });
-          console.log(`사용자 현금 변경 (${cashChangeAmount}) 예약`);
-
-          transaction.delete(productRef);
-          console.log("상품 문서 삭제 예약");
-          console.log("트랜잭션 커밋 시도");
-        });
-  
-        console.log("트랜잭션 성공");
-
-        displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료. 원금 ${formatCurrency(balance)}원이 반환되었습니다.`, "success");
-
-        // 🔥 활동 로그 기록 (중도 해지 / 대출 상환)
-        const activityType = isLoan ? ACTIVITY_TYPES.LOAN_REPAY : ACTIVITY_TYPES.DEPOSIT_WITHDRAW;
-        logActivity(db, {
-          classCode: userDoc?.classCode,
-          userId: userId,
-          userName: userDoc?.name || '사용자',
-          type: activityType,
-          description: isLoan
-            ? `대출 상환: ${name} (${formatCurrency(balance)}원)`
-            : `중도 해지: ${name} (원금 ${formatCurrency(balance)}원 반환)`,
-          amount: cashChangeAmount,
-          metadata: {
-            productName: name,
-            productType: type,
-            principal: balance,
-            isEarlyCancellation: true
-          }
-        });
-
-        // 백그라운드에서 userDoc 갱신
-        if (refreshUserDocument) {
-          console.log("userDoc 갱신 시작");
-          refreshUserDocument();
-        }
-        await loadAllData();
-
-      } catch (error) {
-        console.error("중도 해지 처리 중 오류 발생:", error);
-        displayMessage(`처리 오류: ${error.message}`, "error");
-        
-        // --- 낙관적 업데이트 롤백 ---
-        setUserDeposits(originalProducts.deposit);
-        setUserSavings(originalProducts.savings);
-        setUserLoans(originalProducts.loan);
-        setCurrentCash(originalCash);
-
-      } finally {
-        setIsProcessing(false);
-        console.log("--- handleCancelEarly 종료 ---");
-      }
+    // --- 낙관적 업데이트 (Optimistic Update) ---
+    const originalProducts = {
+      deposit: [...userDeposits],
+      savings: [...userSavings],
+      loan: [...userLoans]
     };
+    const originalCash = currentCash;
+
+    const cashChangeAmount = isLoan ? -balance : balance;
+    setCurrentCash(prev => prev + cashChangeAmount);
+
+    if (type === 'deposit') {
+      setUserDeposits(prev => prev.filter(p => p.id !== id));
+    } else if (type === 'savings') {
+      setUserSavings(prev => prev.filter(p => p.id !== id));
+    } else if (type === 'loan') {
+      setUserLoans(prev => prev.filter(p => p.id !== id));
+    }
+
+    try {
+      const productRef = doc(db, "users", userId, "products", String(id));
+      console.log("Firestore 문서 참조:", productRef.path);
+
+      await runTransaction(db, async (transaction) => {
+        console.log("트랜잭션 시작");
+        const userRef = doc(db, "users", userId);
+        const userSnapshot = await transaction.get(userRef);
+        if (!userSnapshot.exists()) {
+          throw new Error("사용자 정보를 찾을 수 없습니다.");
+        }
+        const currentCashInDb = userSnapshot.data()?.cash ?? 0;
+        console.log(`현재 보유 현금 (DB): ${currentCashInDb}`);
+
+        if (isLoan && currentCashInDb < balance) {
+          throw new Error("대출금을 상환하기에 현금이 부족합니다.");
+        }
+
+        transaction.update(userRef, { cash: increment(cashChangeAmount) });
+        console.log(`사용자 현금 변경 (${cashChangeAmount}) 예약`);
+
+        transaction.delete(productRef);
+        console.log("상품 문서 삭제 예약");
+        console.log("트랜잭션 커밋 시도");
+      });
+
+      console.log("트랜잭션 성공");
+
+      displayMessage(`${isLoan ? '대출 상환' : '중도 해지'} 완료. 원금 ${formatCurrency(balance)}원이 반환되었습니다.`, "success");
+
+      // 🔥 활동 로그 기록 (중도 해지 / 대출 상환)
+      const activityType = isLoan ? ACTIVITY_TYPES.LOAN_REPAY : ACTIVITY_TYPES.DEPOSIT_WITHDRAW;
+      logActivity(db, {
+        classCode: userDoc?.classCode,
+        userId: userId,
+        userName: userDoc?.name || '사용자',
+        type: activityType,
+        description: isLoan
+          ? `대출 상환: ${name} (${formatCurrency(balance)}원)`
+          : `중도 해지: ${name} (원금 ${formatCurrency(balance)}원 반환)`,
+        amount: cashChangeAmount,
+        metadata: {
+          productName: name,
+          productType: type,
+          principal: balance,
+          isEarlyCancellation: true
+        }
+      });
+
+      // 백그라운드에서 userDoc 갱신
+      if (refreshUserDocument) {
+        console.log("userDoc 갱신 시작");
+        refreshUserDocument();
+      }
+      await loadAllData();
+
+    } catch (error) {
+      console.error("중도 해지 처리 중 오류 발생:", error);
+      displayMessage(`처리 오류: ${error.message}`, "error");
+
+      // --- 낙관적 업데이트 롤백 ---
+      setUserDeposits(originalProducts.deposit);
+      setUserSavings(originalProducts.savings);
+      setUserLoans(originalProducts.loan);
+      setCurrentCash(originalCash);
+
+    } finally {
+      setIsProcessing(false);
+      console.log("--- handleCancelEarly 종료 ---");
+    }
+  };
 
   const handleParkingDeposit = async (amountStr) => {
     const amount = parseFloat(amountStr);
@@ -1228,8 +1239,8 @@ const ParkingAccount = ({
                 <tbody>
                   {allUserProducts.map((product, index) => {
                     const typeLabel = product.type === 'deposit' ? '예금' :
-                                     product.type === 'savings' ? '적금' :
-                                     product.type === 'loan' ? '대출' : '기타';
+                      product.type === 'savings' ? '적금' :
+                        product.type === 'loan' ? '대출' : '기타';
                     return (
                       <tr key={`${product.userId}-${product.id}-${index}`} style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ padding: '12px', fontSize: '14px' }}>{product.userName}</td>
@@ -1271,47 +1282,47 @@ const ParkingAccount = ({
       {/* 기존 금융 현황 화면 */}
       {activeView === 'parking' && (
         <div style={styles.grid}>
-        <ParkingAccountSection
-          balance={parkingBalance}
-          dailyInterest={parkingDailyInterest}
-          onDeposit={handleParkingDeposit}
-          onWithdraw={handleParkingWithdraw}
-          isProcessing={isProcessing}
-          userCash={currentCash}
-        />
-        <ProductSection
-          title="예금"
-          icon={ICON_MAP.deposits}
-          subscribedProducts={userDeposits}
-          availableProducts={depositProducts}
-          onSubscribe={(p) => handleOpenModal(p, 'deposits')}
-          onCancel={handleCancelEarly}
-          onMaturity={handleMaturity}
-          isAdmin={isAdmin()}
-          onAdminDelete={handleAdminDeleteSubscribedProduct}
-        />
-        <ProductSection
-          title="적금"
-          icon={ICON_MAP.savings}
-          subscribedProducts={userSavings}
-          availableProducts={installmentProducts}
-          onSubscribe={(p) => handleOpenModal(p, 'savings')}
-          onCancel={handleCancelEarly}
-          onMaturity={handleMaturity}
-          isAdmin={isAdmin()}
-          onAdminDelete={handleAdminDeleteSubscribedProduct}
-        />
-        <ProductSection
-          title="대출"
-          icon={ICON_MAP.loans}
-          subscribedProducts={userLoans}
-          availableProducts={loanProducts}
-          onSubscribe={(p) => handleOpenModal(p, 'loans')}
-          onCancel={handleCancelEarly}
-          onMaturity={handleMaturity}
-          isAdmin={isAdmin()}
-          onAdminDelete={handleAdminDeleteSubscribedProduct}
-        />
+          <ParkingAccountSection
+            balance={parkingBalance}
+            dailyInterest={parkingDailyInterest}
+            onDeposit={handleParkingDeposit}
+            onWithdraw={handleParkingWithdraw}
+            isProcessing={isProcessing}
+            userCash={currentCash}
+          />
+          <ProductSection
+            title="예금"
+            icon={ICON_MAP.deposits}
+            subscribedProducts={userDeposits}
+            availableProducts={depositProducts}
+            onSubscribe={(p) => handleOpenModal(p, 'deposits')}
+            onCancel={handleCancelEarly}
+            onMaturity={handleMaturity}
+            isAdmin={isAdmin()}
+            onAdminDelete={handleAdminDeleteSubscribedProduct}
+          />
+          <ProductSection
+            title="적금"
+            icon={ICON_MAP.savings}
+            subscribedProducts={userSavings}
+            availableProducts={installmentProducts}
+            onSubscribe={(p) => handleOpenModal(p, 'savings')}
+            onCancel={handleCancelEarly}
+            onMaturity={handleMaturity}
+            isAdmin={isAdmin()}
+            onAdminDelete={handleAdminDeleteSubscribedProduct}
+          />
+          <ProductSection
+            title="대출"
+            icon={ICON_MAP.loans}
+            subscribedProducts={userLoans}
+            availableProducts={loanProducts}
+            onSubscribe={(p) => handleOpenModal(p, 'loans')}
+            onCancel={handleCancelEarly}
+            onMaturity={handleMaturity}
+            isAdmin={isAdmin()}
+            onAdminDelete={handleAdminDeleteSubscribedProduct}
+          />
         </div>
       )}
       <SubscriptionModal

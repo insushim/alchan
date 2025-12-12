@@ -262,80 +262,34 @@ const SettlementModal = ({
   // Portal 대신 직접 렌더링으로 변경하여 z-index 문제 해결
   return (
     <div
-      className="modal-overlay"
+      className="settlement-modal-overlay"
       onClick={onCancel}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 99999, // 매우 높은 z-index 설정
-        backdropFilter: 'blur(5px)'
-      }}
     >
       <div
-        className="settlement-modal-container modal-container"
+        className="settlement-modal-safe-container"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
-          width: '90%',
-          maxWidth: '500px',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          position: 'relative',
-          zIndex: 100000 // 오버레이보다 더 높은 z-index
-        }}
       >
-        <div className="modal-header" style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          borderBottom: '1px solid #e0e0e0',
-          padding: '20px 25px 15px',
-          marginBottom: '20px'
-        }}>
-          <h3 style={{ margin: 0, fontSize: '1.5rem', color: '#333' }}>
+        <div className="settlement-modal-header">
+          <h3>
             합의금 지급 처리 (사건번호: {safeComplaint.id?.slice(-6) || '없음'})
           </h3>
           <button
             className="close-button"
             onClick={onCancel}
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '1.8rem',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              color: '#888',
-              padding: 0,
-              lineHeight: 1
-            }}
           >
             &times;
           </button>
         </div>
 
-        <div className="modal-content" style={{ padding: '0 25px', marginBottom: '25px' }}>
-          <p>
+        <div className="settlement-modal-content">
+          <p className="text-white mb-2">
             <strong>고소인:</strong> {getUserNameById(recipientId)}
           </p>
-          <p>
+          <p className="text-white mb-4">
             <strong>피고소인:</strong> {getUserNameById(senderId)}
           </p>
-          <div className="form-group" style={{ marginBottom: '15px' }}>
-            <label htmlFor="settlementSender" className="form-label" style={{
-              display: 'block',
-              fontWeight: '500',
-              color: '#444',
-              marginBottom: '8px'
-            }}>
+          <div className="form-group">
+            <label htmlFor="settlementSender" className="form-label">
               송금자:
             </label>
             <select
@@ -343,13 +297,6 @@ const SettlementModal = ({
               className="form-select"
               value={senderId}
               onChange={(e) => setSenderId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
             >
               <option value="">-- 선택 --</option>
               {availableSenders.map((user) => (
@@ -359,13 +306,8 @@ const SettlementModal = ({
               ))}
             </select>
           </div>
-          <div className="form-group" style={{ marginBottom: '15px' }}>
-            <label htmlFor="settlementRecipient" className="form-label" style={{
-              display: 'block',
-              fontWeight: '500',
-              color: '#444',
-              marginBottom: '8px'
-            }}>
+          <div className="form-group">
+            <label htmlFor="settlementRecipient" className="form-label">
               수금자:
             </label>
             <select
@@ -373,13 +315,6 @@ const SettlementModal = ({
               className="form-select"
               value={recipientId}
               onChange={(e) => setRecipientId(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
             >
               <option value="">-- 선택 --</option>
               {availableRecipients.map((user) => (
@@ -389,13 +324,8 @@ const SettlementModal = ({
               ))}
             </select>
           </div>
-          <div className="form-group" style={{ marginBottom: '15px' }}>
-            <label htmlFor="settlementAmount" className="form-label" style={{
-              display: 'block',
-              fontWeight: '500',
-              color: '#444',
-              marginBottom: '8px'
-            }}>
+          <div className="form-group">
+            <label htmlFor="settlementAmount" className="form-label">
               합의금 (원):
             </label>
             <input
@@ -406,22 +336,10 @@ const SettlementModal = ({
               onChange={(e) => setAmount(e.target.value)}
               placeholder="금액 입력"
               min="1"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                fontSize: '14px'
-              }}
             />
           </div>
-          <div className="form-group" style={{ marginBottom: '15px' }}>
-            <label htmlFor="settlementReason" className="form-label" style={{
-              display: 'block',
-              fontWeight: '500',
-              color: '#444',
-              marginBottom: '8px'
-            }}>
+          <div className="form-group">
+            <label htmlFor="settlementReason" className="form-label">
               처리 사유:
             </label>
             <textarea
@@ -431,54 +349,20 @@ const SettlementModal = ({
               onChange={(e) => setReason(e.target.value)}
               rows="3"
               placeholder="예: 상호 원만한 합의"
-              style={{
-                width: '100%',
-                padding: '10px',
-                border: '1px solid #ccc',
-                borderRadius: '4px',
-                fontSize: '14px',
-                resize: 'vertical'
-              }}
             />
           </div>
         </div>
 
-        <div className="modal-footer" style={{
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '10px',
-          padding: '15px 25px 20px',
-          borderTop: '1px solid #e0e0e0'
-        }}>
+        <div className="settlement-modal-footer">
           <button
             onClick={onCancel}
             className="modal-button cancel"
-            style={{
-              padding: '10px 20px',
-              fontSize: '0.95rem',
-              fontWeight: '500',
-              borderRadius: '4px',
-              border: '1px solid #ccc',
-              backgroundColor: 'white',
-              color: '#444',
-              cursor: 'pointer'
-            }}
           >
             취소
           </button>
           <button
             onClick={handleSave}
             className="modal-button process"
-            style={{
-              padding: '10px 20px',
-              fontSize: '0.95rem',
-              fontWeight: '500',
-              borderRadius: '4px',
-              border: 'none',
-              backgroundColor: '#007bff',
-              color: 'white',
-              cursor: 'pointer'
-            }}
           >
             지급 처리
           </button>
@@ -512,8 +396,8 @@ const PoliceStation = () => {
   const isSystemAdmin = auth.loading
     ? false
     : auth.isAdmin
-    ? auth.isAdmin()
-    : currentUser?.isAdmin || false;
+      ? auth.isAdmin()
+      : currentUser?.isAdmin || false;
 
   const [activeTab, setActiveTab] = useState("submit");
   const [previousTab, setPreviousTab] = useState("submit");
@@ -933,36 +817,35 @@ const PoliceStation = () => {
       alert("권한 또는 정보 부족");
       return;
     }
-    
+
     const report = reports.find((r) => r.id === id);
     if (!report) {
       alert("신고를 찾을 수 없습니다.");
       return;
     }
-    
+
     if (report.status !== "accepted") {
       alert("접수된 신고만 처리 가능합니다.");
       return;
     }
-    
+
     const numericProcessingAmount = parseInt(processingAmount, 10);
     if (isNaN(numericProcessingAmount) || numericProcessingAmount < 0) {
       alert("유효한 금액(0 이상) 입력 필요");
       return;
     }
-    
+
     let finalResolution = processingReason || "벌금 부과 처리";
     if (report.isLawReport && report.description) {
-      finalResolution = `${processingReason || "법안 위반"}: ${
-        report.description
-      }`;
+      finalResolution = `${processingReason || "법안 위반"}: ${report.description
+        }`;
     }
-    
+
     const reportRef = doc(db, "classes", classCode, "policeReports", id);
 
     if (numericProcessingAmount > 0) {
       const reportedUserId = report.reportedUserId || report.defendantId;
-      
+
       try {
         const reasonForLog = `경찰서 신고 (사건번호: ${id.slice(-6)})에 대한 벌금 ${numericProcessingAmount.toLocaleString()}원 납부`;
 
@@ -1194,10 +1077,10 @@ const PoliceStation = () => {
       alert("신고 사유 업데이트 오류.");
     }
   };
-  
+
   const handleOpenSettlementModal = (reportToProcess) => {
     console.log("handleOpenSettlementModal 호출됨:", reportToProcess);
-    
+
     if (!reportToProcess || !reportToProcess.id) {
       console.error("합의 처리 오류: 유효한 사건 객체를 전달받지 못했습니다.", reportToProcess);
       alert("오류: 사건 정보를 찾지 못했습니다. 페이지를 새로고침 후 다시 시도해 주세요.");
@@ -1209,7 +1092,7 @@ const PoliceStation = () => {
       complainantId: reportToProcess.complainantId || reportToProcess.reporterId,
       defendantId: reportToProcess.defendantId || reportToProcess.reportedUserId,
     };
-    
+
     if (!mappedReport.complainantId || !mappedReport.defendantId) {
       console.error("합의 처리 오류: 고소인 또는 피고소인 정보가 누락되었습니다.", mappedReport);
       alert("오류: 고소인 또는 피고소인 정보가 없는 사건은 처리할 수 없습니다.");
@@ -1258,7 +1141,7 @@ const PoliceStation = () => {
         return timeB - timeA;
       });
   }, [reportsWithNames]);
-    
+
   if (auth.loading) {
     return (
       <div className="police-container">
@@ -1403,9 +1286,9 @@ const PoliceStation = () => {
                 classCode
                   ? handleDeleteAllReports
                   : () =>
-                      alert(
-                        "모든 신고 삭제는 학급 코드가 설정된 후 가능합니다."
-                      )
+                    alert(
+                      "모든 신고 삭제는 학급 코드가 설정된 후 가능합니다."
+                    )
               }
             />
             <div className="law-reasons-info">
@@ -1458,8 +1341,8 @@ const PoliceStation = () => {
             lawsLoading ||
             jobsLoading ||
             reasonsLoading))) && (
-        <div className="loading-overlay-transparent">데이터 동기화 중...</div>
-      )}
+          <div className="loading-overlay-transparent">데이터 동기화 중...</div>
+        )}
       <div className="police-header-container">
         <h1 className="police-header">
           경찰서 {classCode && `(학급: ${classCode})`}
@@ -1477,9 +1360,8 @@ const PoliceStation = () => {
           {hasPoliceAdminRights && (
             <button
               onClick={() => handleTabChange("admin")}
-              className={`admin-settings-button ${
-                activeTab === "admin" ? "active" : ""
-              }`}
+              className={`admin-settings-button ${activeTab === "admin" ? "active" : ""
+                }`}
               title="관리 설정 열기"
             >
               관리 설정
@@ -1495,25 +1377,22 @@ const PoliceStation = () => {
               <div className="police-tabs">
                 <button
                   onClick={() => handleTabChange("submit")}
-                  className={`police-tab-button ${
-                    activeTab === "submit" ? "active" : ""
-                  }`}
+                  className={`police-tab-button ${activeTab === "submit" ? "active" : ""
+                    }`}
                 >
                   신고하기
                 </button>
                 <button
                   onClick={() => handleTabChange("status")}
-                  className={`police-tab-button ${
-                    activeTab === "status" ? "active" : ""
-                  }`}
+                  className={`police-tab-button ${activeTab === "status" ? "active" : ""
+                    }`}
                 >
                   처리 현황 ({statusReports.length})
                 </button>
                 <button
                   onClick={() => handleTabChange("results")}
-                  className={`police-tab-button ${
-                    activeTab === "results" ? "active" : ""
-                  }`}
+                  className={`police-tab-button ${activeTab === "results" ? "active" : ""
+                    }`}
                 >
                   처리 결과 ({resultReports.length})
                 </button>

@@ -45,18 +45,18 @@ const ReportStatus = ({
 
   // 합의 처리 버튼 핸들러
   const handleSettlementClick = (report) => {
-    
+
     if (!onSettlement) {
       console.error("onSettlement 함수가 전달되지 않았습니다");
       alert("합의 처리 기능을 사용할 수 없습니다. 관리자에게 문의하세요.");
       return;
     }
-    
+
     if (!report) {
       console.error("handleSettlementClick: report가 없습니다");
       return;
     }
-    
+
     try {
       onSettlement(report);
     } catch (error) {
@@ -125,103 +125,50 @@ const ReportStatus = ({
     if (!showProcessModal || !selectedReport) return null;
 
     return () => (
-      <div 
-        className="modal-overlay" 
+      <div
+        className="process-modal-overlay"
         onClick={(e) => {
-          if (e.target.className === "modal-overlay") {
+          if (e.target.className === "process-modal-overlay") {
             closeModals();
           }
         }}
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.6)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 99999, // 매우 높은 z-index 설정
-          backdropFilter: 'blur(5px)'
-        }}
       >
         <div
-          className="process-modal-container modal-container"
+          className="process-modal-container"
           onClick={(e) => e.stopPropagation()}
-          style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
-            width: '90%',
-            maxWidth: '500px',
-            maxHeight: '90vh',
-            overflow: 'auto',
-            position: 'relative',
-            zIndex: 100000 // 오버레이보다 더 높은 z-index
-          }}
         >
-          <div className="modal-header" style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            borderBottom: '1px solid #e0e0e0',
-            padding: '20px 25px 15px',
-            marginBottom: '20px'
-          }}>
-            <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#333' }}>
+          <div className="process-modal-header">
+            <h2>
               벌금 처리 (사건번호: {selectedReport?.id?.slice(-6) || '없음'})
             </h2>
-            <button 
-              className="close-button" 
+            <button
+              className="close-button"
               onClick={closeModals}
-              style={{
-                background: 'none',
-                border: 'none',
-                fontSize: '1.8rem',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                color: '#888',
-                padding: 0,
-                lineHeight: 1
-              }}
             >
               &times;
             </button>
           </div>
-          
-          <div className="modal-content" style={{ padding: '0 25px', marginBottom: '25px' }}>
-            <div className="report-summary" style={{
-              backgroundColor: '#f8f9fa',
-              border: '1px solid #e9ecef',
-              borderRadius: '8px',
-              padding: '15px',
-              marginBottom: '20px',
-              fontSize: '0.9rem'
-            }}>
-              <p style={{ margin: '5px 0' }}>
+
+          <div className="process-modal-content">
+            <div className="report-summary">
+              <p>
                 <strong>사건번호:</strong> {selectedReport?.id?.slice(-6) || '없음'}
               </p>
-              <p style={{ margin: '5px 0' }}>
+              <p>
                 <strong>대상자:</strong> {selectedReport?.reportedUserName || '알 수 없음'}
               </p>
-              <p className="report-reason" style={{ margin: '5px 0' }}>
+              <p className="report-reason">
                 <strong>신고 사유:</strong> {selectedReport?.reason || '알 수 없음'}
               </p>
               {selectedReport?.description && (
-                <p className="law-description" style={{ margin: '5px 0' }}>
+                <p className="law-description">
                   <strong>설명:</strong> {selectedReport.description}
                 </p>
               )}
             </div>
 
-            <div className="form-group" style={{ marginBottom: '15px' }}>
-              <label htmlFor="processingAmount" style={{
-                display: 'block',
-                fontWeight: '500',
-                color: '#444',
-                marginBottom: '8px'
-              }}>
+            <div className="form-group">
+              <label htmlFor="processingAmount">
                 벌금 금액 (원)
               </label>
               <input
@@ -231,32 +178,16 @@ const ReportStatus = ({
                 onChange={handleProcessingAmountChange}
                 placeholder="벌금 금액을 입력하세요 (0원은 경고)"
                 className="form-input"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px'
-                }}
               />
               {getDefaultAmount(selectedReport?.reason) !== null && (
-                <p className="form-hint" style={{
-                  fontSize: '0.85rem',
-                  color: '#666',
-                  marginTop: '5px'
-                }}>
+                <p className="form-hint">
                   기본 금액: {getDefaultAmount(selectedReport?.reason)?.toLocaleString()}원
                 </p>
               )}
             </div>
 
-            <div className="form-group" style={{ marginBottom: '15px' }}>
-              <label htmlFor="processingReason" style={{
-                display: 'block',
-                fontWeight: '500',
-                color: '#444',
-                marginBottom: '8px'
-              }}>
+            <div className="form-group">
+              <label htmlFor="processingReason">
                 처리 사유 (선택)
               </label>
               <textarea
@@ -266,21 +197,13 @@ const ReportStatus = ({
                 placeholder="처리 사유를 입력하세요 (선택사항)"
                 className="form-textarea"
                 rows="3"
-                style={{
-                  width: '100%',
-                  padding: '10px',
-                  border: '1px solid #ccc',
-                  borderRadius: '4px',
-                  fontSize: '14px',
-                  resize: 'vertical'
-                }}
               />
             </div>
 
             {reportReasons && reportReasons.length > 0 && (
-              <div className="quick-reasons" style={{ marginTop: '15px' }}>
-                <p style={{ fontWeight: '500', marginBottom: '10px' }}>빠른 선택:</p>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <div className="quick-reasons-container">
+                <p className="quick-reasons-label">빠른 선택:</p>
+                <div className="quick-reasons-buttons">
                   {reportReasons.map((reasonItem, index) => (
                     <button
                       key={index}
@@ -289,15 +212,7 @@ const ReportStatus = ({
                         setProcessingAmount(reasonItem.amount.toString());
                         setProcessingReason(reasonItem.reason);
                       }}
-                      style={{
-                        padding: '5px 10px',
-                        fontSize: '0.8rem',
-                        border: '1px solid #007bff',
-                        backgroundColor: 'white',
-                        color: '#007bff',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
+                      className="quick-reason-btn"
                     >
                       {reasonItem.reason} ({reasonItem.amount.toLocaleString()}원)
                     </button>
@@ -306,43 +221,17 @@ const ReportStatus = ({
               </div>
             )}
           </div>
-          
-          <div className="modal-footer" style={{
-            display: 'flex',
-            justifyContent: 'flex-end',
-            gap: '10px',
-            padding: '15px 25px 20px',
-            borderTop: '1px solid #e0e0e0'
-          }}>
-            <button 
-              className="modal-button cancel" 
+
+          <div className="process-modal-footer">
+            <button
+              className="modal-button cancel"
               onClick={closeModals}
-              style={{
-                padding: '10px 20px',
-                fontSize: '0.95rem',
-                fontWeight: '500',
-                borderRadius: '4px',
-                border: '1px solid #ccc',
-                backgroundColor: 'white',
-                color: '#444',
-                cursor: 'pointer'
-              }}
             >
               취소
             </button>
             <button
               className="modal-button process"
               onClick={handleProcessSubmit}
-              style={{
-                padding: '10px 20px',
-                fontSize: '0.95rem',
-                fontWeight: '500',
-                borderRadius: '4px',
-                border: 'none',
-                backgroundColor: '#dc3545',
-                color: 'white',
-                cursor: 'pointer'
-              }}
             >
               처리 완료
             </button>
@@ -357,43 +246,16 @@ const ReportStatus = ({
       <h2 className="section-title">신고 처리 현황</h2>
 
       {/* 탭 버튼 */}
-      <div className="tabs-container" style={{
-        display: 'flex',
-        gap: '10px',
-        marginBottom: '20px',
-        borderBottom: '2px solid #e0e0e0'
-      }}>
+      <div className="tabs-container">
         <button
           onClick={() => setActiveTab("submitted")}
           className={`tab-button ${activeTab === "submitted" ? "active" : ""}`}
-          style={{
-            padding: '10px 20px',
-            fontSize: '1rem',
-            fontWeight: activeTab === "submitted" ? '600' : '400',
-            border: 'none',
-            borderBottom: activeTab === "submitted" ? '3px solid #007bff' : '3px solid transparent',
-            backgroundColor: 'transparent',
-            color: activeTab === "submitted" ? '#007bff' : '#666',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
         >
           제출된 신고 ({submittedReports.length})
         </button>
         <button
           onClick={() => setActiveTab("accepted")}
           className={`tab-button ${activeTab === "accepted" ? "active" : ""}`}
-          style={{
-            padding: '10px 20px',
-            fontSize: '1rem',
-            fontWeight: activeTab === "accepted" ? '600' : '400',
-            border: 'none',
-            borderBottom: activeTab === "accepted" ? '3px solid #007bff' : '3px solid transparent',
-            backgroundColor: 'transparent',
-            color: activeTab === "accepted" ? '#007bff' : '#666',
-            cursor: 'pointer',
-            transition: 'all 0.2s'
-          }}
         >
           접수된 신고 ({acceptedReports.length})
         </button>
@@ -413,9 +275,8 @@ const ReportStatus = ({
                   acceptedReports.map((report) => (
                     <div
                       key={report.id}
-                      className={`report-item ${
-                        report.isLawReport ? "law-report" : ""
-                      }`}
+                      className={`report-item ${report.isLawReport ? "law-report" : ""
+                        }`}
                     >
                       <div className="report-header">
                         <span className="report-id">
@@ -499,9 +360,8 @@ const ReportStatus = ({
                   submittedReports.map((report) => (
                     <div
                       key={report.id}
-                      className={`report-item ${
-                        report.isLawReport ? "law-report" : ""
-                      }`}
+                      className={`report-item ${report.isLawReport ? "law-report" : ""
+                        }`}
                     >
                       <div className="report-header">
                         <span className="report-id">

@@ -226,7 +226,7 @@ export default function AlchanLayout() {
   const userClassCode = userDoc?.classCode;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-gray-900 font-sans selection:bg-indigo-100 selection:text-indigo-900 flex">
+    <div className="min-h-screen bg-[#0a0a12] text-gray-100 font-sans selection:bg-indigo-500/30 selection:text-indigo-200 flex">
       {/* PC 사이드바 */}
       <AlchanSidebar
         isOpen={isSidebarOpen}
@@ -235,7 +235,7 @@ export default function AlchanLayout() {
       />
 
       {/* 메인 콘텐츠 영역 - 스크롤 문제 수정 */}
-      <main className="flex-1 min-w-0 md:min-h-screen relative bg-slate-50/50 overflow-visible">
+      <main className="flex-1 min-w-0 md:min-h-screen relative bg-[#0a0a12] overflow-visible">
         {/* 헤더 */}
         <AlchanHeader
           toggleSidebar={toggleSidebar}

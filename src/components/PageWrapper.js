@@ -9,7 +9,7 @@ import { AlchanLoadingScreen } from './ui/Skeleton';
 // 페이지 컨테이너
 // ============================================
 export const PageContainer = ({ children, className = '' }) => (
-  <div className={`min-h-full w-full bg-slate-50 ${className}`}>
+  <div className={`min-h-full w-full bg-[#0a0a12] ${className}`}>
     <div className="w-full max-w-none px-2 md:px-3 lg:px-4 py-1 md:py-2">
       {children}
     </div>
@@ -28,23 +28,23 @@ export const PageHeader = ({
   backButton,
   className = '',
 }) => (
-  <section className={`bg-white rounded-lg px-3 py-1.5 md:px-4 md:py-2 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-1.5 md:gap-2 mb-2 md:mb-3 ${className}`}>
+  <section className={`bg-[#14142380] backdrop-blur-sm rounded-lg px-3 py-1.5 md:px-4 md:py-2 shadow-lg border border-cyan-900/30 flex flex-col md:flex-row md:items-center justify-between gap-1.5 md:gap-2 mb-2 md:mb-3 ${className}`}>
     <div className="flex items-center gap-3">
       {backButton}
       {Icon && (
-        <div className="w-9 h-9 md:w-10 md:h-10 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600 shrink-0 shadow-sm border border-indigo-100">
+        <div className="w-9 h-9 md:w-10 md:h-10 bg-cyan-900/30 rounded-lg flex items-center justify-center text-cyan-400 shrink-0 shadow-sm border border-cyan-500/30">
           <Icon className="w-5 h-5" />
         </div>
       )}
       <div>
         <div className="flex items-center gap-2">
-          <h2 className="text-lg md:text-xl font-bold text-slate-900 tracking-tight">
+          <h2 className="text-lg md:text-xl font-bold text-white tracking-tight">
             {title}
           </h2>
           {badge}
         </div>
         {subtitle && (
-          <p className="text-xs md:text-sm text-slate-500 font-medium">
+          <p className="text-xs md:text-sm text-slate-400 font-medium">
             {subtitle}
           </p>
         )}
@@ -63,8 +63,8 @@ export const PageHeader = ({
 // ============================================
 export const SectionTitle = ({ children, icon: Icon, action, className = '' }) => (
   <div className={`flex items-center justify-between px-1 mb-4 ${className}`}>
-    <h3 className="text-lg md:text-xl font-bold text-slate-900 flex items-center gap-2">
-      {Icon && <Icon className="w-5 h-5 text-indigo-500" />}
+    <h3 className="text-lg md:text-xl font-bold text-white flex items-center gap-2">
+      {Icon && <Icon className="w-5 h-5 text-cyan-400" />}
       {children}
     </h3>
     {action}
@@ -81,15 +81,15 @@ export const LoadingState = ({ message = '데이터를 불러오는 중...' }) =
 // ============================================
 export const ErrorState = ({ title = '오류가 발생했습니다', message, onRetry }) => (
   <div className="flex flex-col items-center justify-center py-16 text-center">
-    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-      <span className="text-3xl text-red-500">!</span>
+    <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+      <span className="text-3xl text-red-400">!</span>
     </div>
-    <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
-    {message && <p className="text-slate-500 mb-4 max-w-md">{message}</p>}
+    <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
+    {message && <p className="text-slate-400 mb-4 max-w-md">{message}</p>}
     {onRetry && (
       <button
         onClick={onRetry}
-        className="px-5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold text-sm transition-all shadow-sm"
+        className="px-5 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-900 rounded-xl font-bold text-sm transition-all shadow-lg shadow-cyan-500/30"
       >
         다시 시도
       </button>
@@ -103,12 +103,12 @@ export const ErrorState = ({ title = '오류가 발생했습니다', message, on
 export const EmptyState = ({ icon: Icon, title, description, action }) => (
   <div className="flex flex-col items-center justify-center py-16 text-center">
     {Icon && (
-      <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-4 border border-slate-100">
+      <div className="w-16 h-16 rounded-full bg-[#14142380] shadow-lg flex items-center justify-center mb-4 border border-cyan-900/30">
         <Icon className="w-8 h-8 text-slate-400" />
       </div>
     )}
     {title && (
-      <h3 className="text-lg font-bold text-slate-700 mb-2">{title}</h3>
+      <h3 className="text-lg font-bold text-slate-300 mb-2">{title}</h3>
     )}
     {description && (
       <p className="text-slate-500 font-medium mb-6 max-w-md">{description}</p>
@@ -144,14 +144,13 @@ export const StatCard = ({
   value,
   subValue,
   trend,
-  iconBg = 'bg-indigo-50',
-  iconColor = 'text-indigo-600',
+  iconBg = 'bg-cyan-900/30',
+  iconColor = 'text-cyan-400',
   onClick,
 }) => (
   <div
-    className={`bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-xl transition-all duration-300 ${
-      onClick ? 'cursor-pointer' : ''
-    }`}
+    className={`bg-[#14142380] backdrop-blur-sm rounded-2xl p-6 border border-cyan-900/30 shadow-lg hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 ${onClick ? 'cursor-pointer' : ''
+      }`}
     onClick={onClick}
   >
     <div className="flex items-start justify-between">
@@ -159,18 +158,17 @@ export const StatCard = ({
         <Icon className={`w-6 h-6 ${iconColor}`} />
       </div>
       {trend && (
-        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${
-          trend.type === 'up' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-        }`}>
+        <span className={`text-xs font-bold px-2.5 py-1 rounded-lg ${trend.type === 'up' ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'
+          }`}>
           {trend.type === 'up' ? '+' : '-'}{trend.value}%
         </span>
       )}
     </div>
     <div className="mt-4">
-      <p className="text-sm text-slate-500 font-medium">{label}</p>
-      <p className="text-2xl font-bold text-slate-900 mt-1 tracking-tight">{value}</p>
+      <p className="text-sm text-slate-400 font-medium">{label}</p>
+      <p className="text-2xl font-bold text-white mt-1 tracking-tight">{value}</p>
       {subValue && (
-        <p className="text-sm text-slate-400 mt-1">{subValue}</p>
+        <p className="text-sm text-slate-500 mt-1">{subValue}</p>
       )}
     </div>
   </div>
@@ -195,25 +193,23 @@ export const AssetCard = ({ icon: Icon, label, value, color, iconColor }) => (
 // 탭 컴포넌트
 // ============================================
 export const TabGroup = ({ tabs, activeTab, onChange, className = '' }) => (
-  <div className={`flex gap-1 p-1 bg-slate-100 rounded-xl ${className}`}>
+  <div className={`flex gap-1 p-1 bg-[#0a0a12] rounded-xl border border-cyan-900/30 ${className}`}>
     {tabs.map((tab) => (
       <button
         key={tab.id}
         onClick={() => onChange(tab.id)}
-        className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all duration-200 ${
-          activeTab === tab.id
-            ? 'bg-white text-indigo-600 shadow-sm'
-            : 'text-slate-600 hover:text-slate-900'
-        }`}
+        className={`flex-1 px-4 py-2.5 text-sm font-bold rounded-lg transition-all duration-200 ${activeTab === tab.id
+          ? 'bg-cyan-500 text-slate-900 shadow-lg shadow-cyan-500/30'
+          : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
       >
         {tab.icon && <tab.icon className="w-4 h-4 mr-2 inline-block" />}
         {tab.label}
         {tab.count !== undefined && (
-          <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full ${
-            activeTab === tab.id
-              ? 'bg-indigo-100 text-indigo-600'
-              : 'bg-slate-200 text-slate-600'
-          }`}>
+          <span className={`ml-2 px-1.5 py-0.5 text-xs rounded-full ${activeTab === tab.id
+            ? 'bg-slate-900 text-cyan-400'
+            : 'bg-slate-800 text-slate-400'
+            }`}>
             {tab.count}
           </span>
         )}
@@ -237,15 +233,15 @@ export const ActionButton = ({
   title,
 }) => {
   const variants = {
-    primary: 'bg-slate-800 text-white hover:bg-slate-900 ring-1 ring-slate-900 shadow-slate-200',
-    secondary: 'bg-slate-100 hover:bg-slate-200 text-slate-700',
-    outline: 'bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 hover:ring-slate-300 shadow-sm',
-    'outline-green': 'bg-white text-emerald-600 ring-1 ring-emerald-200 hover:bg-emerald-50 hover:ring-emerald-300 shadow-sm',
-    'outline-red': 'bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 hover:ring-rose-300 shadow-sm',
-    danger: 'bg-white text-rose-600 ring-1 ring-rose-200 hover:bg-rose-50 hover:ring-rose-300 shadow-sm',
-    success: 'bg-white text-emerald-600 ring-1 ring-emerald-200 hover:bg-emerald-50 hover:ring-emerald-300 shadow-sm',
-    ghost: 'text-slate-600 hover:bg-slate-100',
-    indigo: 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100',
+    primary: 'bg-cyan-500 text-slate-900 hover:bg-cyan-400 ring-1 ring-cyan-400 shadow-cyan-500/30',
+    secondary: 'bg-slate-800 hover:bg-slate-700 text-slate-200',
+    outline: 'bg-transparent text-slate-300 ring-1 ring-slate-600 hover:bg-slate-800 hover:ring-slate-500 shadow-sm',
+    'outline-green': 'bg-transparent text-emerald-400 ring-1 ring-emerald-600 hover:bg-emerald-900/30 hover:ring-emerald-500 shadow-sm',
+    'outline-red': 'bg-transparent text-rose-400 ring-1 ring-rose-600 hover:bg-rose-900/30 hover:ring-rose-500 shadow-sm',
+    danger: 'bg-transparent text-rose-400 ring-1 ring-rose-600 hover:bg-rose-900/30 hover:ring-rose-500 shadow-sm',
+    success: 'bg-transparent text-emerald-400 ring-1 ring-emerald-600 hover:bg-emerald-900/30 hover:ring-emerald-500 shadow-sm',
+    ghost: 'text-slate-400 hover:bg-slate-800 hover:text-white',
+    indigo: 'bg-purple-900/30 text-purple-400 hover:bg-purple-900/50',
   };
 
   const sizes = {
@@ -319,18 +315,16 @@ export const AlertBanner = ({ children, variant = 'info', icon: Icon, onClose, c
 // ============================================
 export const ListItem = ({ children, icon: Icon, onClick, active, className = '' }) => (
   <div
-    className={`flex items-center gap-3 p-4 rounded-xl transition-all ${
-      onClick ? 'cursor-pointer' : ''
-    } ${
-      active
-        ? 'bg-indigo-50 border border-indigo-200'
-        : 'bg-white border border-slate-100 hover:border-slate-200 hover:shadow-md'
-    } ${className}`}
+    className={`flex items-center gap-3 p-4 rounded-xl transition-all ${onClick ? 'cursor-pointer' : ''
+      } ${active
+        ? 'bg-cyan-900/30 border border-cyan-500/50'
+        : 'bg-[#14142380] border border-cyan-900/20 hover:border-cyan-500/30 hover:shadow-lg hover:shadow-cyan-500/10'
+      } ${className}`}
     onClick={onClick}
   >
     {Icon && (
-      <div className={`p-2 rounded-lg ${active ? 'bg-indigo-100' : 'bg-slate-100'}`}>
-        <Icon className={`w-5 h-5 ${active ? 'text-indigo-600' : 'text-slate-500'}`} />
+      <div className={`p-2 rounded-lg ${active ? 'bg-cyan-500' : 'bg-slate-800'}`}>
+        <Icon className={`w-5 h-5 ${active ? 'text-slate-900' : 'text-slate-400'}`} />
       </div>
     )}
     <div className="flex-1 min-w-0">{children}</div>
@@ -341,22 +335,22 @@ export const ListItem = ({ children, icon: Icon, onClick, active, className = ''
 // 할일 아이템 - 새로운 디자인
 // ============================================
 export const TaskItem = ({ task, onComplete, onEdit, onDelete, showActions = true }) => (
-  <div className="group flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-indigo-200 hover:bg-white hover:shadow-md transition-all">
+  <div className="group flex items-center justify-between p-3 rounded-xl bg-[#0a0a12] border border-cyan-900/30 hover:border-cyan-500/50 hover:bg-slate-900/50 hover:shadow-lg hover:shadow-cyan-500/10 transition-all">
     <div className="flex items-center gap-3 min-w-0">
       <div
         onClick={onComplete}
-        className="w-5 h-5 rounded md:rounded-md border-2 border-slate-300 group-hover:border-indigo-500 cursor-pointer transition-colors flex items-center justify-center shrink-0"
+        className="w-5 h-5 rounded md:rounded-md border-2 border-slate-600 group-hover:border-cyan-500 cursor-pointer transition-colors flex items-center justify-center shrink-0"
       >
         {/* 체크박스 영역 */}
       </div>
-      <span className="font-bold text-slate-700 text-base truncate group-hover:text-indigo-700 transition-colors">
+      <span className="font-bold text-slate-300 text-base truncate group-hover:text-cyan-400 transition-colors">
         {task.name}
       </span>
     </div>
 
     <div className="flex items-center gap-2 shrink-0">
       {task.rewardType === "random" && (
-        <span className="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-700 text-xs font-bold flex items-center gap-1">
+        <span className="px-2.5 py-1 rounded-lg bg-amber-900/30 text-amber-400 text-xs font-bold flex items-center gap-1">
           🎁 랜덤
         </span>
       )}
@@ -365,7 +359,7 @@ export const TaskItem = ({ task, onComplete, onEdit, onDelete, showActions = tru
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-1.5 text-slate-400 hover:text-blue-500 rounded hover:bg-blue-50"
+              className="p-1.5 text-slate-500 hover:text-cyan-400 rounded hover:bg-cyan-900/30"
             >
               ✏️
             </button>
@@ -373,7 +367,7 @@ export const TaskItem = ({ task, onComplete, onEdit, onDelete, showActions = tru
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-1.5 text-slate-400 hover:text-red-500 rounded hover:bg-red-50"
+              className="p-1.5 text-slate-500 hover:text-red-400 rounded hover:bg-red-900/30"
             >
               🗑️
             </button>
@@ -400,7 +394,7 @@ export const JobCard = ({ job, children, onEdit, onDelete, onAddTask }) => {
   const gradient = job.color || gradients.indigo;
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 overflow-hidden flex flex-col">
+    <div className="bg-[#14142380] backdrop-blur-sm rounded-2xl shadow-lg hover:shadow-xl hover:shadow-cyan-500/10 transition-all duration-300 border border-cyan-900/30 overflow-hidden flex flex-col">
       {/* 카드 헤더 */}
       <div className={`h-16 px-6 flex items-center justify-between bg-gradient-to-r ${gradient}`}>
         <h4 className="text-white font-bold text-lg tracking-wide flex items-center gap-2">
@@ -438,7 +432,7 @@ export const JobCard = ({ job, children, onEdit, onDelete, onAddTask }) => {
         <div className="px-6 pb-6 pt-2">
           <button
             onClick={onAddTask}
-            className="w-full py-3 rounded-xl bg-slate-50 text-slate-500 text-sm font-bold border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-slate-900/50 text-slate-400 text-sm font-bold border border-cyan-900/30 hover:bg-cyan-900/30 hover:text-cyan-400 hover:border-cyan-500/50 transition-colors flex items-center justify-center gap-2"
           >
             ➕ 이 직업에 할일 추가
           </button>
@@ -452,7 +446,7 @@ export const JobCard = ({ job, children, onEdit, onDelete, onAddTask }) => {
 // 콘텐츠 섹션 카드
 // ============================================
 export const ContentSection = ({ children, className = '' }) => (
-  <div className={`bg-white rounded-2xl shadow-sm border border-slate-200 p-6 ${className}`}>
+  <div className={`bg-[#14142380] backdrop-blur-sm rounded-2xl shadow-lg border border-cyan-900/30 p-6 ${className}`}>
     {children}
   </div>
 );
@@ -473,9 +467,8 @@ export const MoneyDisplay = ({ amount, size = 'md', showSign = false, className 
   };
 
   return (
-    <span className={`font-bold tabular-nums ${sizes[size]} ${
-      isNegative ? 'text-red-500' : isPositive && showSign ? 'text-emerald-500' : 'text-slate-900'
-    } ${className}`}>
+    <span className={`font-bold tabular-nums ${sizes[size]} ${isNegative ? 'text-red-500' : isPositive && showSign ? 'text-emerald-500' : 'text-slate-900'
+      } ${className}`}>
       {showSign && isPositive && '+'}
       {isNegative && '-'}
       {formatted}원
@@ -489,12 +482,12 @@ export const MoneyDisplay = ({ amount, size = 'md', showSign = false, className 
 export const AddCard = ({ onClick, label = '새로 추가하기' }) => (
   <button
     onClick={onClick}
-    className="group relative flex flex-col items-center justify-center h-full min-h-[260px] rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/50 hover:bg-indigo-50/50 hover:border-indigo-300 transition-all"
+    className="group relative flex flex-col items-center justify-center h-full min-h-[260px] rounded-2xl border-2 border-dashed border-cyan-900/50 bg-slate-900/30 hover:bg-cyan-900/20 hover:border-cyan-500/50 transition-all"
   >
-    <div className="w-16 h-16 rounded-full bg-white shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-      <span className="text-3xl text-slate-400 group-hover:text-indigo-500">➕</span>
+    <div className="w-16 h-16 rounded-full bg-slate-800 shadow-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+      <span className="text-3xl text-slate-500 group-hover:text-cyan-400">➕</span>
     </div>
-    <span className="text-slate-500 font-bold group-hover:text-indigo-600 text-sm">{label}</span>
+    <span className="text-slate-500 font-bold group-hover:text-cyan-400 text-sm">{label}</span>
   </button>
 );
 

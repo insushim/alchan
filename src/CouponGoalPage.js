@@ -547,9 +547,9 @@ export default function CouponGoalPage() {
   }
 
   return (
-    <div className="w-full min-h-full bg-slate-50">
+    <div className="w-full min-h-full" style={{ backgroundColor: "#0a0a12" }}>
       <div className="w-full px-4 md:px-6 lg:px-8 py-6">
-        <h2 className="text-2xl font-bold text-emerald-600 border-b-2 border-emerald-200 pb-3 mb-6">
+        <h2 className="text-2xl font-bold text-emerald-400 border-b-2 border-emerald-900 pb-3 mb-6" style={{ textShadow: "0 0 10px rgba(52, 211, 153, 0.3)" }}>
           🎯 쿠폰 목표 (학급: {currentUserClassCode})
         </h2>
 

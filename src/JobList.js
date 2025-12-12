@@ -24,12 +24,13 @@ export default function JobList({
     <div
       key={job.id} // 상위에서 map을 사용하므로 여기서 key는 필수 X, 식별용으로 유지
       style={{
-        backgroundColor: "#ffffff",
+        backgroundColor: "rgba(20, 20, 35, 0.6)",
         borderRadius: "10px",
-        border: "2px solid #4f46e5",
+        border: "1px solid rgba(0, 255, 242, 0.2)",
         overflow: "hidden",
-        boxShadow: "0 2px 4px rgba(0, 0, 0, 0.05)",
+        boxShadow: "0 4px 15px rgba(0, 0, 0, 0.3)",
         marginBottom: "15px",
+        backdropFilter: "blur(5px)",
         display: "flex", // Flexbox 레이아웃 사용
         flexDirection: "column", // 세로 방향 배치
         height: "100%", // 부모 그리드 셀 높이 채우기 (선택 사항)
@@ -39,12 +40,12 @@ export default function JobList({
       <div
         className="job-header-container"
         style={{
-          background: "linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)",
+          background: "linear-gradient(135deg, rgba(79, 70, 229, 0.2) 0%, rgba(99, 102, 241, 0.2) 100%)",
           padding: isMobile ? "12px 14px" : "14px 16px",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          borderBottom: "none",
+          borderBottom: "1px solid rgba(0, 255, 242, 0.2)",
         }}
       >
         <div
@@ -54,7 +55,8 @@ export default function JobList({
             fontSize: isMobile ? "15px" : "18px",
             textShadow: "0 1px 3px rgba(0,0,0,0.2)",
             letterSpacing: "-0.01em",
-            color: "#ffffff", // 흰색 텍스트
+            color: "#e8e8ff", // 밝은 텍스트
+            textShadow: "0 0 10px rgba(0, 255, 242, 0.3)",
           }}
         >
           {job.title}
@@ -68,7 +70,7 @@ export default function JobList({
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "white",
+                color: "rgba(255, 255, 255, 0.7)",
                 marginRight: "8px",
                 padding: "0",
               }}
@@ -82,7 +84,7 @@ export default function JobList({
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "white",
+                color: "rgba(255, 255, 255, 0.7)",
                 padding: "0",
               }}
               aria-label={`${job.title} 직업 삭제`}
@@ -114,7 +116,7 @@ export default function JobList({
           <p
             style={{
               fontSize: "13px",
-              color: "#6b7280",
+              color: "#9999bb",
               textAlign: "center",
               margin: "10px 0",
             }}
@@ -126,7 +128,7 @@ export default function JobList({
 
       {/* 관리자 모드에서 할일 추가 버튼 (하단 고정 영역) */}
       {isAdmin && (
-        <div style={{ padding: isMobile ? "8px" : "10px", borderTop: "1px solid #e5e7eb" }}>
+        <div style={{ padding: isMobile ? "8px" : "10px", borderTop: "1px solid rgba(0, 255, 242, 0.1)" }}>
           <button
             onClick={onAddTask} // Dashboard에서 job.id 포함하여 생성된 핸들러 전달
             // --- 인라인 스타일 대신 전달받은 스타일 적용 ---
@@ -134,14 +136,15 @@ export default function JobList({
               addJobTaskButtonStyle || {
                 /* 기본 스타일 (선택 사항) */ width: "100%",
                 padding: isMobile ? "6px" : "8px",
-                backgroundColor: "#eef2ff",
-                border: "1px solid #c7d2fe",
-                color: "#4f46e5",
+                backgroundColor: "rgba(0, 255, 242, 0.1)",
+                border: "1px solid rgba(0, 255, 242, 0.3)",
+                color: "#00fff2",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontSize: isMobile ? "12px" : "13px",
                 fontWeight: "500",
                 marginTop: "0", // 위쪽 마진 제거
+                transition: "all 0.2s ease",
               }
             }
           >

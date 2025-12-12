@@ -536,26 +536,26 @@ body,
 }
 
 /* ============================================
-   글씨 시인성 대폭 개선
+   🌌 사이버펑크 다크 테마 - 글씨 시인성 (PC + 모바일)
    ============================================ */
 
-/* 기본 텍스트 색상 강화 */
+/* 기본 텍스트 색상 - 다크 테마용 밝은 색상 */
 body {
-  color: #1e293b !important;
+  color: #e8e8ff !important;
 }
 
-/* 제목들 더 진하게 */
+/* 제목들 - 밝고 선명하게 */
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
-  color: #0f172a !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 
-/* 본문 텍스트 시인성 */
+/* 본문 텍스트 - 밝은 색상 */
 p,
 span,
 div,
@@ -563,54 +563,54 @@ li,
 td,
 th,
 label {
-  color: #334155;
+  color: #e8e8ff;
 }
 
-/* 회색 텍스트 더 진하게 */
+/* 회색 텍스트 - 보이도록 밝게 */
 .text-gray-400,
 .text-gray-500,
 .text-slate-400,
 .text-slate-500 {
-  color: #64748b !important;
+  color: #9999bb !important;
 }
 
 .text-gray-600,
 .text-slate-600 {
-  color: #475569 !important;
+  color: #b0b0cc !important;
 }
 
 /* 탭 버튼 텍스트 */
 .gov-tab-button,
 .assembly-tab,
 button[class*="tab"] {
-  color: #475569 !important;
+  color: #9999bb !important;
   font-weight: 600 !important;
 }
 
 .gov-tab-button.active,
 .assembly-tab.active,
 button[class*="tab"].active {
-  color: #1e293b !important;
+  color: #00fff2 !important;
   font-weight: 700 !important;
 }
 
-/* 카드 내 텍스트 */
+/* 카드 내 텍스트 - 카드 배경에 맞게 */
 .law-content p,
 .law-content span,
 .card p,
 .card span {
-  color: #334155 !important;
+  color: #e8e8ff !important;
 }
 
 .law-content strong,
 .card strong {
-  color: #0f172a !important;
+  color: #ffffff !important;
 }
 
 /* 입력 필드 placeholder */
 input::placeholder,
 textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #6666aa !important;
 }
 
 /* 버튼 텍스트 */
@@ -620,25 +620,25 @@ button {
 
 /* 테이블 */
 table th {
-  color: #0f172a !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 
 table td {
-  color: #334155 !important;
+  color: #e8e8ff !important;
 }
 
 /* 빈 상태 메시지 */
 .empty-state,
 .empty-message {
-  color: #64748b !important;
+  color: #9999bb !important;
   font-weight: 500 !important;
 }
 
 /* 라벨 */
 label,
 .form-label {
-  color: #334155 !important;
+  color: #e8e8ff !important;
   font-weight: 600 !important;
 }
 
@@ -648,13 +648,13 @@ label,
 .info-text,
 [class*="description"],
 [class*="subtitle"] {
-  color: #64748b !important;
+  color: #9999bb !important;
 }
 
 /* 법안/게시물 내용 */
 .law-title,
 .post-title {
-  color: #0f172a !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 
@@ -665,13 +665,13 @@ label,
   font-weight: 600 !important;
 }
 
-/* 금액 표시 */
+/* 금액 표시 - 네온 시안 하이라이트 */
 .price,
 .amount,
 .money,
 [class*="price"],
 [class*="amount"] {
-  color: #0f172a !important;
+  color: #00fff2 !important;
   font-weight: 700 !important;
 }
 
@@ -680,12 +680,12 @@ label,
 .menu-item,
 [class*="nav-"],
 [class*="menu-"] {
-  color: #334155 !important;
+  color: #e8e8ff !important;
 }
 
 .nav-item.active,
 .menu-item.active {
-  color: #0f172a !important;
+  color: #00fff2 !important;
 }
 
 /* 헤더 텍스트 */
@@ -694,13 +694,13 @@ label,
 .page-title,
 [class*="header"] h1,
 [class*="header"] h2 {
-  color: #0f172a !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 
 /* 섹션 제목 */
 .section-title {
-  color: #1e293b !important;
+  color: #ffffff !important;
   font-weight: 700 !important;
 }
 
@@ -708,7 +708,7 @@ label,
 .vote-number,
 .count,
 [class*="count"] {
-  color: #0f172a !important;
+  color: #00fff2 !important;
   font-weight: 700 !important;
 }
 
@@ -718,18 +718,18 @@ label,
 .law-timestamp,
 [class*="timestamp"],
 [class*="date"] {
-  color: #64748b !important;
+  color: #9999bb !important;
 }
 
 /* 설정/관리자 영역 */
 .setting-label,
 .admin-label {
-  color: #334155 !important;
+  color: #e8e8ff !important;
   font-weight: 600 !important;
 }
 
 .setting-description {
-  color: #64748b !important;
+  color: #9999bb !important;
 }
 
 /* 직업 헤더 시인성 개선 */
@@ -741,4 +741,61 @@ label,
 .job-title-text {
   color: #ffffff !important;
   font-weight: 700 !important;
+}
+
+/* ============================================
+   🎴 카드 컴포넌트 - 다크 테마
+   (MyItems.css에서 정의된 스타일 보완)
+   ============================================ */
+
+/* 카드 텍스트 시인성 - 다크 배경에 밝은 텍스트 */
+.store-item-card p,
+.store-item-card span,
+.store-item-card h3,
+.store-item-card .item-name,
+.store-item-card .my-item-name-compact,
+.shop-item-card p,
+.shop-item-card span,
+.shop-item-card h3 {
+  color: #e8e8ff !important;
+}
+
+.store-item-card .item-description,
+.store-item-card .my-item-description-compact,
+.shop-item-card .item-description {
+  color: #9999bb !important;
+}
+
+.store-item-card .timer-text,
+.shop-item-card .timer-text {
+  color: #9999bb !important;
+}
+
+/* 🔢 수량 배지 - 어두운 배경에서도 보이도록 */
+.quantity-badge {
+  color: #0a0a12 !important;
+}
+
+/* ============================================
+   📝 모달 - 다크 테마
+   (MyItems.css에서 정의된 스타일 보완)
+   ============================================ */
+.myitems-modal-container h3,
+.myitems-modal-container p,
+.myitems-modal-container span,
+.myitems-modal-container label {
+  color: #e8e8ff !important;
+}
+
+.myitems-modal-container .form-group label {
+  color: #9999bb !important;
+}
+
+/* 모달 입력 필드 */
+.myitems-modal-container input,
+.myitems-modal-container select,
+.myitems-modal-container textarea {
+  color: #e8e8ff !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+  border-color: rgba(0, 255, 242, 0.3) !important;
 }

@@ -112,7 +112,7 @@ const CATEGORY_LABELS = {
 // ============================================
 const MenuSection = ({ title, children }) => (
   <div className="mb-6">
-    <h3 className="px-4 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">{title}</h3>
+    <h3 className="px-4 text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-2">{title}</h3>
     <ul className="space-y-1">
       {children}
     </ul>
@@ -126,14 +126,13 @@ const MenuItem = ({ icon: Icon, label, active, hasSubmenu, onClick }) => (
   <li>
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group ${
-        active
-          ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
-          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-      }`}
+      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all duration-200 group ${active
+          ? 'bg-indigo-500/20 text-indigo-400 font-bold shadow-sm border border-indigo-500/30'
+          : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+        }`}
     >
       <div className="flex items-center gap-3">
-        <Icon className={`w-[18px] h-[18px] ${active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+        <Icon className={`w-[18px] h-[18px] ${active ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
         <span className="text-sm">{label}</span>
       </div>
       {hasSubmenu && <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
@@ -147,11 +146,10 @@ const MenuItem = ({ icon: Icon, label, active, hasSubmenu, onClick }) => (
 const SubMenuItem = ({ icon: Icon, label, active, onClick }) => (
   <button
     onClick={onClick}
-    className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-      active
-        ? 'text-indigo-700 bg-indigo-50'
-        : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'
-    }`}
+    className={`w-full flex items-center gap-3 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${active
+        ? 'text-indigo-400 bg-indigo-500/20 shadow-[0_0_10px_rgba(99,102,241,0.2)]'
+        : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
+      }`}
   >
     <Icon className="w-3.5 h-3.5" />
     {label}
@@ -168,30 +166,26 @@ const CategoryItem = ({ category, children, isExpanded, onToggle, hasActiveChild
     <div className="mb-1">
       <button
         onClick={onToggle}
-        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${
-          hasActiveChild
-            ? 'bg-indigo-50/50 text-indigo-700'
-            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-        }`}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 group ${hasActiveChild
+            ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+            : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
+          }`}
       >
         <Icon
-          className={`w-[18px] h-[18px] transition-colors flex-shrink-0 ${
-            hasActiveChild ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'
-          }`}
+          className={`w-[18px] h-[18px] transition-colors flex-shrink-0 ${hasActiveChild ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'
+            }`}
         />
         <span className="flex-1 text-left">{category.label}</span>
         <ChevronDown
-          className={`w-3.5 h-3.5 transition-transform duration-300 opacity-50 flex-shrink-0 ${
-            isExpanded ? 'rotate-180' : ''
-          }`}
+          className={`w-3.5 h-3.5 transition-transform duration-300 opacity-50 flex-shrink-0 ${isExpanded ? 'rotate-180' : ''
+            }`}
         />
       </button>
       <div
-        className={`overflow-hidden transition-all duration-300 ${
-          isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
-        }`}
+        className={`overflow-hidden transition-all duration-300 ${isExpanded ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+          }`}
       >
-        <div className="pl-4 mt-2 space-y-1 border-l-2 border-slate-100 ml-4">
+        <div className="pl-4 mt-2 space-y-1 border-l-2 border-slate-700 ml-4">
           {children}
         </div>
       </div>
@@ -320,7 +314,7 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
   // PC 접힌 상태
   if (isCollapsed && !isMobile) {
     return (
-      <aside className="hidden md:flex flex-col w-20 bg-white border-r border-slate-200 h-screen sticky top-0 left-0 z-50 shadow-xl transition-all duration-300">
+      <aside className="hidden md:flex flex-col w-20 bg-[#141423] border-r border-[#00fff2]/10 h-screen sticky top-0 left-0 z-50 shadow-xl transition-all duration-300">
         {/* 로고 */}
         <div
           style={{
@@ -332,7 +326,7 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
             background: 'linear-gradient(135deg, #4f46e5, #7c3aed, #4f46e5)'
           }}
         >
-          <div style={{ padding: '4px', background: 'white', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          <div style={{ padding: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
             <AppIcon style={{ width: '32px', height: '32px' }} />
           </div>
         </div>
@@ -349,11 +343,10 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
                 key={item.id}
                 onClick={() => handleItemClick(item)}
                 title={item.label}
-                className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center transition-all duration-200 ${
-                  active
-                    ? 'bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-lg shadow-indigo-200/50'
-                    : 'bg-white border border-slate-100 text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200'
-                }`}
+                className={`w-14 h-14 mx-auto rounded-2xl flex items-center justify-center transition-all duration-200 ${active
+                    ? 'bg-gradient-to-br from-indigo-600 to-violet-700 text-white shadow-lg shadow-indigo-500/40 border-none'
+                    : 'bg-[#1a1a2e] border border-slate-700/50 text-slate-400 hover:bg-indigo-900/30 hover:text-indigo-400 hover:border-indigo-500/30'
+                  }`}
               >
                 <Icon size={24} />
               </button>
@@ -362,7 +355,7 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
         </nav>
 
         {/* 사용자 아바타 */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-4 border-t border-slate-800 bg-[#0a0a12]/50">
           <div className="w-10 h-10 mx-auto rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold">
             {userName.charAt(0)}
           </div>
@@ -384,7 +377,7 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
       {/* 사이드바 */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl transform transition-transform duration-300 ease-in-out
+          fixed inset-y-0 left-0 z-50 w-72 bg-[#141423] border-r border-[#00fff2]/10 shadow-[0_4px_20px_rgba(0,0,0,0.5)] transform transition-transform duration-300 ease-in-out
           ${isMobile
             ? isOpen ? 'translate-x-0' : '-translate-x-full'
             : 'relative translate-x-0'
@@ -400,11 +393,10 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
             margin: '12px',
             display: 'flex',
             alignItems: 'center',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #7c3aed 100%)',
-            position: 'relative',
-            overflow: 'hidden',
-            borderRadius: '16px',
-            boxShadow: '0 8px 24px -4px rgba(99, 102, 241, 0.4), 0 4px 8px -2px rgba(0,0,0,0.1)'
+            alignItems: 'center',
+            background: 'linear-gradient(135deg, rgba(10, 10, 18, 0.95), rgba(20, 20, 35, 0.95))',
+            border: '1px solid rgba(0, 255, 242, 0.2)',
+            boxShadow: '0 0 15px rgba(0, 255, 242, 0.1)',
           }}
         >
           {/* 배경 장식 */}
@@ -413,12 +405,12 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '0 18px', width: '100%', position: 'relative', zIndex: 10 }}>
             {/* 아이콘 박스 */}
-            <div style={{ padding: '6px', background: 'rgba(255,255,255,0.95)', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+            <div style={{ padding: '6px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', border: '1px solid rgba(255,255,255,0.1)' }}>
               <AppIcon style={{ width: '36px', height: '36px' }} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-              <span style={{ fontSize: '22px', fontWeight: '900', color: 'white', fontFamily: "'Jua', sans-serif", lineHeight: '1.1', textShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>알찬</span>
-              <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'rgba(255,255,255,0.9)', letterSpacing: '0.2em', lineHeight: '1.1', marginTop: '3px', textShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>ALCHAN</span>
+              <span style={{ fontSize: '22px', fontWeight: '900', color: '#00fff2', fontFamily: "'Jua', sans-serif", lineHeight: '1.1', textShadow: '0 0 10px rgba(0, 255, 242, 0.5)' }}>알찬</span>
+              <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'rgba(232, 232, 255, 0.7)', letterSpacing: '0.2em', lineHeight: '1.1', marginTop: '3px' }}>ALCHAN</span>
             </div>
           </div>
 
@@ -455,16 +447,16 @@ export default function AlchanSidebar({ isOpen, onClose, isCollapsed = false }) 
         </nav>
 
         {/* 하단 사용자 프로필 */}
-        <div className="p-4 border-t border-slate-100 bg-slate-50/50">
+        <div className="p-4 border-t border-slate-800 bg-[#0a0a12]/50">
           <div
             onClick={handleLogout}
-            className="flex items-center gap-3 p-3 rounded-xl bg-white shadow-sm border border-slate-200 hover:shadow-md transition-shadow cursor-pointer group"
+            className="flex items-center gap-3 p-3 rounded-xl bg-[#141423] shadow-sm border border-slate-700 hover:shadow-md hover:border-indigo-500/50 transition-all cursor-pointer group"
           >
             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold">
               {userName.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 truncate">{userName}</p>
+              <p className="text-sm font-bold text-slate-200 truncate">{userName}</p>
               <p className="text-xs text-slate-500 truncate">{userRole}</p>
             </div>
             <LogOut className="w-4 h-4 text-slate-400 group-hover:text-red-500 transition-colors" />

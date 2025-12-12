@@ -2,14 +2,14 @@
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
-import "./sidebar.css";
+import "./Sidebar.css";
 
 export default function Sidebar({
   isOpen,
   menuItems,
   onNavigate,
   isFullscreen = false,
-  onClose = () => {},
+  onClose = () => { },
 }) {
   const location = useLocation();
   const { userDoc } = useAuth(); // Firestore 사용자 정보를 userDoc으로 받습니다.
@@ -95,25 +95,22 @@ export default function Sidebar({
         renderedItems.push(
           <div key={item.id} className="sidebar-category">
             <div
-              className={`sidebar-category-header ${
-                isCategoryActive ? "active" : ""
-              }`}
+              className={`sidebar-category-header ${isCategoryActive ? "active" : ""
+                }`}
               onClick={() => toggleCategory(item.id)}
             >
               {renderIcon(item.icon, true, item.name)}
               <span className="sidebar-category-title">{item.name}</span>
               <span
-                className={`sidebar-category-arrow ${
-                  expandedCategories[item.id] ? "expanded" : ""
-                }`}
+                className={`sidebar-category-arrow ${expandedCategories[item.id] ? "expanded" : ""
+                  }`}
               >
                 ▼
               </span>
             </div>
             <div
-              className={`sidebar-category-items ${
-                expandedCategories[item.id] ? "expanded" : ""
-              }`}
+              className={`sidebar-category-items ${expandedCategories[item.id] ? "expanded" : ""
+                }`}
             >
               {menuItems
                 .filter(
@@ -134,9 +131,8 @@ export default function Sidebar({
                   return (
                     <div
                       key={subItem.id}
-                      className={`sidebar-menu-item ${
-                        isItemActive ? "active" : ""
-                      }`}
+                      className={`sidebar-menu-item ${isItemActive ? "active" : ""
+                        }`}
                       onClick={() => handleItemClick(subItem)}
                     >
                       {renderIcon(subItem.icon, false, subItem.name)}
@@ -152,9 +148,8 @@ export default function Sidebar({
         renderedItems.push(
           <div
             key={item.id}
-            className={`sidebar-menu-item top-level ${
-              isItemActive ? "active" : ""
-            }`}
+            className={`sidebar-menu-item top-level ${isItemActive ? "active" : ""
+              }`}
             onClick={() => handleItemClick(item)}
           >
             {renderIcon(item.icon, false, item.name)}
@@ -180,9 +175,9 @@ export default function Sidebar({
 
   return (
     <div
-      className={`sidebar ${isOpen ? "open" : "closed"} ${
-        isFullscreen ? "fullscreen" : ""
-      }`}
+      className={`sidebar ${isOpen ? "open" : "closed"} ${isFullscreen ? "fullscreen" : ""
+        }`}
+      style={{ backgroundColor: "#0a0a12", borderRight: "1px solid rgba(0, 255, 242, 0.15)" }}
     >
       {isFullscreen && (
         <div className="fullscreen-menu-header">

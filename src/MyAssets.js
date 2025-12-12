@@ -66,7 +66,7 @@ export default function MyAssets() {
   const CACHE_DURATION = 60 * 60 * 1000; // 🔥 [최적화] 1시간 (Firestore 읽기 최소화)
 
   const currentGoalId = currentUserClassCode
-    ? `${currentUserClassCode}_goal` 
+    ? `${currentUserClassCode}_goal`
     : null;
 
   const [classCouponGoal, setClassCouponGoal] = useState(1000);
@@ -172,7 +172,7 @@ export default function MyAssets() {
       const localKey = `pending_transactions_${userId}`;
       const existing = localStorage.getItem(localKey);
       const pendingTransactions = existing ? JSON.parse(existing) : [];
-      
+
       // 🔥 일관된 timestamp 형식 사용 - Date 객체 생성
       const now = new Date();
       const newTransaction = {
@@ -196,7 +196,7 @@ export default function MyAssets() {
       // 로컬 상태 즉시 업데이트
       setTransactionHistory(prev => [newTransaction, ...prev.slice(0, 4)]);
 
-      
+
       // 🔥 [수정 3] 백그라운드에서 비동기 동기화 (실패해도 메인 기능에 영향 없음)
       setTimeout(async () => {
         try {
@@ -213,7 +213,7 @@ export default function MyAssets() {
   const syncPendingTransactions = async (userId) => {
     const localKey = `pending_transactions_${userId}`;
     const pendingStr = localStorage.getItem(localKey);
-    
+
     if (!pendingStr) return;
 
     try {
@@ -224,7 +224,7 @@ export default function MyAssets() {
         }
         return value;
       });
-      
+
       const unsyncedTransactions = pendingTransactions.filter(tx => !tx.synced);
 
       if (unsyncedTransactions.length === 0) return;
@@ -246,9 +246,9 @@ export default function MyAssets() {
       await batch.commit();
 
       // 동기화 완료 표시
-      const updatedTransactions = pendingTransactions.map(tx => 
-        unsyncedTransactions.find(utx => utx.id === tx.id) 
-          ? { ...tx, synced: true } 
+      const updatedTransactions = pendingTransactions.map(tx =>
+        unsyncedTransactions.find(utx => utx.id === tx.id)
+          ? { ...tx, synced: true }
           : tx
       );
 
@@ -258,7 +258,7 @@ export default function MyAssets() {
         }
         return value;
       }));
-      
+
     } catch (error) {
     }
   };
@@ -335,29 +335,29 @@ export default function MyAssets() {
         // 기부 내역 처리
         const donations = Array.isArray(goalData.donations)
           ? goalData.donations.map((donation) => {
-              let processedTimestamp;
-              if (donation.timestamp && donation.timestamp.toDate) {
-                processedTimestamp = donation.timestamp.toDate().toISOString();
-              } else if (donation.timestamp && donation.timestamp.seconds) {
-                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
-              } else if (donation.timestampISO) {
-                processedTimestamp = donation.timestampISO;
-              } else if (typeof donation.timestamp === 'string') {
-                processedTimestamp = donation.timestamp;
-              } else {
-                processedTimestamp = new Date().toISOString();
-              }
+            let processedTimestamp;
+            if (donation.timestamp && donation.timestamp.toDate) {
+              processedTimestamp = donation.timestamp.toDate().toISOString();
+            } else if (donation.timestamp && donation.timestamp.seconds) {
+              processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+            } else if (donation.timestampISO) {
+              processedTimestamp = donation.timestampISO;
+            } else if (typeof donation.timestamp === 'string') {
+              processedTimestamp = donation.timestamp;
+            } else {
+              processedTimestamp = new Date().toISOString();
+            }
 
-              return {
-                ...donation,
-                amount: Number(donation.amount) || 0,
-                timestamp: processedTimestamp,
-                userId: donation.userId || '',
-                userName: donation.userName || '알 수 없는 사용자',
-                message: donation.message || '',
-                classCode: donation.classCode || currentUserClassCode,
-              };
-            })
+            return {
+              ...donation,
+              amount: Number(donation.amount) || 0,
+              timestamp: processedTimestamp,
+              userId: donation.userId || '',
+              userName: donation.userName || '알 수 없는 사용자',
+              message: donation.message || '',
+              classCode: donation.classCode || currentUserClassCode,
+            };
+          })
           : [];
 
         setGoalDonations(donations);
@@ -794,29 +794,29 @@ export default function MyAssets() {
 
         const freshDonations = Array.isArray(latestGoalData.donations)
           ? latestGoalData.donations.map((donation) => {
-              let processedTimestamp;
-              if (donation.timestamp && donation.timestamp.toDate) {
-                processedTimestamp = donation.timestamp.toDate().toISOString();
-              } else if (donation.timestamp && donation.timestamp.seconds) {
-                processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
-              } else if (donation.timestampISO) {
-                processedTimestamp = donation.timestampISO;
-              } else if (typeof donation.timestamp === 'string') {
-                processedTimestamp = donation.timestamp;
-              } else {
-                processedTimestamp = new Date().toISOString();
-              }
+            let processedTimestamp;
+            if (donation.timestamp && donation.timestamp.toDate) {
+              processedTimestamp = donation.timestamp.toDate().toISOString();
+            } else if (donation.timestamp && donation.timestamp.seconds) {
+              processedTimestamp = new Date(donation.timestamp.seconds * 1000).toISOString();
+            } else if (donation.timestampISO) {
+              processedTimestamp = donation.timestampISO;
+            } else if (typeof donation.timestamp === 'string') {
+              processedTimestamp = donation.timestamp;
+            } else {
+              processedTimestamp = new Date().toISOString();
+            }
 
-              return {
-                ...donation,
-                amount: Number(donation.amount) || 0,
-                timestamp: processedTimestamp,
-                userId: donation.userId || '',
-                userName: donation.userName || '알 수 없는 사용자',
-                message: donation.message || '',
-                classCode: donation.classCode || currentUserClassCode,
-              };
-            })
+            return {
+              ...donation,
+              amount: Number(donation.amount) || 0,
+              timestamp: processedTimestamp,
+              userId: donation.userId || '',
+              userName: donation.userName || '알 수 없는 사용자',
+              message: donation.message || '',
+              classCode: donation.classCode || currentUserClassCode,
+            };
+          })
           : [];
 
         setGoalDonations(freshDonations);
@@ -855,7 +855,7 @@ export default function MyAssets() {
       userCoupons: userDoc?.coupons,
       userCash: userDoc?.cash,
     };
-    
+
     alert(`디버그 정보가 콘솔에 출력되었습니다.\n기부 내역: ${goalDonations.length}개\n목표 진행률: ${goalProgress}/${classCouponGoal}`);
   };
 
@@ -911,7 +911,7 @@ export default function MyAssets() {
       // 🔥 [최적화 23] 초기화 후 관련 캐시 모두 삭제
       localStorage.removeItem(`goalDonationHistory_${currentUserClassCode}_goal`);
       localStorage.removeItem(`firestore_cache_goal_${currentGoalId}_${userId}`);
-      
+
       setMyContribution(0);
       setGoalProgress(0);
       setGoalDonations([]);
@@ -1080,7 +1080,7 @@ export default function MyAssets() {
         alert("자기 자신에게는 송금할 수 없습니다.");
         return;
       }
-      
+
       const recipientName = recipientUser.name || recipientUser.nickname || "사용자";
 
       // 사용자의 요청에 따라 확인 창을 제거합니다.
@@ -1157,10 +1157,11 @@ export default function MyAssets() {
         style={{
           fontSize: "24px",
           fontWeight: "bold",
-          color: "#4f46e5",
-          borderBottom: "2px solid #e0e7ff",
+          color: "#00fff2",
+          borderBottom: "2px solid rgba(0, 255, 242, 0.2)",
           paddingBottom: "10px",
           margin: 0,
+          textShadow: "0 0 10px rgba(0, 255, 242, 0.3)",
         }}
       >
         나의 자산 현황 💳
@@ -1170,14 +1171,15 @@ export default function MyAssets() {
         disabled={assetsLoading}
         style={{
           padding: "8px 16px",
-          backgroundColor: "#4f46e5",
-          color: "white",
-          border: "none",
+          backgroundColor: "rgba(0, 255, 242, 0.1)",
+          color: "#00fff2",
+          border: "1px solid rgba(0, 255, 242, 0.3)",
           borderRadius: "8px",
           fontSize: "14px",
           fontWeight: "600",
           cursor: assetsLoading ? "not-allowed" : "pointer",
           opacity: assetsLoading ? 0.6 : 1,
+          transition: "all 0.2s ease",
         }}
       >
         🔄 새로고침
@@ -1263,7 +1265,7 @@ export default function MyAssets() {
           <h4
             style={{
               fontSize: "15px",
-              color: "#374151",
+              color: "#e8e8ff",
               fontWeight: "700",
               marginBottom: "12px",
             }}
@@ -1296,10 +1298,10 @@ export default function MyAssets() {
                         justifyContent: "space-between",
                         alignItems: "center",
                         fontSize: "14px",
-                        color: "#4b5563",
+                        color: "#a0a0c0",
                         padding: "14px 16px",
-                        backgroundColor: txAmount > 0 ? "#f0fdf4" : "#fef2f2",
-                        border: txAmount > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+                        backgroundColor: txAmount > 0 ? "rgba(5, 150, 105, 0.1)" : "rgba(220, 38, 38, 0.1)",
+                        border: txAmount > 0 ? "1px solid rgba(5, 150, 105, 0.3)" : "1px solid rgba(220, 38, 38, 0.3)",
                         borderRadius: "10px",
                       }}
                     >
@@ -1311,7 +1313,7 @@ export default function MyAssets() {
                           textOverflow: "ellipsis",
                           marginRight: "10px",
                           fontWeight: "500",
-                          color: "#374151"
+                          color: "#e8e8ff"
                         }}
                       >
                         {displayDate} • {txDescription}
@@ -1320,7 +1322,7 @@ export default function MyAssets() {
                         style={{
                           fontWeight: "700",
                           fontSize: "15px",
-                          color: txAmount > 0 ? "#059669" : "#dc2626",
+                          color: txAmount > 0 ? "#34d399" : "#f87171",
                           minWidth: "110px",
                           textAlign: "right",
                         }}
@@ -1339,9 +1341,9 @@ export default function MyAssets() {
                     width: "100%",
                     marginTop: "12px",
                     padding: "12px",
-                    backgroundColor: "#f9fafb",
-                    color: "#6b7280",
-                    border: "1px solid #e5e7eb",
+                    backgroundColor: "rgba(255, 255, 255, 0.05)",
+                    color: "#a0a0c0",
+                    border: "1px solid rgba(255, 255, 255, 0.1)",
                     borderRadius: "10px",
                     fontSize: "14px",
                     fontWeight: "600",
@@ -1363,12 +1365,12 @@ export default function MyAssets() {
             <div
               style={{
                 fontSize: "13px",
-                color: "#9ca3af",
+                color: "#6b7280",
                 textAlign: "center",
                 padding: "20px",
-                backgroundColor: "#f9fafb",
+                backgroundColor: "rgba(255, 255, 255, 0.03)",
                 borderRadius: "10px",
-                border: "1px dashed #e5e7eb"
+                border: "1px dashed rgba(255, 255, 255, 0.1)"
               }}
             >
               최근 거래 내역이 없습니다.
@@ -1416,7 +1418,7 @@ export default function MyAssets() {
           <h4
             style={{
               fontSize: "15px",
-              color: "#374151",
+              color: "#e8e8ff",
               fontWeight: "700",
               marginBottom: "12px",
             }}
@@ -1465,66 +1467,66 @@ export default function MyAssets() {
         <div
           style={{
             padding: "25px",
-            background: "#ffffff",
+            background: "rgba(20, 20, 35, 0.4)",
             borderRadius: "16px",
-            border: "2px solid #f0f0f0",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            border: "1px solid rgba(0, 255, 242, 0.1)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
           }}
         >
 
-        {/* 보유 쿠폰 */}
-        <div
-          style={{
-            marginBottom: "20px",
-          }}
-        >
-          <h4
-            style={{
-              fontSize: "15px",
-              color: "#374151",
-              fontWeight: "700",
-              marginBottom: "12px",
-            }}
-          >
-            🎟️ 보유 쿠폰
-          </h4>
+          {/* 보유 쿠폰 */}
           <div
             style={{
-              background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
-              borderRadius: "14px",
-              padding: "20px",
-              border: "none",
-              boxShadow: "0 4px 15px rgba(251, 191, 36, 0.2)",
+              marginBottom: "20px",
             }}
           >
-            <div style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
-              <div style={{ width: "100%" }}>
-                <div style={{
-                  fontSize: "26px",
-                  fontWeight: "800",
-                  color: "#ffffff",
-                  letterSpacing: "-0.5px",
-                  textAlign: "right"
-                }}>
-                  {displayCoupons.toLocaleString()} <span style={{ fontSize: "18px", fontWeight: "600" }}>개</span>
-                </div>
-                <div style={{
-                  fontSize: "12px",
-                  color: "rgba(255,255,255,0.85)",
-                  fontWeight: "500",
-                  marginTop: "4px",
-                  textAlign: "right"
-                }}>
-                  1쿠폰 = {Number(couponValue).toLocaleString()}원
+            <h4
+              style={{
+                fontSize: "15px",
+                color: "#374151",
+                fontWeight: "700",
+                marginBottom: "12px",
+              }}
+            >
+              🎟️ 보유 쿠폰
+            </h4>
+            <div
+              style={{
+                background: "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)",
+                borderRadius: "14px",
+                padding: "20px",
+                border: "none",
+                boxShadow: "0 4px 15px rgba(251, 191, 36, 0.2)",
+              }}
+            >
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}>
+                <div style={{ width: "100%" }}>
+                  <div style={{
+                    fontSize: "26px",
+                    fontWeight: "800",
+                    color: "#ffffff",
+                    letterSpacing: "-0.5px",
+                    textAlign: "right"
+                  }}>
+                    {displayCoupons.toLocaleString()} <span style={{ fontSize: "18px", fontWeight: "600" }}>개</span>
+                  </div>
+                  <div style={{
+                    fontSize: "12px",
+                    color: "rgba(255,255,255,0.85)",
+                    fontWeight: "500",
+                    marginTop: "4px",
+                    textAlign: "right"
+                  }}>
+                    1쿠폰 = {Number(couponValue).toLocaleString()}원
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
     );
@@ -1570,7 +1572,7 @@ export default function MyAssets() {
   }
 
   return (
-    <div className="w-full min-h-full bg-slate-50">
+    <div className="w-full min-h-full" style={{ backgroundColor: "#0a0a12" }}>
       <div className="w-full px-4 md:px-6 lg:px-8 py-6">
         {renderTitle()}
         {renderAssetSummary()}

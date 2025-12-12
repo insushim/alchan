@@ -62,14 +62,14 @@ class DataCache {
 
   get(key) {
     if (!this.cache.has(key)) return null;
-    
+
     const expiry = this.timestamps.get(key);
     if (Date.now() > expiry) {
       this.cache.delete(key);
       this.timestamps.delete(key);
       return null;
     }
-    
+
     return this.cache.get(key);
   }
 
@@ -98,7 +98,7 @@ class BatchManager {
 
   addWrite(operation) {
     this.pendingWrites.push(operation);
-    
+
     if (this.pendingWrites.length >= this.MAX_BATCH_SIZE) {
       this.executeBatch();
     } else {
@@ -110,7 +110,7 @@ class BatchManager {
     if (this.batchTimeout) {
       clearTimeout(this.batchTimeout);
     }
-    
+
     this.batchTimeout = setTimeout(() => {
       this.executeBatch();
     }, this.BATCH_DELAY);
@@ -118,7 +118,7 @@ class BatchManager {
 
   async executeBatch() {
     if (this.pendingWrites.length === 0) return;
-    
+
     if (this.batchTimeout) {
       clearTimeout(this.batchTimeout);
       this.batchTimeout = null;
@@ -194,7 +194,7 @@ const fetchClassData = async (classCode) => {
     );
     const snapshot = await getDocs(q);
     const data = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-    
+
     dataCache.set(cacheKey, data);
     return data;
   } catch (error) {
@@ -216,7 +216,7 @@ const saveSharedData = async (data, classCode) => {
         createdAt: serverTimestamp(),
       }
     });
-    
+
     // 캐시 무효화
     dataCache.invalidate(`classData_${classCode}`);
     return true;
@@ -251,22 +251,21 @@ function SelectMultipleJobsView({
   }, []);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 max-w-xl mx-auto my-8">
-      <h4 className="text-xl font-semibold text-gray-900 dark:text-white text-center mb-2">
+    <div className="bg-[#14142380] backdrop-blur-sm rounded-2xl shadow-lg border border-cyan-900/30 p-6 max-w-xl mx-auto my-8">
+      <h4 className="text-xl font-semibold text-white text-center mb-2">
         직업 선택 (다중 선택 가능)
       </h4>
-      <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">
+      <p className="text-sm text-slate-400 text-center mb-4">
         '나의 할일'에 표시할 직업을 선택하세요.
       </p>
       <div className="flex flex-col gap-3">
         {activeJobs.map((job) => (
           <label
             key={job.id}
-            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${
-              tempSelection.includes(job.id)
-                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30'
-                : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 hover:border-gray-300'
-            }`}
+            className={`p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3 ${tempSelection.includes(job.id)
+              ? 'border-cyan-500 bg-cyan-900/30'
+              : 'border-cyan-900/20 bg-[#14142380] hover:border-cyan-500/50'
+              }`}
           >
             <input
               type="checkbox"
@@ -274,11 +273,10 @@ function SelectMultipleJobsView({
               onChange={() => handleCheckboxChange(job.id)}
               className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 cursor-pointer"
             />
-            <span className={`font-medium ${
-              tempSelection.includes(job.id)
-                ? 'text-indigo-700 dark:text-indigo-300'
-                : 'text-gray-700 dark:text-gray-200'
-            }`}>
+            <span className={`font-medium ${tempSelection.includes(job.id)
+              ? 'text-cyan-400'
+              : 'text-slate-300'
+              }`}>
               {job.title}
             </span>
           </label>
@@ -379,18 +377,18 @@ function Dashboard({ adminTabMode }) {
 
     return Array.isArray(jobs)
       ? jobs
-          .filter(
-            (job) =>
-              currentSelectedJobIdsFromUserDoc.includes(job.id) &&
-              job.active !== false
-          )
-          .map((job) => ({
-            ...job,
-            tasks: (job.tasks || []).map((task) => ({
-              ...task,
-              clicks: completedJobTasks[`${job.id}_${task.id}`] || 0, // 개인별 클릭 횟수
-            })),
-          }))
+        .filter(
+          (job) =>
+            currentSelectedJobIdsFromUserDoc.includes(job.id) &&
+            job.active !== false
+        )
+        .map((job) => ({
+          ...job,
+          tasks: (job.tasks || []).map((task) => ({
+            ...task,
+            clicks: completedJobTasks[`${job.id}_${task.id}`] || 0, // 개인별 클릭 횟수
+          })),
+        }))
       : [];
   }, [jobs, currentSelectedJobIdsFromUserDoc, userDoc]);
 
@@ -440,12 +438,12 @@ function Dashboard({ adminTabMode }) {
           })),
           active: d.data().active !== false,
         }))
-        // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
-        .sort((a, b) => {
-          const timeA = a.updatedAt?.toMillis?.() || 0;
-          const timeB = b.updatedAt?.toMillis?.() || 0;
-          return timeB - timeA;
-        });
+          // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
+          .sort((a, b) => {
+            const timeA = a.updatedAt?.toMillis?.() || 0;
+            const timeB = b.updatedAt?.toMillis?.() || 0;
+            return timeB - timeA;
+          });
 
         setJobs(loadedJobs);
         dataCache.set(`jobs_${classCode}`, loadedJobs, 10 * 60 * 1000);
@@ -465,12 +463,12 @@ function Dashboard({ adminTabMode }) {
           clicks: d.data().clicks || 0,
           maxClicks: d.data().maxClicks || 5,
         }))
-        // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
-        .sort((a, b) => {
-          const timeA = a.updatedAt?.toMillis?.() || 0;
-          const timeB = b.updatedAt?.toMillis?.() || 0;
-          return timeB - timeA;
-        });
+          // 클라이언트 측에서 정렬 (updatedAt이 있는 경우)
+          .sort((a, b) => {
+            const timeA = a.updatedAt?.toMillis?.() || 0;
+            const timeB = b.updatedAt?.toMillis?.() || 0;
+            return timeB - timeA;
+          });
 
         setCommonTasks(loadedCommonTasks);
         dataCache.set(`commonTasks_${classCode}`, loadedCommonTasks, 10 * 60 * 1000);
@@ -761,7 +759,7 @@ function Dashboard({ adminTabMode }) {
           ref: jobRef,
           data: { title, updatedAt: serverTimestamp() }
         });
-        
+
         alert(`직업이 수정되었습니다.`);
         setAdminNewJobTitle("");
         setEditingJob(null);
@@ -781,7 +779,7 @@ function Dashboard({ adminTabMode }) {
             classCode: userDoc.classCode,
           }
         });
-        
+
         alert(`직업이 추가되었습니다.`);
         setAdminNewJobTitle("");
       }
@@ -835,7 +833,7 @@ function Dashboard({ adminTabMode }) {
 
         setShowAdminSettingsModal(false);
         alert("직업이 삭제되었습니다.");
-        
+
         // 캐시 무효화
         dataCache.invalidate(`jobs_${userDoc.classCode}`);
       } catch (error) {
@@ -938,7 +936,7 @@ function Dashboard({ adminTabMode }) {
           }
           const updatedTasks = [...jobTasks];
           updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], ...taskData };
-          
+
           // 배치 매니저 사용
           batchManager.addWrite({
             type: 'update',
@@ -1039,7 +1037,7 @@ function Dashboard({ adminTabMode }) {
           }
           const tasks = jobSnap.data().tasks || [];
           const updatedTasks = tasks.filter((t) => t.id !== taskIdToDelete);
-          
+
           // 배치 매니저 사용
           batchManager.addWrite({
             type: 'update',
@@ -1065,7 +1063,7 @@ function Dashboard({ adminTabMode }) {
 
         setShowAdminSettingsModal(false);
         alert("할일이 삭제되었습니다.");
-        
+
         // 캐시 무효화
         if (jobId) {
           dataCache.invalidate(`jobs_${userDoc.classCode}`);
@@ -1256,7 +1254,7 @@ function Dashboard({ adminTabMode }) {
     try {
       const settingsRef = doc(db, "settings", "mainSettings");
       const settingsSnap = await getDoc(settingsRef);
-      
+
       if (
         !settingsSnap.exists() ||
         settingsSnap.data().couponValue !== newValue
@@ -1293,7 +1291,7 @@ function Dashboard({ adminTabMode }) {
       }
       setShowAdminSettingsModal(false);
       alert("관리자 설정이 저장되었습니다.");
-      
+
       // 캐시 무효화
       dataCache.invalidate('mainSettings');
       if (currentGoalId) {
@@ -1391,13 +1389,13 @@ function Dashboard({ adminTabMode }) {
         });
 
         alert("학급 코드가 추가되었습니다.");
-        
+
         // 낙관적 업데이트
         setClassCodes(prev => [...prev, trimmedCode]);
-        
+
         // 캐시 무효화
         dataCache.invalidate('classCodes');
-        
+
         return true;
       } catch (error) {
         console.error("학급 코드 추가 오류:", error);
@@ -1442,13 +1440,13 @@ function Dashboard({ adminTabMode }) {
         });
 
         alert("학급 코드가 삭제되었습니다.");
-        
+
         // 낙관적 업데이트
         setClassCodes(prev => prev.filter(code => code !== codeToRemove));
-        
+
         // 캐시 무효화
         dataCache.invalidate('classCodes');
-        
+
         return true;
       } catch (error) {
         console.error("학급 코드 삭제 오류:", error);
@@ -1465,13 +1463,13 @@ function Dashboard({ adminTabMode }) {
   const handleForceRefresh = useCallback(() => {
     // 캐시 클리어
     dataCache.clear();
-    
+
     // 리스너 재설정
     realtimeManager.current.removeAllListeners();
     if (userDoc?.classCode) {
       setupPolling(userDoc.classCode);
     }
-    
+
     // 데이터 강제 로드
     loadTasksData(true);
   }, [loadTasksData, userDoc?.classCode, setupPolling]);
@@ -1575,16 +1573,16 @@ function Dashboard({ adminTabMode }) {
   const userNickname = userDoc?.name || userDoc?.nickname || user?.displayName || "사용자";
 
   return (
-    <div className="min-h-full w-full bg-slate-50 px-2 pt-1 pb-0">
+    <div className="min-h-full w-full bg-[#0a0a12] px-2 pt-1 pb-0">
       {/* 페이지 헤더 - 컴팩트 버전 */}
-      <section className="bg-white rounded-lg px-3 py-1.5 shadow-sm border border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-1.5 mb-2">
+      <section className="bg-[#14142380] backdrop-blur-sm rounded-lg px-3 py-1.5 shadow-lg border border-cyan-900/30 flex flex-col md:flex-row md:items-center justify-between gap-1.5 mb-2">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 bg-indigo-50 rounded-md flex items-center justify-center text-indigo-600 shrink-0">
+          <div className="w-7 h-7 bg-cyan-900/30 rounded-md flex items-center justify-center text-cyan-400 shrink-0 border border-cyan-500/30">
             <ListTodo className="w-4 h-4" />
           </div>
           <div className="leading-tight">
-            <h2 className="text-sm md:text-base font-bold text-slate-900">오늘의 할일</h2>
-            <p className="text-[11px] text-slate-500">{userNickname}님, 오늘도 화이팅!</p>
+            <h2 className="text-sm md:text-base font-bold text-white">오늘의 할일</h2>
+            <p className="text-[11px] text-slate-400">{userNickname}님, 오늘도 화이팅!</p>
           </div>
         </div>
         {isAdmin?.() && viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
@@ -1599,27 +1597,27 @@ function Dashboard({ adminTabMode }) {
         )}
       </section>
 
-        {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
-          <>
-            {/* 나의 직업 할일 섹션 */}
-            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden mb-6">
-              {/* 나의 직업 할일 헤더 - 색상 배경 */}
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="w-5 h-5 text-white" />
-                  <h3 className="text-base md:text-lg font-bold text-white">나의 직업 할일</h3>
-                </div>
-                <ActionButton
-                  variant="outline"
-                  icon={Plus}
-                  onClick={handleSelectJobClick}
-                  size="sm"
-                  className="!bg-white/20 !text-white !border-white/30 hover:!bg-white/30"
-                >
-                  직업 추가/선택
-                </ActionButton>
+      {viewMode === "list" && !showAdminSettingsModal && !adminTabMode && (
+        <>
+          {/* 나의 직업 할일 섹션 */}
+          <div className="bg-[#14142380] backdrop-blur-sm rounded-2xl shadow-lg border border-cyan-900/30 overflow-hidden mb-6">
+            {/* 나의 직업 할일 헤더 - 색상 배경 */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Briefcase className="w-5 h-5 text-white" />
+                <h3 className="text-base md:text-lg font-bold text-white">나의 직업 할일</h3>
               </div>
-              <div className="p-4 md:p-6">
+              <ActionButton
+                variant="outline"
+                icon={Plus}
+                onClick={handleSelectJobClick}
+                size="sm"
+                className="!bg-white/20 !text-white !border-white/30 hover:!bg-white/30"
+              >
+                직업 추가/선택
+              </ActionButton>
+            </div>
+            <div className="p-4 md:p-6">
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {jobsToShow.length > 0 ? (
@@ -1662,7 +1660,7 @@ function Dashboard({ adminTabMode }) {
               </div>
 
               {/* 공통 할일 섹션 */}
-              <div className="mt-6 rounded-xl overflow-hidden border border-emerald-200">
+              <div className="mt-6 rounded-xl overflow-hidden border border-emerald-900/30 bg-[#14142380] backdrop-blur-sm">
                 {/* 공통 할일 헤더 - 색상 배경 */}
                 <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1682,7 +1680,7 @@ function Dashboard({ adminTabMode }) {
                   )}
                 </div>
 
-                <div className="p-4 md:p-6 bg-white">
+                <div className="p-4 md:p-6 bg-[#0a0a12]/50">
                   <CommonTaskList
                     tasks={commonTasksWithUserProgress}
                     isAdmin={isAdmin?.()}
@@ -1695,64 +1693,64 @@ function Dashboard({ adminTabMode }) {
                   />
                 </div>
               </div>
-              </div>
             </div>
-          </>
-        )}
+          </div>
+        </>
+      )}
 
-        {viewMode === "selectJob" && (
-          <SelectMultipleJobsView
-            availableJobs={jobs}
-            currentSelectedJobIds={currentSelectedJobIdsFromUserDoc}
-            onConfirmSelection={handleConfirmJobSelection}
-            onCancel={handleCancelForm}
-          />
-        )}
+      {viewMode === "selectJob" && (
+        <SelectMultipleJobsView
+          availableJobs={jobs}
+          currentSelectedJobIds={currentSelectedJobIdsFromUserDoc}
+          onConfirmSelection={handleConfirmJobSelection}
+          onCancel={handleCancelForm}
+        />
+      )}
 
-        {isAdmin?.() && (
-          <AdminSettingsModal
-            isAdmin={isAdmin?.()}
-            isSuperAdmin={isSuperAdmin?.()}
-            userClassCode={userDoc?.classCode}
-            showAdminSettingsModal={showAdminSettingsModal}
-            setShowAdminSettingsModal={setShowAdminSettingsModal}
-            adminSelectedMenu={adminSelectedMenu}
-            setAdminSelectedMenu={setAdminSelectedMenu}
-            classCodes={classCodes}
-            onAddClassCode={handleAddClassCode}
-            onRemoveClassCode={handleRemoveClassCode}
-            newGoalAmount={adminGoalAmountInput}
-            setNewGoalAmount={setAdminGoalAmountInput}
-            adminCouponValue={adminCouponValueInput}
-            setAdminCouponValue={setAdminCouponValueInput}
-            handleSaveAdminSettings={handleSaveAdminSettings}
-            jobs={jobs}
-            adminNewJobTitle={adminNewJobTitle}
-            setAdminNewJobTitle={setAdminNewJobTitle}
-            adminEditingJob={editingJob}
-            setAdminEditingJob={setEditingJob}
-            handleSaveJob={handleSaveJob}
-            handleDeleteJob={handleDeleteJob}
-            handleEditJob={handleEditJob}
-            commonTasks={commonTasks}
-            showAddTaskForm={showAddTaskForm}
-            setShowAddTaskForm={setShowAddTaskForm}
-            adminNewTaskName={adminNewTaskName}
-            setAdminNewTaskName={setAdminNewTaskName}
-            adminNewTaskReward={adminNewTaskReward}
-            setAdminNewTaskReward={setAdminNewTaskReward}
-            adminNewTaskMaxClicks={adminNewTaskMaxClicks}
-            setAdminNewTaskMaxClicks={setAdminNewTaskMaxClicks}
-            adminEditingTask={editingTask}
-            setAdminEditingTask={setEditingTask}
-            handleSaveTask={handleSaveTask}
-            handleEditTask={handleEditTask}
-            handleDeleteTask={handleDeleteTask}
-            taskFormJobId={currentJobIdForTask}
-            taskFormIsJobTask={isJobTaskForForm}
-            handleAddTaskClick={handleAddTaskClick}
-          />
-        )}
+      {isAdmin?.() && (
+        <AdminSettingsModal
+          isAdmin={isAdmin?.()}
+          isSuperAdmin={isSuperAdmin?.()}
+          userClassCode={userDoc?.classCode}
+          showAdminSettingsModal={showAdminSettingsModal}
+          setShowAdminSettingsModal={setShowAdminSettingsModal}
+          adminSelectedMenu={adminSelectedMenu}
+          setAdminSelectedMenu={setAdminSelectedMenu}
+          classCodes={classCodes}
+          onAddClassCode={handleAddClassCode}
+          onRemoveClassCode={handleRemoveClassCode}
+          newGoalAmount={adminGoalAmountInput}
+          setNewGoalAmount={setAdminGoalAmountInput}
+          adminCouponValue={adminCouponValueInput}
+          setAdminCouponValue={setAdminCouponValueInput}
+          handleSaveAdminSettings={handleSaveAdminSettings}
+          jobs={jobs}
+          adminNewJobTitle={adminNewJobTitle}
+          setAdminNewJobTitle={setAdminNewJobTitle}
+          adminEditingJob={editingJob}
+          setAdminEditingJob={setEditingJob}
+          handleSaveJob={handleSaveJob}
+          handleDeleteJob={handleDeleteJob}
+          handleEditJob={handleEditJob}
+          commonTasks={commonTasks}
+          showAddTaskForm={showAddTaskForm}
+          setShowAddTaskForm={setShowAddTaskForm}
+          adminNewTaskName={adminNewTaskName}
+          setAdminNewTaskName={setAdminNewTaskName}
+          adminNewTaskReward={adminNewTaskReward}
+          setAdminNewTaskReward={setAdminNewTaskReward}
+          adminNewTaskMaxClicks={adminNewTaskMaxClicks}
+          setAdminNewTaskMaxClicks={setAdminNewTaskMaxClicks}
+          adminEditingTask={editingTask}
+          setAdminEditingTask={setEditingTask}
+          handleSaveTask={handleSaveTask}
+          handleEditTask={handleEditTask}
+          handleDeleteTask={handleDeleteTask}
+          taskFormJobId={currentJobIdForTask}
+          taskFormIsJobTask={isJobTaskForForm}
+          handleAddTaskClick={handleAddTaskClick}
+        />
+      )}
     </div>
   );
 }

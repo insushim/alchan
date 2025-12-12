@@ -248,11 +248,10 @@ const NationalTaxService = ({ classCode }) => {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`px-6 py-3 rounded-t-xl font-bold text-sm transition-all ${
-              activeTab === tab.id
+            className={`px-6 py-3 rounded-t-xl font-bold text-sm transition-all ${activeTab === tab.id
                 ? "bg-indigo-600 text-white shadow-lg"
                 : "bg-white text-slate-600 hover:bg-slate-50"
-            }`}
+              }`}
           >
             {tab.icon} {tab.label}
           </button>
@@ -264,60 +263,60 @@ const NationalTaxService = ({ classCode }) => {
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             {/* 총 국고 */}
-            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-6 text-white shadow-lg border border-emerald-400/30">
               <p className="text-emerald-100 text-sm font-medium mb-1">💰 총 국고</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.totalAmount)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.totalAmount)}</p>
             </div>
 
             {/* 주식 거래세 수입 */}
-            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg border border-blue-400/30">
               <p className="text-blue-100 text-sm font-medium mb-1">📈 주식 거래세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.stockTaxRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.stockTaxRevenue)}</p>
             </div>
 
             {/* 주식 거래 수수료 수입 */}
-            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-6 text-white shadow-lg border border-indigo-400/30">
               <p className="text-indigo-100 text-sm font-medium mb-1">📊 주식 거래 수수료 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.stockCommissionRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.stockCommissionRevenue)}</p>
             </div>
 
             {/* 부동산 거래세 수입 */}
-            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-6 text-white shadow-lg border border-amber-400/30">
               <p className="text-amber-100 text-sm font-medium mb-1">🏠 부동산 거래세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.realEstateTransactionTaxRevenue)}</p>
             </div>
 
             {/* 아이템 부가세 수입 */}
-            <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-pink-500 to-pink-600 rounded-2xl p-6 text-white shadow-lg border border-pink-400/30">
               <p className="text-pink-100 text-sm font-medium mb-1">🛒 아이템 부가세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.vatRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.vatRevenue)}</p>
             </div>
 
             {/* 경매장 거래세 수입 */}
-            <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-2xl p-6 text-white shadow-lg border border-cyan-400/30">
               <p className="text-cyan-100 text-sm font-medium mb-1">🔨 경매장 거래세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.auctionTaxRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.auctionTaxRevenue)}</p>
             </div>
 
             {/* 부동산 보유세 수입 */}
-            <div className="bg-gradient-to-br from-lime-500 to-lime-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-lime-500 to-lime-600 rounded-2xl p-6 text-white shadow-lg border border-lime-400/30">
               <p className="text-lime-100 text-sm font-medium mb-1">🏘️ 부동산 보유세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.propertyHoldingTaxRevenue)}</p>
             </div>
 
             {/* 아이템 시장 거래세 수입 */}
-            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg">
+            <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg border border-orange-400/30">
               <p className="text-orange-100 text-sm font-medium mb-1">🏪 아이템 시장 거래세 수입</p>
-              <p className="text-2xl font-bold">{formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}</p>
+              <p className="text-2xl font-bold text-shadow-sm">{formatKoreanCurrency(treasuryData.itemMarketTaxRevenue)}</p>
             </div>
           </div>
 
           {/* 최근 업데이트 */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">📅 최근 업데이트</h3>
-            <div className="space-y-2 text-slate-600">
-              <p>국고 마지막 업데이트: <span className="font-medium text-slate-800">{formatDate(treasuryData.lastUpdated)}</span></p>
-              <p>세금 정책 마지막 업데이트: <span className="font-medium text-slate-800">{formatDate(taxSettings.lastUpdated)}</span></p>
+          <div className="bg-[#1a1a2e] rounded-2xl p-6 border border-[#00fff2]/30 shadow-lg shadow-[#00fff2]/5">
+            <h3 className="text-lg font-bold text-[#00fff2] mb-4">📅 최근 업데이트</h3>
+            <div className="space-y-2 text-slate-300">
+              <p>국고 마지막 업데이트: <span className="font-medium text-white">{formatDate(treasuryData.lastUpdated)}</span></p>
+              <p>세금 정책 마지막 업데이트: <span className="font-medium text-white">{formatDate(taxSettings.lastUpdated)}</span></p>
             </div>
           </div>
         </div>
@@ -325,12 +324,12 @@ const NationalTaxService = ({ classCode }) => {
 
       {/* 세수 현황 탭 */}
       {activeTab === "revenue" && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+        <div className="bg-[#1a1a2e] rounded-2xl p-6 border border-[#00fff2]/30 shadow-lg shadow-[#00fff2]/5">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-800">💰 세수 현황 분석</h3>
+            <h3 className="text-xl font-bold text-[#00fff2]">💰 세수 현황 분석</h3>
             <div className="text-right">
-              <p className="text-sm text-slate-500">세수 총합</p>
-              <p className="text-2xl font-bold text-slate-800">{formatKoreanCurrency(totalTaxRevenue)}</p>
+              <p className="text-sm text-slate-400">세수 총합</p>
+              <p className="text-2xl font-bold text-white text-shadow-sm">{formatKoreanCurrency(totalTaxRevenue)}</p>
             </div>
           </div>
 
@@ -347,16 +346,16 @@ const NationalTaxService = ({ classCode }) => {
               const percentage = totalTaxRevenue > 0 ? ((item.amount / totalTaxRevenue) * 100).toFixed(1) : "0.0";
               return (
                 <div key={item.label} className="flex items-center gap-4">
-                  <div className="w-32 font-medium text-slate-700">{item.label}</div>
-                  <div className="flex-1 h-6 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="w-32 font-medium text-slate-300">{item.label}</div>
+                  <div className="flex-1 h-6 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                     <div
-                      className={`h-full ${item.color} transition-all duration-500`}
+                      className={`h-full ${item.color} transition-all duration-500 shadow-[0_0_10px_rgba(0,0,0,0.5)]`}
                       style={{ width: `${percentage}%` }}
                     />
                   </div>
                   <div className="w-40 text-right text-sm">
-                    <span className="font-bold text-slate-800">{formatKoreanCurrency(item.amount)}</span>
-                    <span className="text-slate-500 ml-2">({percentage}%)</span>
+                    <span className="font-bold text-white">{formatKoreanCurrency(item.amount)}</span>
+                    <span className="text-slate-400 ml-2">({percentage}%)</span>
                   </div>
                 </div>
               );
@@ -368,15 +367,15 @@ const NationalTaxService = ({ classCode }) => {
       {/* 세금 정책 탭 */}
       {activeTab === "policy" && (
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-            <h3 className="text-xl font-bold text-slate-800 mb-6">📋 현행 세금 정책 (학급: {classCode})</h3>
+          <div className="bg-[#1a1a2e] rounded-2xl p-6 border border-[#00fff2]/30 shadow-lg shadow-[#00fff2]/5">
+            <h3 className="text-xl font-bold text-[#00fff2] mb-6">📋 현행 세금 정책 (학급: {classCode})</h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {taxPolicyFields.map((field) => (
                 <div key={field.name}>
-                  <label className="block text-sm font-bold text-slate-700 mb-2">
+                  <label className="block text-sm font-bold text-slate-300 mb-2">
                     {field.label}
-                    <span className="text-slate-400 font-normal ml-2">
+                    <span className="text-[#00fff2] font-normal ml-2">
                       (현재: {field.type === "select"
                         ? taxSettings[field.name]
                         : `${((taxSettings[field.name] || 0) * 100).toFixed(field.name.includes("propertyHoldingTaxRate") ? 2 : 1)}%`})
@@ -387,7 +386,7 @@ const NationalTaxService = ({ classCode }) => {
                       name={field.name}
                       value={editableSettings[field.name] || DEFAULT_TAX_SETTINGS[field.name]}
                       onChange={handleIntervalChange}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full px-4 py-3 bg-[#13131f] border-2 border-slate-700 rounded-xl focus:outline-none focus:border-[#00fff2] text-white transition-colors"
                     >
                       {field.options.map((opt) => (
                         <option key={opt} value={opt}>
@@ -405,7 +404,7 @@ const NationalTaxService = ({ classCode }) => {
                       min={field.min}
                       max={field.max}
                       placeholder={`예: ${field.label.includes("부가") ? "0.1 (10%)" : "0.03 (3%)"}`}
-                      className="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full px-4 py-3 bg-[#13131f] border-2 border-slate-700 rounded-xl focus:outline-none focus:border-[#00fff2] text-white transition-colors placeholder-slate-600"
                     />
                   )}
                 </div>
@@ -414,15 +413,15 @@ const NationalTaxService = ({ classCode }) => {
 
             <button
               onClick={saveTaxSettings}
-              className="mt-6 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-colors shadow-lg"
+              className="mt-6 px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl font-bold transition-all shadow-lg border border-indigo-400/30"
             >
               세금 정책 저장
             </button>
           </div>
 
-          <div className="bg-blue-50 rounded-2xl p-6 border border-blue-200">
-            <h3 className="text-lg font-bold text-blue-800 mb-3">💡 세금 정책 목표</h3>
-            <ul className="text-blue-700 space-y-2">
+          <div className="bg-[#13131f] rounded-2xl p-6 border border-blue-500/30 shadow-lg">
+            <h3 className="text-lg font-bold text-blue-400 mb-3">💡 세금 정책 목표</h3>
+            <ul className="text-blue-300 space-y-2">
               <li>• 공정한 시장 경제 질서 확립</li>
               <li>• 안정적인 학급 재정 정보 및 공공 서비스 투자</li>
               <li>• 경제 활동 참여와 감의 형평성 제고</li>
@@ -433,11 +432,11 @@ const NationalTaxService = ({ classCode }) => {
 
       {/* 분석 탭 */}
       {activeTab === "analytics" && (
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-          <h3 className="text-xl font-bold text-slate-800 mb-4">📈 세수 분석 (학급: {classCode})</h3>
-          <div className="bg-slate-50 rounded-xl p-8 text-center">
+        <div className="bg-[#1a1a2e] rounded-2xl p-6 border border-[#00fff2]/30 shadow-lg">
+          <h3 className="text-xl font-bold text-[#00fff2] mb-4">📈 세수 분석 (학급: {classCode})</h3>
+          <div className="bg-[#13131f] rounded-xl p-8 text-center border border-slate-700">
             <div className="text-6xl mb-4">📊</div>
-            <p className="text-slate-600">추후 다양한 세수 분석 차트와 상세 정보가 표시될 예정입니다.</p>
+            <p className="text-slate-300">추후 다양한 세수 분석 차트와 상세 정보가 표시될 예정입니다.</p>
             <p className="text-slate-500 text-sm mt-2">예: 시간에 따른 세수 변화, 카테고리별 기여도 등</p>
           </div>
         </div>

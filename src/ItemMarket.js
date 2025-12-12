@@ -46,9 +46,9 @@ const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
     if (isSubmitting) {
       return;
     }
-    
+
     const price = parseInt(proposalPrice, 10);
-    
+
     if (isNaN(price) || price <= 0) {
       alert("유효한 가격을 입력해주세요.");
       return;
@@ -59,13 +59,13 @@ const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
     }
 
     setIsSubmitting(true);
-    
+
     const proposalData = {
       itemId: item.id,
       proposedPrice: price,
       message: proposalMessage.trim() || "가격 제안",
     };
-    
+
     try {
       await onSave(proposalData);
     } catch (error) {
@@ -76,8 +76,8 @@ const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
   };
 
   return (
-    <div 
-      className="modal-overlay" 
+    <div
+      className="modal-overlay"
       onClick={onCancel}
       style={{
         position: 'fixed',
@@ -92,17 +92,20 @@ const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
         zIndex: 9999
       }}
     >
-      <div 
-        className="modal-container" 
+      <div
+        className="modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
+          backgroundColor: '#1a1a2e',
+          borderRadius: '24px',
           padding: '20px',
           minWidth: '400px',
           maxWidth: '500px',
           maxHeight: '90vh',
-          overflow: 'auto'
+          overflow: 'auto',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)',
+          color: '#e2e8f0'
         }}
       >
         <div className="modal-header">
@@ -153,10 +156,10 @@ const ProposalModal = ({ item, onSave, onCancel, currentUser }) => {
           }} className="modal-button cancel" disabled={isSubmitting}>
             취소
           </button>
-          <button 
+          <button
             onClick={() => {
               handleSave();
-            }} 
+            }}
             className="modal-button propose"
             disabled={isSubmitting || !proposalPrice}
           >
@@ -295,8 +298,8 @@ const ItemRegistrationModal = ({ onSave, onCancel, userItems = [] }) => {
   };
 
   return (
-    <div 
-      className="modal-overlay" 
+    <div
+      className="modal-overlay"
       onClick={onCancel}
       style={{
         position: 'fixed',
@@ -304,24 +307,28 @@ const ItemRegistrationModal = ({ onSave, onCancel, userItems = [] }) => {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        zIndex: 9999
+        zIndex: 9999,
+        backdropFilter: 'blur(8px)'
       }}
     >
-      <div 
-        className="modal-container" 
+      <div
+        className="modal-container"
         onClick={(e) => e.stopPropagation()}
         style={{
-          backgroundColor: 'white',
-          borderRadius: '8px',
+          backgroundColor: '#1a1a2e',
+          borderRadius: '24px',
           padding: '20px',
           minWidth: '400px',
           maxWidth: '500px',
           maxHeight: '90vh',
-          overflow: 'auto'
+          overflow: 'auto',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.6)',
+          color: '#e2e8f0'
         }}
       >
         <div className="modal-header">
@@ -368,15 +375,10 @@ const ItemRegistrationModal = ({ onSave, onCancel, userItems = [] }) => {
                   <option value="">-- 아이템을 선택하세요 --</option>
                   {groupedInventoryItems.map(group => (
                     <option key={group.displayInfo.itemId} value={group.displayInfo.itemId}>
-                      {group.displayInfo.icon} {group.displayInfo.name} (보유: {group.totalQuantity}개)
+                      {group.displayInfo.name} ({group.totalQuantity}개)
                     </option>
                   ))}
                 </select>
-                {groupedInventoryItems.length === 0 && (
-                  <p className="form-hint" style={{color: '#888'}}>
-                    보유 중인 아이템이 없습니다.
-                  </p>
-                )}
               </div>
 
               {selectedInventoryItem && (
@@ -457,8 +459,8 @@ const ItemRegistrationModal = ({ onSave, onCancel, userItems = [] }) => {
           <button onClick={onCancel} className="modal-button cancel" disabled={isSubmitting}>
             취소
           </button>
-          <button 
-            onClick={handleSave} 
+          <button
+            onClick={handleSave}
             className="modal-button save"
             disabled={isSubmitting || !itemName.trim() || !price}
           >
@@ -672,14 +674,14 @@ const ItemMarket = () => {
       await runTransaction(db, async (transaction) => {
         const buyerRef = doc(db, "users", proposal.buyerId);
         const buyerSnap = await transaction.get(buyerRef);
-        
+
         if (!buyerSnap.exists()) {
           throw new Error("구매자 정보를 찾을 수 없습니다.");
         }
-        
+
         const buyerData = buyerSnap.data();
         const buyerBalance = buyerData.cash || 0;
-        
+
         if (buyerBalance < proposal.proposedPrice) {
           throw new Error("구매자의 잔액이 부족합니다.");
         }
@@ -699,49 +701,29 @@ const ItemMarket = () => {
         });
 
         const sellerRef = doc(db, "users", proposal.sellerId);
-        
+
         transaction.update(buyerRef, {
           cash: increment(-proposal.proposedPrice),
           updatedAt: serverTimestamp(),
         });
-        
+
         transaction.update(sellerRef, {
           cash: increment(proposal.proposedPrice),
           updatedAt: serverTimestamp(),
         });
       });
 
-      // 로컬 상태 즉시 업데이트
-      setProposals(prev => {
-        const updated = prev.map(p => 
-          p.id === proposalId 
-            ? { ...p, status: "accepted", acceptedAt: new Date() }
-            : p
-        );
-        setLocalDataCache(prevCache => ({
-          ...prevCache,
-          proposals: { data: updated, timestamp: Date.now() }
-        }));
-        return updated;
-      });
-
-      setItems(prev => {
-        const updated = prev.filter(i => i.id !== proposal.itemId);
-        setLocalDataCache(prevCache => ({
-          ...prevCache,
-          items: { data: updated, timestamp: Date.now() }
-        }));
-        return updated;
-      });
+      // 로컬 상태 즉시 업데이트 대신 데이터 새로고침
+      await refreshData();
 
       await Promise.all([
-        addActivityLog(proposal.buyerId, "상품 구매", 
+        addActivityLog(proposal.buyerId, "상품 구매",
           `${proposal.itemName}을(를) ${proposal.proposedPrice.toLocaleString()}원에 구매했습니다.`),
-        addActivityLog(proposal.sellerId, "상품 판매", 
+        addActivityLog(proposal.sellerId, "상품 판매",
           `${proposal.itemName}을(를) ${proposal.proposedPrice.toLocaleString()}원에 판매했습니다.`),
-        addTransaction(proposal.buyerId, -proposal.proposedPrice, 
+        addTransaction(proposal.buyerId, -proposal.proposedPrice,
           `상품 구매: ${proposal.itemName}`),
-        addTransaction(proposal.sellerId, proposal.proposedPrice, 
+        addTransaction(proposal.sellerId, proposal.proposedPrice,
           `상품 판매: ${proposal.itemName}`)
       ]);
 
@@ -782,19 +764,8 @@ const ItemMarket = () => {
         rejectedAt: serverTimestamp(),
       });
 
-      // 로컬 상태 즉시 업데이트
-      setProposals(prev => {
-        const updated = prev.map(p => 
-          p.id === proposalId 
-            ? { ...p, status: "rejected", rejectedAt: new Date() }
-            : p
-        );
-        setLocalDataCache(prevCache => ({
-          ...prevCache,
-          proposals: { data: updated, timestamp: Date.now() }
-        }));
-        return updated;
-      });
+      // 로컬 상태 즉시 업데이트 대신 데이터 새로고침
+      await refreshData();
 
       alert("제안이 거절되었습니다.");
     } catch (error) {
@@ -811,7 +782,7 @@ const ItemMarket = () => {
       return;
     }
 
-    const pendingProposals = proposals.filter(p => 
+    const pendingProposals = proposals.filter(p =>
       p.itemId === itemId && p.status === "pending"
     );
 
@@ -819,7 +790,7 @@ const ItemMarket = () => {
     if (pendingProposals.length > 0) {
       confirmationText = `이 상품에 ${pendingProposals.length}개의 대기 중인 제안이 있습니다. 정말로 판매를 취소하시겠습니까? 제안은 모두 거절됩니다.`;
     }
-    
+
     if (!window.confirm(confirmationText)) {
       return;
     }
@@ -889,7 +860,7 @@ const ItemMarket = () => {
 
   // 시세 데이터 정렬 (메모이제이션)
   const sortedMarketData = useMemo(() => {
-    return marketSummary 
+    return marketSummary
       ? Object.entries(marketSummary).sort(([nameA], [nameB]) => nameA.localeCompare(nameB))
       : [];
   }, [marketSummary]);
@@ -975,9 +946,9 @@ const ItemMarket = () => {
             {loading ? (
               <div className="loading">상품을 불러오는 중...</div>
             ) : visibleItems.length === 0 ? (
-              <div className="empty-state">
-                {searchTerm || selectedCategory !== "전체" 
-                  ? "검색 조건에 맞는 상품이 없습니다." 
+              <div className="empty-state" style={{ backgroundColor: '#1a1a2e', color: '#94a3b8' }}>
+                {searchTerm || selectedCategory !== "전체"
+                  ? "검색 조건에 맞는 상품이 없습니다."
                   : "등록된 상품이 없습니다."}
               </div>
             ) : (
@@ -1026,7 +997,7 @@ const ItemMarket = () => {
                     </div>
                   ))}
                 </div>
-                
+
                 {filteredItems.length > visibleItemsCount && (
                   <div className="load-more-container">
                     <button
@@ -1054,7 +1025,7 @@ const ItemMarket = () => {
               </button>
             </div>
             {myItems.length === 0 ? (
-              <div className="empty-state">등록한 상품이 없습니다.</div>
+              <div className="empty-state" style={{ backgroundColor: '#1a1a2e', color: '#94a3b8' }}>등록한 상품이 없습니다.</div>
             ) : (
               <div className="items-list">
                 {myItems.map(item => (
@@ -1065,8 +1036,8 @@ const ItemMarket = () => {
                       <p className="price">{(item.price || item.totalPrice || 0).toLocaleString()}원</p>
                       <p>카테고리: {item.category || item.itemType || "기타"}</p>
                       <span className={`status ${item.status}`}>
-                        {item.status === "available" || item.status === "active" ? "판매중" : 
-                         item.status === "sold" ? `판매완료 (${(item.soldPrice || item.totalPrice || 0).toLocaleString()}원)` : "보류"}
+                        {item.status === "available" || item.status === "active" ? "판매중" :
+                          item.status === "sold" ? `판매완료 (${(item.soldPrice || item.totalPrice || 0).toLocaleString()}원)` : "보류"}
                       </span>
                       {item.isLegacy && <span className="legacy-badge">기존 상품</span>}
                       {item.soldAt && (
@@ -1095,11 +1066,11 @@ const ItemMarket = () => {
             <div className="section-header">
               <h2>제안 관리</h2>
             </div>
-            
+
             <div className="proposals-tabs">
               <h3>받은 제안 ({receivedProposals.length})</h3>
               {receivedProposals.length === 0 ? (
-                <div className="empty-state">받은 제안이 없습니다.</div>
+                <div className="empty-state" style={{ backgroundColor: '#1a1a2e', color: '#94a3b8' }}>받은 제안이 없습니다.</div>
               ) : (
                 <div className="proposals-list">
                   {receivedProposals.map(proposal => (
@@ -1112,8 +1083,8 @@ const ItemMarket = () => {
                         {proposal.message && <p>메시지: "{proposal.message}"</p>}
                         <p>제안일: {formatDate(proposal.createdAt)}</p>
                         <p>상태: <span className={`status ${proposal.status}`}>
-                          {proposal.status === "pending" ? "대기중" : 
-                           proposal.status === "accepted" ? "수락됨" : "거절됨"}
+                          {proposal.status === "pending" ? "대기중" :
+                            proposal.status === "accepted" ? "수락됨" : "거절됨"}
                         </span></p>
                       </div>
                       {proposal.status === "pending" && (
@@ -1139,7 +1110,7 @@ const ItemMarket = () => {
 
               <h3>보낸 제안 ({sentProposals.length})</h3>
               {sentProposals.length === 0 ? (
-                <div className="empty-state">보낸 제안이 없습니다.</div>
+                <div className="empty-state" style={{ backgroundColor: '#1a1a2e', color: '#94a3b8' }}>보낸 제안이 없습니다.</div>
               ) : (
                 <div className="proposals-list">
                   {sentProposals.map(proposal => (
@@ -1153,7 +1124,7 @@ const ItemMarket = () => {
                         <p>제안일: {formatDate(proposal.createdAt)}</p>
                         <p>상태: <span className={`status ${proposal.status}`}>
                           {proposal.status === "pending" ? "대기중" :
-                           proposal.status === "accepted" ? "수락됨" : "거절됨"}
+                            proposal.status === "accepted" ? "수락됨" : "거절됨"}
                         </span></p>
                         {proposal.acceptedAt && (
                           <p>처리일: {formatDate(proposal.acceptedAt)}</p>
