@@ -73,8 +73,15 @@ body {
 /* --- 아이템 그리드 --- */
 .items-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 15px;
+  /* PC에서 최대 3개씩 표시, 최소 너비 보장 */
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+@media (min-width: 1100px) {
+  .items-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 /* --- 아이템 카드 (Cyberpunk) --- */
@@ -98,7 +105,7 @@ body {
 }
 
 .item-content {
-  padding: 12px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   flex-grow: 1;
@@ -109,8 +116,8 @@ body {
 /* 수정: 아이템 헤더 영역 - 아이콘과 이름/재고 정보를 수평으로 배치 */
 .item-header {
   display: flex;
-  margin-bottom: 8px;
-  gap: 10px;
+  margin-bottom: 12px;
+  gap: 12px;
   width: 100%;
 }
 
@@ -126,8 +133,8 @@ body {
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 48px;
   box-shadow: 0 0 10px rgba(0, 255, 242, 0.2) !important;
 }
 
@@ -141,40 +148,40 @@ body {
 }
 
 .item-name {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--color-text);
   line-height: 1.2;
-  margin: 0 0 4px 0;
+  margin: 0 0 6px 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .item-stock {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--color-text-secondary);
   display: flex;
   align-items: center;
   margin: 0;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .item-stock-label {
   font-size: 0.75rem;
   color: var(--color-gray-600);
-  margin-right: 1px;
+  margin-right: 2px;
 }
 
 .item-stock-count {
   font-weight: 600;
-  color: #374151;
+  color: #fff;
 }
 
 .item-stock-low {
-  color: #374151;
-  font-weight: 600;
+  color: #ff3366;
+  font-weight: 700;
 }
 
 .stock-badge {
@@ -182,34 +189,41 @@ body {
   align-items: center;
   padding: 4px 8px;
   border-radius: 6px;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   white-space: nowrap;
-  border: none;
+  border: 1px solid transparent;
   line-height: 1;
 }
 
+/* Dark Mode Visible Badges */
 .stock-high {
-  background: #ecfdf5;
-  color: #047857 !important;
+  background: rgba(0, 255, 136, 0.2) !important;
+  color: #00ff88 !important;
+  border-color: rgba(0, 255, 136, 0.4);
+  text-shadow: 0 0 5px rgba(0, 255, 136, 0.5);
 }
 
 .stock-medium {
-  background: #fef3c7;
-  color: #b45309 !important;
+  background: rgba(255, 209, 102, 0.2) !important;
+  color: #ffd166 !important;
+  border-color: rgba(255, 209, 102, 0.4);
+  text-shadow: 0 0 5px rgba(255, 209, 102, 0.5);
 }
 
 .stock-low {
-  background: #fee2e2;
-  color: #b91c1c !important;
+  background: rgba(255, 51, 102, 0.2) !important;
+  color: #ff3366 !important;
+  border-color: rgba(255, 51, 102, 0.4);
+  text-shadow: 0 0 5px rgba(255, 51, 102, 0.5);
 }
 
 /* 수정: 아이템 설명 - 헤더 바로 아래에 위치 */
 .item-description {
   color: var(--color-text-secondary);
-  font-size: 0.85rem;
-  line-height: 1.4;
-  margin: 0 0 10px 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0 0 15px 0;
   flex-grow: 1;
   overflow-wrap: break-word;
   word-break: keep-all;
@@ -219,21 +233,50 @@ body {
   overflow: hidden;
 }
 
+/* Card Actions Layout Modification */
 .item-actions-primary {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  /* Stack vertically as requested */
   margin-top: auto;
-  padding-top: 8px;
+  padding-top: 15px;
   border-top: 1px solid var(--color-gray-200);
-  gap: 8px;
-  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
 
 .item-price {
-  font-size: 0.95rem;
+  font-size: 1.2rem;
   font-weight: 800;
-  color: var(--color-primary-darker);
-  white-space: nowrap;
+  color: var(--color-primary);
+  text-shadow: 0 0 10px rgba(0, 255, 242, 0.3);
+  margin-bottom: 10px;
+  word-break: break-all;
+}
+
+/* Container for Quantity Input and Buy Button */
+.quantity-and-buy-container {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.quantity-input {
+  width: 70px;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--color-gray-500);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  text-align: center;
+}
+
+.buy-item-button {
+  flex: 1;
+  /* Button takes remaining space */
+  /* rest of button styles inherited */
+  padding: 10px 12px;
+  font-size: 0.95rem;
 }
 
 .item-actions-admin {
@@ -450,14 +493,16 @@ body {
 }
 
 .delete-confirm-content {
-  background-color: var(--color-white);
+  background-color: #1a1a2e;
   padding: 20px;
   border-radius: var(--border-radius-large);
   max-width: 400px;
   width: 100%;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   animation: modalFadeIn 0.3s forwards;
   text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
 }
 
 @keyframes modalFadeIn {
@@ -583,7 +628,7 @@ body {
   top: 0;
   left: 0;
   transition: transform 0.4s ease, opacity 0.4s ease;
-  background-color: #f8f9fa;
+  background-color: rgba(20, 20, 35, 0.95);
 }
 
 .admin-panel-container.admin-hidden {
@@ -604,7 +649,7 @@ body {
   height: auto;
   padding: 0;
   position: relative;
-  background-color: #f8f9fa;
+  background-color: transparent;
 }
 
 /* Added: Admin Panel Full Container overrides - HEIGHT RESTRICTION REMOVED */
@@ -619,6 +664,12 @@ body {
 }
 
 /* --- 반응형 디자인 --- */
+@media (max-width: 1024px) {
+  .items-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .page-container {
     padding: 16px 12px;
@@ -779,18 +830,18 @@ body {
    ======================================== */
 .compact-card {
   padding: 0 !important;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: rgba(20, 20, 35, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   transition: all 0.2s ease;
   overflow: hidden;
 }
 
 .compact-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  border-color: #d1d5db;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border-color: rgba(0, 255, 242, 0.3);
 }
 
 .compact-card .item-content {
@@ -799,35 +850,40 @@ body {
 
 .item-header-compact {
   display: flex;
-  justify-content: space-between;
+  flex-direction: row;
   align-items: center;
-  margin-bottom: 10px;
-  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
 .item-name-compact {
   font-size: 1.05rem;
   font-weight: 700;
-  color: #00fff2;
-  /* Neon Cyan */
+  color: #ffffff;
   margin: 0;
-  padding: 6px 12px;
-  background: rgba(0, 255, 242, 0.1);
-  border: 1px solid rgba(0, 255, 242, 0.3);
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border: none;
   border-radius: 8px;
   display: inline-block;
-  max-width: 100%;
+  flex-shrink: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 0 5px rgba(0, 255, 242, 0.1);
+  line-height: 1.3;
+  box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
 }
 
 .item-stock-compact {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.85rem;
+  gap: 6px;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .item-stock-compact .stock-normal,

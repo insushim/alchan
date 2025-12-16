@@ -203,15 +203,15 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
   return (
     <div style={{
       padding: '20px',
-      border: `2px solid ${isMatured ? '#10b981' : '#e5e7eb'}`,
+      border: `2px solid ${isMatured ? 'rgba(16, 185, 129, 0.5)' : 'rgba(255, 255, 255, 0.1)'}`,
       borderRadius: '12px',
       marginBottom: '16px',
-      background: isMatured ? '#f0fdf4' : '#fafafa',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
+      background: isMatured ? 'rgba(16, 185, 129, 0.1)' : 'rgba(0, 0, 0, 0.2)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
         <div>
-          <div style={{ fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '4px' }}>{product.name}</div>
+          <div style={{ fontWeight: '700', fontSize: '18px', color: '#e2e8f0', marginBottom: '4px' }}>{product.name}</div>
           {isMatured && <span style={{
             backgroundColor: '#10b981',
             color: 'white',
@@ -221,44 +221,44 @@ const SubscribedProductItem = ({ product, onCancel, onMaturity }) => {
             fontWeight: '600'
           }}>만기</span>}
         </div>
-        <span style={{ fontSize: '20px', fontWeight: '700', color: '#0369a1' }}>{formatCurrency(product.balance)}원</span>
+        <span style={{ fontSize: '20px', fontWeight: '700', color: '#00fff2' }}>{formatCurrency(product.balance)}원</span>
       </div>
 
-      <div style={{ fontSize: '15px', color: '#4b5563', marginTop: '16px', display: 'grid', gap: '10px', backgroundColor: 'white', padding: '16px', borderRadius: '8px' }}>
+      <div style={{ fontSize: '15px', color: '#94a3b8', marginTop: '16px', display: 'grid', gap: '10px', backgroundColor: 'rgba(0, 0, 0, 0.2)', padding: '16px', borderRadius: '8px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontWeight: '500' }}>금리 (일):</span>
-          <span style={{ fontWeight: '700', color: '#0369a1' }}>{product.rate}%</span>
+          <span style={{ fontWeight: '700', color: '#00fff2' }}>{product.rate}%</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontWeight: '500' }}>일일 이자:</span>
-          <span style={{ fontWeight: '700', color: '#059669' }}>+{formatCurrency(dailyInterestAmount)}원/일</span>
+          <span style={{ fontWeight: '700', color: '#34d399' }}>+{formatCurrency(dailyInterestAmount)}원/일</span>
         </div>
         {product.maturityDate && (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span style={{ fontWeight: '500' }}>만기일:</span>
-              <span style={{ fontWeight: '600' }}>{format(product.maturityDate, 'yyyy-MM-dd')}</span>
+              <span style={{ fontWeight: '600', color: '#e2e8f0' }}>{format(product.maturityDate, 'yyyy-MM-dd')}</span>
             </div>
             {!isMatured && (
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ fontWeight: '500' }}>남은 기간:</span>
-                <span style={{ fontWeight: '600', color: '#0369a1' }}>{daysRemaining}일</span>
+                <span style={{ fontWeight: '600', color: '#00fff2' }}>{daysRemaining}일</span>
               </div>
             )}
           </>
         )}
       </div>
 
-      <div style={{ borderTop: '1px dashed #d1d5db', margin: '16px 0' }}></div>
+      <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', margin: '16px 0' }}></div>
 
-      <div style={{ fontSize: '15px', color: '#111827', display: 'grid', gap: '10px', backgroundColor: '#f0f9ff', padding: '16px', borderRadius: '8px' }}>
+      <div style={{ fontSize: '15px', color: '#e2e8f0', display: 'grid', gap: '10px', backgroundColor: 'rgba(0, 255, 242, 0.05)', padding: '16px', borderRadius: '8px', border: '1px solid rgba(0, 255, 242, 0.1)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontWeight: '600' }}>만기 시 이자 (세전):</span>
-          <span style={{ fontWeight: '700', color: '#059669', fontSize: '17px' }}>+{formatCurrency(interest)}원</span>
+          <span style={{ fontWeight: '700', color: '#34d399', fontSize: '17px' }}>+{formatCurrency(interest)}원</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '17px' }}>
           <span style={{ fontWeight: '700' }}>만기 시 총액:</span>
-          <span style={{ fontWeight: '700', color: '#0369a1' }}>{formatCurrency(total)}원</span>
+          <span style={{ fontWeight: '700', color: '#00fff2' }}>{formatCurrency(total)}원</span>
         </div>
       </div>
 
@@ -290,27 +290,22 @@ const AvailableProductItem = ({ product, onSubscribe }) => {
   return (
     <div style={{
       padding: '20px',
-      border: '2px solid #e5e7eb',
+      border: '2px solid rgba(255, 255, 255, 0.1)',
       borderRadius: '12px',
       marginBottom: '12px',
       display: 'flex',
       justifyContent: 'space-between',
       alignItems: 'center',
-      background: 'linear-gradient(to right, #ffffff, #f9fafb)',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-      transition: 'all 0.2s ease',
-      ':hover': {
-        borderColor: '#0369a1',
-        transform: 'translateY(-2px)',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-      }
+      background: 'rgba(0, 0, 0, 0.2)',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+      transition: 'all 0.2s ease'
     }}>
       <div>
-        <div style={{ fontWeight: '700', fontSize: '18px', color: '#111827', marginBottom: '8px' }}>{product.name}</div>
-        <div style={{ fontSize: '15px', color: '#6b7280', marginBottom: '6px' }}>
-          <strong style={{ color: '#0369a1' }}>일 {product.dailyRate}%</strong> (기간: {product.termInDays}일)
+        <div style={{ fontWeight: '700', fontSize: '18px', color: '#e2e8f0', marginBottom: '8px' }}>{product.name}</div>
+        <div style={{ fontSize: '15px', color: '#94a3b8', marginBottom: '6px' }}>
+          <strong style={{ color: '#00fff2' }}>일 {product.dailyRate}%</strong> (기간: {product.termInDays}일)
         </div>
-        <div style={{ fontSize: '14px', color: '#059669', fontWeight: '600' }}>
+        <div style={{ fontSize: '14px', color: '#34d399', fontWeight: '600' }}>
           <TrendingUp size={14} style={{ display: 'inline', marginRight: '4px' }} />
           10만원 가입 시 예상 이자: +{formatCurrency(projectedInterest)}원
         </div>
@@ -393,16 +388,16 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
         <button onClick={onClose} style={styles.modalCloseBtn}><X size={24} /></button>
         <h3 style={styles.modalTitle}>{product.name} 가입</h3>
 
-        <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '10px', border: '1px solid #bae6fd' }}>
-          <div style={{ fontSize: '15px', color: '#0c4a6e', marginBottom: '8px' }}>
-            <strong>금리:</strong> 일 {product.dailyRate}% (일복리)
+        <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(0, 255, 242, 0.05)', borderRadius: '10px', border: '1px solid rgba(0, 255, 242, 0.2)' }}>
+          <div style={{ fontSize: '15px', color: '#94a3b8', marginBottom: '8px' }}>
+            <strong style={{ color: '#00fff2' }}>금리:</strong> 일 {product.dailyRate}% (일복리)
           </div>
-          <div style={{ fontSize: '15px', color: '#0c4a6e' }}>
-            <strong>기간:</strong> {product.termInDays}일
+          <div style={{ fontSize: '15px', color: '#94a3b8' }}>
+            <strong style={{ color: '#00fff2' }}>기간:</strong> {product.termInDays}일
           </div>
         </div>
 
-        <p style={{ marginBottom: '12px', fontSize: '16px', fontWeight: '600' }}>가입 금액을 입력해주세요</p>
+        <p style={{ marginBottom: '12px', fontSize: '16px', fontWeight: '600', color: '#e2e8f0' }}>가입 금액을 입력해주세요</p>
         <input
           type="number"
           value={amount}
@@ -413,11 +408,11 @@ const SubscriptionModal = ({ isOpen, onClose, product, onConfirm, isProcessing }
         />
 
         {numAmount > 0 && (
-          <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: '#f0fdf4', borderRadius: '10px', border: '1px solid #bbf7d0' }}>
-            <div style={{ fontSize: '15px', color: '#166534', marginBottom: '6px' }}>
+          <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderRadius: '10px', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+            <div style={{ fontSize: '15px', color: '#34d399', marginBottom: '6px' }}>
               예상 만기 이자: <strong>+{formatCurrency(projectedInterest)}원</strong>
             </div>
-            <div style={{ fontSize: '16px', color: '#166534', fontWeight: '700' }}>
+            <div style={{ fontSize: '16px', color: '#34d399', fontWeight: '700' }}>
               만기 시 총액: {formatCurrency(projectedTotal)}원
             </div>
           </div>
@@ -1133,7 +1128,7 @@ const ParkingAccount = ({
         display: 'flex',
         gap: '10px',
         marginBottom: '24px',
-        borderBottom: '2px solid #e5e7eb',
+        borderBottom: '2px solid rgba(255, 255, 255, 0.1)',
         paddingBottom: '0',
         position: 'relative'
       }}>
@@ -1142,12 +1137,12 @@ const ParkingAccount = ({
           style={{
             padding: '12px 24px',
             border: 'none',
-            background: activeView === 'parking' ? '#f0f9ff' : 'none',
+            background: activeView === 'parking' ? 'rgba(0, 255, 242, 0.1)' : 'none',
             cursor: 'pointer',
             fontSize: '17px',
             fontWeight: activeView === 'parking' ? '700' : '500',
-            color: activeView === 'parking' ? '#0369a1' : '#6b7280',
-            borderBottom: `3px solid ${activeView === 'parking' ? '#0369a1' : 'transparent'}`,
+            color: activeView === 'parking' ? '#00fff2' : '#94a3b8',
+            borderBottom: `3px solid ${activeView === 'parking' ? '#00fff2' : 'transparent'}`,
             marginBottom: '-2px',
             borderRadius: '8px 8px 0 0',
             transition: 'all 0.2s ease'
@@ -1162,12 +1157,12 @@ const ParkingAccount = ({
               style={{
                 padding: '12px 24px',
                 border: 'none',
-                background: activeView === 'admin' ? '#f0f9ff' : 'none',
+                background: activeView === 'admin' ? 'rgba(0, 255, 242, 0.1)' : 'none',
                 cursor: 'pointer',
                 fontSize: '17px',
                 fontWeight: activeView === 'admin' ? '700' : '500',
-                color: activeView === 'admin' ? '#0369a1' : '#6b7280',
-                borderBottom: `3px solid ${activeView === 'admin' ? '#0369a1' : 'transparent'}`,
+                color: activeView === 'admin' ? '#00fff2' : '#94a3b8',
+                borderBottom: `3px solid ${activeView === 'admin' ? '#00fff2' : 'transparent'}`,
                 marginBottom: '-2px',
                 borderRadius: '8px 8px 0 0',
                 transition: 'all 0.2s ease'
@@ -1183,12 +1178,12 @@ const ParkingAccount = ({
               style={{
                 padding: '12px 24px',
                 border: 'none',
-                background: activeView === 'userProducts' ? '#f0f9ff' : 'none',
+                background: activeView === 'userProducts' ? 'rgba(0, 255, 242, 0.1)' : 'none',
                 cursor: 'pointer',
                 fontSize: '17px',
                 fontWeight: activeView === 'userProducts' ? '700' : '500',
-                color: activeView === 'userProducts' ? '#0369a1' : '#6b7280',
-                borderBottom: `3px solid ${activeView === 'userProducts' ? '#0369a1' : 'transparent'}`,
+                color: activeView === 'userProducts' ? '#00fff2' : '#94a3b8',
+                borderBottom: `3px solid ${activeView === 'userProducts' ? '#00fff2' : 'transparent'}`,
                 marginBottom: '-2px',
                 borderRadius: '8px 8px 0 0',
                 transition: 'all 0.2s ease'
@@ -1205,35 +1200,36 @@ const ParkingAccount = ({
       {/* 유저 상품 조회 화면 */}
       {activeView === 'userProducts' && isAdmin && isAdmin() && (
         <div style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgba(20, 20, 35, 0.6)',
           borderRadius: '16px',
           padding: '32px',
-          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)'
+          boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
+          border: '1px solid rgba(255, 255, 255, 0.05)'
         }}>
-          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 'bold', marginBottom: '16px', color: '#fff' }}>
             유저별 가입 상품 조회 및 관리
           </h2>
-          <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '20px' }}>
+          <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '20px' }}>
             클래스 내 모든 유저의 가입 상품을 조회하고 필요시 강제 삭제할 수 있습니다.
           </p>
 
           {allUserProducts.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+            <p style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
               가입된 상품이 없습니다.
             </p>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#f9fafb', borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>사용자</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>상품명</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>종류</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>잔액/금액</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>금리(일)</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>기간(일)</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>만기일</th>
-                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600' }}>관리</th>
+                  <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.05)', borderBottom: '2px solid rgba(255, 255, 255, 0.1)' }}>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>사용자</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>상품명</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>종류</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>잔액/금액</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>금리(일)</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>기간(일)</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>만기일</th>
+                    <th style={{ padding: '12px', textAlign: 'left', fontSize: '14px', fontWeight: '600', color: '#94a3b8' }}>관리</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1242,14 +1238,14 @@ const ParkingAccount = ({
                       product.type === 'savings' ? '적금' :
                         product.type === 'loan' ? '대출' : '기타';
                     return (
-                      <tr key={`${product.userId}-${product.id}-${index}`} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.userName}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.name}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{typeLabel}</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{formatKoreanCurrency(product.balance || 0)}원</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.rate}%</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>{product.termInDays}일</td>
-                        <td style={{ padding: '12px', fontSize: '14px' }}>
+                      <tr key={`${product.userId}-${product.id}-${index}`} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>{product.userName}</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>{product.name}</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>{typeLabel}</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#00fff2' }}>{formatKoreanCurrency(product.balance || 0)}원</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>{product.rate}%</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>{product.termInDays}일</td>
+                        <td style={{ padding: '12px', fontSize: '14px', color: '#e2e8f0' }}>
                           {product.maturityDate
                             ? new Date(product.maturityDate).toLocaleDateString('ko-KR')
                             : '-'}
@@ -1271,7 +1267,7 @@ const ParkingAccount = ({
                   })}
                 </tbody>
               </table>
-              <div style={{ marginTop: '20px', textAlign: 'right', color: '#6b7280', fontSize: '14px' }}>
+              <div style={{ marginTop: '20px', textAlign: 'right', color: '#94a3b8', fontSize: '14px' }}>
                 총 {allUserProducts.length}개의 상품
               </div>
             </div>

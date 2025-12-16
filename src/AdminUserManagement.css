@@ -2,8 +2,7 @@
 
 .admin-user-management {
   padding: 30px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  /* min-height: 100vh 제거 - AlchanLayout 내부 스크롤과 충돌 방지 */
+  background: transparent;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
@@ -110,22 +109,23 @@
 }
 
 .user-card {
-  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  background: rgba(20, 20, 35, 0.8);
   border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
   transition: all 0.3s ease;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .user-card:hover {
   transform: translateY(-8px);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 15px 40px rgba(0, 255, 242, 0.15);
+  border-color: rgba(0, 255, 242, 0.3);
 }
 
 .edit-form {
   padding: 30px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  background: rgba(0, 0, 0, 0.3);
   border-radius: 20px;
   animation: slideIn 0.3s ease;
 }
@@ -151,7 +151,7 @@
   gap: 15px;
   margin-bottom: 20px;
   padding-bottom: 15px;
-  border-bottom: 2px solid rgba(102, 126, 234, 0.1);
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .user-avatar {
@@ -183,7 +183,7 @@
 .user-name {
   font-size: 20px;
   font-weight: 700;
-  color: #333;
+  color: #fff;
   margin: 0;
 }
 
@@ -208,7 +208,7 @@
 
 .user-email {
   font-size: 13px;
-  color: #666;
+  color: #94a3b8;
   margin: 5px 0 0 0;
 }
 
@@ -224,19 +224,19 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 15px;
-  background: rgba(102, 126, 234, 0.05);
+  background: rgba(0, 0, 0, 0.2);
   border-radius: 10px;
-  border-left: 3px solid #667eea;
+  border-left: 3px solid #00fff2;
   transition: all 0.2s ease;
 }
 
 .info-item:hover {
-  background: rgba(102, 126, 234, 0.08);
+  background: rgba(0, 255, 242, 0.05);
   transform: translateX(3px);
 }
 
 .info-label {
-  color: #667eea;
+  color: #00fff2;
   font-weight: 700;
   font-size: 13px;
   text-transform: uppercase;
@@ -244,7 +244,7 @@
 }
 
 .info-value {
-  color: #333;
+  color: #e2e8f0;
   font-weight: 600;
   font-size: 14px;
 }
@@ -324,7 +324,7 @@
   gap: 10px;
   margin-top: 20px;
   padding-top: 20px;
-  border-top: 2px solid rgba(102, 126, 234, 0.1);
+  border-top: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .action-button {

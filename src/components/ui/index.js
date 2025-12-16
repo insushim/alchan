@@ -147,14 +147,16 @@ export const Card = forwardRef(({
     <div
       ref={ref}
       className={`
-        bg-white dark:bg-gray-800
         rounded-2xl
-        border border-gray-100 dark:border-gray-700
         shadow-sm
-        ${hover ? 'hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-700 transition-all duration-200' : ''}
+        ${hover ? 'hover:shadow-md transition-all duration-200' : ''}
         ${paddingClasses[padding]}
         ${className}
       `}
+      style={{
+        background: 'rgba(20, 20, 35, 0.8)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+      }}
       {...props}
     >
       {children}
@@ -171,13 +173,13 @@ export const CardHeader = ({ children, className = '', ...props }) => (
 );
 
 export const CardTitle = ({ children, className = '', ...props }) => (
-  <h3 className={`text-lg font-bold text-gray-900 dark:text-white ${className}`} {...props}>
+  <h3 className={`text-lg font-bold ${className}`} style={{ color: '#00fff2' }} {...props}>
     {children}
   </h3>
 );
 
 export const CardContent = ({ children, className = '', ...props }) => (
-  <div className={`text-gray-600 dark:text-gray-300 ${className}`} {...props}>
+  <div className={className} style={{ color: '#e2e8f0' }} {...props}>
     {children}
   </div>
 );
@@ -197,13 +199,13 @@ export const Input = forwardRef(({
   return (
     <div className={`space-y-1.5 ${containerClassName}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium" style={{ color: '#00fff2' }}>
           {label}
         </label>
       )}
       <div className="relative">
         {Icon && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }}>
             <Icon size={18} />
           </div>
         )}
@@ -212,18 +214,16 @@ export const Input = forwardRef(({
           className={`
             w-full px-4 py-2.5
             ${Icon ? 'pl-10' : ''}
-            bg-white dark:bg-gray-800
-            border rounded-xl
-            ${error
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500'
-            }
-            text-gray-900 dark:text-white
-            placeholder-gray-400 dark:placeholder-gray-500
+            rounded-xl
             focus:outline-none focus:ring-2 focus:ring-offset-0
             transition-colors duration-200
             ${className}
           `}
+          style={{
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: error ? '2px solid #ef4444' : '2px solid rgba(255, 255, 255, 0.1)',
+            color: '#e2e8f0',
+          }}
           {...props}
         />
       </div>
@@ -234,7 +234,7 @@ export const Input = forwardRef(({
         </p>
       )}
       {helper && !error && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">{helper}</p>
+        <p className="text-sm" style={{ color: '#94a3b8' }}>{helper}</p>
       )}
     </div>
   );
@@ -257,7 +257,7 @@ export const Select = forwardRef(({
   return (
     <div className={`space-y-1.5 ${containerClassName}`}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label className="block text-sm font-medium" style={{ color: '#00fff2' }}>
           {label}
         </label>
       )}
@@ -266,18 +266,17 @@ export const Select = forwardRef(({
           ref={ref}
           className={`
             w-full px-4 py-2.5 pr-10
-            bg-white dark:bg-gray-800
-            border rounded-xl
-            ${error
-              ? 'border-red-500 focus:ring-red-500'
-              : 'border-gray-200 dark:border-gray-600 focus:border-indigo-500 focus:ring-indigo-500'
-            }
-            text-gray-900 dark:text-white
+            rounded-xl
             focus:outline-none focus:ring-2 focus:ring-offset-0
             transition-colors duration-200
             appearance-none cursor-pointer
             ${className}
           `}
+          style={{
+            background: 'rgba(0, 0, 0, 0.3)',
+            border: error ? '2px solid #ef4444' : '2px solid rgba(255, 255, 255, 0.1)',
+            color: '#e2e8f0',
+          }}
           {...props}
         >
           <option value="">{placeholder}</option>
@@ -287,7 +286,7 @@ export const Select = forwardRef(({
             </option>
           ))}
         </select>
-        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
+        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 pointer-events-none" style={{ color: '#94a3b8' }} />
       </div>
       {error && (
         <p className="text-sm text-red-500 flex items-center gap-1">
@@ -399,39 +398,43 @@ export const Modal = ({
       {/* Modal */}
       <div className={`
         relative w-full ${sizeClasses[size]}
-        bg-white dark:bg-gray-800
         rounded-2xl shadow-xl
         max-h-[90vh] overflow-hidden
         animate-fade-in
         ${className}
-      `}>
+      `}
+      style={{
+        background: 'rgba(20, 20, 35, 0.95)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+      }}>
         {/* Header */}
         {(title || showCloseButton) && (
-          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between p-4 sm:p-6" style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
             {title && (
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+              <h2 className="text-lg font-bold" style={{ color: '#00fff2' }}>
                 {title}
               </h2>
             )}
             {showCloseButton && (
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                className="p-2 rounded-xl transition-colors"
+                style={{ color: '#94a3b8' }}
               >
-                <X size={20} className="text-gray-500" />
+                <X size={20} />
               </button>
             )}
           </div>
         )}
 
         {/* Content */}
-        <div className="p-4 sm:p-6 overflow-y-auto max-h-[60vh]">
+        <div className="p-4 sm:p-6 overflow-y-auto max-h-[60vh]" style={{ color: '#e2e8f0' }}>
           {children}
         </div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center justify-end gap-3 p-4 sm:p-6 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-end gap-3 p-4 sm:p-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
             {footer}
           </div>
         )}
@@ -577,17 +580,17 @@ export const EmptyState = ({
 }) => (
   <div className={`flex flex-col items-center justify-center py-12 px-4 text-center ${className}`}>
     {Icon && (
-      <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-        <Icon className="w-8 h-8 text-gray-400" />
+      <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: 'rgba(0, 255, 242, 0.1)' }}>
+        <Icon className="w-8 h-8" style={{ color: '#00fff2' }} />
       </div>
     )}
     {title && (
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 className="text-lg font-semibold mb-2" style={{ color: '#ffffff' }}>
         {title}
       </h3>
     )}
     {description && (
-      <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-sm">
+      <p className="mb-6 max-w-sm" style={{ color: '#94a3b8' }}>
         {description}
       </p>
     )}
@@ -626,10 +629,10 @@ export const Tabs = ({ children, defaultValue, value, onValueChange, className =
 export const TabsList = ({ children, className = '' }) => (
   <div className={`
     flex gap-1 p-1
-    bg-gray-100 dark:bg-gray-800
     rounded-xl
     ${className}
-  `}>
+  `}
+  style={{ background: 'rgba(0, 0, 0, 0.3)' }}>
     {children}
   </div>
 );
@@ -646,12 +649,13 @@ export const TabsTrigger = ({ children, value, className = '' }) => {
         text-sm font-medium
         rounded-lg
         transition-all duration-200
-        ${isActive
-          ? 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-          : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-        }
         ${className}
       `}
+      style={{
+        background: isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'transparent',
+        color: isActive ? '#ffffff' : '#94a3b8',
+        boxShadow: isActive ? '0 4px 12px rgba(102, 126, 234, 0.3)' : 'none',
+      }}
     >
       {children}
     </button>
@@ -863,16 +867,16 @@ export const PageHeader = ({
   <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 ${className}`}>
     <div className="flex items-center gap-3">
       {Icon && (
-        <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl">
-          <Icon className="w-6 h-6 text-indigo-500" />
+        <div className="p-2.5 rounded-xl" style={{ background: 'rgba(0, 255, 242, 0.1)' }}>
+          <Icon className="w-6 h-6" style={{ color: '#00fff2' }} />
         </div>
       )}
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-xl sm:text-2xl font-bold" style={{ color: '#ffffff' }}>
           {title}
         </h1>
         {subtitle && (
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+          <p className="text-sm mt-0.5" style={{ color: '#94a3b8' }}>
             {subtitle}
           </p>
         )}
@@ -886,21 +890,21 @@ export const PageHeader = ({
 // 테이블 컴포넌트
 // ============================================
 export const Table = ({ children, className = '' }) => (
-  <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-    <table className={`w-full ${className}`}>
+  <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+    <table className={`w-full ${className}`} style={{ background: 'rgba(20, 20, 35, 0.8)' }}>
       {children}
     </table>
   </div>
 );
 
 export const TableHeader = ({ children, className = '' }) => (
-  <thead className={`bg-gray-50 dark:bg-gray-800/50 ${className}`}>
+  <thead className={className} style={{ background: 'rgba(0, 0, 0, 0.3)' }}>
     {children}
   </thead>
 );
 
 export const TableBody = ({ children, className = '' }) => (
-  <tbody className={`divide-y divide-gray-200 dark:divide-gray-700 ${className}`}>
+  <tbody className={className} style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
     {children}
   </tbody>
 );
@@ -908,10 +912,13 @@ export const TableBody = ({ children, className = '' }) => (
 export const TableRow = ({ children, className = '', onClick }) => (
   <tr
     className={`
-      ${onClick ? 'cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50' : ''}
+      ${onClick ? 'cursor-pointer' : ''}
       ${className}
     `}
+    style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}
     onClick={onClick}
+    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0, 255, 242, 0.05)'}
+    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
   >
     {children}
   </tr>
@@ -921,9 +928,8 @@ export const TableHead = ({ children, className = '' }) => (
   <th className={`
     px-4 py-3
     text-left text-xs font-semibold uppercase tracking-wider
-    text-gray-500 dark:text-gray-400
     ${className}
-  `}>
+  `} style={{ color: '#00fff2' }}>
     {children}
   </th>
 );
@@ -931,9 +937,9 @@ export const TableHead = ({ children, className = '' }) => (
 export const TableCell = ({ children, className = '' }) => (
   <td className={`
     px-4 py-3
-    text-sm text-gray-700 dark:text-gray-300
+    text-sm
     ${className}
-  `}>
+  `} style={{ color: '#e2e8f0' }}>
     {children}
   </td>
 );

@@ -163,16 +163,17 @@ h2 {
 }
 
 .create-room-section {
-    background: white;
+    background: rgba(20, 20, 35, 0.8);
     padding: 2rem;
     border-radius: 12px;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .create-room-section h3 {
-    color: #667eea;
-    text-shadow: none;
+    color: #00fff2;
+    text-shadow: 0 0 5px rgba(0, 255, 242, 0.3);
     margin-bottom: 1.5rem;
 }
 
@@ -180,15 +181,22 @@ h2 {
     width: 70%;
     padding: 0.8rem 1rem;
     font-size: 1rem;
-    border: 2px solid #e0e0e0;
+    border: 2px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
     margin-right: 1rem;
     transition: border-color 0.3s;
+    background: rgba(0, 0, 0, 0.3);
+    color: #fff;
 }
 
 .room-name-input:focus {
     outline: none;
-    border-color: #667eea;
+    border-color: #00fff2;
+    box-shadow: 0 0 10px rgba(0, 255, 242, 0.2);
+}
+
+.room-name-input::placeholder {
+    color: #94a3b8;
 }
 
 .create-room-btn {
@@ -209,21 +217,22 @@ h2 {
 }
 
 .room-created-section {
-    background: white;
+    background: rgba(20, 20, 35, 0.8);
     padding: 2rem;
     border-radius: 12px;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .room-created-section h3 {
-    color: #28a745;
-    text-shadow: none;
+    color: #34d399;
+    text-shadow: 0 0 5px rgba(52, 211, 153, 0.3);
 }
 
 .room-created-section p {
-    color: #555;
+    color: #94a3b8;
     margin: 1rem 0;
 }
 
@@ -232,7 +241,7 @@ h2 {
     justify-content: center;
     margin: 1.5rem 0;
     padding: 1rem;
-    background: #f8f9fa;
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 8px;
 }
 
@@ -264,17 +273,18 @@ h2 {
 }
 
 .my-rooms-section {
-    background: white;
+    background: rgba(20, 20, 35, 0.8);
     padding: 2rem;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .my-rooms-section h3 {
-    color: #667eea;
-    text-shadow: none;
+    color: #00fff2;
+    text-shadow: 0 0 5px rgba(0, 255, 242, 0.3);
     margin-bottom: 1.5rem;
-    border-bottom: 3px solid #667eea;
+    border-bottom: 3px solid #00fff2;
     padding-bottom: 0.5rem;
 }
 
@@ -286,17 +296,17 @@ h2 {
 
 .my-room-item {
     margin-bottom: 1rem;
-    background: linear-gradient(135deg, #f8f9ff 0%, #f0f4ff 100%);
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 10px;
-    border: 2px solid #e0e7ff;
+    border: 2px solid rgba(255, 255, 255, 0.1);
     transition: all 0.3s ease;
     overflow: hidden;
 }
 
 .my-room-item:hover {
     transform: translateX(5px);
-    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-    border-color: #667eea;
+    box-shadow: 0 4px 15px rgba(0, 255, 242, 0.2);
+    border-color: #00fff2;
 }
 
 .my-room-item {
@@ -311,13 +321,13 @@ h2 {
     align-items: center;
     padding: 1.2rem 1.5rem;
     text-decoration: none;
-    color: #333;
+    color: #e2e8f0;
     transition: color 0.3s;
     flex: 1;
 }
 
 .my-room-item:hover a {
-    color: #667eea;
+    color: #00fff2;
 }
 
 .my-room-item span {
@@ -327,9 +337,9 @@ h2 {
 }
 
 .my-room-item small {
-    color: #888;
+    color: #94a3b8;
     font-size: 0.85rem;
-    background: white;
+    background: rgba(0, 0, 0, 0.3);
     padding: 0.4rem 0.8rem;
     border-radius: 6px;
     margin-left: 1rem;
@@ -337,7 +347,7 @@ h2 {
 
 .my-rooms-section p {
     text-align: center;
-    color: #999;
+    color: #94a3b8;
     font-style: italic;
     padding: 2rem;
 }

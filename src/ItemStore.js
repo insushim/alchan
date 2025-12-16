@@ -8,22 +8,18 @@ import LoginWarning from "./LoginWarning";
 import AdminItemPage from "./AdminItemPage"; // AdminPanel 대신 AdminItemPage를 import 합니다.
 
 const StockBadge = ({ stock }) => {
-  let badgeClass = "";
-  let label = "";
   if (stock === undefined || stock === null) return null;
+  let badgeClass = "";
   if (stock <= 0) {
     badgeClass = "stock-low";
-    label = "품절";
   } else if (stock <= 3) {
     badgeClass = "stock-low";
-    label = `매진 임박 (${stock}개)`;
   } else if (stock <= 5) {
     badgeClass = "stock-medium";
-    label = `인기 상품 (${stock}개)`;
   } else {
     badgeClass = "stock-high";
-    label = `재고 충분 (${stock}개)`;
   }
+  const label = stock <= 0 ? "품절" : `재고(${stock}개)`;
   return <span className={`stock-badge ${badgeClass}`}>{label}</span>;
 };
 
@@ -380,12 +376,7 @@ const ItemStore = () => {
                         <div className="item-content">
                           <div className="item-header-compact">
                             <h3 className="item-name-compact">{item.name}</h3>
-                            <div className="item-stock-compact">
-                              <span className={item.stock <= 3 ? "stock-low" : "stock-normal"}>
-                                {item.stock ?? "?"}개
-                              </span>
-                              <StockBadge stock={item.stock} />
-                            </div>
+                            <StockBadge stock={item.stock} />
                           </div>
                           {item.description && item.description.trim() && (
                             <p className="item-description-compact">{item.description}</p>
@@ -394,11 +385,8 @@ const ItemStore = () => {
                             className={`item-actions-primary ${isMobile ? "flex-col" : ""
                               }`}
                           >
-                            <span
-                              className={`item-price ${isMobile ? "mb-2" : ""}`}
-                            >
+                            <span className="item-price">
                               {item.price?.toLocaleString() || 0} 원
-
                             </span>
                             <div className="quantity-and-buy-container">
                               <input
