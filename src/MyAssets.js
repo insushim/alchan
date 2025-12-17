@@ -1640,13 +1640,14 @@ export default function MyAssets() {
               }, { merge: true });
 
               // 활동 로그 기록
-              await logActivity({
+              await logActivity(db, {
                 userId,
                 userName,
                 classCode: currentUserClassCode,
                 type: "일일 출석 보상",
                 description: `일일 출석 보상으로 ${reward.toLocaleString()}원 획득`,
-                metadata: { amount: reward }
+                amount: reward,
+                metadata: { rewardType: "daily_streak" }
               });
 
               // 로컬 상태 업데이트
