@@ -91,11 +91,10 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
   return (
     <svg
       width={size}
-      height={size * 1.3}
-      viewBox="0 0 100 130"
+      height={size}
+      viewBox="0 0 100 100"
       onClick={onClick}
       style={{ cursor: onClick ? "pointer" : "default" }}
-      preserveAspectRatio="xMidYMid meet"
     >
       <defs>
         {/* 배경 그라디언트 */}
@@ -153,7 +152,7 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
         x="0"
         y="0"
         width="100"
-        height="130"
+        height="100"
         rx="12"
         fill={getBackgroundStyle()}
       />
@@ -387,7 +386,7 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
           x="2"
           y="2"
           width="96"
-          height="126"
+          height="96"
           rx="11"
           fill="none"
           {...borderStyle}
