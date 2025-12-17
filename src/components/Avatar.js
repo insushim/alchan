@@ -91,10 +91,11 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
   return (
     <svg
       width={size}
-      height={size}
+      height={size * 1.3}
       viewBox="0 0 100 130"
       onClick={onClick}
       style={{ cursor: onClick ? "pointer" : "default" }}
+      preserveAspectRatio="xMidYMid meet"
     >
       <defs>
         {/* 배경 그라디언트 */}

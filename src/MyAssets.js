@@ -23,8 +23,6 @@ import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import LoginWarning from "./LoginWarning";
 import TransferModal from "./TransferModal";
 import { AlchanLoading } from "./components/AlchanLayout";
-import LevelBadge from "./components/LevelBadge";
-import { AchievementSummary, AchievementModal } from "./components/AchievementBadge";
 import { DailyRewardBanner } from "./components/DailyReward";
 
 export default function MyAssets() {
@@ -114,18 +112,6 @@ export default function MyAssets() {
   const [transferRecipient, setTransferRecipient] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [showAllTransactions, setShowAllTransactions] = useState(false); // 거래 내역 펼치기/접기 상태
-  const [showAchievementModal, setShowAchievementModal] = useState(false); // 업적 모달 상태
-
-  // 🎮 [게이미피케이션] 업적 시스템용 사용자 통계 계산
-  const userStats = {
-    totalAssets: totalNetAssets,
-    coupons: Number(userDoc?.coupons) || 0,
-    totalTransactions: transactionHistory.length,
-    totalDonations: myContribution,
-    savingProducts: deposits.length + savings.length,
-    properties: realEstateAssets.length,
-    loginStreak: userDoc?.loginStreak || 0,
-  };
 
   // 🔥 [수정 1] 안전한 timestamp 변환 함수
   const safeTimestampToDate = (timestamp) => {
@@ -1451,19 +1437,6 @@ export default function MyAssets() {
           </p>
         </div>
 
-        {/* 레벨/칭호 카드 */}
-        <div style={{ marginBottom: "20px" }}>
-          <LevelBadge netAssets={totalNetAssets} showProgress={true} />
-        </div>
-
-        {/* 업적 요약 카드 */}
-        <div style={{ marginBottom: "20px" }}>
-          <AchievementSummary
-            userStats={userStats}
-            onClick={() => setShowAchievementModal(true)}
-          />
-        </div>
-
         {/* 파킹통장 */}
         <div style={{ marginBottom: "20px" }}>
           <h4
@@ -1679,12 +1652,6 @@ export default function MyAssets() {
           />
         )}
 
-        {/* 업적 모달 */}
-        <AchievementModal
-          isOpen={showAchievementModal}
-          onClose={() => setShowAchievementModal(false)}
-          userStats={userStats}
-        />
       </div>
     </div>
   );
