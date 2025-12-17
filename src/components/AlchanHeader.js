@@ -1,7 +1,7 @@
 // src/components/AlchanHeader.js
 // 알찬 UI 헤더 컴포넌트 - 새로운 슬레이트 기반 디자인
 
-import React, { useState, useRef, useEffect, memo } from 'react';
+import React, { useState, useRef, useEffect, memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { verifyClassCode } from '../firebase';
@@ -10,6 +10,10 @@ import {
   ChevronLeft, ChevronRight, Sparkles, Gift, Settings, LayoutDashboard, Wallet
 } from 'lucide-react';
 import SettingsPanel from './SettingsPanel';
+import Avatar from './Avatar';
+import { getAvatarConfig } from '../utils/avatarSystem';
+import { getLevelInfo } from '../utils/levelSystem';
+import { getUserAchievements, getAchievementById } from '../utils/achievementSystem';
 
 // 금액 포맷
 const formatMoney = (amount) => {
@@ -80,6 +84,36 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
   let userRole = "학생";
   if (userDoc?.isSuperAdmin) userRole = "앱 관리자";
   else if (userDoc?.isAdmin) userRole = "교사";
+
+  // 아바타, 레벨, 업적 정보
+  const avatarConfig = useMemo(() => {
+    if (user?.uid) return getAvatarConfig(user.uid);
+    return null;
+  }, [user?.uid]);
+
+  const levelInfo = useMemo(() => {
+    const cash = Number(userDoc?.cash) || 0;
+    const stockValue = Number(userDoc?.stockValue) || 0;
+    const realEstateValue = Number(userDoc?.realEstateValue) || 0;
+    const itemValue = Number(userDoc?.itemValue) || 0;
+    const netAssets = cash + stockValue + realEstateValue + itemValue;
+    return getLevelInfo(netAssets);
+  }, [userDoc?.cash, userDoc?.stockValue, userDoc?.realEstateValue, userDoc?.itemValue]);
+
+  const bestAchievement = useMemo(() => {
+    if (!user?.uid) return null;
+    const achievements = getUserAchievements(user.uid);
+    if (achievements.length === 0) return null;
+
+    const rarityOrder = { legendary: 0, epic: 1, rare: 2, common: 3 };
+    const sorted = [...achievements].sort((a, b) => {
+      const achA = getAchievementById(a.id);
+      const achB = getAchievementById(b.id);
+      return (rarityOrder[achA?.rarity] || 99) - (rarityOrder[achB?.rarity] || 99);
+    });
+
+    return getAchievementById(sorted[0].id);
+  }, [user?.uid]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -225,29 +259,48 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
       {/* 모바일 헤더 */}
       <header className="md:hidden sticky top-0 z-30 bg-[#141423] border-b border-[#00fff2]/10">
         {/* 상단 헤더 바 */}
-        <div className="h-16 px-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={toggleSidebar} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
-              <LayoutDashboard size={24} className="text-white" />
-            </button>
-            {/* 모바일에서도 앱 이름 표시 */}
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-1 sm:gap-2">
-                오늘도 <span className="text-[#00fff2]">알찬</span> 하루!
-              </h2>
-            </div>
-          </div>
+        <div className="h-14 px-3 flex items-center justify-between">
+          {/* 왼쪽: 메뉴 버튼 + 앱 이름 */}
           <div className="flex items-center gap-2">
-            <button className="relative p-2 rounded-full hover:bg-white/5 transition-colors">
-              <Bell size={20} className="text-slate-400" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
+            <button onClick={toggleSidebar} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors">
+              <LayoutDashboard size={22} className="text-white" />
             </button>
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm border-2 border-white shadow-sm"
+            <h2 className="text-sm font-bold text-white whitespace-nowrap">
+              오늘도 <span className="text-[#00fff2]">알찬</span> 하루!
+            </h2>
+          </div>
+
+          {/* 오른쪽: 레벨/업적 + 아바타 */}
+          <div className="flex items-center gap-2">
+            {/* 레벨 & 업적 배지 */}
+            <div
+              onClick={() => navigate('/my-profile')}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg cursor-pointer"
+              style={{ background: 'rgba(167, 139, 250, 0.2)' }}
             >
-              {displayName.charAt(0)}
-            </button>
+              <span style={{ fontSize: '14px' }}>{levelInfo?.icon || '🌟'}</span>
+              <div className="flex flex-col leading-none">
+                <span style={{ fontSize: '9px', color: '#9ca3af' }}>LEVEL</span>
+                <span style={{ fontSize: '12px', fontWeight: '700', color: levelInfo?.color || '#a78bfa' }}>
+                  {levelInfo?.level || 1}
+                </span>
+              </div>
+              {bestAchievement && (
+                <span style={{ fontSize: '14px', marginLeft: '2px' }}>{bestAchievement.icon}</span>
+              )}
+            </div>
+
+            {/* 아바타 */}
+            <div
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="w-10 h-10 rounded-xl overflow-hidden cursor-pointer"
+              style={{
+                border: `2px solid ${levelInfo?.color || '#a78bfa'}`,
+                boxShadow: `0 0 8px ${levelInfo?.color || '#a78bfa'}40`
+              }}
+            >
+              <Avatar config={avatarConfig} size={36} />
+            </div>
           </div>
         </div>
 
@@ -363,6 +416,59 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
             </div>
           </div>
 
+          {/* 레벨 & 업적 위젯 */}
+          <div
+            onClick={() => navigate('/my-profile')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              background: `rgba(167, 139, 250, 0.1)`,
+              borderRadius: '8px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(167, 139, 250, 0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(167, 139, 250, 0.1)'}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '28px',
+              height: '28px',
+              borderRadius: '6px',
+              background: levelInfo?.color || '#a78bfa',
+              fontSize: '14px',
+            }}>
+              {levelInfo?.icon || '🌟'}
+            </div>
+            <div>
+              <div style={{ fontSize: '10px', fontWeight: '600', color: levelInfo?.color || '#a78bfa', lineHeight: '1.2' }}>
+                Lv.{levelInfo?.level || 1}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#e8e8ff', whiteSpace: 'nowrap', lineHeight: '1.2' }}>
+                {levelInfo?.title || '새싹'}
+              </div>
+            </div>
+            {bestAchievement && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                marginLeft: '4px',
+                padding: '2px 6px',
+                background: bestAchievement.rarity === 'legendary' ? 'rgba(245, 158, 11, 0.2)' :
+                           bestAchievement.rarity === 'epic' ? 'rgba(167, 139, 250, 0.2)' :
+                           bestAchievement.rarity === 'rare' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(107, 114, 128, 0.2)',
+                borderRadius: '4px',
+              }}>
+                <span style={{ fontSize: '12px' }}>{bestAchievement.icon}</span>
+              </div>
+            )}
+          </div>
+
           {/* 사용자 메뉴 */}
           <div style={{ position: 'relative' }} ref={userMenuRef}>
             <button
@@ -372,7 +478,7 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
                 alignItems: 'center',
                 gap: '8px',
                 paddingLeft: '12px',
-                borderLeft: '1px solid #e2e8f0',
+                borderLeft: '1px solid rgba(255, 255, 255, 0.1)',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer'
@@ -382,19 +488,21 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
                 <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'white', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{displayName}</div>
                 <div style={{ fontSize: '11px', color: '#818cf8', fontWeight: '500', whiteSpace: 'nowrap', lineHeight: '1.2' }}>{userRole}</div>
               </div>
-              <div style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '8px',
-                background: 'linear-gradient(135deg, #3b82f6, #6366f1)',
-                color: 'white',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 'bold',
-                fontSize: '14px'
-              }}>
-                {displayName.charAt(0)}
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate('/my-profile');
+                }}
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  border: `2px solid ${levelInfo?.color || '#a78bfa'}`,
+                  cursor: 'pointer',
+                }}
+              >
+                <Avatar config={avatarConfig} size={36} />
               </div>
             </button>
 
@@ -422,6 +530,18 @@ const AlchanHeader = memo(({ toggleSidebar, isMobile, isSidebarCollapsed, onTogg
                 </div>
 
                 <div className="p-2">
+                  {/* 내 프로필 - 첫 번째로 배치 */}
+                  <button
+                    onClick={() => { navigate('/my-profile'); setShowUserMenu(false); }}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-white hover:bg-indigo-600/20 transition-colors bg-indigo-500/10 border border-indigo-500/30 mb-2"
+                  >
+                    <User size={18} className="text-indigo-400" />
+                    내 프로필
+                    <span className="ml-auto text-xs text-indigo-400">Lv.{levelInfo?.level || 0}</span>
+                  </button>
+
+                  <div className="h-px bg-slate-700 my-2" />
+
                   <button onClick={handleChangeNickname} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-slate-300 hover:bg-white/5 transition-colors">
                     <User size={18} className="text-slate-500" />
                     닉네임 변경

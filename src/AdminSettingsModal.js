@@ -30,6 +30,9 @@ import {
 // 시스템 모니터링 컴포넌트
 import SystemMonitoring from "./SystemMonitoring";
 
+// 데이터베이스 관리 컴포넌트
+import AdminDatabase from "./AdminDatabase";
+
 const AdminSettingsModal = ({
   isAdmin,
   isSuperAdmin,
@@ -939,6 +942,12 @@ const AdminSettingsModal = ({
           >
             학급 구성원 관리
           </button>
+          <button
+            className={adminSelectedMenu === "databaseManagement" ? "active" : ""}
+            onClick={() => setAdminSelectedMenu("databaseManagement")}
+          >
+            데이터베이스
+          </button>
           {isSuperAdmin && (
             <button
               className={adminSelectedMenu === "systemManagement" ? "active" : ""}
@@ -1682,6 +1691,20 @@ const AdminSettingsModal = ({
                   <p>⚙️ 관리자가 로그인하지 않아도 자동으로 실행됩니다.</p>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 데이터베이스 관리 탭 */}
+        {adminSelectedMenu === "databaseManagement" && (
+          <div className="database-management-tab">
+            {!isSuperAdmin && userClassCode && (
+              <div className="class-info-header">
+                <p className="current-class-info">🏫 현재 관리 학급: <strong>{userClassCode}</strong></p>
+              </div>
+            )}
+            <div className="database-management-container section-card" style={{ minHeight: "500px", maxHeight: "70vh", overflow: "auto" }}>
+              <AdminDatabase />
             </div>
           </div>
         )}

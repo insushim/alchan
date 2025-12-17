@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 // import { useAuth } from "./App"; // App.js에서 useAuth 훅 가져오기 (주석 처리, Dashboard에서 user를 직접 받음)
 import { formatKoreanCurrency } from "./numberFormatter"; // 숫자 포맷팅 헬퍼
+import LevelBadge, { LevelInline } from "./components/LevelBadge"; // 레벨 배지 컴포넌트
 
 // Dashboard에서 전달하는 props: { user, couponValue, setShowTransferModal }
 export default function AssetSummary({
@@ -358,10 +359,19 @@ export default function AssetSummary({
             {formatKoreanCurrency(totalAssets)}
           </span>
         </div>
-        {/* 총 자산 설명 수정 <-- 주식 포함 */}
-        <p style={styles.totalAssetDesc}>
-          (현금 + 쿠폰 + 파킹 + 주식 + 부동산 - 대출)
-        </p>
+        {/* 레벨 배지 표시 */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginTop: "8px",
+          marginBottom: "4px"
+        }}>
+          <LevelInline netAssets={totalAssets} />
+          <p style={{ ...styles.totalAssetDesc, margin: 0 }}>
+            (현금 + 쿠폰 + 파킹 + 주식 + 부동산 - 대출)
+          </p>
+        </div>
       </div>
 
       {/* 유동 자산 섹션 */}

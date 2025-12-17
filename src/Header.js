@@ -4,6 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import { verifyClassCode } from "./firebase";
 import "./Header.css";
+import { MiniAvatar } from "./components/Avatar";
+import AvatarEditor from "./components/AvatarEditor";
+import { getAvatarConfig } from "./utils/avatarSystem";
 // Force dark theme background on header load
 const headerStyle = {
     background: "linear-gradient(90deg, rgba(0, 255, 242, 0.05) 0%, rgba(10, 10, 18, 0.95) 50%, rgba(139, 92, 246, 0.05) 100%)",
@@ -33,11 +36,21 @@ const MenuIcon = () => (
     </svg>
 );
 
-const UserIconPlaceholder = ({ userName }) => (
-    <div className="my-info-icon-wrapper">
-        {userName ? userName.charAt(0).toUpperCase() : "👤"}
-    </div>
-);
+const UserIconPlaceholder = ({ userName, userId, avatarConfig, onClick }) => {
+    // 아바타가 있으면 아바타를, 없으면 기존 아이콘 표시
+    if (userId && avatarConfig) {
+        return (
+            <div className="my-info-icon-wrapper" onClick={onClick} style={{ padding: 0, overflow: "hidden" }}>
+                <MiniAvatar config={avatarConfig} size={36} />
+            </div>
+        );
+    }
+    return (
+        <div className="my-info-icon-wrapper">
+            {userName ? userName.charAt(0).toUpperCase() : "👤"}
+        </div>
+    );
+};
 
 const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
     // 🔥 [최적화] 렌더링 횟수 모니터링
@@ -89,6 +102,17 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
     const [classCodeEntryError, setClassCodeEntryError] = useState("");
     const [classCodeEntrySuccess, setClassCodeEntrySuccess] = useState(false);
     const [isVerifyingAndSavingCode, setIsVerifyingAndSavingCode] = useState(false);
+
+    // 아바타 에디터 상태
+    const [showAvatarEditor, setShowAvatarEditor] = useState(false);
+    const [avatarConfig, setAvatarConfig] = useState(null);
+
+    // 아바타 설정 로드
+    useEffect(() => {
+        if (user?.uid) {
+            setAvatarConfig(getAvatarConfig(user.uid));
+        }
+    }, [user?.uid]);
 
     const isCurrentUserAdmin = userDoc?.isAdmin || userDoc?.role === "admin" || userDoc?.isSuperAdmin || isAdminProp;
 
@@ -440,7 +464,11 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                         {/* 사용자 정보 버튼 및 드롭다운 메뉴 */}
                         {!isChangingNickname && !isChangingPassword && !isEnteringClassCode && (
                             <button onClick={toggleUserMenu} className="my-info-button">
-                                <UserIconPlaceholder userName={displayName} />
+                                <UserIconPlaceholder
+                                    userName={displayName}
+                                    userId={user?.uid}
+                                    avatarConfig={avatarConfig}
+                                />
                                 <span className="my-info-text">{displayName}</span>
                             </button>
                         )}
@@ -457,6 +485,7 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                                     </span>
                                 </div>
                                 <ul>
+                                    <li><button onClick={() => { setShowAvatarEditor(true); setShowUserMenu(false); }}>👤 아바타 꾸미기</button></li>
                                     <li><button onClick={handleChangeNickname}>닉네임 변경</button></li>
                                     <li><button onClick={handleChangePassword}>비밀번호 변경</button></li>
                                     <li><button onClick={handleEnterClassCodeClick}>학급 코드 입력/변경</button></li>
@@ -474,6 +503,14 @@ const Header = memo(({ toggleSidebar, isAdmin: isAdminProp }) => {
                     </a>
                 )}
             </div>
+
+            {/* 아바타 에디터 모달 */}
+            <AvatarEditor
+                isOpen={showAvatarEditor}
+                onClose={() => setShowAvatarEditor(false)}
+                userId={user?.uid}
+                onSave={(newConfig) => setAvatarConfig(newConfig)}
+            />
         </header>
     );
 });

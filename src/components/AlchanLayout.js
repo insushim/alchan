@@ -46,6 +46,7 @@ import OmokGame from '../OmokGame';
 import ChessGame from '../ChessGame';
 import TypingPracticeGame from '../TypingPracticeGame';
 import StudentManager from './StudentManager';
+import MyProfile from '../MyProfile';
 
 // 전체 화면이 필요한 페이지 경로 (자동으로 사이드바 접기)
 const FULLSCREEN_PAGES = [
@@ -250,6 +251,7 @@ export default function AlchanLayout() {
             {/* 메인 페이지 */}
             <Route path="/dashboard/tasks" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/my-assets" element={<ProtectedRoute><MyAssets /></ProtectedRoute>} />
+            <Route path="/my-profile" element={<ProtectedRoute><MyProfile /></ProtectedRoute>} />
             <Route path="/coupon-goal" element={<ProtectedRoute><CouponGoalPage /></ProtectedRoute>} />
 
             {/* 게임 */}

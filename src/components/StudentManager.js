@@ -773,24 +773,34 @@ const StudentManager = () => {
         {bulkStep === 3 && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Card className="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200">
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '2px solid rgba(16, 185, 129, 0.3)',
+                borderRadius: '16px',
+                padding: '20px',
+              }}>
                 <div className="flex items-center gap-3">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                  <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                   <div>
-                    <p className="text-2xl font-bold text-emerald-700">{results.success.length}</p>
-                    <p className="text-sm text-emerald-600">성공</p>
+                    <p className="text-2xl font-bold text-emerald-400">{results.success.length}</p>
+                    <p className="text-sm text-emerald-300">성공</p>
                   </div>
                 </div>
-              </Card>
-              <Card className="bg-red-50 dark:bg-red-900/20 border-red-200">
+              </div>
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '2px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '16px',
+                padding: '20px',
+              }}>
                 <div className="flex items-center gap-3">
-                  <AlertCircle className="w-8 h-8 text-red-500" />
+                  <AlertCircle className="w-8 h-8 text-red-400" />
                   <div>
-                    <p className="text-2xl font-bold text-red-700">{results.failed.length}</p>
-                    <p className="text-sm text-red-600">실패</p>
+                    <p className="text-2xl font-bold text-red-400">{results.failed.length}</p>
+                    <p className="text-sm text-red-300">실패</p>
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
 
             {results.success.length > 0 && (

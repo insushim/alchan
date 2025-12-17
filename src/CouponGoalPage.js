@@ -54,6 +54,28 @@ export default function CouponGoalPage() {
 
   const [classCouponGoal, setClassCouponGoal] = useState(1000);
   const [couponValue, setCouponValue] = useState(1000);
+
+  // 🔥 [버그 수정] Firestore에서 쿠폰 가치 설정 로드
+  useEffect(() => {
+    const loadCouponValueFromSettings = async () => {
+      try {
+        const settingsRef = doc(db, "settings", "mainSettings");
+        const settingsSnap = await getDoc(settingsRef);
+        if (settingsSnap.exists()) {
+          const settingsData = settingsSnap.data();
+          if (settingsData.couponValue) {
+            setCouponValue(Number(settingsData.couponValue));
+          }
+        }
+      } catch (error) {
+        console.error("[CouponGoalPage] 쿠폰 가치 설정 로드 실패:", error);
+      }
+    };
+
+    if (userId) {
+      loadCouponValueFromSettings();
+    }
+  }, [userId]);
   const [goalProgress, setGoalProgress] = useState(0);
   const [myContribution, setMyContribution] = useState(0);
   const [goalAchieved, setGoalAchieved] = useState(false);
