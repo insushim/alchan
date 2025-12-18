@@ -88,13 +88,19 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
     return hairColor?.color || "#1a1a1a";
   };
 
+  // 의상이 있으면 상반신까지 보이도록 viewBox 확장
+  const hasOutfit = outfit && outfit.id !== "none";
+  const viewBoxY = -30; // 머리카락 위쪽 공간
+  const viewBoxHeight = hasOutfit ? 155 : 135; // 의상 포함 시 더 넓게
+
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 100 100"
+      viewBox={`-15 ${viewBoxY} 130 ${viewBoxHeight}`}
       onClick={onClick}
-      style={{ cursor: onClick ? "pointer" : "default" }}
+      style={{ cursor: onClick ? "pointer" : "default", overflow: "visible" }}
+      preserveAspectRatio="xMidYMid meet"
     >
       <defs>
         {/* 배경 그라디언트 */}
@@ -149,10 +155,10 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
 
       {/* 배경 */}
       <rect
-        x="0"
-        y="0"
-        width="100"
-        height="100"
+        x="-15"
+        y={viewBoxY}
+        width="130"
+        height={viewBoxHeight}
         rx="12"
         fill={getBackgroundStyle()}
       />
@@ -383,10 +389,10 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
       {/* ======= 테두리 ======= */}
       {borderStyle && (
         <rect
-          x="2"
-          y="2"
-          width="96"
-          height="96"
+          x="-13"
+          y={viewBoxY + 2}
+          width="126"
+          height={viewBoxHeight - 4}
           rx="11"
           fill="none"
           {...borderStyle}
@@ -398,6 +404,7 @@ export default function Avatar({ config = {}, size = 100, showBorder = true, onC
 
 /**
  * 헤더용 미니 아바타
+ * 확장된 viewBox에 맞게 얼굴이 중앙에 오도록 조정
  */
 export function MiniAvatar({ config, size = 40, onClick }) {
   return (
@@ -411,9 +418,17 @@ export function MiniAvatar({ config, size = 40, onClick }) {
         cursor: onClick ? "pointer" : "default",
         boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
         border: "2px solid rgba(255,255,255,0.3)",
+        position: "relative",
       }}
     >
-      <Avatar config={config} size={size * 1.3} showBorder={false} />
+      <div style={{
+        position: "absolute",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -60%)", // 얼굴이 중앙에 오도록 조정
+      }}>
+        <Avatar config={config} size={size * 1.6} showBorder={false} />
+      </div>
     </div>
   );
 }

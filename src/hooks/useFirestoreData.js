@@ -17,12 +17,16 @@ import {
 } from 'firebase/firestore';
 
 // ============================================
-// 전역 캐시 관리
+// 전역 캐시 관리 - 🔥 최적화: 크기 제한 및 LRU 정책 추가
 // ============================================
+const MAX_CACHE_SIZE = 200; // 🔥 최대 캐시 항목 수
+
 class GlobalCache {
   constructor() {
     this.cache = new Map();
     this.subscribers = new Map();
+    this.hits = 0;
+    this.misses = 0;
   }
 
   generateKey(path, queryParams = null) {
@@ -34,28 +38,58 @@ class GlobalCache {
 
   get(key) {
     const entry = this.cache.get(key);
-    if (!entry) return null;
+    if (!entry) {
+      this.misses++;
+      return null;
+    }
 
     // TTL 체크
     if (Date.now() > entry.expiresAt) {
       this.cache.delete(key);
+      this.misses++;
       return null;
     }
 
+    // 🔥 LRU: 접근 시간 업데이트
+    entry.lastAccessed = Date.now();
+    this.hits++;
     return entry.data;
   }
 
   set(key, data, ttl = 5 * 60 * 1000) {
+    // 🔥 캐시 용량 관리 - LRU 정책
+    if (this.cache.size >= MAX_CACHE_SIZE) {
+      this._evictOldest();
+    }
+
     this.cache.set(key, {
       data,
       expiresAt: Date.now() + ttl,
       updatedAt: Date.now(),
+      lastAccessed: Date.now(),
     });
 
     // 구독자에게 알림
     const subs = this.subscribers.get(key);
     if (subs) {
       subs.forEach(callback => callback(data));
+    }
+  }
+
+  // 🔥 LRU: 가장 오래된 항목 제거
+  _evictOldest() {
+    let oldestKey = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.lastAccessed < oldestTime) {
+        oldestTime = entry.lastAccessed;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      this.cache.delete(oldestKey);
     }
   }
 
@@ -87,10 +121,23 @@ class GlobalCache {
   }
 
   getStats() {
+    const hitRate = this.hits + this.misses > 0
+      ? ((this.hits / (this.hits + this.misses)) * 100).toFixed(1)
+      : 0;
     return {
       size: this.cache.size,
+      maxSize: MAX_CACHE_SIZE,
+      hits: this.hits,
+      misses: this.misses,
+      hitRate: `${hitRate}%`,
       keys: Array.from(this.cache.keys()),
     };
+  }
+
+  // 🔥 통계 리셋
+  resetStats() {
+    this.hits = 0;
+    this.misses = 0;
   }
 }
 
@@ -310,35 +357,35 @@ export function useCollection(path, queryConstraints = [], options = {}) {
 }
 
 // ============================================
-// 학급 데이터 통합 훅
+// 학급 데이터 통합 훅 - 🔥 TTL 최적화
 // ============================================
 export function useClassData(classCode, options = {}) {
   const { enabled = true } = options;
 
-  // 학급 정보
+  // 🔥 학급 정보 - 거의 변경 안됨 (30분 TTL)
   const classInfo = useDocument(
     classCode ? `classes/${classCode}` : null,
-    { enabled: !!classCode && enabled, ttl: 10 * 60 * 1000 }
+    { enabled: !!classCode && enabled, ttl: 30 * 60 * 1000 }
   );
 
-  // 학급 구성원
+  // 🔥 학급 구성원 - 가끔 변경 (10분 TTL)
   const members = useCollection(
     'users',
     classCode ? [where('classCode', '==', classCode)] : [],
-    { enabled: !!classCode && enabled, ttl: 5 * 60 * 1000 }
-  );
-
-  // 직업 목록
-  const jobs = useCollection(
-    'jobs',
-    classCode ? [where('classCode', '==', classCode)] : [],
     { enabled: !!classCode && enabled, ttl: 10 * 60 * 1000 }
   );
 
-  // 국고 잔액
+  // 🔥 직업 목록 - 거의 변경 안됨 (30분 TTL)
+  const jobs = useCollection(
+    'jobs',
+    classCode ? [where('classCode', '==', classCode)] : [],
+    { enabled: !!classCode && enabled, ttl: 30 * 60 * 1000 }
+  );
+
+  // 🔥 국고 잔액 - 자주 변경됨 (3분 TTL)
   const treasury = useDocument(
     classCode ? `nationalTreasuries/${classCode}` : null,
-    { enabled: !!classCode && enabled, ttl: 5 * 60 * 1000 }
+    { enabled: !!classCode && enabled, ttl: 3 * 60 * 1000 }
   );
 
   const loading = classInfo.loading || members.loading || jobs.loading || treasury.loading;
