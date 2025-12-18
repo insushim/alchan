@@ -1,7 +1,7 @@
 /* RealEstateRegistry.js (모든 함수가 포함된 최종본 - 관리자 기능 강화) */
 import React, { useState, useEffect } from "react";
 import "./RealEstateRegistry.css";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 
 // firebase.js에서 익스포트하는 함수들
 import {

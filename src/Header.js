@@ -1,7 +1,7 @@
 // src/Header.js - 최적화된 메모이제이션 버전
 import React, { useState, useEffect, useRef, memo, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import { verifyClassCode } from "./firebase";
 import "./Header.css";
 import { MiniAvatar } from "./components/Avatar";

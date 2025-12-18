@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import {
   X, ChevronRight, ChevronDown,
   LayoutDashboard, Wallet, Target, Gamepad2, Package, TrendingUp,

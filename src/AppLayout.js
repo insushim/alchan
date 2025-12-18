@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import MainContent from "./MainContent";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 
 export default function AppLayout({ children }) {
   const [isSidebarOpen, setSidebarOpen] = useState(true);

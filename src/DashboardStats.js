@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from './firebase';
 import { doc, getDoc } from './firebase';
-import { useAuth } from './AuthContext';
+import { useAuth } from './contexts/AuthContext';
 
 const DashboardStats = () => {
   const { userDoc } = useAuth();

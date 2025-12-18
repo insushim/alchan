@@ -1,6 +1,6 @@
 // src/MyAssets.js - Firestore 직접 조회 방식으로 수정된 최종 버전
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import {
   db,
   doc,
@@ -21,7 +21,7 @@ import { limit, runTransaction } from "firebase/firestore";
 import { formatKoreanCurrency } from './numberFormatter';
 import { logActivity, ACTIVITY_TYPES } from './utils/firestoreHelpers';
 import LoginWarning from "./LoginWarning";
-import TransferModal from "./TransferModal";
+import TransferModal from "./components/modals/TransferModal";
 import { AlchanLoading } from "./components/AlchanLayout";
 import { DailyRewardBanner } from "./components/DailyReward";
 

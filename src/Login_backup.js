@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import "./Login.css";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import {
   registerWithEmailAndPassword,
   updateUserProfile,

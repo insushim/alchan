@@ -1,6 +1,6 @@
 // src/RecoverDonations.js - 기부 내역 복구 유틸리티
 import React, { useState } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import {
   db,
   collection,

@@ -1,7 +1,7 @@
 // src/MyItems.js
 import React, { useState, useEffect, useMemo } from "react";
-import { useAuth } from "./AuthContext";
-import { useItems } from "./ItemContext";
+import { useAuth } from "./contexts/AuthContext";
+import { useItems } from "./contexts/ItemContext";
 import "./styles.css";
 import "./MyItems.css";
 import LoginWarning from "./LoginWarning";

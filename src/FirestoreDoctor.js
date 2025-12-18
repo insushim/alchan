@@ -1,7 +1,7 @@
 
 // src/FirestoreDoctor.js
 import React, { useState, useEffect } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from './contexts/AuthContext';
 import { db } from './firebase';
 import { doc, getDoc, setDoc, runTransaction, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import './FirestoreDoctor.css';

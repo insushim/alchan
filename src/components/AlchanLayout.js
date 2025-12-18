@@ -1,9 +1,10 @@
 // src/components/AlchanLayout.js
 // 알찬 UI 메인 레이아웃 컴포넌트 - Tailwind CSS 버전
+// 🔥 성능 최적화: 게임/관리자 페이지 lazy loading 적용
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import AlchanSidebar, { AppIcon } from './AlchanSidebar';
 import AlchanHeader from './AlchanHeader';
 import MobileNav from './MobileNav';
@@ -13,40 +14,46 @@ import { useServiceWorker } from '../hooks/useServiceWorker';
 import { AlchanLoadingScreen } from './ui/Skeleton';
 import { WifiOff } from 'lucide-react';
 
-// 페이지 컴포넌트 imports
+// 🔥 핵심 페이지 - 즉시 로드 (자주 사용)
 import Dashboard from '../Dashboard';
-import ItemStore from '../ItemStore';
+import ItemStore from '../pages/market/ItemStore';
 import MyItems from '../MyItems';
 import MyAssets from '../MyAssets';
-import ItemMarket from '../ItemMarket';
+import ItemMarket from '../pages/market/ItemMarket';
 import Login from '../Login';
-import AdminItemPage from '../AdminItemPage';
-import AdminPage from '../AdminPage';
-import LearningBoard from '../LearningBoard';
-import MusicRequest from '../MusicRequest';
-import MusicRoom from '../MusicRoom';
-import StudentRequest from '../StudentRequest';
-import AdminPanel from '../AdminPanel';
-import Banking from '../Banking';
-import StockExchange from '../StockExchange';
-import RealEstateRegistry from '../RealEstateRegistry';
-import NationalAssembly from '../NationalAssembly';
-import Government from '../Government';
-import Court from '../Court';
-import PoliceStation from '../PoliceStation';
-import Auction from '../Auction';
-import MoneyTransfer from '../MoneyTransfer';
-import AdminDatabase from '../AdminDatabase';
-import CouponTransfer from '../CouponTransfer';
-import CouponGoalPage from '../CouponGoalPage';
-import FirestoreDoctor from '../FirestoreDoctor';
-import RecoverDonations from '../RecoverDonations';
-import GonuGame from '../GonuGame';
-import OmokGame from '../OmokGame';
-import ChessGame from '../ChessGame';
-import TypingPracticeGame from '../TypingPracticeGame';
-import StudentManager from './StudentManager';
+import Banking from '../pages/banking/Banking';
 import MyProfile from '../MyProfile';
+
+// 🔥 게임 페이지 - 동적 로딩 (번들 크기 절감)
+const GonuGame = lazy(() => import('../pages/games/GonuGame'));
+const OmokGame = lazy(() => import('../pages/games/OmokGame'));
+const ChessGame = lazy(() => import('../pages/games/ChessGame'));
+const TypingPracticeGame = lazy(() => import('../pages/games/TypingPracticeGame'));
+
+// 🔥 관리자/선생님 페이지 - 동적 로딩
+const AdminItemPage = lazy(() => import('../pages/admin/AdminItemPage'));
+const AdminPage = lazy(() => import('../pages/admin/AdminPage'));
+const AdminPanel = lazy(() => import('../pages/admin/AdminPanel'));
+const AdminDatabase = lazy(() => import('../pages/admin/AdminDatabase'));
+const FirestoreDoctor = lazy(() => import('../FirestoreDoctor'));
+const RecoverDonations = lazy(() => import('../RecoverDonations'));
+const StudentManager = lazy(() => import('./StudentManager'));
+
+// 🔥 덜 자주 사용하는 페이지 - 동적 로딩
+const LearningBoard = lazy(() => import('../LearningBoard'));
+const MusicRequest = lazy(() => import('../MusicRequest'));
+const MusicRoom = lazy(() => import('../MusicRoom'));
+const StudentRequest = lazy(() => import('../StudentRequest'));
+const StockExchange = lazy(() => import('../pages/banking/StockExchange'));
+const RealEstateRegistry = lazy(() => import('../RealEstateRegistry'));
+const NationalAssembly = lazy(() => import('../pages/government/NationalAssembly'));
+const Government = lazy(() => import('../pages/government/Government'));
+const Court = lazy(() => import('../pages/government/Court'));
+const PoliceStation = lazy(() => import('../pages/government/PoliceStation'));
+const Auction = lazy(() => import('../pages/market/Auction'));
+const MoneyTransfer = lazy(() => import('../pages/banking/MoneyTransfer'));
+const CouponTransfer = lazy(() => import('../pages/banking/CouponTransfer'));
+const CouponGoalPage = lazy(() => import('../CouponGoalPage'));
 
 // 전체 화면이 필요한 페이지 경로 (자동으로 사이드바 접기)
 const FULLSCREEN_PAGES = [
@@ -245,8 +252,9 @@ export default function AlchanLayout() {
           onToggleSidebarCollapse={toggleSidebarCollapse}
         />
 
-        {/* 콘텐츠 영역 */}
+        {/* 콘텐츠 영역 - 🔥 Suspense로 lazy loading 지원 */}
         <div className="w-full pb-20 md:pb-4">
+          <Suspense fallback={<AlchanLoading message="페이지 로딩 중..." />}>
           <Routes>
             {/* 메인 페이지 */}
             <Route path="/dashboard/tasks" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
@@ -306,6 +314,7 @@ export default function AlchanLayout() {
             <Route path="/" element={<Navigate to="/dashboard/tasks" replace />} />
             <Route path="*" element={<Navigate to="/dashboard/tasks" replace />} />
           </Routes>
+          </Suspense>
         </div>
 
         {/* 푸터 - PC만 */}

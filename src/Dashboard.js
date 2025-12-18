@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import "./Dashboard.css";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import { db, functions } from "./firebase";
 import {
   doc,
@@ -26,12 +26,12 @@ import { httpsCallable } from "firebase/functions";
 import { formatKoreanCurrency, formatCouponCount } from './numberFormatter';
 import JobList from "./JobList";
 import CommonTaskList from "./CommonTaskList";
-import TransferModal from "./TransferModal";
-import DonateCouponModal from "./DonateCouponModal";
-import DonationHistoryModal from "./DonationHistoryModal";
-import SellCouponModal from "./SellCouponModal";
-import AdminSettingsModal from "./AdminSettingsModal";
-import GiftCouponModal from "./GiftCouponModal";
+import TransferModal from "./components/modals/TransferModal";
+import DonateCouponModal from "./components/modals/DonateCouponModal";
+import DonationHistoryModal from "./components/modals/DonationHistoryModal";
+import SellCouponModal from "./components/modals/SellCouponModal";
+import AdminSettingsModal from "./components/modals/AdminSettingsModal";
+import GiftCouponModal from "./components/modals/GiftCouponModal";
 import {
   PageContainer,
   PageHeader,

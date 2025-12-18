@@ -1,7 +1,7 @@
 // src/LearningBoard.js
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import "./LearningBoard.css";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import {
   db, // db는 firebase.js에서 가져옵니다.
 } from "./firebase";

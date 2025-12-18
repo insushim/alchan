@@ -2,7 +2,7 @@
 // 신규 사용자 온보딩 튜토리얼
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {

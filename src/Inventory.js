@@ -1,7 +1,7 @@
 // src/Inventory.js
 import React, { useState, useEffect } from "react";
 import { useAuth } from "./App";
-import { useItems } from "./ItemContext";
+import { useItems } from "./contexts/ItemContext";
 import ItemCard from "./ItemCard";
 import LoginWarning from "./LoginWarning";
 import "./styles.css";

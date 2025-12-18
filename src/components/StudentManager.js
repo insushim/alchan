@@ -2,7 +2,7 @@
 // 학생 일괄 생성 및 관리 컴포넌트
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { db, auth as firebaseAuth } from '../firebase';
 import {
   collection,

@@ -2,7 +2,7 @@
 // Firebase 사용량 최적화를 위한 커스텀 훅
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "../AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import {
   optimizedFirebaseService,
   queryKeys,

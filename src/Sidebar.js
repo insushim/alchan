@@ -1,7 +1,7 @@
 // src/Sidebar.js 수정본 (역할 표시 오류 해결)
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import "./Sidebar.css";
 
 export default function Sidebar({

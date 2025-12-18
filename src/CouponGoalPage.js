@@ -1,6 +1,6 @@
 // src/CouponGoalPage.js - 쿠폰 목표 전용 페이지
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import {
   db,
   doc,
@@ -17,10 +17,10 @@ import {
 } from "./firebase";
 import CouponGoal from "./CouponGoal";
 import LoginWarning from "./LoginWarning";
-import DonateCouponModal from "./DonateCouponModal";
-import SellCouponModal from "./SellCouponModal";
-import GiftCouponModal from "./GiftCouponModal";
-import DonationHistoryModal from "./DonationHistoryModal";
+import DonateCouponModal from "./components/modals/DonateCouponModal";
+import SellCouponModal from "./components/modals/SellCouponModal";
+import GiftCouponModal from "./components/modals/GiftCouponModal";
+import DonationHistoryModal from "./components/modals/DonationHistoryModal";
 import { AlchanLoading } from "./components/AlchanLayout";
 
 export default function CouponGoalPage() {

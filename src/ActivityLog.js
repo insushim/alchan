@@ -1,6 +1,6 @@
 // src/ActivityLog.js - 최적화된 전역 캐시 버전
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import { useOptimizedActivityLogs, useDebouncedRefresh, usePolling, useStatistics } from "./hooks/useOptimizedData";
 import "./ActivityLog.css";
 // Fixed duplicate statistics declaration

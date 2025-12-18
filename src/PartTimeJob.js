@@ -1,6 +1,6 @@
 // src/PartTimeJob.js
 import React, { useState } from "react";
-import { useAuth } from "./AuthContext";
+import { useAuth } from "./contexts/AuthContext";
 import "./PartTimeJob.css"; // 방금 만든 CSS 파일을 임포트합니다.
 import "./TypingPracticeGame.css";
 

@@ -2,7 +2,7 @@
 // 학습 통계 대시보드
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import {

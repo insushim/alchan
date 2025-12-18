@@ -3,7 +3,7 @@
 
 import React, { useState, useRef, useEffect, memo, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../AuthContext';
+import { useAuth } from '../contexts/AuthContext';
 import { verifyClassCode } from '../firebase';
 import {
   Menu, Bell, X, LogOut, User, Key, Building2, Trash2,

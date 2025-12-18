@@ -3,8 +3,8 @@
 
 import React, { useEffect, Suspense, lazy, Component } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AuthProvider } from "./AuthContext";
-import { ItemProvider } from "./ItemContext";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ItemProvider } from "./contexts/ItemContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SkeletonPage } from "./components/ui/Skeleton";
 

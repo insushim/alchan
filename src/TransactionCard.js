@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { formatKoreanCurrency } from './numberFormatter';
-import { useAuth } from "./AuthContext"; // 올바른 경로
+import { useAuth } from "./contexts/AuthContext"; // 올바른 경로
 
 const TransactionCard = ({ title, amount, color, showFullCard = false }) => {
   // TransactionCard가 두 가지 모드로 작동하도록 설정
