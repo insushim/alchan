@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 
 const EMAIL = 'simssijjang@korea.kr';
 const PASSWORD = 'tkfkdcnrqhr0414!';
-const CRON_URL = 'https://economiceventscheduler-j7kazbsvxq-du.a.run.app';
+const CRON_URL = 'https://economiceventscheduler-j7kazbsvxq-du.a.run.app?token=my-super-secret-token-2024-isw';
 const CRON_TITLE = '알찬 경제이벤트 스케줄러';
 
 (async () => {
